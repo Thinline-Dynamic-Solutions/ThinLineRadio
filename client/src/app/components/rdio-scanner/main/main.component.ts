@@ -57,7 +57,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     avoided = false;
 
     branding = '';
-    private titleService: Title;
+    
 
     version = packageInfo.version;
     showVersion = false;
@@ -270,6 +270,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         private tagColorService: TagColorService,
         private alertsService: AlertsService,
         private settingsService: SettingsService,
+        private titleService: Title,
     ) {
         this.authForm = this.ngFormBuilder.group<{
             password: string | null;

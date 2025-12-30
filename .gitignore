@@ -35,3 +35,5 @@ Thumbs.db
 relay-server/
 ThinlineRadio-Mobile/
 
+#Package Lock for Node.js
+client/package-lock.json

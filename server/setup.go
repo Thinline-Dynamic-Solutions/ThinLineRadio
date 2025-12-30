@@ -256,7 +256,7 @@ func runInteractiveSetup(configFile string) error {
 		// Create database
 		fmt.Print("\n🔄 Creating database... ")
 		var err error
-		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbName))
+		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s OWNER %s", dbName, dbUser))
 		if err != nil {
 			// Check if database already exists
 			if strings.Contains(err.Error(), "already exists") {
