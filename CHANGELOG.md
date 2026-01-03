@@ -3,6 +3,23 @@
 ## Version 7.0 Beta 4 - Unreleased
 
 ### Bug Fixes & Improvements
+
+- **Fixed Docker image not reading environment variables for database configuration**
+  - Added `docker-entrypoint.sh` script to properly convert environment variables to command-line flags
+  - Docker image now correctly accepts DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS environment variables
+  - Required environment variables are validated on startup with helpful error messages
+  - Supports optional configuration: LISTEN, SSL_LISTEN, SSL_CERT_FILE, SSL_KEY_FILE, SSL_AUTO_CERT, BASE_DIR
+  - Fixes "connection refused" and "database: failed to connect to host=localhost" errors when using Docker
+  - Files added: docker-entrypoint.sh
+  - Files modified: Dockerfile
+
+- **Fixed Apache reverse proxy causing mixed content errors with HTTPS**
+  - Updated example Apache configuration to properly pass X-Forwarded-Proto header
+  - Server now correctly detects HTTPS when behind SSL-terminating proxy
+  - Fixes blank page at root URL while /index.html worked
+  - Fixes base href being set to http:// instead of https:// causing CSS/JS to fail loading
+  - Files modified: docs/examples/apache/.htaccess
+
 - **Fixed Whisper transcription connection failures**
   - Implemented automatic retry logic with exponential backoff (up to 3 retries)
   - Enhanced HTTP connection pooling with proper timeout and keep-alive settings
