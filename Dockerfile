@@ -57,7 +57,7 @@ ENV CGO_ENABLED=0 \
 RUN go build -ldflags="-s -w -extldflags '-static'" -o thinline-radio .
 
 # Verify binary was created
-RUN ls -lh thinline-radio && file thinline-radio
+RUN ls -lh thinline-radio
 
 # =============================================================================
 # Stage 3: Production Runtime Image
