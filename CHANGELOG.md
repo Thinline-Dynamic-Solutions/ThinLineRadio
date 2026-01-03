@@ -1,8 +1,18 @@
 # Change log
 
-## Version 7.0 Beta 4 - Unreleased
+## Version 7.0 Beta 4 - Released January 3, 2026
 
 ### Bug Fixes & Improvements
+
+- **Fixed email case sensitivity causing duplicate accounts and login issues**
+  - Emails are now normalized to lowercase during registration and login
+  - Users can log in with any capitalization (user@email.com, USER@email.com, User@Email.com all work)
+  - Prevents duplicate accounts with same email but different capitalization
+  - Added startup check that creates `duplicate_emails.log` if existing duplicates are found
+  - Log file provides detailed information about duplicate accounts for manual resolution
+  - Backwards compatible: existing accounts continue to work, duplicates logged for manual cleanup
+  - Files modified: server/validation.go, server/user.go, server/api.go, server/admin.go, server/controller.go
+  - Files added: server/duplicate_email_check.go
 
 - **Fixed Docker image not reading environment variables for database configuration**
   - Added `docker-entrypoint.sh` script to properly convert environment variables to command-line flags
