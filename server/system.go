@@ -377,15 +377,6 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 	for _, rawSystem := range rawSystems {
 		talkgroupsMap := TalkgroupsMap{}
 
-		if sortTalkgroups {
-			sort.Slice(rawSystem.Talkgroups.List, func(i int, j int) bool {
-				return rawSystem.Talkgroups.List[i].Label < rawSystem.Talkgroups.List[j].Label
-			})
-			for i := range rawSystem.Talkgroups.List {
-				rawSystem.Talkgroups.List[i].Order = uint(i + 1)
-			}
-		}
-
 		for _, rawTalkgroup := range rawSystem.Talkgroups.List {
 			var (
 				groupLabel  string
@@ -431,9 +422,19 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 				}
 			}
 
-			talkgroupsMap = append(talkgroupsMap, talkgroupMap)
-		}
+		talkgroupsMap = append(talkgroupsMap, talkgroupMap)
+	}
 
+	// Sort talkgroups: either by custom order (from database) or alphabetically by label
+	if sortTalkgroups {
+		// Sort alphabetically by label
+		sort.Slice(talkgroupsMap, func(i int, j int) bool {
+			labelA := fmt.Sprintf("%v", talkgroupsMap[i]["label"])
+			labelB := fmt.Sprintf("%v", talkgroupsMap[j]["label"])
+			return labelA < labelB
+		})
+	} else {
+		// Sort by custom order field
 		sort.Slice(talkgroupsMap, func(i int, j int) bool {
 			if a, err := strconv.Atoi(fmt.Sprintf("%v", talkgroupsMap[i]["order"])); err == nil {
 				if b, err := strconv.Atoi(fmt.Sprintf("%v", talkgroupsMap[j]["order"])); err == nil {
@@ -442,6 +443,7 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 			}
 			return false
 		})
+	}
 
 	systemMap := SystemMap{
 		"id":         rawSystem.SystemRef,

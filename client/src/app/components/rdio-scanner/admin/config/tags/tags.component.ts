@@ -128,4 +128,19 @@ export class RdioScannerAdminTagsComponent {
             this.form.markAsDirty();
         }
     }
+
+    getColorName(hex: string): string {
+        const colorMap: { [key: string]: string } = {
+            '#ff1744': 'Red',
+            '#ff9100': 'Orange',
+            '#ffea00': 'Yellow',
+            '#00e676': 'Green',
+            '#00e5ff': 'Cyan',
+            '#2979ff': 'Blue',
+            '#d500f9': 'Magenta',
+            '#9e9e9e': 'Gray',
+            '#ffffff': 'White'
+        };
+        return colorMap[hex.toLowerCase()] || hex;
+    }
 }

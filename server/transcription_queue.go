@@ -205,8 +205,9 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 		
 		// Transcribe audio (filtered if tones were present, original otherwise)
 		result, err := queue.provider.Transcribe(audioToTranscribe, TranscriptionOptions{
-			Language:  queue.controller.Options.TranscriptionConfig.Language,
-			AudioMime: job.AudioMime,
+			Language:      queue.controller.Options.TranscriptionConfig.Language,
+			InitialPrompt: queue.controller.Options.TranscriptionConfig.Prompt,
+			AudioMime:     job.AudioMime,
 		})
 		
 		if err != nil {

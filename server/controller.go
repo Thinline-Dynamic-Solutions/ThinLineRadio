@@ -308,6 +308,49 @@ func (controller *Controller) IngestCall(call *Call) {
 		if talkgroupId > 0 {
 			talkgroup, _ = system.Talkgroups.GetTalkgroupByRef(talkgroupId)
 		}
+		
+		// P25 Patch Handling (Early Check): If the main talkgroup doesn't exist but we have patches,
+		// check if any patched talkgroup exists. This helps with auto-populate and blacklist checks.
+		if talkgroup == nil && len(call.Patches) > 0 {
+			for _, patchedTgId := range call.Patches {
+				if patchedTgId == 0 {
+					continue
+				}
+				
+				// Check blacklist for patched talkgroups too
+				if system.Blacklists.IsBlacklisted(patchedTgId) {
+					logCall(call, LogLevelInfo, "blacklisted (patched talkgroup)")
+					return
+				}
+				
+				if patchedTalkgroup, ok := system.Talkgroups.GetTalkgroupByRef(patchedTgId); ok {
+					// Found a valid patched talkgroup - use it
+					originalTalkgroupId := talkgroupId
+					talkgroup = patchedTalkgroup
+					talkgroupId = patchedTgId
+					
+					// Add original patch TGID to patches if not already there
+					if originalTalkgroupId > 0 && originalTalkgroupId != patchedTgId {
+						alreadyInPatches := false
+						for _, existingPatch := range call.Patches {
+							if existingPatch == originalTalkgroupId {
+								alreadyInPatches = true
+								break
+							}
+						}
+						if !alreadyInPatches {
+							call.Patches = append(call.Patches, originalTalkgroupId)
+						}
+					}
+					
+					// Update call references
+					call.TalkgroupId = talkgroupId
+					call.Meta.TalkgroupRef = talkgroupId
+					
+					break // Use first valid patched talkgroup
+				}
+			}
+		}
 	}
 
 	if controller.Options.AutoPopulate && system == nil && systemId > 0 {
@@ -480,6 +523,38 @@ func (controller *Controller) IngestCall(call *Call) {
 		if system != nil && talkgroupId > 0 {
 			talkgroup, _ = system.Talkgroups.GetTalkgroupByRef(talkgroupId)
 		}
+		
+		// P25 Patch Handling (After Re-lookup): Check patches again after auto-populate
+		if system != nil && talkgroup == nil && len(call.Patches) > 0 {
+			originalTalkgroupId := talkgroupId
+			for _, patchedTgId := range call.Patches {
+				if patchedTgId == 0 {
+					continue
+				}
+				if patchedTalkgroup, ok := system.Talkgroups.GetTalkgroupByRef(patchedTgId); ok {
+					talkgroup = patchedTalkgroup
+					talkgroupId = patchedTgId
+					
+					if originalTalkgroupId > 0 && originalTalkgroupId != patchedTgId {
+						alreadyInPatches := false
+						for _, existingPatch := range call.Patches {
+							if existingPatch == originalTalkgroupId {
+								alreadyInPatches = true
+								break
+							}
+						}
+						if !alreadyInPatches {
+							call.Patches = append(call.Patches, originalTalkgroupId)
+						}
+					}
+					
+					call.TalkgroupId = talkgroupId
+					call.Meta.TalkgroupRef = talkgroupId
+					
+					break
+				}
+			}
+		}
 
 		// Emit config asynchronously to avoid blocking worker
 		go controller.EmitConfig()
@@ -488,6 +563,53 @@ func (controller *Controller) IngestCall(call *Call) {
 	// Set call.System and call.Talkgroup for compatibility
 	call.System = system
 	call.Talkgroup = talkgroup
+
+	// P25 Patch Handling: If the main talkgroup doesn't exist but we have patches,
+	// check if any patched talkgroup exists and use it as the primary talkgroup.
+	// This handles Harris P25 Phase II simulcast patches (64501-64599) where the
+	// patch TGID is temporary but the patched talkgroups are the actual configured TGs.
+	if system != nil && talkgroup == nil && len(call.Patches) > 0 {
+		originalTalkgroupId := talkgroupId
+		
+		// Try each patched talkgroup to find one that exists in the system
+		for _, patchedTgId := range call.Patches {
+			if patchedTgId == 0 {
+				continue // Skip zero/invalid TGIDs
+			}
+			
+			if patchedTalkgroup, ok := system.Talkgroups.GetTalkgroupByRef(patchedTgId); ok {
+				// Found a valid patched talkgroup - use it as the primary
+				talkgroup = patchedTalkgroup
+				talkgroupId = patchedTgId
+				
+				// Add the original patch TGID to the patches array if it's not already there
+				// This preserves it for display and search purposes
+				if originalTalkgroupId > 0 && originalTalkgroupId != patchedTgId {
+					// Check if it's not already in the patches array
+					alreadyInPatches := false
+					for _, existingPatch := range call.Patches {
+						if existingPatch == originalTalkgroupId {
+							alreadyInPatches = true
+							break
+						}
+					}
+					if !alreadyInPatches {
+						call.Patches = append(call.Patches, originalTalkgroupId)
+					}
+				}
+				
+				// Update the call's talkgroup references
+				call.Talkgroup = talkgroup
+				call.TalkgroupId = talkgroupId
+				call.Meta.TalkgroupRef = talkgroupId
+				
+				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("newcall: system=%v patch=%v resolved to talkgroup=%v file=%v", 
+					system.SystemRef, originalTalkgroupId, talkgroupId, call.AudioFilename))
+				
+				break // Use the first valid patched talkgroup found
+			}
+		}
+	}
 
 	if system == nil || talkgroup == nil {
 		logCall(call, LogLevelWarn, "no matching system/talkgroup")

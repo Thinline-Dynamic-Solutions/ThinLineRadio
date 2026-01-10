@@ -77,7 +77,7 @@
         <mat-slide-toggle #downloadMode color="primary" labelPosition="before">
             <mat-icon>save_alt</mat-icon>
         </mat-slide-toggle>
-        <mat-paginator [disabled]="livefeedPlayback || resultsPending" [length]="playbackList?.count"
+        <mat-paginator [disabled]="livefeedPlayback || resultsPending" [length]="paginatorCount"
             [hidePageSize]="true" [pageSize]="results.value.length" [showFirstLastButtons]="true"
             (page)="refreshResults()">
         </mat-paginator>
@@ -86,20 +86,10 @@
 <mat-card class="rdio-filters">
     <form autocomplete="off" [formGroup]="form">
         <div class="filter-row">
-            <button type="button" class="compact-button" [matMenuTriggerFor]="sortMenu">
+            <button type="button" class="compact-button" (click)="toggleSort()">
                 <mat-icon>{{ form.value.sort === -1 ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
                 <span>{{ form.value.sort === -1 ? 'Newest First' : 'Oldest First' }}</span>
             </button>
-            <mat-menu #sortMenu="matMenu">
-                <button mat-menu-item (click)="setSort(-1)">
-                    <mat-icon>arrow_downward</mat-icon>
-                    <span>Newest First</span>
-                </button>
-                <button mat-menu-item (click)="setSort(1)">
-                    <mat-icon>arrow_upward</mat-icon>
-                    <span>Oldest First</span>
-                </button>
-            </mat-menu>
             
             <div class="date-button-wrapper">
                 <button type="button" class="compact-button" (click)="openDatePicker()">

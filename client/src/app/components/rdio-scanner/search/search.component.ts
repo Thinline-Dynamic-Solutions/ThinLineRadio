@@ -80,6 +80,7 @@ export class RdioScannerSearchComponent implements OnDestroy {
     livefeedPlayback = false;
 
     playbackList: RdioScannerPlaybackList | undefined;
+    paginatorCount = 0; // Preserve count even when playbackList is cleared during playback
 
     optionsGroup: string[] = [];
     optionsSystem: string[] = [];
@@ -171,6 +172,7 @@ export class RdioScannerSearchComponent implements OnDestroy {
         // Clear display immediately when filters change
         this.results.next(new Array<RdioScannerCall | null>(10).fill(null));
         this.playbackList = undefined;
+        this.paginatorCount = 0;
 
         this.refreshFilters();
 
@@ -468,10 +470,13 @@ export class RdioScannerSearchComponent implements OnDestroy {
     onDateSelected(event: any): void {
         const date = event?.value;
         if (date && date instanceof Date) {
-            this.selectedDate = date;
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
+            // Create date at midnight LOCAL time (matching Flutter app behavior)
+            // This ensures timezone-correct date filtering
+            const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+            this.selectedDate = localDate;
+            const year = localDate.getFullYear();
+            const month = String(localDate.getMonth() + 1).padStart(2, '0');
+            const day = String(localDate.getDate()).padStart(2, '0');
             const dateString = `${year}-${month}-${day}`;
             this.form.get('date')?.setValue(dateString, { emitEvent: false });
             this.formChangeHandler();
@@ -489,6 +494,12 @@ export class RdioScannerSearchComponent implements OnDestroy {
     setSort(value: number): void {
         this.form.get('sort')?.setValue(value, { emitEvent: false });
         this.formChangeHandler();
+    }
+
+    toggleSort(): void {
+        const currentSort = this.form.value.sort;
+        const newSort = currentSort === -1 ? 1 : -1;
+        this.setSort(newSort);
     }
 
     setSystem(value: number): void {
@@ -554,16 +565,18 @@ export class RdioScannerSearchComponent implements OnDestroy {
 
         if (this.selectedDate) {
             // Convert Date object to ISO string for backend (RFC3339 format)
-            // Backend expects RFC3339 string format: "2025-10-01T22:10:00Z"
+            // Date is already in local timezone (midnight local time), .toISOString() converts to UTC
+            // This matches Flutter app behavior: local time → UTC conversion
+            // Example: Jan 9 midnight EST becomes "2025-01-09T05:00:00.000Z"
             const isoString = this.selectedDate.toISOString();
             options.date = isoString as any;
         } else if (typeof this.form.value.date === 'string') {
             // Fallback: Convert datetime-local string to ISO string for backend (RFC3339 format)
             const dateObj = new Date(this.form.value.date);
             if (!isNaN(dateObj.getTime())) {
-                // Convert to ISO string (RFC3339 compatible) for backend
-                // Backend's fromMap() expects string and parses with time.RFC3339
-                options.date = dateObj.toISOString() as any;
+                // Ensure we create at midnight local time before converting to UTC
+                const localDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 0, 0, 0, 0);
+                options.date = localDate.toISOString() as any;
             }
         }
 
@@ -735,6 +748,12 @@ export class RdioScannerSearchComponent implements OnDestroy {
             this.loadFavorites();
 
             this.time12h = this.config?.time12hFormat || false;
+            
+            // Auto-select system if only one exists (UX improvement for single-system setups)
+            if (this.optionsSystem.length === 1 && this.form.value.system === -1) {
+                this.form.patchValue({ system: 0 }, { emitEvent: false });
+                this.refreshFilters(); // Populate talkgroups for the selected system
+            }
         }
 
         if ('livefeedMode' in event) {
@@ -777,16 +796,19 @@ export class RdioScannerSearchComponent implements OnDestroy {
                     }
                 }
                 
-                // Update playbackList.count for paginator based on accumulated results
+                // Update count for paginator based on accumulated results
+                // Store separately from playbackList so it persists during playback
                 const pageSize = this.paginator?.pageSize ?? 10;
                 // Calculate total length: accumulated results + one extra page if more available
                 // This ensures paginator shows next page button when there are more results
                 if (this.hasMoreResults) {
                     // If we have more, set count to current results + one full page
-                    this.playbackList.count = this.accumulatedResults.length + pageSize;
+                    this.paginatorCount = this.accumulatedResults.length + pageSize;
+                    this.playbackList.count = this.paginatorCount;
                 } else {
                     // No more results, use actual count
-                    this.playbackList.count = this.accumulatedResults.length;
+                    this.paginatorCount = this.accumulatedResults.length;
+                    this.playbackList.count = this.paginatorCount;
                 }
                 
                 // Log for debugging

@@ -252,6 +252,13 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 		return nil, fmt.Errorf("failed to write timestamp_granularities field: %v", err)
 	}
 
+	// Add prompt if specified (for custom terminology, formatting, etc.)
+	if options.InitialPrompt != "" {
+		if err := writer.WriteField("prompt", options.InitialPrompt); err != nil {
+			return nil, fmt.Errorf("failed to write prompt field: %v", err)
+		}
+	}
+
 	if err := writer.Close(); err != nil {
 		return nil, fmt.Errorf("failed to close multipart writer: %v", err)
 	}

@@ -248,7 +248,7 @@
                         <th><span>TOC</span></th>
                         <th><span>System</span></th>
                         <th><span>Talkgroup</span></th>
-                        <th><span>Name</span></th>
+                        <th><span>TGID</span></th>
                         <th><span>Frequency</span></th>
                     </tr>
                 </thead>
@@ -265,7 +265,7 @@
                             <span>{{ previousCall?.talkgroupData?.label || previousCall?.talkgroup }}</span>
                         </td>
                         <td>
-                            <span>{{ previousCall?.talkgroupData?.name || previousCall?.frequency }}</span>
+                            <span>{{ previousCall?.talkgroup || '0' }}</span>
                         </td>
                         <td>
                             <span>{{ formatFrequencyMHz(previousCall?.frequency) }}</span>

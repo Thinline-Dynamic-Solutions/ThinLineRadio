@@ -2,6 +2,8 @@
 dist-*/
 *.zip
 *.tar.gz
+releases/
+icad_tone_detection-main/
 
 # Debug files and data
 server/debug-audio/
@@ -46,6 +48,7 @@ docker/config/*.ini
 # Separate repositories (Git managed independently)
 relay-server/
 ThinlineRadio-Mobile/
+whisper/
 
 #Package Lock for Node.js
 client/package-lock.json

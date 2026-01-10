@@ -1,5 +1,151 @@
 # Change log
 
+## Version 7.0 Beta 5 - Released January 10, 2026
+
+### New Features
+
+- **Custom prompt support for Whisper transcription**
+  - Added prompt field in Admin UI transcription settings (visible for Whisper API provider)
+  - Administrators can now provide custom prompts to guide transcription with domain-specific terminology
+  - Supports radio codes, phonetic alphabet, unit designations, medical terminology, and formatting preferences
+  - Full backend support passing prompts through transcription queue to Whisper service
+  - Switched Whisper implementation to OpenAI's official whisper library for native prompt support
+  - Added hallucination prevention settings (condition_on_previous_text=False, compression_ratio_threshold, etc.)
+  - Tested radio dispatch prompt achieving ~95% accuracy included in Whisper repository documentation
+  - Compatible with both local Whisper installations and OpenAI API endpoints
+  - Files modified: server/options.go, server/defaults.go, server/transcription_queue.go, server/transcription_whisper_api.go, client admin UI components, whisper service
+
+### Changes
+
+- **Major tone detection improvements for analog conventional channels**
+  - Implemented dynamic noise floor estimation using 20th percentile method for adaptive thresholding
+  - Added parabolic peak interpolation for sub-bin frequency accuracy (improved from ±3.9 Hz to ±0.5 Hz)
+  - Implemented force-split detection with lookahead confirmation to prevent false merges of distinct tones
+  - Added bandpass filtering (200-3000 Hz) and dynamic audio normalization in ffmpeg preprocessing
+  - Increased frequency merging tolerance from ±15 Hz to ±20 Hz to handle analog channel drift and Doppler effects
+  - Dual gating system: frames must pass both global threshold (-28 dB) and SNR above noise floor (+6 dB)
+  - Lowered base magnitude threshold from 0.05 to 0.02 (safe due to improved noise gating)
+  - Frequency history tracking for better handling of slowly-drifting tones on analog channels
+  - Significantly improves detection reliability on analog conventional channels with varying noise levels
+  - **Note**: Tone detection feature is still in BETA - these improvements are based on user reports but have not been fully tested on analog channels by the development team (our systems are all digital)
+  - Techniques and algorithms inspired by icad_tone_detection project by thegreatcodeholio (Apache 2.0 License)
+  - GitHub: https://github.com/thegreatcodeholio/icad_tone_detection
+  - Special thanks to thegreatcodeholio for developing icad_tone_detection and providing guidance
+  - Files modified: server/tone_detector.go
+  - Addresses community reports of poor tone detection performance on analog conventional channels
+  - Community testing and feedback welcome to further refine analog channel detection
+
+- **Whisper service improvements**
+  - Renamed `whisper.py` to `whisper_server.py` to avoid Python import conflicts
+  - Updated dependencies from `transformers` to `openai-whisper` for better prompt support and stability
+  - Added proper hallucination detection and prevention mechanisms
+  - Improved transcription quality for short audio clips and radio traffic
+
+### Bug Fixes
+
+- **Fixed template compilation error in main component**
+  - Removed reference to non-existent `talkgroupId` property in previousCall display template
+  - Fixed TypeScript compilation error that prevented client build
+  - Files modified: client/src/app/components/rdio-scanner/main/main.component.html
+
+- **Fixed talker alias ingestion not working**
+  - Both ParseMultipartContent and ParseTrunkRecorderMeta now properly ingest talker aliases from uploaded calls
+  - Added parsing of "tag" field from "sources" and "srcList" arrays in call metadata
+  - Tag/alias information is now extracted and stored in call.Meta.UnitLabels
+  - Existing controller infrastructure automatically adds/updates unit aliases in the database
+  - Fixes issue where trunk-recorder and other upload agents could not provide unit alias information
+  - Unit aliases now properly populate and persist in the units database table
+  - Files modified: server/parsers.go
+  - Thanks to community report for identifying the missing alias ingestion functionality
+
+- **Fixed talkgroup sorting not persisting after save**
+  - Fixed bug where manually sorted talkgroups would randomly revert to alphabetical order
+  - Root cause: When SortTalkgroups option was enabled, code was modifying the actual talkgroup Order field in the database during config retrieval
+  - Talkgroup Order values were being overwritten every time config was sent to clients (on connect, refresh, etc.)
+  - Changed behavior: SortTalkgroups option now only affects display order without modifying database values
+  - When SortTalkgroups is disabled (default): Custom sort order from admin panel is respected and persisted
+  - When SortTalkgroups is enabled: Displays alphabetically by label without changing stored Order values
+  - Manual talkgroup sorting in admin panel now properly persists across server restarts and client connections
+  - Files modified: server/system.go
+
+- **Added admin-configurable default tag colors**
+  - Administrators can now set default colors for tags in the admin panel
+  - Color priority hierarchy: User settings > Admin defaults > Hardcoded defaults > White
+  - Users can still override admin-set colors in their personal settings
+  - Admin colors are stored in the database and synced to all clients
+  - Color picker in admin panel provides 9 predefined color options
+  - Files modified: server/tag.go, server/migrations.go, server/database.go, client/src/app/components/rdio-scanner/admin/config/tags/, client/src/app/components/rdio-scanner/tag-color.service.ts, ThinlineRadio-Mobile/lib/services/tag_color_service.dart
+
+- **Fixed P25 Phase II simulcast patch calls being dropped**
+  - Fixed critical bug where Harris P25 Phase II patched dispatch calls were silently dropped
+  - Issue: When dispatcher creates simulcast patch (TGID 64501-64599), system patches multiple talkgroups together (e.g., 1003, 6001)
+  - Previous behavior: Call with patch TGID 64501 was dropped because 64501 doesn't exist in configured talkgroups
+  - New behavior: System now checks patched talkgroups array and uses first valid configured talkgroup as primary
+  - Call is now correctly associated with actual operational talkgroup (e.g., 1003) instead of temporary patch ID
+  - Original patch TGID is preserved in patches array for search/display purposes
+  - Eliminates need to manually add all 99 potential patch TGIDs (64501-64599) as workaround
+  - All priority/emergency dispatch calls now properly recorded and displayed
+  - Patched talkgroups are validated against blacklists to honor system restrictions
+  - Three strategic checkpoints added throughout call ingestion process:
+    1. Early check after initial talkgroup lookup
+    2. Re-check after auto-populate creates new systems/talkgroups
+    3. Final check before call write to prevent dropping valid patched calls
+  - Compatible with Trunk Recorder's `patched_talkgroups` field format
+  - Existing livefeed patch display logic now works correctly since calls no longer dropped
+  - Files modified: server/controller.go
+  - Thanks to user report for detailed analysis of Harris P25 patch behavior
+
+## Version 7.0 Beta 4 - Released January 3, 2026
+
+### Bug Fixes & Improvements
+
+- **Fixed talker alias ingestion not working**
+  - Both ParseMultipartContent and ParseTrunkRecorderMeta now properly ingest talker aliases from uploaded calls
+  - Added parsing of "tag" field from "sources" and "srcList" arrays in call metadata
+  - Tag/alias information is now extracted and stored in call.Meta.UnitLabels
+  - Existing controller infrastructure automatically adds/updates unit aliases in the database
+  - Fixes issue where trunk-recorder and other upload agents could not provide unit alias information
+  - Unit aliases now properly populate and persist in the units database table
+  - Files modified: server/parsers.go
+  - Thanks to community report for identifying the missing alias ingestion functionality
+
+- **Fixed talkgroup sorting not persisting after save**
+  - Fixed bug where manually sorted talkgroups would randomly revert to alphabetical order
+  - Root cause: When SortTalkgroups option was enabled, code was modifying the actual talkgroup Order field in the database during config retrieval
+  - Talkgroup Order values were being overwritten every time config was sent to clients (on connect, refresh, etc.)
+  - Changed behavior: SortTalkgroups option now only affects display order without modifying database values
+  - When SortTalkgroups is disabled (default): Custom sort order from admin panel is respected and persisted
+  - When SortTalkgroups is enabled: Displays alphabetically by label without changing stored Order values
+  - Manual talkgroup sorting in admin panel now properly persists across server restarts and client connections
+  - Files modified: server/system.go
+
+- **Added admin-configurable default tag colors**
+  - Administrators can now set default colors for tags in the admin panel
+  - Color priority hierarchy: User settings > Admin defaults > Hardcoded defaults > White
+  - Users can still override admin-set colors in their personal settings
+  - Admin colors are stored in the database and synced to all clients
+  - Color picker in admin panel provides 9 predefined color options
+  - Files modified: server/tag.go, server/migrations.go, server/database.go, client/src/app/components/rdio-scanner/admin/config/tags/, client/src/app/components/rdio-scanner/tag-color.service.ts, ThinlineRadio-Mobile/lib/services/tag_color_service.dart
+
+- **Fixed P25 Phase II simulcast patch calls being dropped**
+  - Fixed critical bug where Harris P25 Phase II patched dispatch calls were silently dropped
+  - Issue: When dispatcher creates simulcast patch (TGID 64501-64599), system patches multiple talkgroups together (e.g., 1003, 6001)
+  - Previous behavior: Call with patch TGID 64501 was dropped because 64501 doesn't exist in configured talkgroups
+  - New behavior: System now checks patched talkgroups array and uses first valid configured talkgroup as primary
+  - Call is now correctly associated with actual operational talkgroup (e.g., 1003) instead of temporary patch ID
+  - Original patch TGID is preserved in patches array for search/display purposes
+  - Eliminates need to manually add all 99 potential patch TGIDs (64501-64599) as workaround
+  - All priority/emergency dispatch calls now properly recorded and displayed
+  - Patched talkgroups are validated against blacklists to honor system restrictions
+  - Three strategic checkpoints added throughout call ingestion process:
+    1. Early check after initial talkgroup lookup
+    2. Re-check after auto-populate creates new systems/talkgroups
+    3. Final check before call write to prevent dropping valid patched calls
+  - Compatible with Trunk Recorder's `patched_talkgroups` field format
+  - Existing livefeed patch display logic now works correctly since calls no longer dropped
+  - Files modified: server/controller.go
+  - Thanks to user report for detailed analysis of Harris P25 patch behavior
+
 ## Version 7.0 Beta 4 - Released January 3, 2026
 
 ### Bug Fixes & Improvements

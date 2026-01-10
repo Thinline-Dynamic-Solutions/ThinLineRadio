@@ -12,6 +12,13 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>
+//
+// Tone detection improvements inspired by techniques from icad_tone_detection
+// (Apache 2.0 License, Copyright 2024 thegreatcodeholio)
+// GitHub: https://github.com/thegreatcodeholio/icad_tone_detection
+// Techniques include: dynamic noise floor estimation (20th percentile method),
+// parabolic peak interpolation for sub-bin accuracy, force-split detection
+// for frequency drift, and optimized bandpass filtering for analog channels.
 
 package main
 
@@ -78,7 +85,7 @@ type PendingToneSequence struct {
 	Timestamp    int64 // Unix millisecond timestamp when tones were detected
 	SystemId     uint64
 	TalkgroupId  uint64
-	Locked       bool  // When true, prevents new tones from merging (claimed by transcribing call)
+	Locked       bool // When true, prevents new tones from merging (claimed by transcribing call)
 }
 
 // ToneDetector handles tone detection in audio calls
@@ -127,13 +134,15 @@ func (detector *ToneDetector) Detect(audio []byte, audioMime string, toneSets []
 	defer os.Remove(srcFile)
 	defer os.Remove(wavFile)
 
-	// Convert to WAV 16kHz mono (necessary for 0-5000 Hz tone detection)
-	// Need at least 10kHz sample rate to capture 5000 Hz (Nyquist: need 2x max frequency)
+	// Convert to WAV 16kHz mono with bandpass filter for tone detection
+	// Bandpass 200-3000 Hz isolates typical paging tones and reduces noise/DC offset
+	// This significantly improves detection on analog conventional channels
 	ffArgs := []string{
 		"-y", "-loglevel", "error",
 		"-i", srcFile,
 		"-ar", "16000", // 16kHz sample rate (can capture up to 8kHz via Nyquist, sufficient for 0-5000 Hz)
 		"-ac", "1", // Mono
+		"-af", "highpass=f=200,lowpass=f=3000,dynaudnorm", // Bandpass filter + dynamic normalization
 		"-f", "wav",
 		wavFile,
 	}
@@ -257,7 +266,20 @@ func (detector *ToneDetector) parseWAV(wavData []byte) ([]float64, int, error) {
 	return samples, sampleRate, nil
 }
 
+// parabolicInterpolate performs parabolic interpolation around an FFT peak for sub-bin accuracy
+// This technique improves frequency resolution from ±3.9 Hz (bin width) to ±0.5 Hz
+// Inspired by icad_tone_detection (thegreatcodeholio)
+func parabolicInterpolate(yMinus, y0, yPlus float64) float64 {
+	denom := yMinus - 2.0*y0 + yPlus
+	if denom == 0.0 {
+		return 0.0
+	}
+	return 0.5 * (yMinus - yPlus) / denom
+}
+
 // analyzeFrequencies performs FFT analysis to detect sustained tones
+// Enhanced with dynamic noise floor estimation, parabolic interpolation, and force-split detection
+// Techniques inspired by icad_tone_detection (thegreatcodeholio) for improved analog channel detection
 func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate int, toneSets []ToneSet) []Tone {
 	windowSize := 2048     // FFT window size
 	hopSize := 512         // Slide window by this much
@@ -281,7 +303,10 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 
 	detections := make(map[int][]freqDetection) // frequency bin -> detections
 
-	// Analyze in sliding windows
+	// For dynamic noise floor estimation
+	var framePeaks []float64
+
+	// First pass: collect frame peaks for noise floor estimation
 	numWindows := (len(samples) - windowSize) / hopSize
 	for win := 0; win < numWindows; win++ {
 		start := win * hopSize
@@ -291,8 +316,6 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 		}
 
 		window := samples[start:end]
-		windowStartTime := float64(start) / float64(sampleRate)
-		windowEndTime := float64(end) / float64(sampleRate) // Actual end time of window
 
 		// Apply window function (Hann window) to reduce spectral leakage
 		windowed := make([]float64, len(window))
@@ -304,13 +327,114 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 		// Perform DFT (Discrete Fourier Transform)
 		magnitudes := detector.dft(windowed, sampleRate)
 
-		// Find peaks in tone range
+		// Find peak magnitude in tone range for this frame
+		var framePeak float64
+		for bin, mag := range magnitudes {
+			freq := float64(bin) * float64(sampleRate) / float64(windowSize)
+			if freq >= toneRange.Min && freq <= toneRange.Max && mag > framePeak {
+				framePeak = mag
+			}
+		}
+		framePeaks = append(framePeaks, framePeak)
+	}
+
+	// Calculate dynamic noise floor (20th percentile method from icad_tone_detection)
+	if len(framePeaks) == 0 {
+		return []Tone{}
+	}
+
+	// Find global peak
+	globalPeak := 0.0
+	for _, peak := range framePeaks {
+		if peak > globalPeak {
+			globalPeak = peak
+		}
+	}
+
+	if globalPeak < 1e-20 {
+		return []Tone{}
+	}
+
+	// Calculate relative dB for each frame
+	relativeDB := make([]float64, len(framePeaks))
+	for i, peak := range framePeaks {
+		relativeDB[i] = 20.0 * math.Log10(math.Max(peak, 1e-20)/globalPeak)
+	}
+
+	// Sort to find 20th percentile
+	sortedDB := make([]float64, len(relativeDB))
+	copy(sortedDB, relativeDB)
+	sort.Float64s(sortedDB)
+	q20Index := int(float64(len(sortedDB)) * 0.20)
+	q20 := sortedDB[q20Index]
+
+	// Calculate noise floor as median of values below q20
+	var belowQ20 []float64
+	for _, db := range relativeDB {
+		if db <= q20 {
+			belowQ20 = append(belowQ20, db)
+		}
+	}
+
+	noiseFloorDB := -60.0
+	if len(belowQ20) > 0 {
+		sort.Float64s(belowQ20)
+		noiseFloorDB = belowQ20[len(belowQ20)/2]
+	}
+
+	// Silence gating thresholds (from icad_tone_detection defaults)
+	silenceBelowGlobalDB := -28.0 // Frame must be within 28 dB of global peak
+	snrAboveNoiseDB := 6.0        // Frame must be 6 dB above noise floor
+
+	fmt.Printf("tone detection: global peak=%.4f, noise floor=%.1f dB, q20=%.1f dB\n", globalPeak, noiseFloorDB, q20)
+
+	// Second pass: analyze in sliding windows with noise gating
+	for win := 0; win < numWindows; win++ {
+		start := win * hopSize
+		end := start + windowSize
+		if end > len(samples) {
+			break
+		}
+
+		window := samples[start:end]
+		windowStartTime := float64(start) / float64(sampleRate)
+		windowEndTime := float64(end) / float64(sampleRate) // Actual end time of window
+
+		// Check if this frame passes noise gate
+		frameDB := relativeDB[win]
+		isSilent := frameDB < silenceBelowGlobalDB || frameDB < (noiseFloorDB+snrAboveNoiseDB)
+		if isSilent {
+			continue // Skip silent frames
+		}
+
+		// Apply window function (Hann window) to reduce spectral leakage
+		windowed := make([]float64, len(window))
+		for i := range window {
+			hann := 0.5 * (1.0 - math.Cos(2.0*math.Pi*float64(i)/float64(len(window)-1)))
+			windowed[i] = window[i] * hann
+		}
+
+		// Perform DFT (Discrete Fourier Transform)
+		magnitudes := detector.dft(windowed, sampleRate)
+
+		// Find peaks in tone range with parabolic interpolation
 		for bin, mag := range magnitudes {
 			freq := float64(bin) * float64(sampleRate) / float64(windowSize)
 
-			// Lower magnitude threshold for better detection sensitivity
-			// 0.05 is more sensitive than 0.1 (adjust as needed)
-			if freq >= toneRange.Min && freq <= toneRange.Max && mag > 0.05 {
+			// Basic magnitude check (much lower threshold now that we have noise gating)
+			if freq >= toneRange.Min && freq <= toneRange.Max && mag > 0.02 {
+				// Parabolic interpolation for sub-bin accuracy
+				binMinus := bin - 1
+				binPlus := bin + 1
+				if binMinus >= 0 && binPlus < len(magnitudes) {
+					magMinus := magnitudes[binMinus]
+					magPlus := magnitudes[binPlus]
+					delta := parabolicInterpolate(magMinus, mag, magPlus)
+					delta = math.Max(-0.5, math.Min(0.5, delta)) // Clamp to [-0.5, 0.5]
+					// Apply sub-bin correction
+					binWidth := float64(sampleRate) / float64(windowSize)
+					freq += delta * binWidth
+				}
 				// Check if this frequency is close to any existing detection (within ±15 Hz) and overlaps in time
 				// This prevents creating separate detections for the same tone detected at slightly different frequencies
 				found := false
@@ -360,17 +484,22 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 		}
 	}
 
-	// Merge nearby frequency detections (within ±5 Hz) to avoid duplicate detections of the same tone
+	// Merge nearby frequency detections to avoid duplicate detections of the same tone
 	// Group detections by similar frequency and time overlap
 	type mergedDetection struct {
-		frequency float64 // Average frequency
-		startTime float64 // Earliest start
-		endTime   float64 // Latest end
-		magnitude float64 // Highest magnitude
-		count     int     // Number of detections merged
+		frequency   float64   // Average frequency
+		startTime   float64   // Earliest start
+		endTime     float64   // Latest end
+		magnitude   float64   // Highest magnitude
+		count       int       // Number of detections merged
+		freqHistory []float64 // Track frequency progression for force-split detection
 	}
 
 	mergedDetections := []mergedDetection{}
+
+	// Force-split parameters (from icad_tone_detection)
+	forceSplitStepHz := 18.0 // Force split if frequency jumps > 18 Hz between consecutive detections
+	splitLookahead := 2      // Number of frames to look ahead to confirm split
 
 	for _, detectionList := range detections {
 		for _, det := range detectionList {
@@ -383,17 +512,31 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 					md := &mergedDetections[i]
 					freqDiff := math.Abs(det.frequency - md.frequency)
 
-					// Only merge if frequencies are within ±15 Hz (tone drift/variation) AND times actually overlap
-					// This prevents merging separate tones from different tone sets in stacked tone scenarios
-					// For A-tones: typically 300-600 Hz range, ±15 Hz covers drift
-					// For B-tones: typically 1000-1200 Hz range, ±15 Hz covers drift
+					// Check for force-split condition: large frequency jump indicates different tone
+					forceSplit := false
+					if len(md.freqHistory) >= splitLookahead {
+						// Calculate recent median frequency
+						recentFreqs := md.freqHistory[len(md.freqHistory)-splitLookahead:]
+						sort.Float64s(recentFreqs)
+						recentMedian := recentFreqs[len(recentFreqs)/2]
+
+						// If frequency jumps too much from recent median, force split
+						if math.Abs(det.frequency-recentMedian) > forceSplitStepHz {
+							forceSplit = true
+						}
+					}
+
+					// Only merge if frequencies are within ±20 Hz (increased for analog drift) AND times overlap AND no force-split
+					// Increased from ±15 Hz to ±20 Hz to handle analog channel frequency drift
+					// For A-tones: typically 300-600 Hz range, ±20 Hz covers drift + Doppler
+					// For B-tones: typically 1000-1200 Hz range, ±20 Hz covers drift + Doppler
 					// We use a small tolerance (0.1s) to handle cases where one tone ends exactly when another starts
 					// (could be the same tone with a tiny gap), but we don't merge tones that are clearly separate
 					timeOverlap := (det.startTime <= md.endTime+0.1 && det.endTime >= md.startTime-0.1)
 
-					// Only merge if frequencies are close AND times overlap (not just close in time)
+					// Only merge if frequencies are close AND times overlap AND no force-split
 					// This prevents merging separate tone sets in stacked tone scenarios
-					if freqDiff <= 15.0 && timeOverlap {
+					if freqDiff <= 20.0 && timeOverlap && !forceSplit {
 						// Merge: use weighted average frequency, extend time range, use max magnitude
 						oldFreq := md.frequency
 						totalCount := md.count + 1
@@ -408,6 +551,7 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 							md.magnitude = det.magnitude
 						}
 						md.count = totalCount
+						md.freqHistory = append(md.freqHistory, det.frequency)
 						fmt.Printf("merged tone %.1f Hz (%.2fs) with existing %.1f Hz -> %.1f Hz (merged %d detections, time: %.2f-%.2fs)\n",
 							det.frequency, det.endTime-det.startTime, oldFreq, md.frequency, totalCount, md.startTime, md.endTime)
 						merged = true
@@ -418,11 +562,12 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 				if !merged {
 					// Create new merged detection
 					mergedDetections = append(mergedDetections, mergedDetection{
-						frequency: det.frequency,
-						startTime: det.startTime,
-						endTime:   det.endTime,
-						magnitude: det.magnitude,
-						count:     1,
+						frequency:   det.frequency,
+						startTime:   det.startTime,
+						endTime:     det.endTime,
+						magnitude:   det.magnitude,
+						count:       1,
+						freqHistory: []float64{det.frequency},
 					})
 				}
 			}
@@ -447,7 +592,7 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 		duration := md.endTime - md.startTime
 
 		// Check if frequency matches ANY configured tone set (check ALL, don't stop at first match)
-		matchedToneSets := []string{} // Track all matches for logging
+		matchedToneSets := []string{}         // Track all matches for logging
 		matchedTypes := make(map[string]bool) // Track which types this tone matched (A, B, Long)
 		matched := false
 
@@ -893,7 +1038,7 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	defer os.Remove(outFile)
 
 	// Get total audio duration
-	durationCmd := exec.Command("ffprobe", 
+	durationCmd := exec.Command("ffprobe",
 		"-v", "error",
 		"-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1",
@@ -903,7 +1048,7 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	if err != nil {
 		return audio, fmt.Errorf("failed to get audio duration: %v", err)
 	}
-	
+
 	var totalDuration float64
 	if _, err := fmt.Sscanf(string(durationOutput), "%f", &totalDuration); err != nil {
 		return audio, fmt.Errorf("failed to parse duration: %v", err)
@@ -912,7 +1057,7 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	// Build ffmpeg filter to remove tone segments
 	// Strategy: Keep all audio EXCEPT the tone segments
 	// Use select filter to keep only segments we want
-	
+
 	// Sort tones by start time
 	sortedTones := make([]Tone, len(tones))
 	copy(sortedTones, tones)
@@ -923,26 +1068,26 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	// Build segments to KEEP (everything except tones)
 	// Add small buffer (0.1s) around tones to ensure complete removal
 	const toneBuffer = 0.1
-	
+
 	type segment struct {
 		start, end float64
 	}
 	var keepSegments []segment
-	
+
 	currentPos := 0.0
 	for _, tone := range sortedTones {
 		toneStart := math.Max(0, tone.StartTime-toneBuffer)
 		toneEnd := math.Min(totalDuration, tone.EndTime+toneBuffer)
-		
+
 		// Add segment before this tone
 		if currentPos < toneStart {
 			keepSegments = append(keepSegments, segment{currentPos, toneStart})
 		}
-		
+
 		// Skip the tone itself
 		currentPos = toneEnd
 	}
-	
+
 	// Add final segment after last tone
 	if currentPos < totalDuration {
 		keepSegments = append(keepSegments, segment{currentPos, totalDuration})
@@ -959,16 +1104,16 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	var filterParts []string
 	for i, seg := range keepSegments {
 		// between(t,start,end) selects frames in time range
-		filterParts = append(filterParts, fmt.Sprintf("[0:a]atrim=start=%.3f:end=%.3f,asetpts=PTS-STARTPTS[a%d]", 
+		filterParts = append(filterParts, fmt.Sprintf("[0:a]atrim=start=%.3f:end=%.3f,asetpts=PTS-STARTPTS[a%d]",
 			seg.start, seg.end, i))
 	}
-	
+
 	// Concat all segments
 	concatInputs := ""
 	for i := range keepSegments {
 		concatInputs += fmt.Sprintf("[a%d]", i)
 	}
-	filterComplex := strings.Join(filterParts, ";") + fmt.Sprintf(";%sconcat=n=%d:v=0:a=1[out]", 
+	filterComplex := strings.Join(filterParts, ";") + fmt.Sprintf(";%sconcat=n=%d:v=0:a=1[out]",
 		concatInputs, len(keepSegments))
 
 	// Run ffmpeg with filter
@@ -982,7 +1127,7 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 		outFile,
 	}
 
-	fmt.Printf("audio filtering: removing %d tone segments (%.2fs of tones from %.2fs total)\n", 
+	fmt.Printf("audio filtering: removing %d tone segments (%.2fs of tones from %.2fs total)\n",
 		len(sortedTones), calculateTotalToneDuration(sortedTones), totalDuration)
 
 	ffCmd := exec.Command("ffmpeg", ffArgs...)
@@ -1004,7 +1149,7 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 		return audio, nil
 	}
 
-	fmt.Printf("audio filtering: success - original: %d bytes, filtered: %d bytes (removed %.1f%%)\n", 
+	fmt.Printf("audio filtering: success - original: %d bytes, filtered: %d bytes (removed %.1f%%)\n",
 		len(audio), len(filteredAudio), (1.0-float64(len(filteredAudio))/float64(len(audio)))*100)
 
 	return filteredAudio, nil

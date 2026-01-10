@@ -2134,3 +2134,11 @@ func migrateDownstreamsName(db *Database) error {
 	}
 	return nil
 }
+
+func migrateTagsColor(db *Database) error {
+	query := `ALTER TABLE "tags" ADD COLUMN IF NOT EXISTS "color" text NOT NULL DEFAULT ''`
+	if _, err := db.Sql.Exec(query); err != nil {
+		log.Printf("migration note: %v", err)
+	}
+	return nil
+}

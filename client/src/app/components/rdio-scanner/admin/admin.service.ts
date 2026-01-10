@@ -248,6 +248,7 @@ export interface Options {
         enabled?: boolean;
         provider?: string;
         language?: string;
+        prompt?: string;
         workerPoolSize?: number;
         minCallDuration?: number;
         whisperAPIURL?: string;
@@ -309,6 +310,7 @@ export interface Tag {
     label?: string;
     led?: string;
     order?: number;
+    color?: string;
 }
 
 export interface Talkgroup {
@@ -877,6 +879,7 @@ export class RdioScannerAdminService implements OnDestroy {
             enabled: false,
             provider: 'whisper-api',
             language: 'en',
+            prompt: '',
             workerPoolSize: 3, // Conservative default
             minCallDuration: 0, // 0 = transcribe all calls
             whisperAPIURL: 'http://localhost:8000',
@@ -942,6 +945,7 @@ export class RdioScannerAdminService implements OnDestroy {
                 enabled: this.ngFormBuilder.control(transcriptionConfig?.enabled || false),
                 provider: this.ngFormBuilder.control(transcriptionConfig?.provider || 'whisper-api'),
                 language: this.ngFormBuilder.control(transcriptionConfig?.language || 'en'),
+                prompt: this.ngFormBuilder.control(transcriptionConfig?.prompt || ''),
                 workerPoolSize: this.ngFormBuilder.control(transcriptionConfig?.workerPoolSize || 3),
                 minCallDuration: this.ngFormBuilder.control(transcriptionConfig?.minCallDuration || 0, [Validators.min(0)]),
                 whisperAPIURL: this.ngFormBuilder.control(transcriptionConfig?.whisperAPIURL || 'http://localhost:8000'),
@@ -1002,6 +1006,7 @@ export class RdioScannerAdminService implements OnDestroy {
             label: this.ngFormBuilder.control(tag?.label, Validators.required),
             led: this.ngFormBuilder.control(tag?.led || ''),
             order: this.ngFormBuilder.control(tag?.order),
+            color: this.ngFormBuilder.control(tag?.color || ''),
         });
     }
 

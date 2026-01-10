@@ -24,9 +24,63 @@
                 </p>
                 <mat-form-field floatLabel="auto">
                     <input type="text" matInput formControlName="label" placeholder="Label">
-                    <mat-error *ngIf="form?.get('label')?.hasError('required')">
+                    <mat-error *ngIf="tag?.get('label')?.hasError('required')">
                         Label is required
                     </mat-error>
+                </mat-form-field>
+            </div>
+            <div class="row">
+                <p>
+                    <span class="mat-body">Default Color</span><br>
+                    <span class="mat-caption">Default color for this tag (users can override in their settings).</span>
+                </p>
+                <mat-form-field floatLabel="auto">
+                    <mat-select formControlName="color" placeholder="Select Color">
+                        <mat-select-trigger>
+                            <ng-container *ngIf="tag.value as value">
+                                <span *ngIf="value.color" style="display: inline-block; width: 12px; height: 12px; background-color: {{ value.color }}; border-radius: 2px; margin-right: 8px; vertical-align: middle;" [style.border]="value.color === '#ffffff' ? '1px solid #666' : 'none'"></span>
+                                <span *ngIf="value.color">{{ getColorName(value.color) }}</span>
+                                <span *ngIf="!value.color">None (White)</span>
+                            </ng-container>
+                        </mat-select-trigger>
+                        <mat-option value="">None (White)</mat-option>
+                        <mat-option value="#ff1744">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #ff1744; border-radius: 2px; margin-right: 8px;"></span>
+                            Red
+                        </mat-option>
+                        <mat-option value="#ff9100">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #ff9100; border-radius: 2px; margin-right: 8px;"></span>
+                            Orange
+                        </mat-option>
+                        <mat-option value="#ffea00">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #ffea00; border-radius: 2px; margin-right: 8px;"></span>
+                            Yellow
+                        </mat-option>
+                        <mat-option value="#00e676">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #00e676; border-radius: 2px; margin-right: 8px;"></span>
+                            Green
+                        </mat-option>
+                        <mat-option value="#00e5ff">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #00e5ff; border-radius: 2px; margin-right: 8px;"></span>
+                            Cyan
+                        </mat-option>
+                        <mat-option value="#2979ff">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #2979ff; border-radius: 2px; margin-right: 8px;"></span>
+                            Blue
+                        </mat-option>
+                        <mat-option value="#d500f9">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #d500f9; border-radius: 2px; margin-right: 8px;"></span>
+                            Magenta
+                        </mat-option>
+                        <mat-option value="#9e9e9e">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #9e9e9e; border-radius: 2px; margin-right: 8px;"></span>
+                            Gray
+                        </mat-option>
+                        <mat-option value="#ffffff">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: #ffffff; border: 1px solid #666; border-radius: 2px; margin-right: 8px;"></span>
+                            White
+                        </mat-option>
+                    </mat-select>
                 </mat-form-field>
             </div>
             <div class="row bottom">

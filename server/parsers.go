@@ -380,6 +380,12 @@ func ParseMultipartContent(call *Call, p *multipart.Part, b []byte) {
 							// Also populate Meta.UnitRefs as fallback
 							call.Meta.UnitRefs = append(call.Meta.UnitRefs, unit.UnitRef)
 						}
+						switch s := v["tag"].(type) {
+						case string:
+							if len(s) > 0 {
+								call.Meta.UnitLabels = append(call.Meta.UnitLabels, s)
+							}
+						}
 						switch v := v["pos"].(type) {
 						case float64:
 							if v >= 0 {
@@ -578,6 +584,12 @@ func ParseTrunkRecorderMeta(call *Call, b []byte) error {
 					unit.UnitRef = uint(s)
 					// Also populate Meta.UnitRefs as fallback
 					call.Meta.UnitRefs = append(call.Meta.UnitRefs, unit.UnitRef)
+				}
+				switch s := v["tag"].(type) {
+				case string:
+					if len(s) > 0 {
+						call.Meta.UnitLabels = append(call.Meta.UnitLabels, s)
+					}
 				}
 				call.Units = append(call.Units, unit)
 			}

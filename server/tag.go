@@ -28,6 +28,7 @@ type Tag struct {
 	Id    uint64
 	Label string
 	Order uint
+	Color string
 }
 
 func NewTag() *Tag {
@@ -52,6 +53,11 @@ func (tag *Tag) FromMap(m map[string]any) *Tag {
 		tag.Order = uint(v)
 	}
 
+	switch v := m["color"].(type) {
+	case string:
+		tag.Color = v
+	}
+
 	return tag
 }
 
@@ -63,6 +69,10 @@ func (tag *Tag) MarshalJSON() ([]byte, error) {
 
 	if tag.Order > 0 {
 		m["order"] = tag.Order
+	}
+
+	if tag.Color != "" {
+		m["color"] = tag.Color
 	}
 
 	return json.Marshal(m)
@@ -234,7 +244,7 @@ func (tags *Tags) Read(db *Database) error {
 
 	formatError := errorFormatter("tags", "read")
 
-	query = `SELECT "tagId", "label", "order" FROM "tags"`
+	query = `SELECT "tagId", "label", "order", COALESCE("color", '') FROM "tags"`
 	if rows, err = db.Sql.Query(query); err != nil {
 		return formatError(err, query)
 	}
@@ -242,7 +252,7 @@ func (tags *Tags) Read(db *Database) error {
 	for rows.Next() {
 		tag := NewTag()
 
-		if err = rows.Scan(&tag.Id, &tag.Label, &tag.Order); err != nil {
+		if err = rows.Scan(&tag.Id, &tag.Label, &tag.Order, &tag.Color); err != nil {
 			break
 		}
 
@@ -348,16 +358,16 @@ func (tags *Tags) Write(db *Database) error {
 		if count == 0 {
 			if tag.Id > 0 {
 				// Preserve the explicit ID when inserting
-				query = fmt.Sprintf(`INSERT INTO "tags" ("tagId", "label", "order") VALUES (%d, '%s', %d)`, tag.Id, escapeQuotes(tag.Label), tag.Order)
+				query = fmt.Sprintf(`INSERT INTO "tags" ("tagId", "label", "order", "color") VALUES (%d, '%s', %d, '%s')`, tag.Id, escapeQuotes(tag.Label), tag.Order, escapeQuotes(tag.Color))
 			} else {
 				// Let database assign auto-increment ID
-				query = fmt.Sprintf(`INSERT INTO "tags" ("label", "order") VALUES ('%s', %d)`, escapeQuotes(tag.Label), tag.Order)
+				query = fmt.Sprintf(`INSERT INTO "tags" ("label", "order", "color") VALUES ('%s', %d, '%s')`, escapeQuotes(tag.Label), tag.Order, escapeQuotes(tag.Color))
 			}
 			if _, err = tx.Exec(query); err != nil {
 				break
 			}
 		} else {
-			query = fmt.Sprintf(`UPDATE "tags" SET "label" = '%s', "order" = %d WHERE "tagId" = %d`, escapeQuotes(tag.Label), tag.Order, tag.Id)
+			query = fmt.Sprintf(`UPDATE "tags" SET "label" = '%s', "order" = %d, "color" = '%s' WHERE "tagId" = %d`, escapeQuotes(tag.Label), tag.Order, escapeQuotes(tag.Color), tag.Id)
 			if _, err = tx.Exec(query); err != nil {
 				break
 			}

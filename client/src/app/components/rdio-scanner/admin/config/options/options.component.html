@@ -358,6 +358,17 @@
         </mat-form-field>
     </div>
 
+    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value)" formGroupName="transcriptionConfig">
+        <p>
+            <span class="mat-body">Custom Prompt (Whisper only)</span><br>
+            <span class="mat-caption">Optional prompt to guide Whisper transcription with custom terminology, unit names, formatting preferences, etc. Example: "Fire/EMS dispatch radio. Units: ENGINE, TRUCK, LADDER, QUINT, RESCUE, SQUAD, MEDIC AMBULANCE. Radio channels: VECC FIRE #, CITY FIRE #."</span>
+        </p>
+        <mat-form-field floatLabel="auto" style="width: 100%;">
+            <textarea matInput formControlName="prompt" placeholder="Enter custom prompt to guide transcription..." rows="4"></textarea>
+            <mat-hint>Leave empty for default Whisper behavior</mat-hint>
+        </mat-form-field>
+    </div>
+
     <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
         <p>
             <span class="mat-body">Worker Pool Size</span><br>

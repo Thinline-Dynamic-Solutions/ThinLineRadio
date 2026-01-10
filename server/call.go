@@ -554,9 +554,7 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 			where = append(where, fmt.Sprintf(`c."timestamp" >= %d`, selectedDateMs))
 		}
 	default:
-		// No date selected - apply default 8-hour filter (like v6/Python)
-		eightHoursAgo := time.Now().Add(-8 * time.Hour).UnixMilli()
-		where = append(where, fmt.Sprintf(`c."timestamp" >= %d`, eightHoursAgo))
+		// No date selected - no time filter applied
 	}
 
 	// Build final WHERE clause

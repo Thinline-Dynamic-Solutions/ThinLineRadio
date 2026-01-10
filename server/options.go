@@ -107,10 +107,11 @@ type TranscriptionConfig struct {
 	Enabled                      bool     `json:"enabled"`
 	Provider                     string   `json:"provider"`                     // "whisper-api", "azure", "google", "assemblyai"
 	Language                     string   `json:"language"`                     // "en", "auto"
+	Prompt                       string   `json:"prompt"`                       // Custom prompt for Whisper to guide transcription (e.g., terminology, formatting)
 	WorkerPoolSize               int      `json:"workerPoolSize"`
 	MinCallDuration              float64  `json:"minCallDuration"`              // Minimum call duration in seconds to transcribe (default: 0 = transcribe all)
-	WhisperAPIURL                string   `json:"whisperAPIURL"`                // Base URL for external Whisper API server (e.g., "http://localhost:8000")
-	WhisperAPIKey                string   `json:"whisperAPIKey"`                // Optional API key for external Whisper API server
+	WhisperAPIURL                string   `json:"whisperAPIURL"`                // Base URL for external Whisper API server (e.g., "http://localhost:8000") or OpenAI API URL
+	WhisperAPIKey                string   `json:"whisperAPIKey"`                // Optional API key for external Whisper API server or OpenAI API key
 	AzureKey                     string   `json:"azureKey"`                     // Azure Speech Services subscription key
 	AzureRegion                  string   `json:"azureRegion"`                  // Azure Speech Services region (e.g., "eastus", "westus2")
 	GoogleAPIKey                 string   `json:"googleAPIKey"`                 // Google Cloud Speech-to-Text API key
@@ -589,6 +590,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		}
 		if v, ok := tc["language"].(string); ok && v != "" {
 			options.TranscriptionConfig.Language = v
+		}
+		if v, ok := tc["prompt"].(string); ok {
+			options.TranscriptionConfig.Prompt = v
 		}
 		if v, ok := tc["workerPoolSize"].(float64); ok && v > 0 {
 			options.TranscriptionConfig.WorkerPoolSize = int(v)

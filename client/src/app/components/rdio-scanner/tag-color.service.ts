@@ -64,6 +64,7 @@ export class TagColorService implements OnDestroy {
     private availableTags: Set<string> = new Set();
     private configSubscription?: Subscription;
     private ledColorToTagLabel: Map<string, string> = new Map(); // Map LED colors to tag labels
+    private configTagsData: any[] = []; // Store tag data from config for admin-set colors
 
     constructor(
         private settingsService: SettingsService,
@@ -180,7 +181,7 @@ export class TagColorService implements OnDestroy {
         const tagLabel = this.ledColorToTagLabel.get(tagKey);
         if (tagLabel) {
             const labelKey = tagLabel.toLowerCase();
-            // Check if we have a custom color for the tag label
+            // Check if we have a custom color for the tag label (user setting - highest priority)
             if (this.tagColors[labelKey]) {
                 return this.tagColors[labelKey];
             }
@@ -190,13 +191,31 @@ export class TagColorService implements OnDestroy {
             }
         }
         
-        // Check if we have a custom color for this tag directly (by label or LED name)
+        // Check if we have a custom color for this tag directly (by label or LED name) - user setting
         if (this.tagColors[tagKey]) {
             return this.tagColors[tagKey];
         }
 
-        // Try to parse as number and map to default
+        // Check admin-set default colors from config (by tag ID or label)
         const tagNum = typeof tag === 'number' ? tag : parseInt(tag.toString());
+        if (!isNaN(tagNum) && this.configTagsData.length > 0) {
+            const configTag = this.configTagsData.find((t: any) => t.id === tagNum);
+            if (configTag?.color) {
+                return configTag.color;
+            }
+        }
+        
+        // Also check by label for non-numeric tags
+        if (this.configTagsData.length > 0) {
+            const configTag = this.configTagsData.find((t: any) => 
+                t.label && t.label.toLowerCase() === tagKey
+            );
+            if (configTag?.color) {
+                return configTag.color;
+            }
+        }
+
+        // Try to parse as number and map to hardcoded default
         if (!isNaN(tagNum) && this.defaultColors[tagNum.toString()]) {
             return this.defaultColors[tagNum.toString()];
         }

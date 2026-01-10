@@ -270,6 +270,11 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Add color field to tags
+	if err := migrateTagsColor(db); err != nil {
+		return formatError(err, "")
+	}
+
 	// Fix auto-increment sequences to prevent duplicate key errors
 	if err := fixAutoIncrementSequences(db); err != nil {
 		return formatError(err, "")

@@ -112,6 +112,7 @@ type DefaultTranscriptionConfig struct {
 	googleCredentials string
 	assemblyAIKey    string
 	language         string
+	prompt           string
 	workerPoolSize   int
 }
 
@@ -200,6 +201,7 @@ var defaults = Defaults{
 			googleCredentials: "",
 			assemblyAIKey:  "",
 			language:       "en",       // English by default
+			prompt:         "",         // No default prompt
 			workerPoolSize: 3,          // Conservative default
 		},
 		transcriptionFailureThreshold: 10,

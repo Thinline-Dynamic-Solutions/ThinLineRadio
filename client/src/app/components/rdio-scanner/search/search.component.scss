@@ -244,13 +244,14 @@
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     line-height: 1.4;
+    min-height: 4.2em; // Always reserve space for 3 lines * 1.4 line-height
     max-height: 4.2em; // 3 lines * 1.4 line-height
   }
 
-  // Fixed row height to prevent vertical shifting
+  // Fixed row height to prevent vertical shifting - match 3-line content + padding
   .mat-row {
-    min-height: 72px;
-    height: 72px;
+    min-height: 76px;
+    height: 76px;
   }
 
   .mat-cell {
