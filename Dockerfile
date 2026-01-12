@@ -92,6 +92,8 @@ COPY --from=server-builder /build/server/thinline-radio .
 COPY docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
+
 # Copy documentation (only essential files, optional ones can fail)
 COPY LICENSE README.md ./
 
