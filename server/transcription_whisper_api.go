@@ -52,25 +52,25 @@ func NewWhisperAPITranscription(config *WhisperAPIConfig) *WhisperAPITranscripti
 		MaxIdleConnsPerHost: 10,               // Maximum idle connections per host
 		MaxConnsPerHost:     20,               // Maximum total connections per host
 		IdleConnTimeout:     90 * time.Second, // How long idle connections stay open
-		
+
 		// Timeouts for establishing connections
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second, // Connection timeout
 			KeepAlive: 30 * time.Second, // Keep-alive probe interval
 		}).DialContext,
-		
+
 		// Other important timeouts
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 30 * time.Second, // Timeout waiting for response headers
 		ExpectContinueTimeout: 1 * time.Second,
-		
+
 		// Disable HTTP/2 to avoid potential issues with some Whisper servers
 		ForceAttemptHTTP2: false,
-		
+
 		// Don't reuse connections that have been idle too long
 		DisableKeepAlives: false, // Keep connections alive for reuse
 	}
-	
+
 	api := &WhisperAPITranscription{
 		baseURL: config.BaseURL,
 		apiKey:  config.APIKey,
@@ -80,16 +80,21 @@ func NewWhisperAPITranscription(config *WhisperAPIConfig) *WhisperAPITranscripti
 		},
 	}
 
-	// Default to localhost:8000 if not specified
+	// Default to https://api.openai.com if not specified
 	if api.baseURL == "" {
-		api.baseURL = "http://localhost:8000"
+		api.baseURL = "https://api.openai.com"
 	}
 
 	// Remove trailing slash
 	api.baseURL = strings.TrimSuffix(api.baseURL, "/")
 
-	// Test availability by checking health endpoint
-	api.available = api.checkAvailability()
+	if api.baseURL == "https://api.openai.com" {
+	    api.available = true
+	} else {
+	    // Test availability by checking health endpoint if no OpenAI Official
+    	api.available = api.checkAvailability()
+	}
+
 
 	return api
 }
@@ -98,13 +103,13 @@ func NewWhisperAPITranscription(config *WhisperAPIConfig) *WhisperAPITranscripti
 // Uses a short timeout (5 seconds) to avoid blocking server startup
 func (api *WhisperAPITranscription) checkAvailability() bool {
 	healthURL := api.baseURL + "/health"
-	
+
 	// Use a short timeout for health checks to avoid blocking server startup
 	// if the API server is busy processing a transcription
 	healthClient := &http.Client{
 		Timeout: 5 * time.Second,
 	}
-	
+
 	resp, err := healthClient.Get(healthURL)
 	if err != nil {
 		return false
@@ -126,7 +131,7 @@ func (api *WhisperAPITranscription) Transcribe(audio []byte, options Transcripti
 	// Retry logic with exponential backoff for transient network errors
 	maxRetries := 3
 	baseDelay := 1 * time.Second
-	
+
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
@@ -134,24 +139,24 @@ func (api *WhisperAPITranscription) Transcribe(audio []byte, options Transcripti
 			delay := baseDelay * time.Duration(1<<uint(attempt-1))
 			time.Sleep(delay)
 		}
-		
+
 		result, err := api.attemptTranscribe(audio, options)
 		if err == nil {
 			return result, nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if error is retryable (network/connection errors)
 		if isRetryableError(err) && attempt < maxRetries {
 			// Retry on connection errors, EOF, etc.
 			continue
 		}
-		
+
 		// Non-retryable error or max retries exceeded
 		break
 	}
-	
+
 	return nil, lastErr
 }
 
@@ -160,9 +165,9 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	errMsg := err.Error()
-	
+
 	// Check for common retryable errors
 	retryableErrors := []string{
 		"connection refused",
@@ -175,13 +180,13 @@ func isRetryableError(err error) bool {
 		"temporary failure",
 		"TLS handshake timeout",
 	}
-	
+
 	for _, retryable := range retryableErrors {
 		if strings.Contains(strings.ToLower(errMsg), strings.ToLower(retryable)) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -273,7 +278,7 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	// Add Connection: close header to avoid connection reuse issues
 	req.Header.Set("Connection", "keep-alive")
-	
+
 	if api.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+api.apiKey)
 	}
@@ -314,7 +319,7 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 
 	// Convert to TranscriptionResult format
 	transcript := strings.ToUpper(strings.TrimSpace(apiResponse.Text))
-	
+
 	// Build segments
 	segments := make([]TranscriptSegment, 0, len(apiResponse.Segments))
 	for _, seg := range apiResponse.Segments {
