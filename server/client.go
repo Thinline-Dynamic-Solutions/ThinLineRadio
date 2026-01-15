@@ -72,6 +72,11 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 
 	go func() {
 		defer func() {
+			// Save state for potential reconnection before unregistering
+			if client.User != nil && client.Controller != nil && client.Controller.ReconnectionMgr != nil {
+				client.Controller.ReconnectionMgr.SaveDisconnectedState(client)
+			}
+
 			controller.Unregister <- client
 
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("listener disconnected from ip %s", client.GetRemoteAddr()))
@@ -333,6 +338,11 @@ func (clients *Clients) EmitCall(controller *Controller, call *Call) {
 				// Client will catch up on next call or disconnect
 			}
 		}
+	}
+
+	// Buffer call for disconnected clients within reconnection grace period
+	if controller.ReconnectionMgr != nil {
+		controller.ReconnectionMgr.BufferCallForDisconnected(call)
 	}
 }
 

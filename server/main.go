@@ -118,6 +118,50 @@ func main() {
 
 	controller := NewController(config)
 
+	// Handle opus_migration flag from INI file
+	if config.OpusMigration {
+		fmt.Printf("\nThinLine Radio v%s - Opus Migration\n", Version)
+		fmt.Printf("----------------------------------\n\n")
+		fmt.Println("⚠️  opus_migration = true detected in configuration")
+		fmt.Println("Starting automatic database migration...")
+		fmt.Println("")
+		
+		if err := controller.Database.MigrateToOpus(100, false, true); err != nil {
+			log.Fatalf("Migration failed: %v", err)
+		}
+		
+		fmt.Println("")
+		fmt.Println("✅ Migration complete! Setting opus_migration = false in INI file...")
+		
+		// Automatically set opus_migration = false in the INI file
+		if err := config.SetOpusMigration(false); err != nil {
+			log.Printf("⚠️  Warning: Could not update INI file: %v", err)
+			log.Printf("Please manually set opus_migration = false in %s", config.ConfigFile)
+		} else {
+			fmt.Println("✅ Configuration updated successfully")
+		}
+		
+		fmt.Println("")
+		fmt.Println("🚀 Starting server with new Opus encoding enabled...")
+		fmt.Println("")
+		
+		// Continue to start the server normally instead of exiting
+		config.OpusMigration = false // Ensure we don't migrate again
+	}
+
+	// Handle migrate-to-opus command line flag
+	if config.migrateToOpus {
+		fmt.Printf("\nThinLine Radio v%s - Opus Migration\n", Version)
+		fmt.Printf("----------------------------------\n\n")
+		
+		if err := controller.Database.MigrateToOpus(config.migrateOpusBatch, config.migrateOpusDryRun, false); err != nil {
+			log.Fatalf("Migration failed: %v", err)
+		}
+		
+		// Command-line migration still exits (user explicitly ran migration tool)
+		os.Exit(0)
+	}
+
 	if config.newAdminPassword != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(config.newAdminPassword), bcrypt.DefaultCost)
 		if err != nil {

@@ -96,6 +96,10 @@ type Options struct {
 	TurnstileEnabled            bool              `json:"turnstileEnabled"`
 	TurnstileSiteKey            string            `json:"turnstileSiteKey"`
 	TurnstileSecretKey          string            `json:"turnstileSecretKey"`
+	// Reconnection manager configuration
+	ReconnectionEnabled         bool              `json:"reconnectionEnabled"`
+	ReconnectionGracePeriod     uint              `json:"reconnectionGracePeriod"` // In seconds
+	ReconnectionMaxBufferSize   uint              `json:"reconnectionMaxBufferSize"` // Maximum calls to buffer per user
 	adminPassword               string
 	adminPasswordNeedChange     bool
 	mutex                       sync.Mutex
@@ -577,6 +581,31 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.TurnstileSecretKey = ""
 	}
 
+	switch v := m["reconnectionEnabled"].(type) {
+	case bool:
+		options.ReconnectionEnabled = v
+	default:
+		options.ReconnectionEnabled = defaults.options.reconnectionEnabled
+	}
+
+	switch v := m["reconnectionGracePeriod"].(type) {
+	case float64:
+		options.ReconnectionGracePeriod = uint(v)
+	case int:
+		options.ReconnectionGracePeriod = uint(v)
+	default:
+		options.ReconnectionGracePeriod = defaults.options.reconnectionGracePeriod
+	}
+
+	switch v := m["reconnectionMaxBufferSize"].(type) {
+	case float64:
+		options.ReconnectionMaxBufferSize = uint(v)
+	case int:
+		options.ReconnectionMaxBufferSize = uint(v)
+	default:
+		options.ReconnectionMaxBufferSize = defaults.options.reconnectionMaxBufferSize
+	}
+
 	// Transcription: allow flat toggle and nested config from admin UI
 	if v, ok := m["transcriptionEnabled"].(bool); ok {
 		options.TranscriptionConfig.Enabled = v
@@ -681,6 +710,9 @@ func (options *Options) Read(db *Database) error {
 	options.AdminLocalhostOnly = defaults.options.adminLocalhostOnly
 	options.ConfigSyncEnabled = defaults.options.configSyncEnabled
 	options.ConfigSyncPath = defaults.options.configSyncPath
+	options.ReconnectionEnabled = defaults.options.reconnectionEnabled
+	options.ReconnectionGracePeriod = defaults.options.reconnectionGracePeriod
+	options.ReconnectionMaxBufferSize = defaults.options.reconnectionMaxBufferSize
 	
 	// Initialize Radio Reference credentials with defaults, but they will be overridden by database values
 	options.RadioReferenceEnabled = defaults.options.radioReferenceEnabled
@@ -1131,6 +1163,27 @@ func (options *Options) Read(db *Database) error {
 					options.TurnstileSecretKey = v
 				}
 			}
+		case "reconnectionEnabled":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.ReconnectionEnabled = v
+				}
+			}
+		case "reconnectionGracePeriod":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.ReconnectionGracePeriod = uint(v)
+				}
+			}
+		case "reconnectionMaxBufferSize":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.ReconnectionMaxBufferSize = uint(v)
+				}
+			}
 		}
 	}
 
@@ -1236,6 +1289,9 @@ func (options *Options) Write(db *Database) error {
 	set("turnstileEnabled", options.TurnstileEnabled)
 	set("turnstileSiteKey", options.TurnstileSiteKey)
 	set("turnstileSecretKey", options.TurnstileSecretKey)
+	set("reconnectionEnabled", options.ReconnectionEnabled)
+	set("reconnectionGracePeriod", options.ReconnectionGracePeriod)
+	set("reconnectionMaxBufferSize", options.ReconnectionMaxBufferSize)
 	// Persist entire transcription config as a single JSON blob
 	set("transcriptionConfig", options.TranscriptionConfig)
 

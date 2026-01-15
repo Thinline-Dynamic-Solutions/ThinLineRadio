@@ -61,7 +61,7 @@ func NewFFMpeg() *FFMpeg {
 	return ffmpeg
 }
 
-func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint) error {
+func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint, config *Config) error {
 	var (
 		args = []string{"-i", "-"}
 		err  error
@@ -98,7 +98,25 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 		}
 	}
 
-	args = append(args, "-c:a", "aac", "-b:a", "32k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
+	// Check if Opus encoding is enabled via configuration
+	if config != nil && config.UseOpus {
+		// Force 16kHz mono for optimal Opus encoding
+		args = append(args, "-ar", "16000", "-ac", "1")
+		
+		// Use Opus codec optimized for voice (50% smaller than AAC)
+		args = append(args, 
+			"-c:a", "libopus",
+			"-b:a", "16k",              // 16 kbps (half of previous 32k AAC, same quality for voice)
+			"-vbr", "on",               // Variable bitrate
+			"-application", "voip",     // Optimize for voice
+			"-compression_level", "10", // Max compression
+			"-f", "opus",               // Opus/OGG container format
+			"-",
+		)
+	} else {
+		// Default: Use AAC/M4A encoding (backward compatible)
+		args = append(args, "-c:a", "aac", "-b:a", "32k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
+	}
 
 	cmd := exec.Command("ffmpeg", args...)
 	cmd.Stdin = bytes.NewReader(call.Audio)
@@ -111,8 +129,14 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 
 	if err = cmd.Run(); err == nil {
 		call.Audio = stdout.Bytes()
-		call.AudioFilename = fmt.Sprintf("%v.m4a", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
-		call.AudioMime = "audio/mp4"
+		
+		if config != nil && config.UseOpus {
+			call.AudioFilename = fmt.Sprintf("%v.opus", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
+			call.AudioMime = "audio/opus"
+		} else {
+			call.AudioFilename = fmt.Sprintf("%v.m4a", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
+			call.AudioMime = "audio/mp4"
+		}
 
 	} else {
 		fmt.Println(stderr.String())

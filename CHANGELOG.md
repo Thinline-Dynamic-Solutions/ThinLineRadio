@@ -1,5 +1,65 @@
 # Change log
 
+## Version 7.0 Beta 7 - Released TBD
+
+### New Features
+
+- **Opus audio codec support for 50% storage savings**
+  - Implemented Opus audio encoding as an alternative to M4A/AAC format
+  - Provides 50% storage reduction (16 kbps Opus vs 32 kbps AAC) with same or better voice quality
+  - Opus is specifically optimized for voice/dispatch audio with superior low-bitrate performance
+  - Storage savings: ~240 KB per minute (M4A) → ~120 KB per minute (Opus)
+  - Bitrate: 32 kbps AAC → 16 kbps Opus (50% reduction)
+  - Format: M4A container → OGG container with Opus codec
+  - Voice-optimized encoding settings (`-application voip`, variable bitrate, max compression)
+  - Configurable via `thinline-radio.ini`: `opus = true/false` (default: false for backward compatibility in Beta 7)
+  - **Note:** Opus will become the default codec in Beta 8 (M4A/AAC will be deprecated)
+  - Only affects NEW calls when enabled - existing calls remain unchanged until migration
+  - Browser compatibility: Chrome/Edge/Firefox/Safari 14+ all support Opus natively
+  - Mobile app compatibility: Android 5.0+ (99% of devices), iOS 11+ (99% of devices)
+  - Web client: No changes needed - browsers automatically decode Opus via AudioContext
+  - Mobile app: Added Opus/OGG format detection with magic byte checking (`OggS` header, `OpusHead` marker)
+  - Files modified: server/ffmpeg.go, server/tone_detector.go, server/debug_logger.go, server/config.go, server/main.go, server/command.go, ThinlineRadio-Mobile/lib/services/audio_service.dart
+  - Files added: server/migrate_to_opus.go, OPUS_IMPLEMENTATION.md, OPUS_CONFIGURATION.md, OPUS_MIGRATION.md
+
+- **Opus migration tool for converting existing audio**
+  - Database migration tool to convert all existing M4A/AAC/MP3 calls to Opus format
+  - Command-line tool: `./thinline-radio -migrate_to_opus`
+  - Batch processing with configurable batch size (default: 100 calls per batch)
+  - Dry run mode: `-migrate_dry_run` flag to preview migration without making changes
+  - Progress tracking with ETA estimates (~0.5 seconds per call processing time)
+  - Error handling and retry logic for failed conversions
+  - Statistics and savings reporting (shows total calls, converted count, size reduction)
+  - FFmpeg Opus support verification before migration starts
+  - Safe to restart - already-converted calls are skipped on re-run
+  - Requires server to be stopped (migration runs on startup, then exits)
+  - Configuration: `opus_migration = true` in INI file (set back to false after migration)
+  - Files added: server/migrate_to_opus.go
+  - Documentation: Comprehensive migration guide in OPUS_MIGRATION.md
+
+**Migration Process:**
+  - **Prerequisites:** Backup database, ensure FFmpeg has libopus support, stop server
+  - **Step 1 - Dry Run:** `./thinline-radio -migrate_to_opus -migrate_dry_run` to preview changes without modifying database
+  - **Step 2 - Migration:** `./thinline-radio -migrate_to_opus` to convert all existing audio files
+  - **Custom Batch Size:** Use `-migrate_batch_size=50` for smaller batches (less memory) or `-migrate_batch_size=500` for larger batches (faster)
+  - **Step 3 - Reclaim Space:** After migration, run `psql -d thinline -c "VACUUM FULL calls;"` to reclaim PostgreSQL disk space
+  - **Step 4 - Verify:** Check migration with SQL query: `SELECT "audioMime", COUNT(*) FROM "calls" GROUP BY "audioMime";`
+  - **Timeline:** ~15 min for 2,000 calls, ~45 min for 5,000 calls, ~3.5 hours for 25,000 calls
+  - **Rollback:** Restore from database backup if needed (migration is one-way conversion)
+  - **Important:** Update mobile app first and wait for 90%+ user adoption before migrating existing calls
+
+### Bug Fixes
+
+- **Fixed keyword alerts not respecting alertEnabled preference**
+  - Fixed critical bug where keyword alerts were sent to users even when they had disabled alerts for a system/talkgroup
+  - Root cause: Keyword alert query was only checking `keywordAlerts = true` but missing the `alertEnabled = true` check
+  - Tone alerts correctly checked both `alertEnabled = true AND toneAlerts = true`, but keyword alerts were only checking `keywordAlerts = true`
+  - Now keyword alerts properly check `alertEnabled = true AND keywordAlerts = true` to match tone alert behavior
+  - Users who disable alerts for a specific system/talkgroup will no longer receive keyword alerts for that combination
+  - Alert preferences remain per-system/talkgroup - users can have different alert settings for different systems/talkgroups
+  - Files modified: server/transcription_queue.go
+  - Addresses issue where users reported receiving keyword alerts despite having all alerts disabled
+
 ## Version 7.0 Beta 6 - Released January 10, 2026
 
 ### Bug Fixes

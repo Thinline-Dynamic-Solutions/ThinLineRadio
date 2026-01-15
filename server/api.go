@@ -1458,7 +1458,13 @@ func (api *Api) StripeWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		api.handleCheckoutSessionCompleted(stripeEvent)
 	case "customer.subscription.created", "customer.subscription.updated":
 		log.Printf("Processing subscription event: %s", stripeEvent.Type)
-		api.handleSubscriptionEvent(stripeEvent.Data.Raw, "active")
+		// Parse the subscription to get the actual status from Stripe
+		var subData stripe.Subscription
+		if err := json.Unmarshal(stripeEvent.Data.Raw, &subData); err == nil {
+			api.handleSubscriptionEvent(stripeEvent.Data.Raw, string(subData.Status))
+		} else {
+			log.Printf("Error parsing subscription event: %v", err)
+		}
 	case "customer.subscription.deleted":
 		log.Printf("Processing subscription deleted event")
 		api.handleSubscriptionEvent(stripeEvent.Data.Raw, "canceled")
@@ -1754,34 +1760,49 @@ func (api *Api) handleInvoicePaymentFailed(rawData []byte) {
 		return
 	}
 
-	log.Printf("Processing invoice payment failed for customer: %s", invoice.Customer.ID)
+	log.Printf("=== DEBUG: Processing invoice payment failed ===")
+	log.Printf("DEBUG: Invoice ID: %s", invoice.ID)
+	log.Printf("DEBUG: Customer ID: %s", invoice.Customer.ID)
+	log.Printf("DEBUG: Customer Email: %s", invoice.Customer.Email)
+	if invoice.Subscription != nil {
+		log.Printf("DEBUG: Subscription ID: %s", invoice.Subscription.ID)
+	} else {
+		log.Printf("DEBUG: No subscription in invoice")
+	}
+	log.Printf("DEBUG: Invoice Amount: %d", invoice.AmountDue)
+	log.Printf("DEBUG: Invoice Status: %s", invoice.Status)
 
 	// Find user by Stripe customer ID
 	user := api.Controller.Users.GetUserByStripeCustomerId(invoice.Customer.ID)
 	if user == nil {
-		log.Printf("User not found for Stripe customer ID: %s", invoice.Customer.ID)
+		log.Printf("DEBUG: User not found for Stripe customer ID: %s", invoice.Customer.ID)
 
 		// Try to find user by email from customer object
 		if invoice.Customer.Email != "" {
-			log.Printf("Trying to find user by email: %s", invoice.Customer.Email)
+			log.Printf("DEBUG: Trying to find user by email: %s", invoice.Customer.Email)
 			user = api.Controller.Users.GetUserByEmail(invoice.Customer.Email)
 			if user != nil {
-				log.Printf("Found user by email, updating with Stripe customer ID")
+				log.Printf("DEBUG: Found user by email, updating with Stripe customer ID")
 				user.StripeCustomerId = invoice.Customer.ID
 			}
 		}
 
 		if user == nil {
-			log.Printf("User not found for email: %s", invoice.Customer.Email)
-			log.Printf("Cannot process invoice payment event - user not found for customer ID: %s", invoice.Customer.ID)
+			log.Printf("DEBUG: User not found for email: %s", invoice.Customer.Email)
+			log.Printf("DEBUG: Cannot process invoice payment event - user not found for customer ID: %s", invoice.Customer.ID)
 			return
 		}
 	}
 
-	log.Printf("Found user: %s (ID: %d)", user.Email, user.Id)
+	log.Printf("DEBUG: Found user: %s (ID: %d)", user.Email, user.Id)
+	log.Printf("DEBUG: User current subscription status: %s", user.SubscriptionStatus)
+	log.Printf("DEBUG: User current PIN expiration: %d", user.PinExpiresAt)
+	log.Printf("DEBUG: User Stripe customer ID: %s", user.StripeCustomerId)
+	log.Printf("DEBUG: User Stripe subscription ID: %s", user.StripeSubscriptionId)
 
 	// Update subscription status to past_due
 	user.SubscriptionStatus = "past_due"
+	log.Printf("DEBUG: Updated user subscription status to: past_due")
 
 	// Still update PIN expiration if subscription exists (subscription might still be active but past_due)
 	// This is a failed payment, so we'll add grace period if user has had successful payment or trial
@@ -1791,20 +1812,30 @@ func (api *Api) handleInvoicePaymentFailed(rawData []byte) {
 		if stripe.Key != "" {
 			sub, err := subscription.Get(invoice.Subscription.ID, nil)
 			if err == nil {
-				log.Printf("Fetched subscription %s with status: %s for failed payment", sub.ID, sub.Status)
+				log.Printf("=== DEBUG: Fetched subscription from Stripe ===")
+				log.Printf("DEBUG: Subscription ID: %s", sub.ID)
+				log.Printf("DEBUG: Subscription Status: %s", sub.Status)
+				log.Printf("DEBUG: Subscription Created: %d", sub.Created)
+				log.Printf("DEBUG: Subscription TrialEnd: %d", sub.TrialEnd)
+				log.Printf("DEBUG: Subscription CurrentPeriodStart: %d", sub.CurrentPeriodStart)
+				log.Printf("DEBUG: Subscription CurrentPeriodEnd: %d", sub.CurrentPeriodEnd)
+				log.Printf("DEBUG: Subscription CancelAtPeriodEnd: %v", sub.CancelAtPeriodEnd)
+				log.Printf("DEBUG: Subscription EndedAt: %d", sub.EndedAt)
 
 				// Check if user had actual successful payments (not just trial)
 				// Grace period is only for users who have actually paid before
 				// If they only had a trial and payment fails after trial, no grace period
 				hadSuccessfulPayment := false
+				log.Printf("DEBUG: Checking if user had successful payment...")
 
 				// Note: When payment fails, status is typically "past_due" or "incomplete_expired", not "active"
 				// But check anyway in case of timing edge cases
 				if sub.Status == "active" {
 					// Status is active means they've had successful payment (shouldn't happen on payment failure, but check anyway)
 					hadSuccessfulPayment = true
-					log.Printf("Subscription %s is active - user had successful payment", sub.ID)
+					log.Printf("DEBUG: ✓ Subscription %s is active - user had successful payment", sub.ID)
 				} else if sub.TrialEnd > 0 && sub.CurrentPeriodStart > 0 {
+					log.Printf("DEBUG: Subscription has trial (TrialEnd: %d) and CurrentPeriodStart: %d", sub.TrialEnd, sub.CurrentPeriodStart)
 					// If they had a trial, check if they've had successful payments after trial ended
 					// When trial ends and payment succeeds, CurrentPeriodStart is set to start of paid period
 					// When payment fails after trial, CurrentPeriodStart might be close to TrialEnd
@@ -1813,61 +1844,75 @@ func (api *Api) handleInvoicePaymentFailed(rawData []byte) {
 					// Note: This is conservative - requires at least 1 day difference to account for edge cases
 					// where CurrentPeriodStart might be set slightly after TrialEnd even on payment failure
 					daysSinceTrialEnd := float64(sub.CurrentPeriodStart-sub.TrialEnd) / 86400.0
+					log.Printf("DEBUG: Days since trial end: %.2f (CurrentPeriodStart: %d, TrialEnd: %d)", daysSinceTrialEnd, sub.CurrentPeriodStart, sub.TrialEnd)
 					if daysSinceTrialEnd > 1.0 {
 						// They've been in paid period for more than 1 day - had successful payment
 						// This indicates they completed at least one billing period after trial
 						hadSuccessfulPayment = true
-						log.Printf("Subscription %s has completed paid periods (period start: %d, trial ended: %d, %.2f days after trial) - user had successful payment", sub.ID, sub.CurrentPeriodStart, sub.TrialEnd, daysSinceTrialEnd)
+						log.Printf("DEBUG: ✓ Subscription %s has completed paid periods (%.2f days after trial) - user had successful payment", sub.ID, daysSinceTrialEnd)
 					} else {
 						// CurrentPeriodStart is close to or before TrialEnd - no successful payment yet
 						// This includes trial users whose first payment failed immediately after trial
-						log.Printf("Subscription %s had trial (ended: %d) but no successful payment (period start: %d, %.2f days after trial) - no grace period", sub.ID, sub.TrialEnd, sub.CurrentPeriodStart, daysSinceTrialEnd)
+						log.Printf("DEBUG: ✗ Subscription %s had trial (ended: %d) but no successful payment (%.2f days after trial) - no grace period", sub.ID, sub.TrialEnd, daysSinceTrialEnd)
 					}
 				} else if sub.CurrentPeriodStart > 0 && sub.Created > 0 && sub.CurrentPeriodStart > sub.Created {
+					log.Printf("DEBUG: Subscription has no trial, checking period start vs creation")
+					log.Printf("DEBUG: CurrentPeriodStart: %d, Created: %d", sub.CurrentPeriodStart, sub.Created)
 					// No trial period, but they've completed at least one billing period (had successful payment)
 					// Check if period start is significantly after creation (more than 1 day)
 					daysSinceCreation := float64(sub.CurrentPeriodStart-sub.Created) / 86400.0
+					log.Printf("DEBUG: Days since creation: %.2f", daysSinceCreation)
 					if daysSinceCreation > 1.0 {
 						hadSuccessfulPayment = true
-						log.Printf("Subscription %s has completed billing periods (period start: %d, created: %d, %d days after creation) - user had successful payment", sub.ID, sub.CurrentPeriodStart, sub.Created, int(daysSinceCreation))
+						log.Printf("DEBUG: ✓ Subscription %s has completed billing periods (%.2f days after creation) - user had successful payment", sub.ID, daysSinceCreation)
 					} else {
-						log.Printf("Subscription %s period start (%d) is close to creation (%d) - likely no successful payment yet - no grace period", sub.ID, sub.CurrentPeriodStart, sub.Created)
+						log.Printf("DEBUG: ✗ Subscription %s period start is close to creation (%.2f days) - likely no successful payment yet - no grace period", sub.ID, daysSinceCreation)
 					}
 				} else {
-					log.Printf("Subscription %s has no indicators of successful payment - no grace period (status: %s)", sub.ID, sub.Status)
+					log.Printf("DEBUG: ✗ Subscription %s has no indicators of successful payment - no grace period", sub.ID)
+					log.Printf("DEBUG:   Status: %s, TrialEnd: %d, CurrentPeriodStart: %d, Created: %d", sub.Status, sub.TrialEnd, sub.CurrentPeriodStart, sub.Created)
 				}
+
+				log.Printf("DEBUG: Final decision - hadSuccessfulPayment: %v", hadSuccessfulPayment)
 
 				if hadSuccessfulPayment {
 					// User had successful payment(s) - give them grace period
+					log.Printf("DEBUG: User had successful payment - granting grace period")
 					// Note: calculatePinExpiration checks if status is active/trialing, but after payment fails
 					// status becomes past_due, so we need to manually calculate with grace period
 					if sub.CurrentPeriodEnd > 0 {
 						// Add 2-day buffer (same as calculatePinExpiration)
 						expiration := int64(sub.CurrentPeriodEnd) + (2 * 24 * 60 * 60) // 2 days in seconds
+						log.Printf("DEBUG: CurrentPeriodEnd: %d, adding 2-day buffer: %d", sub.CurrentPeriodEnd, expiration)
 
 						// Add grace period for failed payment
 						gracePeriodDays := api.Controller.Options.StripeGracePeriodDays
+						log.Printf("DEBUG: Configured grace period days: %d", gracePeriodDays)
 						if gracePeriodDays > 0 {
 							expiration += int64(gracePeriodDays) * 24 * 60 * 60 // Convert days to seconds
+							log.Printf("DEBUG: Added grace period: %d days, final expiration: %d", gracePeriodDays, expiration)
 						}
 
 						user.PinExpiresAt = uint64(expiration)
-						log.Printf("Set PIN expiration to %d (Unix timestamp) from failed payment (status: %s, includes 2-day buffer + %d-day grace period) - user had successful payment", user.PinExpiresAt, sub.Status, gracePeriodDays)
+						log.Printf("DEBUG: ✓ Set PIN expiration to %d (Unix timestamp: %s) - includes 2-day buffer + %d-day grace period", user.PinExpiresAt, time.Unix(int64(user.PinExpiresAt), 0).Format(time.RFC3339), gracePeriodDays)
 					} else {
+						log.Printf("DEBUG: No CurrentPeriodEnd available, using grace period from now")
 						// No CurrentPeriodEnd - use grace period from now
 						gracePeriodDays := api.Controller.Options.StripeGracePeriodDays
+						log.Printf("DEBUG: Configured grace period days: %d", gracePeriodDays)
 						if gracePeriodDays > 0 {
 							user.PinExpiresAt = uint64(time.Now().Unix() + int64(gracePeriodDays)*24*60*60)
-							log.Printf("Set PIN expiration to %d (current time + %d-day grace period) from failed payment - user had successful payment but no CurrentPeriodEnd", user.PinExpiresAt, gracePeriodDays)
+							log.Printf("DEBUG: ✓ Set PIN expiration to %d (current time + %d-day grace period: %s)", user.PinExpiresAt, gracePeriodDays, time.Unix(int64(user.PinExpiresAt), 0).Format(time.RFC3339))
 						} else {
 							user.PinExpiresAt = uint64(time.Now().Unix())
-							log.Printf("Set PIN expiration to current time (no grace period configured) from failed payment")
+							log.Printf("DEBUG: ✗ Set PIN expiration to current time (no grace period configured)")
 						}
 					}
 				} else {
 					// No successful payment - expire immediately (includes trial users who fail first payment)
+					log.Printf("DEBUG: User had no successful payment - expiring immediately")
 					user.PinExpiresAt = uint64(time.Now().Unix())
-					log.Printf("Set PIN expiration to current time (immediate expiration) for failed payment - user had no successful payment (status: %s)", sub.Status)
+					log.Printf("DEBUG: ✗ Set PIN expiration to current time (immediate expiration) - Unix: %d, Time: %s", user.PinExpiresAt, time.Unix(int64(user.PinExpiresAt), 0).Format(time.RFC3339))
 				}
 			} else {
 				log.Printf("Failed to fetch subscription %s: %v", invoice.Subscription.ID, err)
@@ -1898,6 +1943,12 @@ func (api *Api) handleInvoicePaymentFailed(rawData []byte) {
 		api.syncGroupAdminSubscriptionToAllUsers(user)
 	}
 
+	log.Printf("=== DEBUG: Final outcome for user %s ===", user.Email)
+	log.Printf("DEBUG: Subscription Status: %s", user.SubscriptionStatus)
+	log.Printf("DEBUG: PIN Expiration: %d (Unix) = %s", user.PinExpiresAt, time.Unix(int64(user.PinExpiresAt), 0).Format(time.RFC3339))
+	log.Printf("DEBUG: Stripe Customer ID: %s", user.StripeCustomerId)
+	log.Printf("DEBUG: Stripe Subscription ID: %s", user.StripeSubscriptionId)
+	log.Printf("=== DEBUG: End invoice payment failed processing ===")
 	log.Printf("Updated user %s subscription status to past_due after failed payment", user.Email)
 }
 
@@ -1910,20 +1961,27 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 		return
 	}
 
-	log.Printf("Checkout session completed for email: %s", session.CustomerEmail)
-	log.Printf("Session ID: %s", session.ID)
-	log.Printf("Customer ID: %s", session.Customer.ID)
-	log.Printf("Subscription ID: %s", session.Subscription.ID)
-	log.Printf("Payment Status: %s", session.PaymentStatus)
+	log.Printf("=== DEBUG: Checkout session completed ===")
+	log.Printf("DEBUG: Email: %s", session.CustomerEmail)
+	log.Printf("DEBUG: Session ID: %s", session.ID)
+	log.Printf("DEBUG: Customer ID: %s", session.Customer.ID)
+	log.Printf("DEBUG: Subscription ID: %s", session.Subscription.ID)
+	log.Printf("DEBUG: Payment Status: %s", session.PaymentStatus)
+	log.Printf("DEBUG: Session Status: %s", session.Status)
+	log.Printf("DEBUG: Session Mode: %s", session.Mode)
 
 	// Find user by email
 	user := api.Controller.Users.GetUserByEmail(session.CustomerEmail)
 	if user == nil {
-		log.Printf("User not found for email: %s", session.CustomerEmail)
+		log.Printf("DEBUG: ✗ User not found for email: %s", session.CustomerEmail)
 		return
 	}
 
-	log.Printf("Found user: %s (ID: %d)", user.Email, user.Id)
+	log.Printf("DEBUG: Found user: %s (ID: %d)", user.Email, user.Id)
+	log.Printf("DEBUG: User current subscription status: %s", user.SubscriptionStatus)
+	log.Printf("DEBUG: User current PIN expiration: %d", user.PinExpiresAt)
+	log.Printf("DEBUG: User Stripe customer ID: %s", user.StripeCustomerId)
+	log.Printf("DEBUG: User Stripe subscription ID: %s", user.StripeSubscriptionId)
 
 	// Verify payment and subscription status before activating account
 	// checkout.session.completed can fire even when payment fails
@@ -1932,8 +1990,9 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 
 	// Check payment status: "paid" or "no_payment_required" are valid
 	// "unpaid" is acceptable only if subscription has a trial period (will be verified below)
+	log.Printf("DEBUG: Checking payment status: %s", session.PaymentStatus)
 	if session.PaymentStatus != "paid" && session.PaymentStatus != "no_payment_required" && session.PaymentStatus != "unpaid" {
-		log.Printf("Payment not successful for checkout session %s (PaymentStatus: %s). User account will not be activated.", session.ID, session.PaymentStatus)
+		log.Printf("DEBUG: ✗ Payment not successful (PaymentStatus: %s). User account will NOT be activated.", session.PaymentStatus)
 		// Update Stripe customer ID if available, but do not activate account
 		if session.Customer.ID != "" {
 			user.StripeCustomerId = session.Customer.ID
@@ -1957,8 +2016,8 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 		if stripe.Key != "" {
 			fetchedSub, err := subscription.Get(session.Subscription.ID, nil)
 			if err != nil {
-				log.Printf("Failed to fetch subscription %s: %v", session.Subscription.ID, err)
-				log.Printf("Cannot verify subscription status. User account will not be activated.")
+				log.Printf("DEBUG: ✗ Failed to fetch subscription %s: %v", session.Subscription.ID, err)
+				log.Printf("DEBUG: Cannot verify subscription status. User account will NOT be activated.")
 				// Update Stripe customer ID if available, but do not activate account
 				if session.Customer.ID != "" {
 					user.StripeCustomerId = session.Customer.ID
@@ -1972,11 +2031,19 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 				return
 			}
 			sub = fetchedSub
-			log.Printf("Fetched subscription %s with status: %s", sub.ID, sub.Status)
+			log.Printf("=== DEBUG: Fetched subscription from Stripe ===")
+			log.Printf("DEBUG: Subscription ID: %s", sub.ID)
+			log.Printf("DEBUG: Subscription Status: %s", sub.Status)
+			log.Printf("DEBUG: Subscription Created: %d", sub.Created)
+			log.Printf("DEBUG: Subscription TrialEnd: %d", sub.TrialEnd)
+			log.Printf("DEBUG: Subscription CurrentPeriodStart: %d", sub.CurrentPeriodStart)
+			log.Printf("DEBUG: Subscription CurrentPeriodEnd: %d", sub.CurrentPeriodEnd)
+			log.Printf("DEBUG: Subscription CancelAtPeriodEnd: %v", sub.CancelAtPeriodEnd)
 
 			// Only activate if subscription is active or trialing (not incomplete, incomplete_expired, past_due, etc.)
+			log.Printf("DEBUG: Checking subscription status for activation...")
 			if sub.Status != "active" && sub.Status != "trialing" {
-				log.Printf("Subscription %s status is %s (not active or trialing). Payment status: %s. User account will not be activated.", sub.ID, sub.Status, session.PaymentStatus)
+				log.Printf("DEBUG: ✗ Subscription %s status is %s (not active or trialing). Payment status: %s. User account will NOT be activated.", sub.ID, sub.Status, session.PaymentStatus)
 				// Update Stripe customer ID and subscription ID, but do not activate account
 				user.StripeCustomerId = session.Customer.ID
 				user.StripeSubscriptionId = session.Subscription.ID
@@ -1993,8 +2060,9 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 
 			// If payment status is "unpaid" but subscription is trialing, that's valid (trial period)
 			if session.PaymentStatus == "unpaid" && sub.Status == "trialing" {
-				log.Printf("Subscription %s is in trial period (trialing status). Account will be activated.", sub.ID)
+				log.Printf("DEBUG: ✓ Subscription %s is in trial period (trialing status). Account will be activated.", sub.ID)
 			}
+			log.Printf("DEBUG: ✓ Subscription status check passed - account will be activated")
 		} else {
 			log.Printf("Stripe API key not configured. Cannot verify subscription status. User account will not be activated.")
 			if session.Customer.ID != "" {
@@ -2041,22 +2109,28 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 	}
 
 	// Payment was successful and subscription is active/trialing - activate account
+	log.Printf("DEBUG: ✓ Payment and subscription verification passed - activating account")
 	user.StripeCustomerId = session.Customer.ID
 	user.StripeSubscriptionId = session.Subscription.ID
 	user.SubscriptionStatus = "active"
+	log.Printf("DEBUG: Updated user Stripe customer ID: %s", user.StripeCustomerId)
+	log.Printf("DEBUG: Updated user Stripe subscription ID: %s", user.StripeSubscriptionId)
+	log.Printf("DEBUG: Updated user subscription status: %s", user.SubscriptionStatus)
 
 	// Update PIN expiration - fetch subscription to get period end date
 	if sub != nil {
 		user.PinExpiresAt = api.calculatePinExpiration(sub, false)
 		if user.PinExpiresAt > 0 {
-			log.Printf("Set PIN expiration to %d (Unix timestamp) from checkout", user.PinExpiresAt)
+			log.Printf("DEBUG: ✓ Set PIN expiration to %d (Unix timestamp: %s) from checkout", user.PinExpiresAt, time.Unix(int64(user.PinExpiresAt), 0).Format(time.RFC3339))
 		} else {
-			log.Printf("Warning: Subscription %s has no CurrentPeriodEnd set", session.Subscription.ID)
+			log.Printf("DEBUG: ⚠ Warning: Subscription %s has no CurrentPeriodEnd set", session.Subscription.ID)
 		}
+	} else {
+		log.Printf("DEBUG: ⚠ No subscription object available for PIN expiration calculation")
 	}
 
-	log.Printf("Updated user with Stripe info - Customer: %s, Subscription: %s, Status: %s",
-		user.StripeCustomerId, user.StripeSubscriptionId, user.SubscriptionStatus)
+	log.Printf("DEBUG: Final user state - Customer: %s, Subscription: %s, Status: %s, PIN Expires: %d",
+		user.StripeCustomerId, user.StripeSubscriptionId, user.SubscriptionStatus, user.PinExpiresAt)
 
 	// Save to database
 	if err := api.Controller.Users.Write(api.Controller.Database); err != nil {
@@ -2072,6 +2146,12 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 		api.syncGroupAdminSubscriptionToAllUsers(user)
 	}
 
+	log.Printf("=== DEBUG: Final outcome for user %s ===", user.Email)
+	log.Printf("DEBUG: Subscription Status: %s", user.SubscriptionStatus)
+	log.Printf("DEBUG: PIN Expiration: %d (Unix) = %s", user.PinExpiresAt, time.Unix(int64(user.PinExpiresAt), 0).Format(time.RFC3339))
+	log.Printf("DEBUG: Stripe Customer ID: %s", user.StripeCustomerId)
+	log.Printf("DEBUG: Stripe Subscription ID: %s", user.StripeSubscriptionId)
+	log.Printf("=== DEBUG: End checkout session completed processing ===")
 	log.Printf("User %s subscription activated after checkout completion", user.Email)
 }
 

@@ -143,6 +143,8 @@ func (d *DebugLogger) SaveAudioFile(callId uint64, audioData []byte, mimeType st
 		ext = ".wav"
 	case "audio/ogg":
 		ext = ".ogg"
+	case "audio/opus":
+		ext = ".opus"
 	case "audio/aac":
 		ext = ".aac"
 	case "audio/m4a", "audio/mp4":

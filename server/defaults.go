@@ -99,6 +99,9 @@ type DefaultOptions struct {
 	adminLocalhostOnly          bool
 	configSyncEnabled           bool
 	configSyncPath              string
+	reconnectionEnabled         bool
+	reconnectionGracePeriod     uint
+	reconnectionMaxBufferSize   uint
 }
 
 type DefaultTranscriptionConfig struct {
@@ -210,6 +213,9 @@ var defaults = Defaults{
 		adminLocalhostOnly: false, // Default to false for backwards compatibility
 		configSyncEnabled:  false,
 		configSyncPath:     "",
+		reconnectionEnabled: true,       // Enable by default
+		reconnectionGracePeriod: 60,     // 60 seconds
+		reconnectionMaxBufferSize: 100,  // 100 calls max
 	},
 	systems: []System{
 		{

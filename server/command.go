@@ -42,6 +42,7 @@ const (
 	COMMAND_HELP           = "help"
 	COMMAND_LOGIN          = "login"
 	COMMAND_LOGOUT         = "logout"
+	COMMAND_MIGRATE_OPUS   = "migrate-to-opus"
 
 	COMMAND_DEF_PASSWORD = "admin"
 	COMMAND_DEF_URL      = "http://localhost:3000/"
@@ -171,6 +172,8 @@ func (command *Command) printUsage() {
 	fmt.Printf("    %-11s %s%s -%s %s %s <password>\n\n", "", prompt, command.app, COMMAND_ARG, COMMAND_LOGIN, COMMAND_ARG_PASSWORD)
 	fmt.Printf("  %-11s – Logout from server.\n\n", COMMAND_LOGOUT)
 	fmt.Printf("    %-11s %s%s -%s %s\n\n", "", prompt, command.app, COMMAND_ARG, COMMAND_LOGOUT)
+	fmt.Printf("  %-11s – Migrate database audio from M4A/AAC to Opus (see migration guide).\n\n", COMMAND_MIGRATE_OPUS)
+	fmt.Printf("    %-11s %s%s -%s %s\n\n", "", prompt, command.app, COMMAND_ARG, COMMAND_MIGRATE_OPUS)
 	fmt.Printf("Global Options:\n\n")
 	fmt.Printf("  %-11s – Session token keystore. Default is `.%s.token`.\n", COMMAND_ARG_TOKEN, command.app)
 	fmt.Printf("  %-11s – Server remote address. Default is `%s`.\n\n", COMMAND_ARG_URL, COMMAND_DEF_URL)

@@ -52,6 +52,7 @@ type Controller struct {
 	Groups                *Groups
 	Logs                  *Logs
 	Options               *Options
+	ReconnectionMgr       *ReconnectionManager
 	Scheduler             *Scheduler
 	Systems               *Systems
 	Tags                  *Tags
@@ -177,6 +178,10 @@ func NewController(config *Config) *Controller {
 	controller.RateLimiter = NewRateLimiter(1000, 1*time.Minute)
 	// Login attempt tracker: 6 failed attempts = 15 minute block
 	controller.LoginAttemptTracker = NewLoginAttemptTracker(6, 15*time.Minute)
+
+	// Initialize reconnection manager with default settings
+	// Will be reconfigured with actual settings from Options after Options.Read()
+	controller.ReconnectionMgr = NewReconnectionManager(controller, 60*time.Second, 100, true)
 
 	// Initialize transcription queue (if transcription is enabled in options)
 	// This will be initialized after Options.Read() in Start()
@@ -651,7 +656,7 @@ func (controller *Controller) IngestCall(call *Call) {
 		}
 	}
 
-	if err := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion); err != nil {
+	if err := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion, controller.Config); err != nil {
 		controller.Logs.LogEvent(LogLevelWarn, err.Error())
 	}
 
@@ -2378,6 +2383,11 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 		}
 
 		client.SendConfig(controller.Groups, controller.Options, controller.Systems, controller.Tags)
+
+		// Attempt to restore buffered calls from a previous disconnection
+		if user != nil && !pinExpired && controller.ReconnectionMgr != nil {
+			controller.ReconnectionMgr.RestoreClientState(client)
+		}
 	}
 
 	return nil
@@ -2441,6 +2451,12 @@ func (controller *Controller) Start() error {
 
 	// Start system health monitoring for system admins
 	controller.StartSystemHealthMonitoring()
+
+	// Start reconnection manager cleanup routine
+	if controller.ReconnectionMgr != nil {
+		controller.ReconnectionMgr.StartCleanup()
+		controller.Logs.LogEvent(LogLevelInfo, "Reconnection manager started")
+	}
 
 	if err = controller.Admin.Start(); err != nil {
 		return err
@@ -2595,6 +2611,17 @@ func (controller *Controller) readAllData() error {
 
 	// Check for duplicate emails and log them
 	controller.checkDuplicateEmails()
+
+	// Update reconnection manager settings from options
+	if controller.ReconnectionMgr != nil {
+		controller.ReconnectionMgr.HoldDuration = time.Duration(controller.Options.ReconnectionGracePeriod) * time.Second
+		controller.ReconnectionMgr.MaxBufferSize = int(controller.Options.ReconnectionMaxBufferSize)
+		controller.ReconnectionMgr.Enabled = controller.Options.ReconnectionEnabled
+		log.Printf("[ReconnectionManager] Configured - Enabled: %v, Grace Period: %ds, Max Buffer: %d", 
+			controller.ReconnectionMgr.Enabled, 
+			controller.Options.ReconnectionGracePeriod,
+			controller.Options.ReconnectionMaxBufferSize)
+	}
 
 	return nil
 }

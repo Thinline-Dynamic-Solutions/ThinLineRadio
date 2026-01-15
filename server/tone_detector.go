@@ -1122,8 +1122,12 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 		"-i", srcFile,
 		"-filter_complex", filterComplex,
 		"-map", "[out]",
-		"-c:a", "aac", // Encode to AAC
-		"-b:a", "64k", // Low bitrate for transcription (quality doesn't matter much)
+		"-ar", "16000",          // 16kHz sample rate
+		"-ac", "1",              // Mono
+		"-c:a", "libopus",       // Encode to Opus (was aac)
+		"-b:a", "16k",           // 16 kbps (was 64k - voice optimized)
+		"-application", "voip",  // Voice optimization
+		"-f", "opus",            // Opus format
 		outFile,
 	}
 

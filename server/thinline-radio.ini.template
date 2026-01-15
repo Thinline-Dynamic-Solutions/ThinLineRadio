@@ -1,0 +1,40 @@
+db_type = postgresql
+db_host = localhost
+db_port = 5432
+db_name = rdio_scanner
+db_user = your_username
+db_pass = your_password
+
+# Enable debug logging (default: false)
+enable_debug_log = false
+
+# Opus Audio Encoding (50% storage savings, better voice quality)
+# Set to true to encode all NEW calls as Opus instead of M4A
+# Default: false (uses M4A/AAC for backward compatibility)
+# 
+# Benefits of Opus:
+#  - 50% smaller file sizes (16k Opus vs 32k AAC)
+#  - Better voice quality at lower bitrates
+#  - ~120 KB per minute vs ~240 KB per minute
+#  - Native support: Android 5+, iOS 11+, modern browsers
+#
+# Recommended: Update mobile app first, then enable this setting
+opus = false
+
+# Opus Migration (One-Time Database Conversion)
+# Set to true to convert all EXISTING M4A/AAC/MP3 calls to Opus on startup
+# Server will run migration and exit. Set back to false after completion.
+# Default: false
+#
+# Migration Process:
+#  1. Backup your database first!
+#  2. Update mobile app (ensure users can play Opus)
+#  3. Set opus_migration = true
+#  4. Start server - migration runs automatically
+#  5. After completion, set opus_migration = false
+#  6. Run VACUUM FULL on database to reclaim space
+#
+# WARNING: Backup database before enabling! This modifies all existing audio.
+# Migration time estimate: ~0.5 seconds per call
+opus_migration = false
+

@@ -378,7 +378,7 @@ func (queue *TranscriptionQueue) processKeywords(callId uint64, systemId uint64,
 	queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("processing keywords for call %d (system=%d, talkgroup=%d)", callId, systemId, talkgroupId))
 	
 	// Get all users with keyword alerts enabled for this talkgroup
-	query := fmt.Sprintf(`SELECT "userId", "keywords", "keywordListIds" FROM "userAlertPreferences" WHERE "systemId" = %d AND "talkgroupId" = %d AND "keywordAlerts" = true`, systemId, talkgroupId)
+	query := fmt.Sprintf(`SELECT "userId", "keywords", "keywordListIds" FROM "userAlertPreferences" WHERE "systemId" = %d AND "talkgroupId" = %d AND "alertEnabled" = true AND "keywordAlerts" = true`, systemId, talkgroupId)
 	rows, err := queue.controller.Database.Sql.Query(query)
 	if err != nil {
 		queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to query user alert preferences: %v", err))
