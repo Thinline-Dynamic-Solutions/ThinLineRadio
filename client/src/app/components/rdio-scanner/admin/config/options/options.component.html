@@ -1,436 +1,436 @@
 <ng-container *ngIf="form" [formGroup]="form">
-    <div class="row">
-        <p>
-            <span class="mat-body">12-Hour Time Format</span><br>
-            <span class="mat-caption">Display time stamp in 12-hour format.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="time12hFormat"></mat-slide-toggle>
-        </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">12-Hour Time Format</span><br>
+      <span class="mat-caption">Display time stamp in 12-hour format.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="time12hFormat"></mat-slide-toggle>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Audio Conversion</span><br>
-            <span class="mat-caption">Convert incoming audio files to H.264 m4a with ffmpeg.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <mat-select formControlName="audioConversion" placeholder="Audio Conversion">
-                <mat-option [value]="0">Disabled</mat-option>
-                <mat-option [value]="1">Enabled without normalization</mat-option>
-                <mat-option [value]="2">Enabled with normalization</mat-option>
-                <mat-option [value]="3">Enabled with loud normalization</mat-option>
-            </mat-select>
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Auto Populate</span><br>
-            <span class="mat-caption">Globaly allows the automatic creation of unconfigured systems and
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Audio Conversion</span><br>
+      <span class="mat-caption">Convert incoming audio files to H.264 m4a with ffmpeg.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <mat-select formControlName="audioConversion" placeholder="Audio Conversion">
+        <mat-option [value]="0">Disabled</mat-option>
+        <mat-option [value]="1">Enabled without normalization</mat-option>
+        <mat-option [value]="2">Enabled with normalization</mat-option>
+        <mat-option [value]="3">Enabled with loud normalization</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Auto Populate</span><br>
+      <span class="mat-caption">Globaly allows the automatic creation of unconfigured systems and
                 talkgroups.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="autoPopulate"></mat-slide-toggle>
-        </div>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="autoPopulate"></mat-slide-toggle>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Default System Delay</span><br>
-            <span class="mat-caption">
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Default System Delay</span><br>
+      <span class="mat-caption">
                 Default stream delay in MINUTES to apply to all systems and talkgroups unless they have their own specific delay values set. This delays live audio streaming to clients. Set to 0 to disable.
             </span>
-        </p>
-        <mat-form-field>
-            <input type="number" min="0" step="1" matInput formControlName="defaultSystemDelay" placeholder="Delay in minutes">
-            <mat-error *ngIf="form?.get('defaultSystemDelay')?.hasError('required')">
-                Default delay is required
-            </mat-error>
-            <mat-error *ngIf="form?.get('defaultSystemDelay')?.hasError('min')">
-                Default delay must be 0 or greater
-            </mat-error>
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Branding Label</span><br>
-            <span class="mat-caption">A simple line of text displayed above the main screen to help identify the Thinline
+    </p>
+    <mat-form-field>
+      <input type="number" min="0" step="1" matInput formControlName="defaultSystemDelay" placeholder="Delay in minutes">
+      <mat-error *ngIf="form?.get('defaultSystemDelay')?.hasError('required')">
+        Default delay is required
+      </mat-error>
+      <mat-error *ngIf="form?.get('defaultSystemDelay')?.hasError('min')">
+        Default delay must be 0 or greater
+      </mat-error>
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Branding Label</span><br>
+      <span class="mat-caption">A simple line of text displayed above the main screen to help identify the Thinline
                 Radio instance.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="branding" placeholder="Branding">
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Dimmer Delay</span><br>
-            <span class="mat-caption">Delay in milliseconds before turning off the screen backlight when
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="branding" placeholder="Branding">
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Dimmer Delay</span><br>
+      <span class="mat-caption">Delay in milliseconds before turning off the screen backlight when
                 inactive.</span>
-        </p>
-        <mat-form-field>
-            <input type="number" min="0" step="1" matInput formControlName="dimmerDelay">
-            <mat-error *ngIf="form?.get('dimmerDelay')?.hasError('required')">
-                Dimmer delay is required
-            </mat-error>
-            <mat-error *ngIf="form?.get('dimmerDelay')?.hasError('min')">
-                Dimmer delay is invalid
-            </mat-error>
-        </mat-form-field>
+    </p>
+    <mat-form-field>
+      <input type="number" min="0" step="1" matInput formControlName="dimmerDelay">
+      <mat-error *ngIf="form?.get('dimmerDelay')?.hasError('required')">
+        Dimmer delay is required
+      </mat-error>
+      <mat-error *ngIf="form?.get('dimmerDelay')?.hasError('min')">
+        Dimmer delay is invalid
+      </mat-error>
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Disable Duplicate Call Detection</span><br>
+      <span class="mat-caption">Disable duplicate audio file detection.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="disableDuplicateDetection"></mat-slide-toggle>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Disable Duplicate Call Detection</span><br>
-            <span class="mat-caption">Disable duplicate audio file detection.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="disableDuplicateDetection"></mat-slide-toggle>
-        </div>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Duplicate Call Detection Time Frame</span><br>
-            <span class="mat-caption">New incoming calls will be rejected if a call already exists in the database with
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Duplicate Call Detection Time Frame</span><br>
+      <span class="mat-caption">New incoming calls will be rejected if a call already exists in the database with
                 a start time of +/- this delay in milliseconds.</span>
-        </p>
-        <mat-form-field>
-            <input type="number" min="0" step="1" matInput formControlName="duplicateDetectionTimeFrame">
-            <mat-error *ngIf="form?.get('duplicateDetectionTimeFrame')?.hasError('required')">
-                Duplicate call time frame is required
-            </mat-error>
-            <mat-error *ngIf="form?.get('duplicateDetectionTimeFrame')?.hasError('min')">
-                Duplicate call time frame is invalid
-            </mat-error>
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Email Support</span><br>
-            <span class="mat-caption">Email address where users can write to to get support.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="email" placeholder="Email">
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Keypad Beep Style</span><br>
-            <span class="mat-caption">Provide audio feedback when pressing buttons.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <mat-select formControlName="keypadBeeps" placeholder="Style">
-                <mat-option value="uniden">Uniden</mat-option>
-                <mat-option value="whistler">Whistler</mat-option>
-            </mat-select>
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Max Clients</span><br>
-            <span class="mat-caption">Max number of simultaneous clients.</span>
-        </p>
-        <mat-form-field>
-            <input type="number" min="0" step="1" matInput formControlName="maxClients">
-            <mat-error *ngIf="form?.get('maxClients')?.hasError('required')">
-                Max clients is required
-            </mat-error>
-            <mat-error *ngIf="form?.get('maxClients')?.hasError('min')">
-                Max clients is invalid
-            </mat-error>
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Playback Mode Goes Live</span><br>
-            <span class="mat-caption">Playback mode changes to live stream mode when the search list is
+    </p>
+    <mat-form-field>
+      <input type="number" min="0" step="1" matInput formControlName="duplicateDetectionTimeFrame">
+      <mat-error *ngIf="form?.get('duplicateDetectionTimeFrame')?.hasError('required')">
+        Duplicate call time frame is required
+      </mat-error>
+      <mat-error *ngIf="form?.get('duplicateDetectionTimeFrame')?.hasError('min')">
+        Duplicate call time frame is invalid
+      </mat-error>
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Email Support</span><br>
+      <span class="mat-caption">Email address where users can write to to get support.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="email" placeholder="Email">
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Keypad Beep Style</span><br>
+      <span class="mat-caption">Provide audio feedback when pressing buttons.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <mat-select formControlName="keypadBeeps" placeholder="Style">
+        <mat-option value="uniden">Uniden</mat-option>
+        <mat-option value="whistler">Whistler</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Max Clients</span><br>
+      <span class="mat-caption">Max number of simultaneous clients.</span>
+    </p>
+    <mat-form-field>
+      <input type="number" min="0" step="1" matInput formControlName="maxClients">
+      <mat-error *ngIf="form?.get('maxClients')?.hasError('required')">
+        Max clients is required
+      </mat-error>
+      <mat-error *ngIf="form?.get('maxClients')?.hasError('min')">
+        Max clients is invalid
+      </mat-error>
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Playback Mode Goes Live</span><br>
+      <span class="mat-caption">Playback mode changes to live stream mode when the search list is
                 exhausted.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="playbackGoesLive"></mat-slide-toggle>
-        </div>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="playbackGoesLive"></mat-slide-toggle>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Prune Days</span><br>
-            <span class="mat-caption">Prune the database for data older than the specified number of days. Set to 0 to
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Prune Days</span><br>
+      <span class="mat-caption">Prune the database for data older than the specified number of days. Set to 0 to
                 disable.</span>
-        </p>
-        <mat-form-field>
-            <input type="number" min="0" step="1" matInput formControlName="pruneDays">
-            <mat-error *ngIf="form?.get('pruneDays')?.hasError('required')">
-                Prune days is required
-            </mat-error>
-            <mat-error *ngIf="form?.get('pruneDays')?.hasError('min')">
-                Prune days is invalid
-            </mat-error>
-        </mat-form-field>
+    </p>
+    <mat-form-field>
+      <input type="number" min="0" step="1" matInput formControlName="pruneDays">
+      <mat-error *ngIf="form?.get('pruneDays')?.hasError('required')">
+        Prune days is required
+      </mat-error>
+      <mat-error *ngIf="form?.get('pruneDays')?.hasError('min')">
+        Prune days is invalid
+      </mat-error>
+    </mat-form-field>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Show Listeners Count</span><br>
+      <span class="mat-caption">Show listeners count on main screen.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="showListenersCount"></mat-slide-toggle>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Show Listeners Count</span><br>
-            <span class="mat-caption">Show listeners count on main screen.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="showListenersCount"></mat-slide-toggle>
-        </div>
+  </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Sort Talkgroups</span><br>
+      <span class="mat-caption">Automatically sort talkgroups by their id.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="sortTalkgroups"></mat-slide-toggle>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Sort Talkgroups</span><br>
-            <span class="mat-caption">Automatically sort talkgroups by their id.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="sortTalkgroups"></mat-slide-toggle>
-        </div>
-    </div>
+  </div>
 
-    <!-- Radio Reference Configuration -->
-    <div class="row">
-        <p>
-            <span class="mat-body">Radio Reference Integration</span><br>
-            <span class="mat-caption">Use your username (not email) and your Radio Reference password, click Save, then go to Tools → Radio Reference Import and click Test Connection.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="radioReferenceEnabled"></mat-slide-toggle>
-        </div>
+  <!-- Radio Reference Configuration -->
+  <div class="row">
+    <p>
+      <span class="mat-body">Radio Reference Integration</span><br>
+      <span class="mat-caption">Use your username (not email) and your Radio Reference password, click Save, then go to Tools → Radio Reference Import and click Test Connection.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="radioReferenceEnabled"></mat-slide-toggle>
     </div>
+  </div>
 
-    <!-- Show logged-in state when credentials exist and not editing -->
-    <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && isRadioReferenceLoggedIn && !isEditingRadioReference">
-        <p>
-            <span class="mat-body">Radio Reference Account</span><br>
-            <span class="mat-caption">Logged in as: <strong>{{ form.get('radioReferenceUsername')?.value }}</strong></span>
-        </p>
-        <div style="display: flex; gap: 8px;">
-            <button mat-raised-button color="primary" (click)="editRadioReferenceLogin()">
-                <mat-icon>edit</mat-icon>
-                Edit Login
-            </button>
-            <button mat-raised-button color="warn" (click)="removeRadioReferenceAccount()">
-                <mat-icon>delete</mat-icon>
-                Remove Account
-            </button>
-        </div>
+  <!-- Show logged-in state when credentials exist and not editing -->
+  <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && isRadioReferenceLoggedIn && !isEditingRadioReference">
+    <p>
+      <span class="mat-body">Radio Reference Account</span><br>
+      <span class="mat-caption">Logged in as: <strong>{{ form.get('radioReferenceUsername')?.value }}</strong></span>
+    </p>
+    <div style="display: flex; gap: 8px;">
+      <button mat-raised-button color="primary" (click)="editRadioReferenceLogin()">
+        <mat-icon>edit</mat-icon>
+        Edit Login
+      </button>
+      <button mat-raised-button color="warn" (click)="removeRadioReferenceAccount()">
+        <mat-icon>delete</mat-icon>
+        Remove Account
+      </button>
     </div>
+  </div>
 
-    <!-- Show login form when enabled but not logged in, or when editing -->
-    <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && shouldShowLoginForm">
-        <p>
-            <span class="mat-body">Radio Reference Username</span><br>
-            <span class="mat-caption">Your RadioReference.com username for API access.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="radioReferenceUsername" placeholder="Username">
-            <mat-error *ngIf="form?.get('radioReferenceUsername')?.hasError('required')">
-                Username is required when Radio Reference is enabled
-            </mat-error>
-        </mat-form-field>
+  <!-- Show login form when enabled but not logged in, or when editing -->
+  <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && shouldShowLoginForm">
+    <p>
+      <span class="mat-body">Radio Reference Username</span><br>
+      <span class="mat-caption">Your RadioReference.com username for API access.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="radioReferenceUsername" placeholder="Username">
+      <mat-error *ngIf="form?.get('radioReferenceUsername')?.hasError('required')">
+        Username is required when Radio Reference is enabled
+      </mat-error>
+    </mat-form-field>
+  </div>
+
+  <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && shouldShowLoginForm">
+    <p>
+      <span class="mat-body">Radio Reference Password</span><br>
+      <span class="mat-caption">Your RadioReference.com password for API access.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="password" matInput formControlName="radioReferencePassword" placeholder="Password">
+      <mat-error *ngIf="form?.get('radioReferencePassword')?.hasError('required')">
+        Password is required when Radio Reference is enabled
+      </mat-error>
+    </mat-form-field>
+  </div>
+
+  <!-- Show cancel button when editing -->
+  <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && isEditingRadioReference">
+    <div style="display: flex; gap: 8px;">
+      <button mat-stroked-button (click)="cancelEditRadioReference()">
+        <mat-icon>cancel</mat-icon>
+        Cancel Edit
+      </button>
     </div>
+  </div>
 
-    <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && shouldShowLoginForm">
-        <p>
-            <span class="mat-body">Radio Reference Password</span><br>
-            <span class="mat-caption">Your RadioReference.com password for API access.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="password" matInput formControlName="radioReferencePassword" placeholder="Password">
-            <mat-error *ngIf="form?.get('radioReferencePassword')?.hasError('required')">
-                Password is required when Radio Reference is enabled
-            </mat-error>
-        </mat-form-field>
+  <!-- Transcription Configuration -->
+  <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e0e0e0;">
+    <h3 style="width: 100%; margin: 0 0 16px 0;">Transcription Settings</h3>
+  </div>
+
+  <div class="row">
+    <p>
+      <span class="mat-body">Transcription Enabled</span><br>
+      <span class="mat-caption">Enable transcription for calls. When enabled, calls will be transcribed if tone detected or user alerts are enabled.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="transcriptionEnabled"></mat-slide-toggle>
     </div>
+  </div>
 
-    <!-- Show cancel button when editing -->
-    <div class="row" *ngIf="form?.get('radioReferenceEnabled')?.value && isEditingRadioReference">
-        <div style="display: flex; gap: 8px;">
-            <button mat-stroked-button (click)="cancelEditRadioReference()">
-                <mat-icon>cancel</mat-icon>
-                Cancel Edit
-            </button>
-        </div>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Transcription Provider</span><br>
+      <span class="mat-caption">Select the transcription provider to use. Whisper API Server uses an external OpenAI-compatible Whisper server.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <mat-select formControlName="provider" placeholder="Provider">
+        <mat-option value="whisper-api">Whisper API Server (External OpenAI-compatible server)</mat-option>
+        <mat-option value="azure">Azure Speech Services</mat-option>
+        <mat-option value="google">Google Cloud Speech-to-Text</mat-option>
+        <mat-option value="assemblyai">AssemblyAI</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
 
-    <!-- Transcription Configuration -->
-    <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e0e0e0;">
-        <h3 style="width: 100%; margin: 0 0 16px 0;">Transcription Settings</h3>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Whisper API Server URL</span><br>
+      <span class="mat-caption">Base URL of the Whisper API server (e.g., "http://localhost:8000") or official https://api.openai.com. The server should be OpenAI-compatible and provide /v1/audio/transcriptions endpoint or the official OpenAI API.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="whisperAPIURL" placeholder="https://api.openai.com">
+    </mat-form-field>
+  </div>
 
-    <div class="row">
-        <p>
-            <span class="mat-body">Transcription Enabled</span><br>
-            <span class="mat-caption">Enable transcription for calls. When enabled, calls will be transcribed if tone detected or user alerts are enabled.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="transcriptionEnabled"></mat-slide-toggle>
-        </div>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Whisper API Key</span><br>
+      <span class="mat-caption">API key if your Whisper API server requires authentication. Optional unless using Official API</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="whisperAPIKey" placeholder="(optional)">
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Transcription Provider</span><br>
-            <span class="mat-caption">Select the transcription provider to use. Whisper API Server uses an external OpenAI-compatible Whisper server.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <mat-select formControlName="provider" placeholder="Provider">
-                <mat-option value="whisper-api">Whisper API Server (External OpenAI-compatible server)</mat-option>
-                <mat-option value="azure">Azure Speech Services</mat-option>
-                <mat-option value="google">Google Cloud Speech-to-Text</mat-option>
-                <mat-option value="assemblyai">AssemblyAI</mat-option>
-            </mat-select>
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'azure'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Azure Subscription Key</span><br>
+      <span class="mat-caption">Your Azure Speech Services subscription key. Get it from the Azure Portal under your Speech resource.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="password" matInput formControlName="azureKey" placeholder="Enter Azure subscription key">
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Whisper API Server URL</span><br>
-            <span class="mat-caption">Base URL of the external Whisper API server (e.g., "http://localhost:8000"). The server should be OpenAI-compatible and provide /v1/audio/transcriptions endpoint.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="whisperAPIURL" placeholder="http://localhost:8000">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'azure'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Azure Region</span><br>
+      <span class="mat-caption">Azure region where your Speech resource is located (e.g., "eastus", "westus2", "westeurope").</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="azureRegion" placeholder="eastus">
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Whisper API Key (Optional)</span><br>
-            <span class="mat-caption">Optional API key if your Whisper API server requires authentication.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="whisperAPIKey" placeholder="(optional)">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'google'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Google Cloud API Key</span><br>
+      <span class="mat-caption">Your Google Cloud Speech-to-Text API key. You can use either an API key or service account credentials.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="password" matInput formControlName="googleAPIKey" placeholder="Enter Google Cloud API key">
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'azure'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Azure Subscription Key</span><br>
-            <span class="mat-caption">Your Azure Speech Services subscription key. Get it from the Azure Portal under your Speech resource.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="password" matInput formControlName="azureKey" placeholder="Enter Azure subscription key">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'google'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Google Service Account JSON (Alternative to API Key)</span><br>
+      <span class="mat-caption">Paste your Google Cloud service account JSON credentials here. This is an alternative to using an API key. Note: OAuth2 token generation from credentials is not yet implemented, so API key is recommended.</span>
+    </p>
+    <mat-form-field floatLabel="auto" style="width: 100%;">
+      <textarea matInput formControlName="googleCredentials" placeholder='{"type": "service_account", ...}' rows="5"></textarea>
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'azure'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Azure Region</span><br>
-            <span class="mat-caption">Azure region where your Speech resource is located (e.g., "eastus", "westus2", "westeurope").</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="azureRegion" placeholder="eastus">
-        </mat-form-field>
-    </div>
-
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'google'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Google Cloud API Key</span><br>
-            <span class="mat-caption">Your Google Cloud Speech-to-Text API key. You can use either an API key or service account credentials.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="password" matInput formControlName="googleAPIKey" placeholder="Enter Google Cloud API key">
-        </mat-form-field>
-    </div>
-
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'google'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Google Service Account JSON (Alternative to API Key)</span><br>
-            <span class="mat-caption">Paste your Google Cloud service account JSON credentials here. This is an alternative to using an API key. Note: OAuth2 token generation from credentials is not yet implemented, so API key is recommended.</span>
-        </p>
-        <mat-form-field floatLabel="auto" style="width: 100%;">
-            <textarea matInput formControlName="googleCredentials" placeholder='{"type": "service_account", ...}' rows="5"></textarea>
-        </mat-form-field>
-    </div>
-
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">AssemblyAI API Key</span><br>
-            <span class="mat-caption">Your AssemblyAI API key. Get it from https://www.assemblyai.com/app/account</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="password" matInput formControlName="assemblyAIKey" placeholder="Enter AssemblyAI API key">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">AssemblyAI API Key</span><br>
+      <span class="mat-caption">Your AssemblyAI API key. Get it from https://www.assemblyai.com/app/account</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="password" matInput formControlName="assemblyAIKey" placeholder="Enter AssemblyAI API key">
+    </mat-form-field>
+  </div>
 
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Language</span><br>
-            <span class="mat-caption">Language code for transcription (e.g., "en" for English, "auto" for auto-detect).</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="language" placeholder="en">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Language</span><br>
+      <span class="mat-caption">Language code for transcription (e.g., "en" for English, "auto" for auto-detect).</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="language" placeholder="en">
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value)" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Custom Prompt (Whisper only)</span><br>
-            <span class="mat-caption">Optional prompt to guide Whisper transcription with custom terminology, unit names, formatting preferences, etc. Example: "Fire/EMS dispatch radio. Units: ENGINE, TRUCK, LADDER, QUINT, RESCUE, SQUAD, MEDIC AMBULANCE. Radio channels: VECC FIRE #, CITY FIRE #."</span>
-        </p>
-        <mat-form-field floatLabel="auto" style="width: 100%;">
-            <textarea matInput formControlName="prompt" placeholder="Enter custom prompt to guide transcription..." rows="4"></textarea>
-            <mat-hint>Leave empty for default Whisper behavior</mat-hint>
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value)" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Custom Prompt (Whisper only)</span><br>
+      <span class="mat-caption">Optional prompt to guide Whisper transcription with custom terminology, unit names, formatting preferences, etc. Example: "Fire/EMS dispatch radio. Units: ENGINE, TRUCK, LADDER, QUINT, RESCUE, SQUAD, MEDIC AMBULANCE. Radio channels: VECC FIRE #, CITY FIRE #."</span>
+    </p>
+    <mat-form-field floatLabel="auto" style="width: 100%;">
+      <textarea matInput formControlName="prompt" placeholder="Enter custom prompt to guide transcription..." rows="4"></textarea>
+      <mat-hint>Leave empty for default Whisper behavior</mat-hint>
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Worker Pool Size</span><br>
-            <span class="mat-caption">Number of parallel transcription workers. More workers process faster but use more resources.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="number" min="1" step="1" matInput formControlName="workerPoolSize" placeholder="5">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Worker Pool Size</span><br>
+      <span class="mat-caption">Number of parallel transcription workers. More workers process faster but use more resources.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="number" min="1" step="1" matInput formControlName="workerPoolSize" placeholder="5">
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Minimum Call Duration (seconds)</span><br>
-            <span class="mat-caption">Skip transcription for calls shorter than this duration. Set to 0 to transcribe all calls. Useful to avoid transcribing very short/test transmissions.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="0.5" matInput formControlName="minCallDuration" placeholder="0">
-            <mat-hint>0 = transcribe all calls</mat-hint>
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Minimum Call Duration (seconds)</span><br>
+      <span class="mat-caption">Skip transcription for calls shorter than this duration. Set to 0 to transcribe all calls. Useful to avoid transcribing very short/test transmissions.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="number" min="0" step="0.5" matInput formControlName="minCallDuration" placeholder="0">
+      <mat-hint>0 = transcribe all calls</mat-hint>
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Hallucination Patterns</span><br>
-            <span class="mat-caption">Phrases that should be removed from transcripts (case-insensitive). Whisper may hallucinate common phrases from tone-only audio. Add one pattern per line. Example: "THE BELL IS INVITED TO SOUND THREE TIMES"</span>
-        </p>
-        <mat-form-field floatLabel="auto" style="width: 100%;">
-            <textarea 
-                matInput 
-                formControlName="hallucinationPatterns"
-                placeholder="Enter patterns to remove, one per line"
-                rows="4"
-                style="font-family: monospace; font-size: 12px;"
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Hallucination Patterns</span><br>
+      <span class="mat-caption">Phrases that should be removed from transcripts (case-insensitive). Whisper may hallucinate common phrases from tone-only audio. Add one pattern per line. Example: "THE BELL IS INVITED TO SOUND THREE TIMES"</span>
+    </p>
+    <mat-form-field floatLabel="auto" style="width: 100%;">
+            <textarea
+              matInput
+              formControlName="hallucinationPatterns"
+              placeholder="Enter patterns to remove, one per line"
+              rows="4"
+              style="font-family: monospace; font-size: 12px;"
             ></textarea>
-            <mat-hint>One pattern per line. These will be removed from all transcripts before processing.</mat-hint>
-        </mat-form-field>
-    </div>
+      <mat-hint>One pattern per line. These will be removed from all transcripts before processing.</mat-hint>
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Hallucination Auto-Detection</span><br>
-            <span class="mat-caption">
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Hallucination Auto-Detection</span><br>
+      <span class="mat-caption">
                 <strong>What it does:</strong> Whisper sometimes "hallucinates" phrases when transcribing tone-only audio (e.g., "THE BELL IS INVITED TO SOUND THREE TIMES"). This system automatically detects these fake phrases by tracking which transcripts pass vs fail voice detection.<br><br>
                 <strong>Modes:</strong><br>
                 • <strong>Off</strong> - Only use manually entered patterns below (safest, most predictable)<br>
                 • <strong>Manual</strong> - System suggests suspicious phrases for your review and approval<br>
                 • <strong>Auto</strong> - System automatically adds high-confidence hallucinations to filter (hands-off, but still safe)
             </span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <mat-select formControlName="hallucinationDetectionMode" placeholder="Detection Mode">
-                <mat-option value="off">Off (Manual Patterns Only)</mat-option>
-                <mat-option value="manual">Manual (Review & Approve)</mat-option>
-                <mat-option value="auto">Auto (High-Confidence Auto-Add)</mat-option>
-            </mat-select>
-        </mat-form-field>
-    </div>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <mat-select formControlName="hallucinationDetectionMode" placeholder="Detection Mode">
+        <mat-option value="off">Off (Manual Patterns Only)</mat-option>
+        <mat-option value="manual">Manual (Review & Approve)</mat-option>
+        <mat-option value="auto">Auto (High-Confidence Auto-Add)</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('hallucinationDetectionMode')?.value !== 'off'" formGroupName="transcriptionConfig">
-        <p>
-            <span class="mat-body">Minimum Rejected Occurrences</span><br>
-            <span class="mat-caption">
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('hallucinationDetectionMode')?.value !== 'off'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Minimum Rejected Occurrences</span><br>
+      <span class="mat-caption">
                 <strong>How it works:</strong> The system tracks ALL transcribed calls. Each transcript is classified as "accepted" (contains real voice/dispatch) or "rejected" (failed voice detection - could be tones, static, short clips, or hallucinations).<br><br>
                 <strong>This setting:</strong> How many times a phrase must appear in REJECTED transcripts before being flagged as a hallucination.<br><br>
                 <strong>What gets rejected?</strong> Any call that fails voice detection:<br>
@@ -449,89 +449,89 @@
                 ✓ Must have confidence score 6.0+<br><br>
                 <strong>Recommendation:</strong> Start with 5-10. Higher = slower detection but fewer false positives.
             </span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="number" min="1" step="1" matInput formControlName="hallucinationMinOccurrences" placeholder="5">
-            <mat-hint>Default: 5 occurrences in rejected transcripts (from any type of call)</mat-hint>
-        </mat-form-field>
-    </div>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="number" min="1" step="1" matInput formControlName="hallucinationMinOccurrences" placeholder="5">
+      <mat-hint>Default: 5 occurrences in rejected transcripts (from any type of call)</mat-hint>
+    </mat-form-field>
+  </div>
 
-    <!-- Alert Retention -->
-    <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e0e0e0;">
-        <h3 style="width: 100%; margin: 0 0 16px 0;">Alert Settings</h3>
-    </div>
+  <!-- Alert Retention -->
+  <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e0e0e0;">
+    <h3 style="width: 100%; margin: 0 0 16px 0;">Alert Settings</h3>
+  </div>
 
-    <div class="row">
-        <p>
-            <span class="mat-body">Alert Retention Days</span><br>
-            <span class="mat-caption">Number of days to keep alerts in the database before automatic cleanup. Set to 0 to disable cleanup.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="alertRetentionDays" placeholder="30">
-        </mat-form-field>
-    </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Alert Retention Days</span><br>
+      <span class="mat-caption">Number of days to keep alerts in the database before automatic cleanup. Set to 0 to disable cleanup.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="number" min="0" step="1" matInput formControlName="alertRetentionDays" placeholder="30">
+    </mat-form-field>
+  </div>
 
-    <!-- Push Notifications -->
-    <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e0e0e0;">
-        <h3 style="width: 100%; margin: 0 0 16px 0;">Push Notification Settings</h3>
-        <p style="width: 100%; margin: 0 0 16px 0; color: #666; font-size: 14px;">
-            Get a push notification API key and register your server so users can see it in the mobile app.
-        </p>
-    </div>
+  <!-- Push Notifications -->
+  <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e0e0e0;">
+    <h3 style="width: 100%; margin: 0 0 16px 0;">Push Notification Settings</h3>
+    <p style="width: 100%; margin: 0 0 16px 0; color: #666; font-size: 14px;">
+      Get a push notification API key and register your server so users can see it in the mobile app.
+    </p>
+  </div>
 
-    <div class="row">
-        <p>
-            <span class="mat-body">Relay Server URL</span><br>
-            <span class="mat-caption">URL of your push notification relay server (hardcoded).</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="relayServerURL" [readonly]="true" [value]="'https://tlradioserver.thinlineds.com'" placeholder="https://tlradioserver.thinlineds.com">
-        </mat-form-field>
-    </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Relay Server URL</span><br>
+      <span class="mat-caption">URL of your push notification relay server (hardcoded).</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="relayServerURL" [readonly]="true" [value]="'https://tlradioserver.thinlineds.com'" placeholder="https://tlradioserver.thinlineds.com">
+    </mat-form-field>
+  </div>
 
-    <div class="row">
-        <p>
-            <span class="mat-body">Relay Server API Key</span><br>
-            <span class="mat-caption">API key for authenticating with the relay server. Click the key icon to request one, the edit icon to update your existing registration, or the restore icon to recover a lost API key.</span>
-        </p>
-        <mat-form-field floatLabel="auto" style="width: 100%;">
-            <input type="password" matInput formControlName="relayServerAPIKey" placeholder="Enter your relay server API key">
-            <button mat-icon-button matSuffix type="button" (click)="recoverRelayAPIKey()" matTooltip="Recover lost API key" style="margin-right: 5px;">
-                <mat-icon>restore</mat-icon>
-            </button>
-            <button mat-icon-button matSuffix type="button" (click)="editRelayAPIKey()" [matTooltip]="hasRelayAPIKey() ? 'Edit API key details' : 'Request API key from relay server'">
-                <mat-icon>{{ hasRelayAPIKey() ? 'edit' : 'vpn_key' }}</mat-icon>
-            </button>
-        </mat-form-field>
-    </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Relay Server API Key</span><br>
+      <span class="mat-caption">API key for authenticating with the relay server. Click the key icon to request one, the edit icon to update your existing registration, or the restore icon to recover a lost API key.</span>
+    </p>
+    <mat-form-field floatLabel="auto" style="width: 100%;">
+      <input type="password" matInput formControlName="relayServerAPIKey" placeholder="Enter your relay server API key">
+      <button mat-icon-button matSuffix type="button" (click)="recoverRelayAPIKey()" matTooltip="Recover lost API key" style="margin-right: 5px;">
+        <mat-icon>restore</mat-icon>
+      </button>
+      <button mat-icon-button matSuffix type="button" (click)="editRelayAPIKey()" [matTooltip]="hasRelayAPIKey() ? 'Edit API key details' : 'Request API key from relay server'">
+        <mat-icon>{{ hasRelayAPIKey() ? 'edit' : 'vpn_key' }}</mat-icon>
+      </button>
+    </mat-form-field>
+  </div>
 
-    <div class="row">
-        <p>
-            <span class="mat-body">Cloudflare Turnstile (CAPTCHA)</span><br>
-            <span class="mat-caption">Enable Cloudflare Turnstile for user registration, login, and group admin login to prevent bots.</span>
-        </p>
-        <div>
-            <mat-slide-toggle color="primary" formControlName="turnstileEnabled"></mat-slide-toggle>
-        </div>
+  <div class="row">
+    <p>
+      <span class="mat-body">Cloudflare Turnstile (CAPTCHA)</span><br>
+      <span class="mat-caption">Enable Cloudflare Turnstile for user registration, login, and group admin login to prevent bots.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="turnstileEnabled"></mat-slide-toggle>
     </div>
+  </div>
 
-    <div class="row" *ngIf="form?.get('turnstileEnabled')?.value">
-        <p>
-            <span class="mat-body">Turnstile Site Key</span><br>
-            <span class="mat-caption">Your public site key from Cloudflare Turnstile.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="turnstileSiteKey" placeholder="0x4AAAAAAC...">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('turnstileEnabled')?.value">
+    <p>
+      <span class="mat-body">Turnstile Site Key</span><br>
+      <span class="mat-caption">Your public site key from Cloudflare Turnstile.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="turnstileSiteKey" placeholder="0x4AAAAAAC...">
+    </mat-form-field>
+  </div>
 
-    <div class="row" *ngIf="form?.get('turnstileEnabled')?.value">
-        <p>
-            <span class="mat-body">Turnstile Secret Key</span><br>
-            <span class="mat-caption">Your private secret key from Cloudflare Turnstile.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="password" matInput formControlName="turnstileSecretKey" placeholder="0x4AAAAAAC...">
-        </mat-form-field>
-    </div>
+  <div class="row" *ngIf="form?.get('turnstileEnabled')?.value">
+    <p>
+      <span class="mat-body">Turnstile Secret Key</span><br>
+      <span class="mat-caption">Your private secret key from Cloudflare Turnstile.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="password" matInput formControlName="turnstileSecretKey" placeholder="0x4AAAAAAC...">
+    </mat-form-field>
+  </div>
 </ng-container>
