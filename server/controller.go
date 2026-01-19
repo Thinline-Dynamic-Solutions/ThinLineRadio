@@ -1886,27 +1886,34 @@ func (controller *Controller) queueTranscriptionIfNeeded(call *Call) {
 				return
 			}
 
-			// For tone-enabled talkgroups, check remaining audio after tone removal instead of total duration
-			if toneDetectionEnabled && call.HasTones && call.ToneSequence != nil && len(call.ToneSequence.Tones) > 0 {
-				// Calculate total tone duration
-				toneDuration := 0.0
-				for _, tone := range call.ToneSequence.Tones {
-					toneDuration += tone.Duration
+			// For tone-enabled talkgroups, always bypass global minimum and check remaining audio instead
+			// This applies whether or not tones were detected - these talkgroups need to transcribe short clips
+			if toneDetectionEnabled {
+				// If call has detected tones, calculate remaining audio after removal
+				if call.HasTones && call.ToneSequence != nil && len(call.ToneSequence.Tones) > 0 {
+					// Calculate total tone duration
+					toneDuration := 0.0
+					for _, tone := range call.ToneSequence.Tones {
+						toneDuration += tone.Duration
+					}
+
+					// Calculate remaining audio duration after tones would be removed
+					remainingDuration := audioDuration - toneDuration
+					const minRemainingDuration = 2.0
+
+					if remainingDuration < minRemainingDuration {
+						controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("skipping transcription for call %d on tone-enabled talkgroup: remaining audio after tone removal (%.1fs) is less than minimum (%.1fs)", call.Id, remainingDuration, minRemainingDuration))
+						// Mark as completed so pending tones don't wait forever
+						updateQuery := fmt.Sprintf(`UPDATE "calls" SET "transcriptionStatus" = 'completed' WHERE "callId" = %d`, call.Id)
+						controller.Database.Sql.Exec(updateQuery)
+						return
+					}
+
+					controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d on tone-enabled talkgroup: bypassing global minimum duration (%.1fs < %.1fs), using remaining audio check (%.1fs remaining after %.1fs tones)", call.Id, audioDuration, minDuration, remainingDuration, toneDuration))
+				} else {
+					// No tones detected but still on tone-enabled talkgroup - bypass global minimum completely
+					controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d on tone-enabled talkgroup: bypassing global minimum duration (%.1fs < %.1fs), no tones detected", call.Id, audioDuration, minDuration))
 				}
-
-				// Calculate remaining audio duration after tones would be removed
-				remainingDuration := audioDuration - toneDuration
-				const minRemainingDuration = 2.0
-
-				if remainingDuration < minRemainingDuration {
-					controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("skipping transcription for call %d: remaining audio after tone removal (%.1fs) is less than minimum (%.1fs) - likely tone-only", call.Id, remainingDuration, minRemainingDuration))
-					// Mark as completed so pending tones don't wait forever
-					updateQuery := fmt.Sprintf(`UPDATE "calls" SET "transcriptionStatus" = 'completed' WHERE "callId" = %d`, call.Id)
-					controller.Database.Sql.Exec(updateQuery)
-					return
-				}
-
-				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d on tone-enabled talkgroup: bypassing global minimum duration (%.1fs < %.1fs), using remaining audio check (%.1fs remaining after %.1fs tones)", call.Id, audioDuration, minDuration, remainingDuration, toneDuration))
 				// Continue to alert checks below (bypassed global minimum)
 			} else if audioDuration < minDuration {
 				// Normal check for non-tone-enabled talkgroups or calls without tones
