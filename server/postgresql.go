@@ -378,6 +378,8 @@ var PostgresqlSchema = []string{
     "deviceTokenId" bigserial NOT NULL PRIMARY KEY,
     "userId" bigint NOT NULL,
     "token" text NOT NULL,
+    "fcmToken" text,
+    "pushType" text NOT NULL DEFAULT 'onesignal',
     "platform" text NOT NULL DEFAULT 'android',
     "sound" text NOT NULL DEFAULT 'startup.wav',
     "createdAt" bigint NOT NULL DEFAULT 0,
@@ -385,4 +387,7 @@ var PostgresqlSchema = []string{
     CONSTRAINT "deviceTokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("userId") ON DELETE CASCADE ON UPDATE CASCADE,
     UNIQUE ("userId", "token")
   );`,
+	// Add fcmToken and pushType columns if they don't exist (migration for existing databases)
+	`ALTER TABLE "deviceTokens" ADD COLUMN IF NOT EXISTS "fcmToken" text;`,
+	`ALTER TABLE "deviceTokens" ADD COLUMN IF NOT EXISTS "pushType" text NOT NULL DEFAULT 'onesignal';`,
 }

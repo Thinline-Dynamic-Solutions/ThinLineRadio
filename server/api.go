@@ -7699,9 +7699,11 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		// Register or update device token
 		var request struct {
-			Token    string `json:"token"`    // OneSignal player ID
-			Platform string `json:"platform"` // "ios" or "android"
-			Sound    string `json:"sound"`    // Notification sound preference
+			Token     string `json:"token"`      // OneSignal player ID (legacy) or device ID
+			FCMToken  string `json:"fcm_token"`  // Firebase Cloud Messaging token
+			PushType  string `json:"push_type"`  // "onesignal" or "fcm"
+			Platform  string `json:"platform"`   // "ios" or "android"
+			Sound     string `json:"sound"`      // Notification sound preference
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -7709,8 +7711,25 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if request.Token == "" {
-			api.exitWithError(w, http.StatusBadRequest, "Token is required")
+		// Determine push type if not provided
+		if request.PushType == "" {
+			if request.FCMToken != "" {
+				request.PushType = "fcm"
+			} else if request.Token != "" {
+				request.PushType = "onesignal"
+			} else {
+				api.exitWithError(w, http.StatusBadRequest, "Either token or fcm_token is required")
+				return
+			}
+		}
+
+		// Validate that we have the appropriate token for the push type
+		if request.PushType == "fcm" && request.FCMToken == "" {
+			api.exitWithError(w, http.StatusBadRequest, "fcm_token is required for FCM push type")
+			return
+		}
+		if request.PushType == "onesignal" && request.Token == "" {
+			api.exitWithError(w, http.StatusBadRequest, "token is required for OneSignal push type")
 			return
 		}
 
@@ -7722,12 +7741,28 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 			request.Sound = "startup.wav" // Default
 		}
 
+		// If registering an FCM token, remove all OneSignal tokens for this user
+		if request.PushType == "fcm" {
+			if err := api.Controller.DeviceTokens.RemoveAllOneSignalTokensForUser(client.User.Id, api.Controller.Database); err != nil {
+				log.Printf("Error removing OneSignal tokens for user %d: %v", client.User.Id, err)
+				// Don't fail the request, just log the error
+			}
+		}
+
+		// For FCM, use FCMToken as the lookup key, for OneSignal use Token
+		lookupToken := request.Token
+		if request.PushType == "fcm" {
+			lookupToken = request.FCMToken
+		}
+
 		// Check if device token already exists for this user
-		existingToken := api.Controller.DeviceTokens.FindByUserAndToken(client.User.Id, request.Token)
+		existingToken := api.Controller.DeviceTokens.FindByUserAndToken(client.User.Id, lookupToken)
 		if existingToken != nil {
 			// Update existing token
 			existingToken.Platform = request.Platform
 			existingToken.Sound = request.Sound
+			existingToken.FCMToken = request.FCMToken
+			existingToken.PushType = request.PushType
 			if err := api.Controller.DeviceTokens.Update(existingToken, api.Controller.Database); err != nil {
 				api.exitWithError(w, http.StatusInternalServerError, "Failed to update device token")
 				return
@@ -7736,7 +7771,9 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 			// Create new device token
 			deviceToken := &DeviceToken{
 				UserId:    client.User.Id,
-				Token:     request.Token,
+				Token:     lookupToken,
+				FCMToken:  request.FCMToken,
+				PushType:  request.PushType,
 				Platform:  request.Platform,
 				Sound:     request.Sound,
 				CreatedAt: time.Now().Unix(),

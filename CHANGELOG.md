@@ -1,8 +1,31 @@
 # Change log
 
+## Version 7.0 Beta 9.1 - Released TBD
+
+### Breaking Changes
+
+- **Push notifications migrated from OneSignal to Firebase Cloud Messaging (FCM)**
+  - Scanner server now uses FCM tokens for push notifications instead of OneSignal player IDs
+  - Device registration endpoint updated to accept `fcm_token` and `push_type` fields
+  - Legacy OneSignal tokens (`token` field) automatically fallback for backward compatibility
+  - **Test push notifications**: Now use per-device sound preferences from database
+  - **Platform-specific sound handling**: iOS devices receive sound names without extensions; Android devices receive sound with `.wav` extensions
+  - **Bug fix**: Scanner server no longer overwrites platform-specific sounds - each platform (iOS/Android) now uses its own device's sound preference
+  - Files modified: server/push_notification.go
+
 ## Version 7.0 Beta 9 - Released TBD
 
 ### Bug Fixes
+
+- **Relay Server: Temporarily bypassed push notification subscription validation**
+  - Temporary fix to allow all push notifications through without any validation
+  - Bypasses both database checks and subscription validation due to app sync account sign-out issues
+  - All player IDs are now passed directly to OneSignal without validation
+  - OneSignal will handle filtering of invalid player IDs on their end
+  - Users can't get a player ID until they subscribe in the mobile app anyway, so validation is redundant
+  - Original validation logic (database checks and subscription verification) preserved in comments for easy restoration
+  - TODO: Re-enable validation once app sync account issues are resolved
+  - Files modified: relay-server/internal/api/api.go
 
 - **Fixed talkgroup sorting not persisting properly**
   - Root cause: Admin panel FormArray was not being reordered to match display order

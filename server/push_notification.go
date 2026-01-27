@@ -38,11 +38,6 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 		return
 	}
 
-	// Check if user is verified
-	if !user.Verified {
-		return
-	}
-
 	// Note: Group suspension check removed as Suspended field was not added to UserGroup
 	// If needed, can be added later
 
@@ -177,17 +172,28 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 	// Group devices by platform and sound preference
 	androidDevices := []string{}
 	iosDevices := []string{}
-	defaultSound := "startup.wav"
+	androidSound := "startup.wav"
+	iosSound := "startup.wav"
 
 	for _, device := range deviceTokens {
-		if device.Platform == "ios" {
-			iosDevices = append(iosDevices, device.Token)
-		} else {
-			androidDevices = append(androidDevices, device.Token)
+		// Use FCM token if available (new system), otherwise fall back to OneSignal token (legacy)
+		token := device.FCMToken
+		if token == "" {
+			token = device.Token
 		}
-		// Use first device's sound preference (or could aggregate)
-		if device.Sound != "" {
-			defaultSound = device.Sound
+
+		if device.Platform == "ios" {
+			iosDevices = append(iosDevices, token)
+			// Use this device's sound preference for iOS
+			if device.Sound != "" {
+				iosSound = device.Sound
+			}
+		} else {
+			androidDevices = append(androidDevices, token)
+			// Use this device's sound preference for Android
+			if device.Sound != "" {
+				androidSound = device.Sound
+			}
 		}
 	}
 
@@ -208,20 +214,26 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 
 	// Send to Android devices
 	if len(androidDevices) > 0 {
-		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: sending to %d Android device(s) for user %d", len(androidDevices), userId))
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: sending to %d Android device(s) for user %d with sound: %s", len(androidDevices), userId, androidSound))
 		// Send in goroutine to ensure independent execution - failures don't affect other batches
-		go func(ids []string) {
-			controller.sendNotificationBatch(ids, title, subtitle, message, "android", defaultSound, call, systemLabel, talkgroupLabel)
-		}(androidDevices)
+		go func(ids []string, sound string) {
+			controller.sendNotificationBatch(ids, title, subtitle, message, "android", sound, call, systemLabel, talkgroupLabel)
+		}(androidDevices, androidSound)
 	}
 
 	// Send to iOS devices
 	if len(iosDevices) > 0 {
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: sending to %d iOS device(s) for user %d", len(iosDevices), userId))
+		// iOS requires sound name without extension (e.g., "startup" not "startup.wav")
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: iOS original sound: %s", iosSound))
+		iosSoundStripped := strings.TrimSuffix(iosSound, ".wav")
+		iosSoundStripped = strings.TrimSuffix(iosSoundStripped, ".mp3")
+		iosSoundStripped = strings.TrimSuffix(iosSoundStripped, ".m4a")
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: iOS final sound (stripped extension): %s", iosSoundStripped))
 		// Send in goroutine to ensure independent execution - failures don't affect other batches
-		go func(ids []string) {
-			controller.sendNotificationBatch(ids, title, subtitle, message, "ios", defaultSound, call, systemLabel, talkgroupLabel)
-		}(iosDevices)
+		go func(ids []string, sound string) {
+			controller.sendNotificationBatch(ids, title, subtitle, message, "ios", sound, call, systemLabel, talkgroupLabel)
+		}(iosDevices, iosSoundStripped)
 	}
 }
 
@@ -299,6 +311,7 @@ func (controller *Controller) sendNotificationBatch(playerIDs []string, title, s
 		Timeout: 10 * time.Second,
 	}
 
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: sending HTTP request to relay server: %s", url))
 	resp, err := client.Do(req)
 	if err != nil {
 		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to send push notification: %v", err))
@@ -306,7 +319,9 @@ func (controller *Controller) sendNotificationBatch(playerIDs []string, title, s
 	}
 	defer resp.Body.Close()
 
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: received response from relay server (status %d)", resp.StatusCode))
 	body, _ := io.ReadAll(resp.Body)
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: response body: %s", string(body)))
 
 	// Parse response to check for invalid player IDs and failures
 	var response struct {
@@ -447,11 +462,6 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 			continue
 		}
 
-		// Check if user is verified
-		if !user.Verified {
-			continue
-		}
-
 		// Check billing/subscription status if billing is enabled on user's group
 		if user.UserGroupId > 0 {
 			group := controller.UserGroups.Get(user.UserGroupId)
@@ -518,12 +528,18 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 
 		// Group devices by platform and sound
 		for _, device := range deviceTokens {
+			// Use FCM token if available (new system), otherwise fall back to OneSignal token (legacy)
+			token := device.FCMToken
+			if token == "" {
+				token = device.Token
+			}
+
 			sound := device.Sound
 			if sound == "" {
 				sound = "startup.wav"
 			}
 			key := fmt.Sprintf("%s:%s", device.Platform, sound)
-			deviceGroups[key] = append(deviceGroups[key], device.Token)
+			deviceGroups[key] = append(deviceGroups[key], token)
 		}
 	}
 
@@ -551,6 +567,15 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 		}
 
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification (batched): sending batch with %d player ID(s) for %s platform, sound: %s", len(playerIDs), platform, sound))
+
+		// iOS requires sound name without extension (e.g., "startup" not "startup.wav")
+		finalSound := sound
+		if platform == "ios" {
+			finalSound = strings.TrimSuffix(sound, ".wav")
+			finalSound = strings.TrimSuffix(finalSound, ".mp3")
+			finalSound = strings.TrimSuffix(finalSound, ".m4a")
+		}
+
 		// Send batch notification in goroutine to ensure independent execution
 		// Each batch is sent independently, so failures in one don't affect others
 		// Add small delay between batches to avoid OneSignal rate limiting (especially on free plan)
@@ -560,7 +585,7 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 				time.Sleep(d)
 			}
 			controller.sendNotificationBatch(ids, title, subtitle, message, plat, snd, call, systemLabel, talkgroupLabel)
-		}(playerIDs, platform, sound, delay)
+		}(playerIDs, platform, finalSound, delay)
 		batchIndex++
 	}
 }

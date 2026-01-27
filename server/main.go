@@ -337,8 +337,11 @@ func main() {
 	http.HandleFunc("/api/admin/users", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UsersListHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/create", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UserCreateHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/", wrapHandler(controller.Admin.requireLocalhost(func(w http.ResponseWriter, r *http.Request) {
+		// Check if it's a test-push endpoint
+		if strings.HasSuffix(r.URL.Path, "/test-push") && r.Method == http.MethodPost {
+			controller.Admin.UserTestPushHandler(w, r)
 		// Check if it's a reset-password endpoint
-		if strings.HasSuffix(r.URL.Path, "/reset-password") && r.Method == http.MethodPost {
+		} else if strings.HasSuffix(r.URL.Path, "/reset-password") && r.Method == http.MethodPost {
 			controller.Admin.UserResetPasswordHandler(w, r)
 		} else if r.Method == http.MethodDelete {
 			controller.Admin.UserDeleteHandler(w, r)

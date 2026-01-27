@@ -520,31 +520,31 @@ func (controller *Controller) MonitorNoAudio() {
 				continue
 			}
 
-		// Create new alert
-		title := "No Audio Received"
-		message := fmt.Sprintf("System '%s' has not received audio for %d minutes (threshold: %d minutes)",
-			systemLabel,
-			int(timeSinceLastCall.Minutes()),
-			thresholdMinutes)
+			// Create new alert
+			title := "No Audio Received"
+			message := fmt.Sprintf("System '%s' has not received audio for %d minutes (threshold: %d minutes)",
+				systemLabel,
+				int(timeSinceLastCall.Minutes()),
+				thresholdMinutes)
 
-		insertQuery := `INSERT INTO "systemAlerts" 
+			insertQuery := `INSERT INTO "systemAlerts" 
 			("alertType", "severity", "title", "message", "data", "createdAt", "createdBy", "dismissed") 
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
-		if _, err := controller.Database.Sql.Exec(insertQuery,
-			"no_audio",
-			"warning",
-			title,
-			message,
-			string(dataJSON),
-			currentTime.Unix()*1000,
-			nil, // NULL for system-generated alerts (no user creator)
-			false); err != nil {
-			controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to create no-audio alert: %v", err))
-		} else {
-			controller.Logs.LogEvent(LogLevelWarn, message)
-			// TODO: Send push notification for system alerts
-		}
+			if _, err := controller.Database.Sql.Exec(insertQuery,
+				"no_audio",
+				"warning",
+				title,
+				message,
+				string(dataJSON),
+				currentTime.Unix()*1000,
+				nil, // NULL for system-generated alerts (no user creator)
+				false); err != nil {
+				controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to create no-audio alert: %v", err))
+			} else {
+				controller.Logs.LogEvent(LogLevelWarn, message)
+				// TODO: Send push notification for system alerts
+			}
 		}
 	}
 

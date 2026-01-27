@@ -25,7 +25,9 @@ import (
 type DeviceToken struct {
 	Id        uint64
 	UserId    uint64
-	Token     string // OneSignal player ID
+	Token     string // OneSignal player ID (legacy) or unique device identifier
+	FCMToken  string // Firebase Cloud Messaging token
+	PushType  string // "onesignal" or "fcm"
 	Platform  string // "ios" or "android"
 	Sound     string // Notification sound preference
 	CreatedAt int64
@@ -49,7 +51,7 @@ func (dt *DeviceTokens) Load(db *Database) error {
 	dt.mutex.Lock()
 	defer dt.mutex.Unlock()
 
-	rows, err := db.Sql.Query(`SELECT "deviceTokenId", "userId", "token", "platform", "sound", "createdAt", "lastUsed" FROM "deviceTokens"`)
+	rows, err := db.Sql.Query(`SELECT "deviceTokenId", "userId", "token", "fcmToken", "pushType", "platform", "sound", "createdAt", "lastUsed" FROM "deviceTokens"`)
 	if err != nil {
 		return err
 	}
@@ -64,10 +66,13 @@ func (dt *DeviceTokens) Load(db *Database) error {
 
 	for rows.Next() {
 		token := &DeviceToken{}
+		var fcmToken, pushType *string
 		err := rows.Scan(
 			&token.Id,
 			&token.UserId,
 			&token.Token,
+			&fcmToken,
+			&pushType,
 			&token.Platform,
 			&token.Sound,
 			&token.CreatedAt,
@@ -75,6 +80,16 @@ func (dt *DeviceTokens) Load(db *Database) error {
 		)
 		if err != nil {
 			continue
+		}
+		
+		// Handle nullable fields
+		if fcmToken != nil {
+			token.FCMToken = *fcmToken
+		}
+		if pushType != nil {
+			token.PushType = *pushType
+		} else {
+			token.PushType = "onesignal" // Default to OneSignal for existing tokens
 		}
 
 		dt.tokens[token.Id] = token
@@ -109,11 +124,21 @@ func (dt *DeviceTokens) Add(token *DeviceToken, db *Database) error {
 		token.LastUsed = time.Now().Unix()
 	}
 
+	// Convert empty strings to nil for database
+	var fcmToken *string
+	if token.FCMToken != "" {
+		fcmToken = &token.FCMToken
+	}
+	var pushType *string
+	if token.PushType != "" {
+		pushType = &token.PushType
+	}
+	
 	var tokenId int64
 	err := db.Sql.QueryRow(
-		`INSERT INTO "deviceTokens" ("userId", "token", "platform", "sound", "createdAt", "lastUsed") 
-		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING "deviceTokenId"`,
-		token.UserId, token.Token, token.Platform, token.Sound, token.CreatedAt, token.LastUsed,
+		`INSERT INTO "deviceTokens" ("userId", "token", "fcmToken", "pushType", "platform", "sound", "createdAt", "lastUsed") 
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "deviceTokenId"`,
+		token.UserId, token.Token, fcmToken, pushType, token.Platform, token.Sound, token.CreatedAt, token.LastUsed,
 	).Scan(&tokenId)
 	if err != nil {
 		return err
@@ -132,9 +157,19 @@ func (dt *DeviceTokens) Update(token *DeviceToken, db *Database) error {
 
 	token.LastUsed = time.Now().Unix()
 
+	// Convert empty strings to nil for database
+	var fcmToken *string
+	if token.FCMToken != "" {
+		fcmToken = &token.FCMToken
+	}
+	var pushType *string
+	if token.PushType != "" {
+		pushType = &token.PushType
+	}
+
 	_, err := db.Sql.Exec(
-		`UPDATE "deviceTokens" SET "token" = $1, "platform" = $2, "sound" = $3, "lastUsed" = $4 WHERE "deviceTokenId" = $5`,
-		token.Token, token.Platform, token.Sound, token.LastUsed, token.Id,
+		`UPDATE "deviceTokens" SET "token" = $1, "fcmToken" = $2, "pushType" = $3, "platform" = $4, "sound" = $5, "lastUsed" = $6 WHERE "deviceTokenId" = $7`,
+		token.Token, fcmToken, pushType, token.Platform, token.Sound, token.LastUsed, token.Id,
 	)
 	if err != nil {
 		return err
@@ -204,6 +239,66 @@ func (dt *DeviceTokens) FindByUserAndToken(userId uint64, token string) *DeviceT
 			return t
 		}
 	}
+	return nil
+}
+
+// RemoveAllOneSignalTokensForUser removes all OneSignal tokens for a user
+// This should be called when a user registers an FCM token
+func (dt *DeviceTokens) RemoveAllOneSignalTokensForUser(userId uint64, db *Database) error {
+	dt.mutex.Lock()
+	defer dt.mutex.Unlock()
+
+	userTokens := dt.userTokens[userId]
+	if userTokens == nil {
+		return nil // No tokens for this user
+	}
+
+	// Collect OneSignal token IDs to delete
+	var toDelete []uint64
+	for _, t := range userTokens {
+		if t.PushType == "onesignal" || t.PushType == "" {
+			toDelete = append(toDelete, t.Id)
+		}
+	}
+
+	if len(toDelete) == 0 {
+		return nil // No OneSignal tokens to delete
+	}
+
+	log.Printf("DeviceTokens.RemoveAllOneSignalTokensForUser: removing %d OneSignal tokens for user %d", len(toDelete), userId)
+
+	// Delete from database
+	for _, id := range toDelete {
+		_, err := db.Sql.Exec(`DELETE FROM "deviceTokens" WHERE "deviceTokenId" = $1`, id)
+		if err != nil {
+			log.Printf("DeviceTokens.RemoveAllOneSignalTokensForUser: error deleting token %d: %v", id, err)
+			continue
+		}
+
+		// Remove from memory
+		token := dt.tokens[id]
+		if token != nil {
+			delete(dt.tokens, id)
+
+			// Remove from userTokens map
+			updatedUserTokens := []*DeviceToken{}
+			for _, t := range dt.userTokens[userId] {
+				if t.Id != id {
+					updatedUserTokens = append(updatedUserTokens, t)
+				}
+			}
+			dt.userTokens[userId] = updatedUserTokens
+
+			// Log deletion with truncated token
+			truncatedToken := token.Token
+			if len(truncatedToken) > 10 {
+				truncatedToken = truncatedToken[:10] + "..."
+			}
+			log.Printf("DeviceTokens.RemoveAllOneSignalTokensForUser: removed OneSignal token ID %d (token: %s, platform: %s)",
+				id, truncatedToken, token.Platform)
+		}
+	}
+
 	return nil
 }
 

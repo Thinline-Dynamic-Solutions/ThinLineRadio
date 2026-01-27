@@ -4590,6 +4590,65 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(userList)
 }
 
+// UserTestPushHandler sends a test push notification to a user
+func (admin *Admin) UserTestPushHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	// Extract user ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 { // /api/admin/users/{id}/test-push
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid user ID"})
+		return
+	}
+
+	userIDStr := pathParts[4]
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid user ID format"})
+		return
+	}
+
+	// Get user
+	user := admin.Controller.Users.GetUserById(userID)
+	if user == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+		return
+	}
+
+	// Send test push notification
+	// Use keyword alert type with a test message
+	admin.Controller.sendPushNotification(
+		userID,
+		"keyword",
+		nil,
+		"TEST NOTIFICATION",
+		"Push Notification Test",
+		"",
+		[]string{"This is a test push notification from the admin panel"},
+	)
+
+	log.Printf("Test push notification sent to user %d (%s)", userID, user.Email)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Test push notification sent successfully",
+		"userId":  fmt.Sprintf("%d", userID),
+		"email":   user.Email,
+	})
+}
+
 // UserDeleteHandler handles DELETE requests to delete a user
 func (admin *Admin) UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {

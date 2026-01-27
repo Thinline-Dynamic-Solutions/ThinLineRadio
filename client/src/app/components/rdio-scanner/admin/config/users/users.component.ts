@@ -836,4 +836,23 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         this.pageSize = event.pageSize;
         this.updatePaginatedUsers();
     }
+
+    sendTestPush(user: User): void {
+        this.http.post(`/api/admin/users/${user.id}/test-push`, {}, { headers: this.adminService.getAuthHeaders() }).subscribe({
+            next: (response: any) => {
+                this.matSnackBar.open(`Test push notification sent to ${user.email}`, 'Close', {
+                    duration: 3000,
+                    panelClass: ['success-snackbar']
+                });
+            },
+            error: (error) => {
+                console.error('Failed to send test push:', error);
+                const message = error.error?.error || error.error?.message || 'Failed to send test push notification';
+                this.matSnackBar.open(message, 'Close', {
+                    duration: 5000,
+                    panelClass: ['error-snackbar']
+                });
+            }
+        });
+    }
 }

@@ -444,6 +444,12 @@
                         Reset Password
                     </button>
                     
+                    <button type="button" mat-button color="accent" 
+                            (click)="sendTestPush(user)">
+                        <mat-icon>notifications</mat-icon>
+                        Send Test Push
+                    </button>
+                    
                     <button type="button" mat-button color="primary" 
                             (click)="resendVerificationEmail(user)"
                             *ngIf="!user.verified">

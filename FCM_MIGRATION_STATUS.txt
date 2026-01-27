@@ -1,0 +1,104 @@
+FCM MIGRATION & RELAY SERVER SIMPLIFICATION STATUS
+===================================================
+Date: 2026-01-26
+
+COMPLETED:
+----------
+
+Mobile App (Flutter):
+✅ Completely removed OneSignal (onesignal_flutter dependency)
+✅ Added Firebase Cloud Messaging (firebase_core, firebase_messaging)
+✅ Created FCMService to replace OneSignalService
+✅ Updated all app references from OneSignal to FCM
+✅ Removed all OneSignal documentation files
+
+Relay Server:
+✅ Created internal/fcm/fcm.go for FCM push sending
+✅ Modified handleNotify to detect push service by token format:
+   - FCM tokens: 150+ chars with colons/underscores
+   - OneSignal Player IDs: 36 chars UUID format
+✅ Removed user/device/subscription database tables from storage.go
+✅ Removed route registrations for user/device/subscription endpoints
+✅ Added strings import for token format detection
+
+Scanner Server:
+✅ Updated DeviceToken struct with FCMToken and PushType fields
+✅ Modified device registration API to accept fcm_token and push_type
+✅ Added RemoveAllOneSignalTokensForUser() method
+✅ Updated database schema with ALTER TABLE migrations for fcmToken/pushType
+
+REMAINING WORK (RELAY SERVER):
+------------------------------
+
+To complete the simplification to a pass-through proxy, the following functions
+in relay-server/internal/api/api.go need to be removed:
+
+User Auth Handlers (lines ~1954-2477):
+- handleRegister
+- handleLogin  
+- handleVerifyEmail
+- handleResendVerification
+- handleForgotPassword
+- handleResetPassword
+- requireUserAuth middleware
+
+Device Management Handlers (lines ~2478-2851):
+- handleRegisterDevice
+- handleListDevices
+- handleRemoveDevice
+- handleRemoveAndRegisterDevice
+
+Subscription Handlers (lines ~2852-3154):
+- handleGetSubscriptionStatus
+- handleRestorePurchases
+- handleGrantOhioRSN
+- handleRevokeOhioRSN
+
+User Account Handlers (lines ~3240-3468):
+- handleChangePassword
+- handleChangeEmail
+- handleDeleteAccount
+- handleCancelUnverifiedAccount
+- handleGetUserInfo
+
+Admin User Management (lines ~3469-3723):
+- handleGetUsers
+- handleUpdateUser
+- handleDeleteUser
+
+RevenueCat Webhook (lines ~3155-3239):
+- handleRevenueCatWebhook
+
+Admin Tools (lines ~4486+):
+- handleSendBulkVerification
+
+RECOMMENDATION:
+---------------
+Given the large number of handler functions to remove (~24 functions, ~2500 lines),
+the quickest approach is to:
+
+1. Keep only these core handlers in api.go:
+   - handleNotify (main push notification proxy)
+   - handleAdminLogin/Logout/Check/HasPassword
+   - handleRequestAPIKey, handleUpdateAPIKey, etc. (API key management)
+   - handleGetStats, handleGetDailyStats
+   - handleGetLogs, handleClearLogs
+   - handleGetServerURLs
+   - handleGetAlertPageScanners, handleScrapeAlertPage
+   - handleGetServerChannels
+   - handleGetCountries, handleGetStates, handleGetCounties, handleGetCities
+   - handleGetConfig, handleImportConfig, handleSendTestEmail
+   - handleGetRadioReferenceAPIKey
+   - Web UI handlers
+
+2. Remove everything else
+
+The relay server will then be a simple proxy that:
+- Accepts push notification requests (with API key auth)
+- Detects token format (FCM vs OneSignal)
+- Forwards to appropriate service
+- Returns results
+- Provides admin dashboard for API key management and stats
+
+NO user accounts, NO device registration, NO subscription management.
+
