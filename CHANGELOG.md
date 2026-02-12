@@ -1,5 +1,196 @@
 # Change log
 
+## Version 7.0 Beta 9.4 - Released TBD
+
+### Enhancements
+
+- **Per-system no-audio monitoring with independent timers**
+  - Complete refactor of no-audio monitoring from fixed 5-minute global checks to per-system dynamic timers
+  - Each system now monitors at its own threshold interval (1 min threshold = checks every 1 min, 2 hours = checks every 2 hours)
+  - Monitoring automatically detects setting changes and restarts with new interval
+  - Stops monitoring when alerts are disabled globally or per-system
+  - Added functions: `MonitorNoAudioForSystem()`, `StartNoAudioMonitoringForAllSystems()`, `StartNoAudioMonitoringForSystem()`, `RestartNoAudioMonitoringForSystem()`
+  - Files modified: server/system_alert.go, server/admin.go
+
+- **Comprehensive logging for no-audio monitoring**
+  - Added detailed logging at every step of no-audio monitoring
+  - Logs show: system checks, threshold comparisons, alert creation, skip reasons
+  - Makes troubleshooting no-audio alerts much easier
+  - Files modified: server/system_alert.go
+
+- **Added audio codec and bitrate selection to admin options page**
+  - Users can now choose between Opus and AAC (M4A) codecs for audio streaming/storage
+  - Custom bitrate selection (8-128 kbps) for fine-tuning quality vs. file size
+  - Codec options: "Opus (Recommended for voice)" or "AAC / M4A (Universal compatibility)"
+  - Bitrate recommendations shown in UI based on selected codec:
+    - Opus: 16 kbps (very low), 24 kbps (good), 32 kbps (excellent)
+    - AAC: 32 kbps (good), 48 kbps (better), 64 kbps (excellent)
+  - Defaults: Opus at 24 kbps (good quality, small files)
+  - Settings apply to all new calls after save
+  - Files modified: `server/options.go`, `server/ffmpeg.go`, `server/controller.go`, `client/src/app/components/rdio-scanner/admin/admin.service.ts`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`
+
+### Bug Fixes
+
+- **System health alerts toggle reverting bug**
+  - Fixed issue where the system health alerts master toggle would revert to the opposite state after clicking
+  - The toggle was double-inverting the value (once by ngModel, once by the handler)
+  - Files modified: client/src/app/components/rdio-scanner/admin/system-health/system-health.component.ts
+
+- **Slow response when changing system health alert settings**
+  - Removed unnecessary `Options.Read()` calls that were reloading all options from database after every save
+  - Settings now respond instantly instead of taking several seconds
+  - Files modified: server/admin.go (SystemHealthAlertsEnabledHandler, SystemHealthAlertSettingsHandler)
+
+- **No audio alerts not sending push notifications**
+  - Changed `MonitorNoAudio()` to use `CreateSystemAlert()` method (same as transcription failures)
+  - Now properly sends push notifications to all system admins via `SendSystemAlertNotification()`
+  - Fixed TODO comment that said push notifications weren't implemented
+  - Files modified: server/system_alert.go
+
+- **No audio alerts not triggering for systems with no calls**
+  - Fixed issue where systems with no calls in database were being skipped
+  - Now creates alerts for systems with no calls (shows "has no calls in database" message)
+  - Files modified: server/system_alert.go
+
+- **No audio alerts now only keep latest per system**
+  - Automatically dismisses previous no-audio alerts for a system when creating a new one
+  - Prevents accumulation of duplicate "No Audio Received" alerts for the same system
+  - Users only see the most recent status update per system
+  - Files modified: server/system_alert.go
+
+- **Auto-restart monitoring when settings change**
+  - Monitoring automatically restarts when system health alert settings are updated via admin interface
+  - Ensures new thresholds take effect immediately without manual server restart
+  - Files modified: server/admin.go (SystemHealthAlertsEnabledHandler, SystemHealthAlertSettingsHandler, SystemNoAudioSettingsHandler)
+
+- **Extended SystemAlertData struct**
+  - Added fields: `SystemLabel`, `Threshold`, `LastCallTime`, `MinutesSinceLast`
+  - Better support for no-audio alert data
+  - Files modified: server/system_alert.go
+
+- **REMOVED: Disabled tone removal/trimming in both Go server and Whisper server - focusing on Whisper configuration instead**
+  - Root cause analysis: Both the Go server (FFT tone detection) and Whisper server (Silero VAD) were trying to remove/skip tones before transcription
+  - The tone removal logic added significant complexity and wasn't reliably working
+  - Detection was either too sensitive (removing voice) or too lenient (missing tones)
+  - **New approach:** Let Whisper handle full audio and configure it to ignore tones
+  - **Changes to Go server (`server/transcription_queue.go`):**
+    - Removed all tone detection and removal logic from transcription pipeline
+    - Transcription now always uses original audio (no filtering)
+    - Simplified codebase significantly
+  - **Changes to Whisper server (`whisper/whisper_server.py`):**
+    - Removed Silero VAD tone-skipping logic that was trimming audio before speech detection
+    - Now transcribes full audio from start to finish
+    - **Improved Whisper parameters to handle tones:**
+      - `no_speech_threshold`: Raised from **0.3 → 0.6** to better skip tone-only segments
+      - `logprob_threshold`: Lowered from **-0.8 → -1.0** to be more strict (skip low-confidence segments)
+      - `initial_prompt`: Added default prompt: *"This is radio dispatch audio. Ignore alert tones and beeps. Transcribe only spoken words."*
+      - This guides Whisper to focus on speech and ignore tones
+    - Removed Silero VAD dependencies and functions (no longer needed)
+  - **Result:** Simpler codebase, Whisper handles tones naturally through better configuration
+  - Files modified: `server/transcription_queue.go`, `whisper/whisper_server.py`
+
+- **CRITICAL: Fixed tone-only calls being transcribed with original audio causing hallucinations and incorrect pending tone attachments**
+  - Root cause: When tone removal failed or produced very small filtered audio (<1000 bytes), the system fell back to transcribing the **original audio with tones still present**
+  - This caused Whisper to hallucinate on tone-only calls (e.g., "THE FOLLOWING IS A WORK OF FICTION...")
+  - The hallucinated transcript was then treated as a "voice call," causing the system to incorrectly attach pending tones to it
+  - **Problem scenarios:**
+    1. Tone filtering failed (ffmpeg error) → used original audio → hallucination
+    2. Filtered audio too small (< 1000 bytes, mostly/all tones) → used original audio → hallucination
+  - **Fixed:**
+    - When tone filtering **fails**, skip transcription entirely (mark as completed with empty transcript)
+    - When filtered audio is **too small** (< 1000 bytes), skip transcription entirely (don't fall back to original)
+    - These calls are now correctly marked as "tone-only" with empty transcripts
+    - Prevents hallucinated transcripts from being attached to pending tones
+    - Prevents wasted Whisper API calls on unusable audio
+  - Log messages now clearly indicate: "skipping transcription (tone-only call)" or "skipping transcription (tone filtering failed)"
+  - Debug logs show: "SKIPPING TRANSCRIPTION - Filtered audio too small" or "FILTERING FAILED ... Skipping transcription to prevent hallucinations"
+  - Files modified: `server/transcription_queue.go`
+
+- **Fixed Opus audio sounding overly amplified, distorted, and muffled compared to raw audio**
+  - Root cause: Opus bitrate was set too low (16 kbps) for normalized audio, causing audible distortion
+  - When audio normalization is applied (loudnorm + limiter), the 16 kbps bitrate couldn't handle the processed signal
+  - Result: Opus audio sounded "over-amplified," "distorted," and "muffled" compared to the original
+  - Fixed: Increased Opus bitrate from 16 kbps to 24 kbps
+  - 24 kbps provides better quality for normalized/processed voice audio while still maintaining small file sizes
+  - Opus at 24 kbps is still significantly smaller than AAC at 32 kbps (previous default)
+  - Files modified: `server/ffmpeg.go`
+
+### Enhancements
+
+- **Implemented Systems visibility toggle dialog (GitHub issue - stale button)**
+  - Root cause: "Systems" button in Channel Select was present but non-functional (stale button)
+  - The button existed but `showSystemsModal()` was just a TODO placeholder
+  - Infrastructure was already in place (`hiddenSystems` Set and `getVisibleSystems()` filtering) but no UI to manage it
+  - Fixed: Created new `SystemsVisibilityDialogComponent` dialog that allows users to show/hide systems
+  - Dialog displays all systems with checkboxes to toggle visibility
+  - Hidden systems are persisted to localStorage and restored on page load
+  - Hidden systems are filtered out from the Channel Select list (only visible systems shown)
+  - Matches functionality available in mobile app
+  - Users can now customize which systems appear in their Channel Select view
+  - Files modified: client/src/app/components/rdio-scanner/select/select.component.ts, client/src/app/components/rdio-scanner/rdio-scanner.module.ts
+  - Files created: client/src/app/components/rdio-scanner/select/systems-visibility-dialog.component.ts, systems-visibility-dialog.component.html, systems-visibility-dialog.component.scss
+
+### Bug Fixes
+
+- **Fixed hidden systems still being included in livefeed and affected by Enable All/Disable All**
+  - Root cause: When systems were hidden via the Systems visibility dialog, they were still included in the livefeed map sent to the server
+  - Hidden systems were also being toggled when clicking "Enable All" or "Disable All" buttons
+  - This caused users to hear audio from hidden systems even though they were hidden in the UI
+  - Fixed #1: Updated `toggleAllTalkgroups()` to only affect visible systems (iterates through `getVisibleSystems()`)
+  - Fixed #2: Updated `isAllEnabled()`, `isPartiallyEnabled()`, `getEnabledCount()`, and `getTotalCount()` to only count visible systems
+  - Fixed #3: Updated `startLivefeed()` in service to filter out hidden systems from livefeed map before sending to server
+  - Hidden systems are now completely excluded from livefeed - they won't receive audio even if their talkgroups are enabled
+  - Enable All/Disable All buttons now only affect visible systems, matching user expectations
+  - Files modified: client/src/app/components/rdio-scanner/select/select.component.ts, client/src/app/components/rdio-scanner/rdio-scanner.service.ts
+
+- **Fixed favorites list system Enable/Disable buttons enabling all talkgroups instead of only favorited ones**
+  - Root cause: When clicking star on a tag to add favorites, it correctly added only that tag's talkgroups to favorites
+  - However, clicking "Enable" button on the system in favorites list would enable ALL talkgroups in that system
+  - This happened because `setSystemTalkgroupsStatus()` method always called `avoid({ system, status })` which affects all talkgroups
+  - The same method was used in both the favorites view and the all-systems view, causing incorrect behavior in favorites context
+  - Additionally, the system stats showed total talkgroup count (e.g., "3 / 110 total") instead of favorited count
+  - Fixed #1: Created new `setFavoriteSystemTalkgroupsStatus()` method that only enables/disables favorited talkgroups
+  - New method filters `favoriteItems` to get only talkgroups marked as favorites for that system
+  - Fixed #2: Created new `getFavoriteTalkgroupsCount()` method to return count of favorited talkgroups in a system
+  - System Enable/Disable buttons in favorites view now use the new method to respect favorites selection
+  - System stats in favorites view now show "3 / 20 total" where 20 is the favorited count, not total system talkgroups
+  - System enable count in favorites list now correctly reflects only the favorited talkgroups that are enabled
+  - Files modified: client/src/app/components/rdio-scanner/select/select.component.ts, client/src/app/components/rdio-scanner/select/select.component.html
+
+- **Fixed web browser Channel Select clearing sporadically when auto-populate adds new talkgroups (GitHub issue #104)**
+  - Root cause: The `rebuildLivefeedMap()` function used a loose falsy check (`&&`) to determine if talkgroups existed in saved selections
+  - When `this.livefeedMap[sys.id][tg.id]` existed but had falsy properties, it was incorrectly treated as non-existent
+  - This caused existing talkgroup selections to be reset to `active: false` instead of being preserved
+  - Happened sporadically when CFG messages were sent after auto-populate added new talkgroups to hidden or public systems
+  - Fixed: Changed existence check from `this.livefeedMap[sys.id] && this.livefeedMap[sys.id][tg.id]` to explicit `!== undefined` checks
+  - Now uses: `this.livefeedMap[sys.id] !== undefined && this.livefeedMap[sys.id][tg.id] !== undefined`
+  - This ensures existing talkgroup selections are always preserved regardless of their property values
+  - New talkgroups from auto-populate are correctly set to `active: false` without affecting existing selections
+  - Web browser now behaves consistently with mobile app (which already handled this correctly)
+  - Files modified: client/src/app/components/rdio-scanner/rdio-scanner.service.ts
+
+- **CRITICAL: Fixed transcription tone removal silently failing with "parsing N: invalid syntax" error**
+  - Root cause: `RemoveTonesFromAudio()` was trying to get audio duration using `ffprobe`, which returns "N/A" for piped/streamed audio
+  - Error: `FILTERING FAILED: failed to parse duration: strconv.ParseFloat: parsing "N": invalid syntax`
+  - When duration detection fails, the function returns original audio with tones still present, causing Whisper to hallucinate text like "THE FOLLOWING IS A WORK OF FICTION..."
+  - **Problem:** Both `ffprobe` and `ffmpeg` return "N/A" for duration when audio is piped through stdin (not written to disk), regardless of format (MP3, M4A, WAV, Opus)
+  - **Solution:** Parse WAV header directly to calculate duration from PCM sample data (no external tools needed)
+  - **Architecture:** Raw audio → WAV (tone removal) → WAV (transcription) | Raw audio → Opus (streaming/storage only)
+  - **Critical:** Opus should NEVER be transcribed - it's only for streaming and storage; WAV is used for all transcription and tone removal
+  - Fixed #1: `RemoveTonesFromAudio()` now converts input audio to WAV before processing (consistent with tone detection)
+  - Fixed #2: Duration is calculated directly from WAV header: `duration = (sample_count / channels) / sample_rate`
+  - Fixed #3: Eliminates dependency on `ffprobe` for duration detection (which fails with piped audio)
+  - Fixed #4: Tone removal outputs WAV (not Opus) for Whisper transcription
+  - Fixed #5: Simplified and robust - single conversion step, direct header parsing, no external tool failures
+  - Fixed #6: Consistent processing - both tone detection and removal now use the same WAV-based approach
+  - Enhancement: Added comprehensive transcription tone removal debug logging system
+  - New debug logger: `TranscriptionDebugLogger` writes to `transcription-tone-debug.log` (separate from tone detection logs)
+  - Debug system logs: detected tones (frequency, duration, timing), filtering success/failure, ffmpeg errors, and audio processing details
+  - Controlled by existing `EnableDebugLog` config setting (same as tone detection debug logs)
+  - Admins can now review detailed logs to diagnose tone removal issues and verify the process is working correctly
+  - **All ffmpeg errors are now visible in logs** (previously silent failures with "N" parsing errors)
+  - Files modified: server/tone_detector.go, server/debug_logger.go, server/controller.go, server/transcription_queue.go
+
 ## Version 7.0 Beta 9.3 - Released TBD
 
 ### Bug Fixes

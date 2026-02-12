@@ -31,6 +31,13 @@ type DebugLogger struct {
 	closed   bool   // Flag to prevent writes after close
 }
 
+// TranscriptionDebugLogger handles writing transcription tone removal debug logs
+type TranscriptionDebugLogger struct {
+	file   *os.File
+	mutex  sync.Mutex
+	closed bool
+}
+
 // NewDebugLogger creates a new debug logger that writes to tone-keyword-debug.log
 func NewDebugLogger(filename string) (*DebugLogger, error) {
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -188,3 +195,66 @@ func (d *DebugLogger) Close() {
 	}
 }
 
+// NewTranscriptionDebugLogger creates a new transcription debug logger
+func NewTranscriptionDebugLogger(filename string) (*TranscriptionDebugLogger, error) {
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open transcription debug log file: %v", err)
+	}
+
+	logger := &TranscriptionDebugLogger{
+		file:  file,
+		mutex: sync.Mutex{},
+	}
+
+	// Write header on startup
+	logger.WriteLog("=================================================")
+	logger.WriteLog("Transcription Tone Removal Debug Log - Server Started")
+	logger.WriteLog("Logs tone detection and removal for transcription processing")
+	logger.WriteLog("=================================================")
+
+	return logger, nil
+}
+
+// WriteLog writes a message to the transcription debug log with timestamp
+func (t *TranscriptionDebugLogger) WriteLog(message string) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	// Check if logger is closed
+	if t.closed || t.file == nil {
+		return
+	}
+
+	timestamp := time.Now().Format("2006-01-02 15:04:05.000")
+	logLine := fmt.Sprintf("[%s] %s\n", timestamp, message)
+
+	t.file.WriteString(logLine)
+	t.file.Sync() // Flush to disk immediately
+}
+
+// LogToneRemoval logs tone removal events for transcription
+func (t *TranscriptionDebugLogger) LogToneRemoval(callId uint64, workerId int, message string) {
+	t.WriteLog(fmt.Sprintf("[TONE_REMOVAL] Worker=%d Call=%d | %s", workerId, callId, message))
+}
+
+// Close closes the transcription debug log file
+func (t *TranscriptionDebugLogger) Close() {
+	// Mark as closed first
+	t.mutex.Lock()
+	t.closed = true
+	t.mutex.Unlock()
+	
+	// Small delay to let any in-flight writes complete
+	time.Sleep(100 * time.Millisecond)
+	
+	// Write final message and close file
+	if t.file != nil {
+		timestamp := time.Now().Format("2006-01-02 15:04:05.000")
+		t.file.WriteString(fmt.Sprintf("[%s] =================================================\n", timestamp))
+		t.file.WriteString(fmt.Sprintf("[%s] Server Stopping - Transcription Debug Log Closed\n", timestamp))
+		t.file.WriteString(fmt.Sprintf("[%s] =================================================\n", timestamp))
+		t.file.Sync()
+		t.file.Close()
+	}
+}

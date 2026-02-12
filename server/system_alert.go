@@ -37,12 +37,16 @@ type SystemAlert struct {
 
 // SystemAlertData represents the parsed Data field
 type SystemAlertData struct {
-	CallId      uint64 `json:"callId,omitempty"`
-	SystemId    uint64 `json:"systemId,omitempty"`
-	TalkgroupId uint64 `json:"talkgroupId,omitempty"`
-	Error       string `json:"error,omitempty"`
-	Count       int    `json:"count,omitempty"`
-	Service     string `json:"service,omitempty"`
+	CallId           uint64 `json:"callId,omitempty"`
+	SystemId         uint64 `json:"systemId,omitempty"`
+	SystemLabel      string `json:"systemLabel,omitempty"`
+	TalkgroupId      uint64 `json:"talkgroupId,omitempty"`
+	Error            string `json:"error,omitempty"`
+	Count            int    `json:"count,omitempty"`
+	Service          string `json:"service,omitempty"`
+	Threshold        int    `json:"threshold,omitempty"`
+	LastCallTime     int64  `json:"lastCallTime,omitempty"`
+	MinutesSinceLast int    `json:"minutesSinceLast,omitempty"`
 }
 
 // CreateSystemAlert creates a new system alert
@@ -434,10 +438,135 @@ func (controller *Controller) MonitorToneDetectionIssues() {
 	}
 }
 
-// MonitorNoAudio monitors systems for lack of audio activity
-func (controller *Controller) MonitorNoAudio() {
+// MonitorNoAudioForSystem monitors a specific system for lack of audio activity
+func (controller *Controller) MonitorNoAudioForSystem(systemId uint64, systemLabel string, thresholdMinutes uint) {
 	// Check if no-audio alerts are enabled globally
 	if !controller.Options.NoAudioAlertsEnabled || !controller.Options.SystemHealthAlertsEnabled {
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no-audio monitoring skipped for system '%s' (ID: %d) - globally disabled", systemLabel, systemId))
+		return
+	}
+
+	currentTime := time.Now()
+
+	// Query for the most recent call for this system
+	var lastCallTime sql.NullInt64
+	callQuery := `SELECT MAX("timestamp") FROM "calls" WHERE "systemId" = $1`
+	if err := controller.Database.Sql.QueryRow(callQuery, systemId).Scan(&lastCallTime); err != nil {
+		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to query last call time for system %d: %v", systemId, err))
+		return
+	}
+
+	var timeSinceLastCall time.Duration
+	var lastCallTimeMs int64
+	
+	// If no calls found, treat as infinite time since last call
+	if !lastCallTime.Valid {
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no-audio monitoring: system '%s' (ID: %d) has no calls in database - will create alert", systemLabel, systemId))
+		// Set to a very old time to ensure alert is triggered
+		timeSinceLastCall = time.Duration(365*24) * time.Hour // 1 year
+		lastCallTimeMs = 0
+	} else {
+		// Convert timestamp to time
+		lastCall := time.Unix(lastCallTime.Int64/1000, 0)
+		timeSinceLastCall = currentTime.Sub(lastCall)
+		lastCallTimeMs = lastCallTime.Int64
+		
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no-audio check: system '%s' (ID: %d) last call was %d minutes ago (threshold: %d minutes)", 
+			systemLabel, systemId, int(timeSinceLastCall.Minutes()), thresholdMinutes))
+	}
+
+	// Check if time since last call exceeds threshold
+	thresholdDuration := time.Duration(thresholdMinutes) * time.Minute
+	if timeSinceLastCall > thresholdDuration {
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no-audio threshold exceeded for system '%s' (ID: %d): %d minutes since last call (threshold: %d minutes)", 
+			systemLabel, systemId, int(timeSinceLastCall.Minutes()), thresholdMinutes))
+		
+		// Check for existing alert
+		repeatMinutes := int(controller.Options.NoAudioRepeatMinutes)
+		if repeatMinutes <= 0 {
+			repeatMinutes = 30 // Default: 30 minutes
+		}
+
+		// Check if we already have a recent alert for this system
+		checkAlertQuery := fmt.Sprintf(`
+			SELECT MAX("createdAt") FROM "systemAlerts" 
+			WHERE "alertType" = 'no_audio' 
+				AND "data" LIKE '%%"systemId":%d%%'
+				AND "dismissedAt" IS NULL
+		`, systemId)
+
+		var lastAlertTime sql.NullInt64
+		shouldCreateAlert := true
+		repeatThreshold := currentTime.Add(-time.Duration(repeatMinutes) * time.Minute).UnixMilli()
+		if err := controller.Database.Sql.QueryRow(checkAlertQuery).Scan(&lastAlertTime); err == nil && lastAlertTime.Valid {
+			// Only create new alert if last one is older than repeat interval
+			if lastAlertTime.Int64 > repeatThreshold {
+				shouldCreateAlert = false
+				minutesSinceLastAlert := int(currentTime.Sub(time.UnixMilli(lastAlertTime.Int64)).Minutes())
+				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("skipping no-audio alert for system '%s' (ID: %d) - alert created %d minutes ago (repeat interval: %d minutes)", 
+					systemLabel, systemId, minutesSinceLastAlert, repeatMinutes))
+			}
+		}
+
+		if shouldCreateAlert {
+			// Dismiss any existing no-audio alerts for this system before creating new one
+			// This keeps only the latest alert instead of accumulating them
+			dismissQuery := fmt.Sprintf(`
+				UPDATE "systemAlerts" 
+				SET "dismissedAt" = %d, "dismissed" = true 
+				WHERE "alertType" = 'no_audio' 
+					AND "data" LIKE '%%"systemId":%d%%'
+					AND "dismissedAt" IS NULL
+			`, currentTime.UnixMilli(), systemId)
+			if _, err := controller.Database.Sql.Exec(dismissQuery); err != nil {
+				controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to dismiss old no-audio alerts for system %d: %v", systemId, err))
+			}
+
+			data := &SystemAlertData{
+				SystemId:         systemId,
+				SystemLabel:      systemLabel,
+				Threshold:        int(thresholdMinutes),
+				LastCallTime:     lastCallTimeMs,
+				MinutesSinceLast: int(timeSinceLastCall.Minutes()),
+			}
+
+			title := "No Audio Received"
+			var message string
+			if lastCallTimeMs == 0 {
+				message = fmt.Sprintf("System '%s' has no calls in database (threshold: %d minutes)",
+					systemLabel,
+					thresholdMinutes)
+			} else {
+				message = fmt.Sprintf("System '%s' has not received audio for %d minutes (threshold: %d minutes)",
+					systemLabel,
+					int(timeSinceLastCall.Minutes()),
+					thresholdMinutes)
+			}
+
+			if err := controller.CreateSystemAlert(
+				"no_audio",
+				"warning",
+				title,
+				message,
+				data,
+				0, // System-generated
+			); err != nil {
+				controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to create no-audio alert for system '%s' (ID: %d): %v", systemLabel, systemId, err))
+			} else {
+				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("created no-audio alert for system '%s' (ID: %d) - %d minutes since last call", systemLabel, systemId, int(timeSinceLastCall.Minutes())))
+			}
+		}
+	} else {
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no-audio check OK: system '%s' (ID: %d) within threshold - %d minutes since last call (threshold: %d minutes)", 
+			systemLabel, systemId, int(timeSinceLastCall.Minutes()), thresholdMinutes))
+	}
+}
+
+// StartNoAudioMonitoringForAllSystems starts per-system no-audio monitoring with individual timers
+func (controller *Controller) StartNoAudioMonitoringForAllSystems() {
+	// Check if no-audio alerts are enabled globally
+	if !controller.Options.NoAudioAlertsEnabled || !controller.Options.SystemHealthAlertsEnabled {
+		controller.Logs.LogEvent(LogLevelInfo, "no-audio monitoring is disabled")
 		return
 	}
 
@@ -449,8 +578,6 @@ func (controller *Controller) MonitorNoAudio() {
 		return
 	}
 	defer rows.Close()
-
-	currentTime := time.Now()
 
 	for rows.Next() {
 		var systemId uint64
@@ -471,99 +598,95 @@ func (controller *Controller) MonitorNoAudio() {
 			thresholdMinutes = 30
 		}
 
-		// Query for the most recent call for this system
-		var lastCallTime sql.NullInt64
-		callQuery := `SELECT MAX("timestamp") FROM "calls" WHERE "systemId" = $1`
-		if err := controller.Database.Sql.QueryRow(callQuery, systemId).Scan(&lastCallTime); err != nil {
-			controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to query last call time for system %d: %v", systemId, err))
+		// Start monitoring for this system with its own interval
+		go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, thresholdMinutes)
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("started no-audio monitoring for system '%s' (ID: %d) with %d minute threshold", systemLabel, systemId, thresholdMinutes))
+	}
+}
+
+// StartNoAudioMonitoringForSystem starts monitoring a specific system with its own timer
+func (controller *Controller) StartNoAudioMonitoringForSystem(systemId uint64, systemLabel string, thresholdMinutes uint) {
+	ticker := time.NewTicker(time.Duration(thresholdMinutes) * time.Minute)
+	defer ticker.Stop()
+
+	// Run initial check immediately
+	controller.MonitorNoAudioForSystem(systemId, systemLabel, thresholdMinutes)
+
+	// Then check at the threshold interval
+	for range ticker.C {
+		// Re-check if monitoring is still enabled
+		if !controller.Options.NoAudioAlertsEnabled || !controller.Options.SystemHealthAlertsEnabled {
+			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("stopping no-audio monitoring for system '%s' (ID: %d) - globally disabled", systemLabel, systemId))
+			return
+		}
+
+		// Re-check system settings from database in case they changed
+		var noAudioAlertsEnabled bool
+		var currentThresholdMinutes uint
+		checkQuery := `SELECT "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "systems" WHERE "systemId" = $1`
+		if err := controller.Database.Sql.QueryRow(checkQuery, systemId).Scan(&noAudioAlertsEnabled, &currentThresholdMinutes); err != nil {
+			controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to check system settings for system %d: %v", systemId, err))
 			continue
 		}
 
-		// If no calls found, skip this system
-		if !lastCallTime.Valid {
-			continue
+		// If alerts disabled for this system, stop monitoring
+		if !noAudioAlertsEnabled {
+			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("stopping no-audio monitoring for system '%s' (ID: %d) - disabled for this system", systemLabel, systemId))
+			return
 		}
 
-		// Convert timestamp to time
-		lastCall := time.Unix(lastCallTime.Int64/1000, 0)
-		timeSinceLastCall := currentTime.Sub(lastCall)
-
-		// Check if time since last call exceeds threshold
-		thresholdDuration := time.Duration(thresholdMinutes) * time.Minute
-		if timeSinceLastCall > thresholdDuration {
-			// Check for existing alert
-			repeatMinutes := int(controller.Options.NoAudioRepeatMinutes)
-			if repeatMinutes <= 0 {
-				repeatMinutes = 30 // Default: 30 minutes
-			}
-
-			alertData := map[string]any{
-				"systemId":         systemId,
-				"systemLabel":      systemLabel,
-				"threshold":        thresholdMinutes,
-				"lastCallTime":     lastCallTime.Int64,
-				"minutesSinceLast": int(timeSinceLastCall.Minutes()),
-			}
-			dataJSON, _ := json.Marshal(alertData)
-
-			// Check if we already have a recent alert for this system
-			var existingAlert sql.NullInt64
-			checkQuery := `SELECT "alertId" FROM "systemAlerts" 
-				WHERE "alertType" = 'no_audio' 
-				AND "data" LIKE '%"systemId":' || $1 || '%' 
-				AND "createdAt" > $2 
-				AND "dismissed" = false 
-				LIMIT 1`
-			repeatThreshold := currentTime.Add(-time.Duration(repeatMinutes)*time.Minute).Unix() * 1000
-			if err := controller.Database.Sql.QueryRow(checkQuery, systemId, repeatThreshold).Scan(&existingAlert); err == nil && existingAlert.Valid {
-				// Alert already exists and is recent, skip
-				continue
-			}
-
-			// Create new alert
-			title := "No Audio Received"
-			message := fmt.Sprintf("System '%s' has not received audio for %d minutes (threshold: %d minutes)",
-				systemLabel,
-				int(timeSinceLastCall.Minutes()),
-				thresholdMinutes)
-
-			insertQuery := `INSERT INTO "systemAlerts" 
-			("alertType", "severity", "title", "message", "data", "createdAt", "createdBy", "dismissed") 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-
-			if _, err := controller.Database.Sql.Exec(insertQuery,
-				"no_audio",
-				"warning",
-				title,
-				message,
-				string(dataJSON),
-				currentTime.Unix()*1000,
-				nil, // NULL for system-generated alerts (no user creator)
-				false); err != nil {
-				controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to create no-audio alert: %v", err))
-			} else {
-				controller.Logs.LogEvent(LogLevelWarn, message)
-				// TODO: Send push notification for system alerts
-			}
+		// If threshold changed, restart with new interval
+		if currentThresholdMinutes != thresholdMinutes && currentThresholdMinutes > 0 {
+			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("restarting no-audio monitoring for system '%s' (ID: %d) - threshold changed from %d to %d minutes", systemLabel, systemId, thresholdMinutes, currentThresholdMinutes))
+			// Stop this ticker and start a new one
+			ticker.Stop()
+			go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, currentThresholdMinutes)
+			return
 		}
+
+		// Run the check
+		controller.MonitorNoAudioForSystem(systemId, systemLabel, thresholdMinutes)
+	}
+}
+
+// RestartNoAudioMonitoringForSystem restarts monitoring for a specific system
+// This should be called when system no-audio settings are updated via admin interface
+func (controller *Controller) RestartNoAudioMonitoringForSystem(systemId uint64) {
+	// Get current system settings
+	var systemLabel string
+	var noAudioAlertsEnabled bool
+	var thresholdMinutes uint
+	
+	query := `SELECT "label", "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "systems" WHERE "systemId" = $1`
+	if err := controller.Database.Sql.QueryRow(query, systemId).Scan(&systemLabel, &noAudioAlertsEnabled, &thresholdMinutes); err != nil {
+		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to query system for no-audio monitoring restart: %v", err))
+		return
 	}
 
-	// Schedule next check (run every 5 minutes)
-	time.AfterFunc(5*time.Minute, func() {
-		controller.MonitorNoAudio()
-	})
+	// If alerts are disabled or threshold is 0, nothing to start
+	if !noAudioAlertsEnabled || thresholdMinutes == 0 {
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no-audio monitoring not started for system '%s' (ID: %d) - disabled or invalid threshold", systemLabel, systemId))
+		return
+	}
+
+	// Start monitoring with new settings (the goroutine will detect setting changes and adapt)
+	go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, thresholdMinutes)
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("restarted no-audio monitoring for system '%s' (ID: %d) with %d minute threshold", systemLabel, systemId, thresholdMinutes))
 }
 
 // StartSystemHealthMonitoring starts periodic system health checks
 func (controller *Controller) StartSystemHealthMonitoring() {
+	// Start hourly checks for transcription failures and tone detection issues
 	ticker := time.NewTicker(1 * time.Hour) // Check every hour
 	go func() {
 		for range ticker.C {
 			controller.MonitorTranscriptionFailures()
 			controller.MonitorToneDetectionIssues()
-			controller.MonitorNoAudio()
 		}
 	}()
+
+	// Start per-system no-audio monitoring with individual timers
+	go controller.StartNoAudioMonitoringForAllSystems()
 
 	controller.Logs.LogEvent(LogLevelInfo, "system health monitoring started")
 }

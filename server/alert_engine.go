@@ -50,6 +50,38 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 		matchedToneSets = []*ToneSet{call.ToneSequence.MatchedToneSet}
 	}
 
+	// Ensure System and Talkgroup database IDs are set (required for query)
+	// For tone-only calls (Call=0), these might not be set yet, so resolve them
+	if call.System == nil || call.Talkgroup == nil {
+		engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("pre-alert skipped for call %d: System or Talkgroup is nil", call.Id))
+		return
+	}
+
+	systemId := call.System.Id
+	talkgroupId := call.Talkgroup.Id
+
+	// If database IDs are not set, try to resolve them from SystemRef and TalkgroupRef
+	if systemId == 0 && call.System.SystemRef > 0 {
+		query := fmt.Sprintf(`SELECT "systemId" FROM "systems" WHERE "systemRef" = %d LIMIT 1`, call.System.SystemRef)
+		if err := engine.controller.Database.Sql.QueryRow(query).Scan(&systemId); err != nil {
+			engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("pre-alert skipped for call %d: failed to resolve systemId from systemRef %d: %v", call.Id, call.System.SystemRef, err))
+			return
+		}
+	}
+
+	if talkgroupId == 0 && call.Talkgroup.TalkgroupRef > 0 && systemId > 0 {
+		query := fmt.Sprintf(`SELECT "talkgroupId" FROM "talkgroups" WHERE "systemId" = %d AND "talkgroupRef" = %d LIMIT 1`, systemId, call.Talkgroup.TalkgroupRef)
+		if err := engine.controller.Database.Sql.QueryRow(query).Scan(&talkgroupId); err != nil {
+			engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("pre-alert skipped for call %d: failed to resolve talkgroupId from talkgroupRef %d: %v", call.Id, call.Talkgroup.TalkgroupRef, err))
+			return
+		}
+	}
+
+	if systemId == 0 || talkgroupId == 0 {
+		engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("pre-alert skipped for call %d: systemId=%d or talkgroupId=%d is 0", call.Id, systemId, talkgroupId))
+		return
+	}
+
 	// Get all users with tone alerts enabled for this talkgroup
 	var query string
 	if engine.controller.Database.Config.DbType == DbTypePostgresql {
@@ -57,7 +89,7 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 	} else {
 		query = `SELECT "userId", "toneAlerts", "toneSetIds" FROM "userAlertPreferences" WHERE "systemId" = ? AND "talkgroupId" = ? AND "alertEnabled" = true AND "toneAlerts" = true`
 	}
-	rows, err := engine.controller.Database.Sql.Query(query, call.System.Id, call.Talkgroup.Id)
+	rows, err := engine.controller.Database.Sql.Query(query, systemId, talkgroupId)
 	if err != nil {
 		engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to query user alert preferences for pre-alerts: %v", err))
 		return

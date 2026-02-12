@@ -778,13 +778,9 @@ func (admin *Admin) SystemHealthAlertsEnabledHandler(w http.ResponseWriter, r *h
 			return
 		}
 
-		// Reload options to ensure consistency
-		if err := admin.Controller.Options.Read(admin.Controller.Database); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": fmt.Sprintf("failed to reload options: %v", err),
-			})
-			return
+		// If enabling, restart no-audio monitoring for all systems
+		if request.Enabled {
+			go admin.Controller.StartNoAudioMonitoringForAllSystems()
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -910,13 +906,9 @@ func (admin *Admin) SystemHealthAlertSettingsHandler(w http.ResponseWriter, r *h
 			return
 		}
 
-		// Reload options to ensure consistency
-		if err := admin.Controller.Options.Read(admin.Controller.Database); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": fmt.Sprintf("failed to reload options: %v", err),
-			})
-			return
+		// If no-audio alerts setting was changed, restart monitoring for all systems
+		if request.NoAudioAlertsEnabled != nil {
+			go admin.Controller.StartNoAudioMonitoringForAllSystems()
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -978,6 +970,9 @@ func (admin *Admin) SystemNoAudioSettingsHandler(w http.ResponseWriter, r *http.
 		})
 		return
 	}
+
+	// Restart no-audio monitoring for this system with new settings
+	go admin.Controller.RestartNoAudioMonitoringForSystem(uint64(request.SystemId))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

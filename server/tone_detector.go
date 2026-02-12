@@ -29,12 +29,9 @@ import (
 	"fmt"
 	"math"
 	"math/cmplx"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"gonum.org/v1/gonum/dsp/fourier"
 )
@@ -122,45 +119,55 @@ func (detector *ToneDetector) Detect(audio []byte, audioMime string, toneSets []
 		return &ToneSequence{Tones: []Tone{}, HasTones: false}, nil
 	}
 
-	// Convert audio to WAV PCM format using ffmpeg
-	tempDir := os.TempDir()
-	srcFile := filepath.Join(tempDir, fmt.Sprintf("tone_src_%d.m4a", time.Now().UnixNano()))
-	wavFile := filepath.Join(tempDir, fmt.Sprintf("tone_wav_%d.wav", time.Now().UnixNano()))
-
-	// Write source audio to temp file
-	if err := os.WriteFile(srcFile, audio, 0644); err != nil {
-		return nil, fmt.Errorf("failed to write temp audio file: %v", err)
-	}
-	defer os.Remove(srcFile)
-	defer os.Remove(wavFile)
-
-	// Convert to WAV 16kHz mono with bandpass filter for tone detection
+	// Convert audio to WAV PCM format using ffmpeg with stdin/stdout pipes (no temp files)
 	// Bandpass 200-3000 Hz isolates typical paging tones and reduces noise/DC offset
 	// This significantly improves detection on analog conventional channels
 	ffArgs := []string{
-		"-y", "-loglevel", "error",
-		"-i", srcFile,
+		"-i", "pipe:0", // Read from stdin
 		"-ar", "16000", // 16kHz sample rate (can capture up to 8kHz via Nyquist, sufficient for 0-5000 Hz)
 		"-ac", "1", // Mono
 		"-af", "highpass=f=200,lowpass=f=3000,dynaudnorm", // Bandpass filter + dynamic normalization
 		"-f", "wav",
-		wavFile,
+		"-loglevel", "error",
+		"pipe:1", // Write to stdout
 	}
+
 	ffCmd := exec.Command("ffmpeg", ffArgs...)
+
+	// Set up pipes
+	stdin, err := ffCmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdin pipe: %v", err)
+	}
+
+	var wavData bytes.Buffer
 	var ffErr bytes.Buffer
+	ffCmd.Stdout = &wavData
 	ffCmd.Stderr = &ffErr
-	if err := ffCmd.Run(); err != nil {
+
+	// Start ffmpeg
+	if err := ffCmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start ffmpeg: %v", err)
+	}
+
+	// Write audio data to stdin in a goroutine
+	go func() {
+		defer stdin.Close()
+		stdin.Write(audio)
+	}()
+
+	// Wait for ffmpeg to complete
+	if err := ffCmd.Wait(); err != nil {
 		return nil, fmt.Errorf("ffmpeg conversion failed: %v, stderr: %s", err, ffErr.String())
 	}
 
-	// Read WAV file
-	wavData, err := os.ReadFile(wavFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read WAV file: %v", err)
+	// Get the WAV data from stdout
+	if wavData.Len() == 0 {
+		return nil, fmt.Errorf("ffmpeg produced no output")
 	}
 
 	// Parse WAV and extract PCM samples
-	samples, sampleRate, err := detector.parseWAV(wavData)
+	samples, sampleRate, err := detector.parseWAV(wavData.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse WAV: %v", err)
 	}
@@ -433,7 +440,7 @@ func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate i
 				if bin < len(magnitudes)-1 && magnitudes[bin+1] > mag {
 					isLocalMax = false
 				}
-				
+
 				// Only process local maxima to avoid detecting noise/harmonics
 				if !isLocalMax {
 					continue
@@ -919,7 +926,7 @@ func (detector *ToneDetector) matchesToneSet(detected *ToneSequence, toneSet Ton
 	// This prevents false matches where an A-tone pairs with a B-tone from a different tone sequence
 	if toneSet.ATone != nil && toneSet.BTone != nil {
 		fmt.Printf("DEBUG: Checking sequence for tone set '%s' - found %d A-tones and %d B-tones\n", toneSet.Label, len(aTones), len(bTones))
-		
+
 		// Sort A-tones by start time to process them in sequence
 		aTonesSorted := make([]matchingTone, len(aTones))
 		copy(aTonesSorted, aTones)
@@ -930,9 +937,9 @@ func (detector *ToneDetector) matchesToneSet(detected *ToneSequence, toneSet Ton
 		// Check each A-tone against the tone set's B-tone
 		// Each A-tone must find its closest following B-tone that matches this tone set
 		for _, aMatch := range aTonesSorted {
-			fmt.Printf("DEBUG: A-tone %.1f Hz: start=%.2fs, end=%.2fs, duration=%.2fs\n", 
+			fmt.Printf("DEBUG: A-tone %.1f Hz: start=%.2fs, end=%.2fs, duration=%.2fs\n",
 				aMatch.tone.Frequency, aMatch.tone.StartTime, aMatch.tone.EndTime, aMatch.tone.Duration)
-			
+
 			// Find the closest following B-tone within 0.5s gap
 			// "Closest" means the smallest gap (either negative for overlap, or positive for sequential)
 			var closestB *matchingTone
@@ -941,14 +948,14 @@ func (detector *ToneDetector) matchesToneSet(detected *ToneSequence, toneSet Ton
 
 			for i := range bTones {
 				bMatch := &bTones[i]
-				
+
 				fmt.Printf("DEBUG:   Checking B-tone %.1f Hz: start=%.2fs, end=%.2fs, duration=%.2fs\n",
 					bMatch.tone.Frequency, bMatch.tone.StartTime, bMatch.tone.EndTime, bMatch.tone.Duration)
 
 				// B-tone must START after A-tone starts (allows overlapping tones)
 				// This supports both sequential (A then B) and overlapping (A+B simultaneously) two-tone paging
 				if bMatch.tone.StartTime < aMatch.tone.StartTime {
-					fmt.Printf("DEBUG:     REJECTED: B-tone starts (%.2fs) before A-tone starts (%.2fs)\n", 
+					fmt.Printf("DEBUG:     REJECTED: B-tone starts (%.2fs) before A-tone starts (%.2fs)\n",
 						bMatch.tone.StartTime, aMatch.tone.StartTime)
 					continue // B starts before A starts, not a valid sequence
 				}
@@ -957,7 +964,7 @@ func (detector *ToneDetector) matchesToneSet(detected *ToneSequence, toneSet Ton
 				// Negative = overlapping (B starts before A ends) - this is OK now!
 				// Positive = sequential (B starts after A ends)
 				gap := bMatch.tone.StartTime - aMatch.tone.EndTime
-				fmt.Printf("DEBUG:     Gap: %.2fs (B start %.2fs - A end %.2fs)\n", 
+				fmt.Printf("DEBUG:     Gap: %.2fs (B start %.2fs - A end %.2fs)\n",
 					gap, bMatch.tone.StartTime, aMatch.tone.EndTime)
 
 				// Allow overlap up to full duration of A-tone, or sequential up to 0.5s gap
@@ -1072,33 +1079,89 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 		return audio, nil // No tones to remove
 	}
 
-	// Create temp files
-	tempDir := os.TempDir()
-	srcFile := filepath.Join(tempDir, fmt.Sprintf("tone_filter_src_%d.m4a", time.Now().UnixNano()))
-	outFile := filepath.Join(tempDir, fmt.Sprintf("tone_filter_out_%d.m4a", time.Now().UnixNano()))
-
-	// Write source audio
-	if err := os.WriteFile(srcFile, audio, 0644); err != nil {
-		return audio, fmt.Errorf("failed to write temp audio: %v", err)
+	// STEP 1: Convert input audio to WAV format first (regardless of input format: MP3, M4A, Opus, etc.)
+	// This ensures we have a consistent format with reliable duration metadata in the header
+	// WAV duration is always in the header, unlike streaming formats (Opus/MP3) which may return "N/A"
+	ffConvertArgs := []string{
+		"-y", "-loglevel", "error",
+		"-i", "pipe:0", // Read from stdin
+		"-ar", "16000", // 16kHz sample rate
+		"-ac", "1", // Mono
+		"-f", "wav", // WAV format
+		"pipe:1", // Write to stdout
 	}
-	defer os.Remove(srcFile)
-	defer os.Remove(outFile)
+	ffConvertCmd := exec.Command("ffmpeg", ffConvertArgs...)
 
-	// Get total audio duration
-	durationCmd := exec.Command("ffprobe",
-		"-v", "error",
-		"-show_entries", "format=duration",
-		"-of", "default=noprint_wrappers=1:nokey=1",
-		srcFile,
-	)
-	durationOutput, err := durationCmd.Output()
+	// Setup stdin for ffmpeg
+	stdinConvert, err := ffConvertCmd.StdinPipe()
 	if err != nil {
-		return audio, fmt.Errorf("failed to get audio duration: %v", err)
+		return audio, fmt.Errorf("failed to create stdin pipe for WAV conversion: %v", err)
+	}
+	go func() {
+		defer stdinConvert.Close()
+		_, _ = stdinConvert.Write(audio)
+	}()
+
+	// Setup stdout for ffmpeg
+	var wavData bytes.Buffer
+	ffConvertCmd.Stdout = &wavData
+	var ffConvertErr bytes.Buffer
+	ffConvertCmd.Stderr = &ffConvertErr
+
+	// Run ffmpeg to convert to WAV
+	if err := ffConvertCmd.Start(); err != nil {
+		return audio, fmt.Errorf("failed to start ffmpeg for WAV conversion: %v", err)
 	}
 
-	var totalDuration float64
-	if _, err := fmt.Sscanf(string(durationOutput), "%f", &totalDuration); err != nil {
-		return audio, fmt.Errorf("failed to parse duration: %v", err)
+	if err := ffConvertCmd.Wait(); err != nil {
+		return audio, fmt.Errorf("ffmpeg WAV conversion failed: %v, stderr: %s", err, ffConvertErr.String())
+	}
+
+	wavBytes := wavData.Bytes()
+	if len(wavBytes) < 1000 {
+		return audio, fmt.Errorf("WAV conversion produced too small output (%d bytes)", len(wavBytes))
+	}
+
+	// STEP 2: Get duration by parsing WAV header directly (more reliable than ffprobe for piped data)
+	// Parse WAV header to get sample rate and calculate duration from PCM data
+	if len(wavBytes) < 44 {
+		return audio, fmt.Errorf("WAV file too short to parse header")
+	}
+
+	// Verify WAV header
+	if string(wavBytes[0:4]) != "RIFF" || string(wavBytes[8:12]) != "WAVE" {
+		return audio, fmt.Errorf("invalid WAV header")
+	}
+
+	// Read audio parameters from WAV header
+	sampleRate := int(binary.LittleEndian.Uint32(wavBytes[24:28]))
+	channels := int(binary.LittleEndian.Uint16(wavBytes[22:24]))
+	bitsPerSample := int(binary.LittleEndian.Uint16(wavBytes[34:36]))
+
+	if sampleRate == 0 || channels == 0 || bitsPerSample == 0 {
+		return audio, fmt.Errorf("invalid WAV parameters: sampleRate=%d, channels=%d, bitsPerSample=%d", sampleRate, channels, bitsPerSample)
+	}
+
+	// Find data chunk size
+	var dataSize int
+	for i := 12; i < len(wavBytes)-8; i++ {
+		if string(wavBytes[i:i+4]) == "data" {
+			dataSize = int(binary.LittleEndian.Uint32(wavBytes[i+4 : i+8]))
+			break
+		}
+	}
+
+	if dataSize == 0 {
+		return audio, fmt.Errorf("WAV data chunk not found")
+	}
+
+	// Calculate duration from sample count
+	bytesPerSample := bitsPerSample / 8
+	sampleCount := dataSize / (bytesPerSample * channels)
+	totalDuration := float64(sampleCount) / float64(sampleRate)
+
+	if totalDuration <= 0 {
+		return audio, fmt.Errorf("invalid calculated WAV duration: %.2fs (sampleRate=%d, channels=%d, sampleCount=%d)", totalDuration, sampleRate, channels, sampleCount)
 	}
 
 	// Build ffmpeg filter to remove tone segments
@@ -1113,8 +1176,8 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	})
 
 	// Build segments to KEEP (everything except tones)
-	// Add small buffer (0.1s) around tones to ensure complete removal
-	const toneBuffer = 0.1
+	// Add small buffer (0.05s = 50ms) around tones to ensure complete removal without cutting too much voice
+	const toneBuffer = 0.05
 
 	type segment struct {
 		start, end float64
@@ -1126,18 +1189,31 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 		toneStart := math.Max(0, tone.StartTime-toneBuffer)
 		toneEnd := math.Min(totalDuration, tone.EndTime+toneBuffer)
 
-		// Add segment before this tone
+		// Detect if this tone is cutting into potential voice
 		if currentPos < toneStart {
-			keepSegments = append(keepSegments, segment{currentPos, toneStart})
+			segmentDuration := toneStart - currentPos
+			// Keep segments that are at least 0.3s (300ms) - shorter segments are likely artifacts
+			if segmentDuration >= 0.3 {
+				keepSegments = append(keepSegments, segment{currentPos, toneStart})
+				fmt.Printf("audio filtering: keeping voice segment %.3fs-%.3fs (%.2fs)\n", currentPos, toneStart, segmentDuration)
+			} else {
+				fmt.Printf("audio filtering: skipping short segment %.3fs-%.3fs (%.2fs, likely artifact)\n", currentPos, toneStart, segmentDuration)
+			}
 		}
 
 		// Skip the tone itself
+		fmt.Printf("audio filtering: removing tone %.3fs-%.3fs (%.2fs at %.1fHz)\n", toneStart, toneEnd, tone.Duration, tone.Frequency)
 		currentPos = toneEnd
 	}
 
 	// Add final segment after last tone
 	if currentPos < totalDuration {
-		keepSegments = append(keepSegments, segment{currentPos, totalDuration})
+		segmentDuration := totalDuration - currentPos
+		// Always keep the final segment if it exists, as it's likely voice after tones
+		if segmentDuration >= 0.1 {
+			keepSegments = append(keepSegments, segment{currentPos, totalDuration})
+			fmt.Printf("audio filtering: keeping final voice segment %.3fs-%.3fs (%.2fs)\n", currentPos, totalDuration, segmentDuration)
+		}
 	}
 
 	// If no segments to keep, return empty (all tones)
@@ -1163,47 +1239,63 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	filterComplex := strings.Join(filterParts, ";") + fmt.Sprintf(";%sconcat=n=%d:v=0:a=1[out]",
 		concatInputs, len(keepSegments))
 
-	// Run ffmpeg with filter
+	// STEP 3: Run ffmpeg with filter using stdin/stdout pipes on the WAV data
+	// Output WAV for transcription (Opus should NEVER be transcribed)
 	ffArgs := []string{
 		"-y", "-loglevel", "error",
-		"-i", srcFile,
+		"-i", "pipe:0", // Read WAV from stdin
 		"-filter_complex", filterComplex,
 		"-map", "[out]",
-		"-ar", "16000",          // 16kHz sample rate
-		"-ac", "1",              // Mono
-		"-c:a", "libopus",       // Encode to Opus (was aac)
-		"-b:a", "16k",           // 16 kbps (was 64k - voice optimized)
-		"-application", "voip",  // Voice optimization
-		"-f", "opus",            // Opus format
-		outFile,
+		"-ar", "16000", // 16kHz sample rate
+		"-ac", "1", // Mono
+		"-f", "wav", // Output WAV format for transcription
+		"pipe:1", // Write to stdout
 	}
 
 	fmt.Printf("audio filtering: removing %d tone segments (%.2fs of tones from %.2fs total)\n",
 		len(sortedTones), calculateTotalToneDuration(sortedTones), totalDuration)
 
 	ffCmd := exec.Command("ffmpeg", ffArgs...)
+
+	// Setup stdin for ffmpeg (use WAV data, not original audio)
+	stdin, err := ffCmd.StdinPipe()
+	if err != nil {
+		return audio, fmt.Errorf("failed to create stdin pipe for ffmpeg: %v", err)
+	}
+	go func() {
+		defer stdin.Close()
+		_, _ = stdin.Write(wavBytes) // Use WAV data instead of original audio
+	}()
+
+	// Setup stdout for ffmpeg
+	var filteredAudio bytes.Buffer
+	ffCmd.Stdout = &filteredAudio
 	var ffErr bytes.Buffer
 	ffCmd.Stderr = &ffErr
-	if err := ffCmd.Run(); err != nil {
+
+	// Run ffmpeg
+	if err := ffCmd.Start(); err != nil {
+		return audio, fmt.Errorf("failed to start ffmpeg: %v", err)
+	}
+
+	// Wait for ffmpeg to complete
+	if err := ffCmd.Wait(); err != nil {
 		return audio, fmt.Errorf("ffmpeg filtering failed: %v, stderr: %s", err, ffErr.String())
 	}
 
-	// Read filtered audio
-	filteredAudio, err := os.ReadFile(outFile)
-	if err != nil {
-		return audio, fmt.Errorf("failed to read filtered audio: %v", err)
-	}
+	// Get filtered audio from stdout
+	filteredAudioBytes := filteredAudio.Bytes()
 
 	// Verify we got something back
-	if len(filteredAudio) < 1000 {
-		fmt.Printf("audio filtering: filtered audio too small (%d bytes), returning original\n", len(filteredAudio))
+	if len(filteredAudioBytes) < 1000 {
+		fmt.Printf("audio filtering: filtered audio too small (%d bytes), returning original\n", len(filteredAudioBytes))
 		return audio, nil
 	}
 
 	fmt.Printf("audio filtering: success - original: %d bytes, filtered: %d bytes (removed %.1f%%)\n",
-		len(audio), len(filteredAudio), (1.0-float64(len(filteredAudio))/float64(len(audio)))*100)
+		len(audio), len(filteredAudioBytes), (1.0-float64(len(filteredAudioBytes))/float64(len(audio)))*100)
 
-	return filteredAudio, nil
+	return filteredAudioBytes, nil
 }
 
 // calculateTotalToneDuration calculates total duration of all tones
@@ -1224,43 +1316,51 @@ func (detector *ToneDetector) DetectAllTonesForTranscription(audio []byte, audio
 		return []Tone{}, nil
 	}
 
-	// Convert audio to WAV PCM format using ffmpeg
-	tempDir := os.TempDir()
-	srcFile := filepath.Join(tempDir, fmt.Sprintf("tone_detect_trans_%d.m4a", time.Now().UnixNano()))
-	wavFile := filepath.Join(tempDir, fmt.Sprintf("tone_detect_trans_%d.wav", time.Now().UnixNano()))
-
-	// Write source audio to temp file
-	if err := os.WriteFile(srcFile, audio, 0644); err != nil {
-		return nil, fmt.Errorf("failed to write temp audio file: %v", err)
-	}
-	defer os.Remove(srcFile)
-	defer os.Remove(wavFile)
-
-	// Convert to WAV 16kHz mono with bandpass filter for tone detection
+	// Convert audio to WAV PCM format using ffmpeg via stdin/stdout pipes
 	ffArgs := []string{
 		"-y", "-loglevel", "error",
-		"-i", srcFile,
+		"-i", "pipe:0", // Read from stdin
 		"-ar", "16000", // 16kHz sample rate
-		"-ac", "1",     // Mono
+		"-ac", "1", // Mono
 		"-af", "highpass=f=200,lowpass=f=5000,dynaudnorm", // Detect tones in dispatch range
 		"-f", "wav",
-		wavFile,
+		"pipe:1", // Write to stdout
 	}
 	ffCmd := exec.Command("ffmpeg", ffArgs...)
+
+	// Setup stdin for ffmpeg
+	stdin, err := ffCmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdin pipe for ffmpeg: %v", err)
+	}
+	go func() {
+		defer stdin.Close()
+		_, _ = stdin.Write(audio)
+	}()
+
+	// Setup stdout for ffmpeg
+	var wavData bytes.Buffer
+	ffCmd.Stdout = &wavData
 	var ffErr bytes.Buffer
 	ffCmd.Stderr = &ffErr
-	if err := ffCmd.Run(); err != nil {
+
+	// Run ffmpeg
+	if err := ffCmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start ffmpeg: %v", err)
+	}
+
+	// Wait for ffmpeg to complete
+	if err := ffCmd.Wait(); err != nil {
 		return nil, fmt.Errorf("ffmpeg conversion failed: %v, stderr: %s", err, ffErr.String())
 	}
 
-	// Read WAV file
-	wavData, err := os.ReadFile(wavFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read WAV file: %v", err)
+	// Get the WAV data from stdout
+	if wavData.Len() == 0 {
+		return nil, fmt.Errorf("ffmpeg produced no output")
 	}
 
 	// Parse WAV and extract PCM samples
-	samples, sampleRate, err := detector.parseWAV(wavData)
+	samples, sampleRate, err := detector.parseWAV(wavData.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse WAV: %v", err)
 	}

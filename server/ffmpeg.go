@@ -63,7 +63,7 @@ func NewFFMpeg() *FFMpeg {
 	return ffmpeg
 }
 
-func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint, config *Config) error {
+func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint, config *Config, options *Options) error {
 	var (
 		args = []string{"-i", "-"}
 		err  error
@@ -131,15 +131,39 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 		}
 	}
 
-	// Check if Opus encoding is enabled via configuration
-	if config != nil && config.UseOpus {
+	// Determine codec and bitrate from options (or fall back to config/defaults)
+	useOpus := false
+	bitrate := uint(24) // Default bitrate in kbps
+	
+	// Check options first (admin UI settings)
+	if options != nil {
+		if options.AudioCodec == "opus" {
+			useOpus = true
+		} else if options.AudioCodec == "aac" {
+			useOpus = false
+		} else if config != nil && config.UseOpus {
+			// Fall back to config if no explicit codec selected
+			useOpus = true
+		}
+		
+		// Use custom bitrate if specified
+		if options.AudioBitrate > 0 {
+			bitrate = options.AudioBitrate
+		}
+	} else if config != nil && config.UseOpus {
+		// Fall back to config if options not available
+		useOpus = true
+	}
+	
+	// Apply codec-specific encoding
+	if useOpus {
 		// Force 16kHz mono for optimal Opus encoding
 		args = append(args, "-ar", "16000", "-ac", "1")
 		
-		// Use Opus codec optimized for voice (50% smaller than AAC)
+		// Use Opus codec optimized for voice
 		args = append(args, 
 			"-c:a", "libopus",
-			"-b:a", "16k",              // 16 kbps (half of previous 32k AAC, same quality for voice)
+			"-b:a", fmt.Sprintf("%dk", bitrate), // User-configurable bitrate
 			"-vbr", "on",               // Variable bitrate
 			"-application", "voip",     // Optimize for voice
 			"-compression_level", "10", // Max compression
@@ -147,8 +171,11 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 			"-",
 		)
 	} else {
-		// Default: Use AAC/M4A encoding (backward compatible)
-		args = append(args, "-c:a", "aac", "-b:a", "32k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
+		// Use AAC/M4A encoding
+		if bitrate == 0 {
+			bitrate = 32 // Default AAC bitrate
+		}
+		args = append(args, "-c:a", "aac", "-b:a", fmt.Sprintf("%dk", bitrate), "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
 	}
 
 	cmd := exec.Command("ffmpeg", args...)
@@ -163,7 +190,7 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 	if err = cmd.Run(); err == nil {
 		call.Audio = stdout.Bytes()
 		
-		if config != nil && config.UseOpus {
+		if useOpus {
 			call.AudioFilename = fmt.Sprintf("%v.opus", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
 			call.AudioMime = "audio/opus"
 		} else {

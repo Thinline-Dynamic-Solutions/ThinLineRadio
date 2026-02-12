@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -100,7 +101,8 @@ type Controller struct {
 	LoginAttemptTracker *LoginAttemptTracker
 
 	// Debug logging for tones/keywords
-	DebugLogger *DebugLogger
+	DebugLogger              *DebugLogger
+	TranscriptionDebugLogger *TranscriptionDebugLogger
 }
 
 // WaitingShortCall represents a short voice call that is waiting for a longer one to arrive
@@ -166,6 +168,15 @@ func NewController(config *Config) *Controller {
 		} else {
 			controller.DebugLogger = debugLogger
 			log.Println("Tone & Keyword debug logging enabled - writing to tone-keyword-debug.log")
+		}
+
+		// Also initialize transcription debug logger
+		transcriptionDebugLogger, err := NewTranscriptionDebugLogger("transcription-tone-debug.log")
+		if err != nil {
+			log.Printf("Warning: Failed to create transcription debug logger: %v", err)
+		} else {
+			controller.TranscriptionDebugLogger = transcriptionDebugLogger
+			log.Println("Transcription tone removal debug logging enabled - writing to transcription-tone-debug.log")
 		}
 	}
 
@@ -817,7 +828,7 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 	originalAudio := make([]byte, len(call.Audio))
 	copy(originalAudio, call.Audio)
 	originalAudioMime := call.AudioMime
-	
+
 	// Store original audio in call struct for transcription to use later
 	call.OriginalAudio = originalAudio
 	call.OriginalAudioMime = originalAudioMime
@@ -829,15 +840,13 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 		toneDetectionCall := *call
 		toneDetectionCall.Audio = originalAudio
 		toneDetectionCall.AudioMime = originalAudioMime
-		controller.processToneDetection(&toneDetectionCall)
-
-		// Copy tone detection results back to the main call
-		call.ToneSequence = toneDetectionCall.ToneSequence
-		call.HasTones = toneDetectionCall.HasTones
+		// Run tone detection asynchronously so it doesn't block call processing if it hangs
+		// Pass pointer to original call so results can be updated in memory after detection completes
+		go controller.processToneDetectionAsync(&toneDetectionCall, call)
 	}
 
 	// Now encode audio to Opus/AAC for storage
-	if convertErr := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion, controller.Config); convertErr != nil {
+	if convertErr := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion, controller.Config, controller.Options); convertErr != nil {
 		controller.Logs.LogEvent(LogLevelWarn, convertErr.Error())
 	}
 
@@ -888,6 +897,43 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 	}
 }
 
+// processToneDetectionAsync runs tone detection asynchronously and updates the original call object
+func (controller *Controller) processToneDetectionAsync(toneDetectionCall *Call, originalCall *Call) {
+	startTime := time.Now()
+	systemId := uint64(0)
+	if toneDetectionCall.System != nil {
+		systemId = toneDetectionCall.System.Id
+	}
+	talkgroupRef := uint(0)
+	if toneDetectionCall.Talkgroup != nil {
+		talkgroupRef = toneDetectionCall.Talkgroup.TalkgroupRef
+	}
+
+	// Run tone detection on the temporary call
+	controller.processToneDetection(toneDetectionCall)
+
+	duration := time.Since(startTime)
+
+	// Log completion time for monitoring
+	if controller.DebugLogger != nil {
+		controller.DebugLogger.LogToneDetection(toneDetectionCall.Id, systemId, talkgroupRef,
+			fmt.Sprintf("Detection completed in %v (audio: %d bytes)", duration, len(toneDetectionCall.Audio)))
+	}
+
+	// Log warning if detection took longer than expected (>5 seconds)
+	if duration > 5*time.Second {
+		controller.Logs.LogEvent(LogLevelWarn,
+			fmt.Sprintf("tone detection took %v for call %d (system=%d, talkgroup=%d, audio=%d bytes) - may indicate performance issue",
+				duration, toneDetectionCall.Id, systemId, talkgroupRef, len(toneDetectionCall.Audio)))
+	}
+
+	// Update the original call object with the results
+	if toneDetectionCall.ToneSequence != nil {
+		originalCall.ToneSequence = toneDetectionCall.ToneSequence
+		originalCall.HasTones = toneDetectionCall.HasTones
+	}
+}
+
 // processToneDetection processes tone detection for a call (async, doesn't block)
 func (controller *Controller) processToneDetection(call *Call) {
 	// Debug logging to diagnose why tone detection isn't running
@@ -919,6 +965,10 @@ func (controller *Controller) processToneDetection(call *Call) {
 	toneSequence, err := controller.ToneDetector.Detect(call.Audio, call.AudioMime, call.Talkgroup.ToneSets)
 	if err != nil {
 		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("tone detection failed for call %d: %v", call.Id, err))
+		if controller.DebugLogger != nil {
+			controller.DebugLogger.LogToneDetection(call.Id, systemId, call.Talkgroup.TalkgroupRef,
+				fmt.Sprintf("FAILED: %v", err))
+		}
 		return
 	}
 
@@ -943,19 +993,55 @@ func (controller *Controller) processToneDetection(call *Call) {
 		}
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("tones detected for call %d: %d tones found - %s (audio: %d bytes, duration: %.2fs)", call.Id, len(toneSequence.Tones), strings.Join(toneFreqs, ", "), len(call.Audio), audioDuration))
 
-		// Debug log each detected tone
+		// Save audio file labeled as tone-only (will be updated if voice is found later)
 		if controller.DebugLogger != nil {
-			for _, tone := range toneSequence.Tones {
-				controller.DebugLogger.LogToneFrequency(call.Id, tone.Frequency, tone.Duration, false, "")
-			}
-
-			// Save audio file labeled as tone-only (will be updated if voice is found later)
 			go controller.DebugLogger.SaveAudioFile(call.Id, call.Audio, call.AudioMime, "tone-only")
 		}
 
 		// Match against configured tone sets - find ALL matches for stacked tones
 		matchedToneSets := controller.ToneDetector.MatchToneSets(toneSequence, call.Talkgroup.ToneSets)
 		toneSequence.MatchedToneSets = matchedToneSets
+
+		// Debug log each detected tone (after matching, so we can show which tone set matched)
+		if controller.DebugLogger != nil {
+			for _, tone := range toneSequence.Tones {
+				// Find which tone set(s) matched this tone
+				matchedLabels := []string{}
+				for _, ts := range matchedToneSets {
+					// Check if this tone matches this tone set
+					baseTol := ts.Tolerance
+					actualTol := baseTol
+					if baseTol < 1.0 {
+						actualTol = baseTol * 500.0
+					}
+
+					matched := false
+					if tone.ToneType == "A" && ts.ATone != nil {
+						if math.Abs(tone.Frequency-ts.ATone.Frequency) <= actualTol {
+							matched = true
+						}
+					} else if tone.ToneType == "B" && ts.BTone != nil {
+						if math.Abs(tone.Frequency-ts.BTone.Frequency) <= actualTol {
+							matched = true
+						}
+					} else if tone.ToneType == "Long" && ts.LongTone != nil {
+						if math.Abs(tone.Frequency-ts.LongTone.Frequency) <= actualTol {
+							matched = true
+						}
+					}
+
+					if matched {
+						matchedLabels = append(matchedLabels, ts.Label)
+					}
+				}
+
+				matchedStr := "NO_MATCH"
+				if len(matchedLabels) > 0 {
+					matchedStr = fmt.Sprintf("MATCHED: %s", strings.Join(matchedLabels, ", "))
+				}
+				controller.DebugLogger.LogToneFrequency(call.Id, tone.Frequency, tone.Duration, len(matchedLabels) > 0, matchedStr)
+			}
+		}
 
 		// Debug log matched tone sets
 		if controller.DebugLogger != nil {
@@ -1478,14 +1564,40 @@ func (controller *Controller) checkAndAttachPendingTones(call *Call) bool {
 		return false
 	}
 
-	// Don't attach pending tones if this call already has its own tones detected
-	// A call with tones means it's either a tone-only call (handled separately)
+	// Don't attach pending tones if this call already has its own tones detected AND they matched a tone set
+	// A call with matched tones means it's either a tone-only call (handled separately)
 	// or a call that starts with tones (should keep its own tones, not overwrite with pending)
-	if call.HasTones {
+	// However, if the call has tones that didn't match any tone set, we should still attach pending tones that do match
+	if call.HasTones && call.ToneSequence != nil && call.ToneSequence.MatchedToneSets != nil && len(call.ToneSequence.MatchedToneSets) > 0 {
 		return false
 	}
 
-	key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
+	// Resolve System.Id and Talkgroup.Id if they're 0 (needed for key lookup)
+	systemId := call.System.Id
+	talkgroupId := call.Talkgroup.Id
+
+	if systemId == 0 && call.System.SystemRef > 0 {
+		query := fmt.Sprintf(`SELECT "systemId" FROM "systems" WHERE "systemRef" = %d LIMIT 1`, call.System.SystemRef)
+		if err := controller.Database.Sql.QueryRow(query).Scan(&systemId); err != nil {
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("checkAndAttachPendingTones: failed to resolve systemId from systemRef %d: %v", call.System.SystemRef, err))
+			return false
+		}
+	}
+
+	if talkgroupId == 0 && call.Talkgroup.TalkgroupRef > 0 && systemId > 0 {
+		query := fmt.Sprintf(`SELECT "talkgroupId" FROM "talkgroups" WHERE "systemId" = %d AND "talkgroupRef" = %d LIMIT 1`, systemId, call.Talkgroup.TalkgroupRef)
+		if err := controller.Database.Sql.QueryRow(query).Scan(&talkgroupId); err != nil {
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("checkAndAttachPendingTones: failed to resolve talkgroupId from talkgroupRef %d: %v", call.Talkgroup.TalkgroupRef, err))
+			return false
+		}
+	}
+
+	if systemId == 0 || talkgroupId == 0 {
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("checkAndAttachPendingTones: systemId=%d or talkgroupId=%d is 0, cannot lookup pending tones", systemId, talkgroupId))
+		return false
+	}
+
+	key := fmt.Sprintf("%d:%d", systemId, talkgroupId)
 
 	controller.pendingTonesMutex.Lock()
 	pending, exists := controller.pendingTones[key]
@@ -2179,12 +2291,12 @@ func (controller *Controller) queueTranscriptionJobIfNeeded(call *Call, priority
 			audioToUse = call.OriginalAudio
 			mimeToUse = call.OriginalAudioMime
 		}
-		
+
 		queue.QueueJob(TranscriptionJob{
 			CallId:        call.Id,
-			Audio:         call.Audio,              // Keep converted audio for backward compatibility
+			Audio:         call.Audio, // Keep converted audio for backward compatibility
 			AudioMime:     call.AudioMime,
-			OriginalAudio: audioToUse,              // Preferred audio for transcription
+			OriginalAudio: audioToUse, // Preferred audio for transcription
 			OriginalMime:  mimeToUse,
 			SystemId:      call.System.Id,
 			TalkgroupId:   call.Talkgroup.Id,
@@ -2363,7 +2475,7 @@ func (controller *Controller) ProcessMessageCommandListCall(client *Client, mess
 func (controller *Controller) ProcessMessageCommandLivefeedMap(client *Client, message *Message) {
 	// Check if this is a livefeed stop (null/empty map)
 	wasAllOff := client.Livefeed.IsAllOff()
-	
+
 	client.Livefeed.FromMap(message.Payload)
 	msg := &Message{Command: MessageCommandLivefeedMap, Payload: !client.Livefeed.IsAllOff()}
 	select {
@@ -2379,7 +2491,7 @@ func (controller *Controller) ProcessMessageCommandLivefeedMap(client *Client, m
 			// Mark that we're starting fresh - backlog should be sent
 			client.BacklogSent = false
 		}
-		
+
 		// Only send backlog if we haven't sent it yet for this livefeed session
 		if !client.BacklogSent {
 			client.BacklogSent = true
@@ -3077,6 +3189,12 @@ func (controller *Controller) Terminate() {
 		time.Sleep(500 * time.Millisecond) // Brief pause for pending audio writes
 		controller.DebugLogger.Close()
 		log.Println("Debug logger closed")
+	}
+
+	// Close transcription debug logger
+	if controller.TranscriptionDebugLogger != nil {
+		controller.TranscriptionDebugLogger.Close()
+		log.Println("Transcription debug logger closed")
 	}
 
 	if err := controller.Database.Sql.Close(); err != nil {

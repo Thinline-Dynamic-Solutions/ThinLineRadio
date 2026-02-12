@@ -18,6 +18,7 @@
  */
 
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { Subscription } from 'rxjs';
 import {
     RdioScannerAvoidOptions,
@@ -32,6 +33,7 @@ import {
 import { RdioScannerService } from '../rdio-scanner.service';
 import { TagColorService } from '../tag-color.service';
 import { FavoritesService, FavoriteItem } from '../favorites.service';
+import { SystemsVisibilityDialogComponent } from './systems-visibility-dialog.component';
 
 @Component({
     selector: 'rdio-scanner-select',
@@ -60,11 +62,14 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     private favoritesSubscription?: Subscription;
     favoriteItems: FavoriteItem[] = [];
 
+    private static readonly LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS = 'rdio-scanner-hidden-systems';
+
     constructor(
         private rdioScannerService: RdioScannerService,
         private tagColorService: TagColorService,
         private favoritesService: FavoritesService,
         private cdRef: ChangeDetectorRef,
+        private matDialog: MatDialog,
     ) {
         this.eventSubscription = this.rdioScannerService.event.subscribe((event: RdioScannerEvent) => this.eventHandler(event));
 
@@ -78,6 +83,9 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     ngOnInit(): void {
         // Subscribe to tag color updates
         this.tagColorService.getTagColors().subscribe();
+        
+        // Load hidden systems from localStorage
+        this.loadHiddenSystems();
     }
 
     avoid(options?: RdioScannerAvoidOptions): void {
@@ -133,6 +141,13 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
             const id = tg.id.toString();
             return label.includes(query) || name.includes(query) || id.includes(query);
         });
+    }
+
+    getFavoriteTalkgroupsCount(system: RdioScannerSystem): number {
+        // Return count of favorited talkgroups in this system
+        return this.favoriteItems
+            .filter(f => f.type === 'talkgroup' && f.systemId === system.id && f.talkgroupId !== undefined)
+            .length;
     }
 
     groupTalkgroupsByTag(system: RdioScannerSystem): Array<{tag: string, talkgroups: RdioScannerTalkgroup[]}> {
@@ -223,6 +238,20 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         this.applySystemStatus(system, status);
     }
 
+    setFavoriteSystemTalkgroupsStatus(system: RdioScannerSystem, status: boolean, event: Event): void {
+        event.stopPropagation();
+        // Only enable/disable favorited talkgroups in this system
+        const favoriteTalkgroups = this.favoriteItems
+            .filter(f => f.type === 'talkgroup' && f.systemId === system.id && f.talkgroupId !== undefined)
+            .map(f => f.talkgroupId!);
+        
+        (system.talkgroups || []).forEach(tg => {
+            if (favoriteTalkgroups.includes(tg.id)) {
+                this.avoid({ system, talkgroup: tg, status });
+            }
+        });
+    }
+
     toggleTagTalkgroups(systemId: number, tag: string, talkgroups: RdioScannerTalkgroup[], event: Event): void {
         event.stopPropagation();
         const system = this.systems?.find(s => s.id === systemId);
@@ -252,10 +281,13 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     isAllEnabled(): boolean {
         if (!this.systems) return false;
+        const visibleSystems = this.getVisibleSystems();
+        if (visibleSystems.length === 0) return false;
+        
         let total = 0;
         let enabled = 0;
         
-        this.systems.forEach(system => {
+        visibleSystems.forEach(system => {
             (system.talkgroups || []).forEach(tg => {
                 total++;
                 if (this.isTalkgroupEnabled(system.id, tg.id)) {
@@ -269,10 +301,13 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     isPartiallyEnabled(): boolean {
         if (!this.systems) return false;
+        const visibleSystems = this.getVisibleSystems();
+        if (visibleSystems.length === 0) return false;
+        
         let total = 0;
         let enabled = 0;
         
-        this.systems.forEach(system => {
+        visibleSystems.forEach(system => {
             (system.talkgroups || []).forEach(tg => {
                 total++;
                 if (this.isTalkgroupEnabled(system.id, tg.id)) {
@@ -286,14 +321,20 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     toggleAllTalkgroups(): void {
         const allEnabled = this.isAllEnabled();
-        this.avoid({ all: !allEnabled });
+        const visibleSystems = this.getVisibleSystems();
+        
+        // Only toggle visible systems, not hidden ones
+        visibleSystems.forEach(system => {
+            this.avoid({ system, status: !allEnabled });
+        });
     }
 
     getEnabledCount(): number {
         if (!this.systems) return 0;
+        const visibleSystems = this.getVisibleSystems();
         let count = 0;
         
-        this.systems.forEach(system => {
+        visibleSystems.forEach(system => {
             (system.talkgroups || []).forEach(tg => {
                 if (this.isTalkgroupEnabled(system.id, tg.id)) {
                     count++;
@@ -306,9 +347,10 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     getTotalCount(): number {
         if (!this.systems) return 0;
+        const visibleSystems = this.getVisibleSystems();
         let count = 0;
         
-        this.systems.forEach(system => {
+        visibleSystems.forEach(system => {
             count += (system.talkgroups || []).length;
         });
         
@@ -721,8 +763,58 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     }
 
     showSystemsModal(): void {
-        // TODO: Implement systems modal to show/hide systems
-        console.log('Systems modal not yet implemented');
+        if (!this.systems || this.systems.length === 0) {
+            return;
+        }
+
+        const dialogRef = this.matDialog.open(SystemsVisibilityDialogComponent, {
+            width: '400px',
+            data: {
+                systems: this.systems.map(s => ({
+                    id: s.id,
+                    label: s.label,
+                    hidden: this.hiddenSystems.has(s.id),
+                })),
+            },
+        });
+
+        dialogRef.afterClosed().subscribe((result?: { systemId: number; hidden: boolean }[]) => {
+            if (result) {
+                // Update hidden systems based on dialog result
+                this.hiddenSystems.clear();
+                result.forEach(item => {
+                    if (item.hidden) {
+                        this.hiddenSystems.add(item.systemId);
+                    }
+                });
+                this.saveHiddenSystems();
+                this.cdRef.markForCheck();
+            }
+        });
+    }
+
+    private loadHiddenSystems(): void {
+        try {
+            const stored = window?.localStorage?.getItem(RdioScannerSelectComponent.LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS);
+            if (stored) {
+                const hiddenIds: number[] = JSON.parse(stored);
+                this.hiddenSystems = new Set(hiddenIds);
+            }
+        } catch (error) {
+            console.error('Failed to load hidden systems:', error);
+        }
+    }
+
+    private saveHiddenSystems(): void {
+        try {
+            const hiddenIds = Array.from(this.hiddenSystems);
+            window?.localStorage?.setItem(
+                RdioScannerSelectComponent.LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS,
+                JSON.stringify(hiddenIds)
+            );
+        } catch (error) {
+            console.error('Failed to save hidden systems:', error);
+        }
     }
 
     private applySystemStatus(system: RdioScannerSystem, status: boolean): void {

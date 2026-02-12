@@ -29,6 +29,8 @@ import (
 
 type Options struct {
 	AudioConversion             uint   `json:"audioConversion"`
+	AudioCodec                  string `json:"audioCodec"`  // "opus" or "aac" (m4a)
+	AudioBitrate                uint   `json:"audioBitrate"` // Bitrate in kbps (16, 24, 32, 48, 64)
 	AutoPopulate                bool   `json:"autoPopulate"`
 	Branding                    string `json:"branding"`
 	DefaultSystemDelay          uint   `json:"defaultSystemDelay"`
@@ -814,6 +816,8 @@ func (options *Options) Read(db *Database) error {
 	options.adminPassword = string(defaultPassword)
 	options.adminPasswordNeedChange = defaults.adminPasswordNeedChange
 	options.AudioConversion = defaults.options.audioConversion
+	options.AudioCodec = defaults.options.audioCodec
+	options.AudioBitrate = defaults.options.audioBitrate
 	options.AutoPopulate = defaults.options.autoPopulate
 	options.Branding = defaults.options.branding
 	options.DefaultSystemDelay = defaults.options.defaultSystemDelay
@@ -894,6 +898,20 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case float64:
 					options.AudioConversion = uint(v)
+				}
+			}
+		case "audioCodec":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.AudioCodec = v
+				}
+			}
+		case "audioBitrate":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.AudioBitrate = uint(v)
 				}
 			}
 		case "autoPopulate":
@@ -1486,6 +1504,8 @@ func (options *Options) Write(db *Database) error {
 	set("adminPassword", options.adminPassword)
 	set("adminPasswordNeedChange", options.adminPasswordNeedChange)
 	set("audioConversion", options.AudioConversion)
+	set("audioCodec", options.AudioCodec)
+	set("audioBitrate", options.AudioBitrate)
 	set("autoPopulate", options.AutoPopulate)
 	set("branding", options.Branding)
 	set("defaultSystemDelay", options.DefaultSystemDelay)

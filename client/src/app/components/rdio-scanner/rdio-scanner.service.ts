@@ -73,6 +73,7 @@ export class RdioScannerService implements OnDestroy {
     static LOCAL_STORAGE_KEY_PIN = 'rdio-scanner-pin';
     static LOCAL_STORAGE_KEY_HOLD_SYS = 'rdio-scanner-hold-sys';
     static LOCAL_STORAGE_KEY_HOLD_TG = 'rdio-scanner-hold-tg';
+    static LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS = 'rdio-scanner-hidden-systems';
 
     event = new EventEmitter<RdioScannerEvent>();
 
@@ -712,9 +713,28 @@ export class RdioScannerService implements OnDestroy {
     }
 
     startLivefeed(): void {
+        // Get hidden systems from localStorage
+        let hiddenSystems: Set<number> = new Set();
+        try {
+            const stored = window?.localStorage?.getItem(RdioScannerService.LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS);
+            if (stored) {
+                const hiddenIds: number[] = JSON.parse(stored);
+                hiddenSystems = new Set(hiddenIds);
+            }
+        } catch (error) {
+            // Ignore errors reading hidden systems
+        }
+
+        // Build livefeed map, excluding hidden systems
         const lfm = Object.keys(this.livefeedMap).reduce((sysMap: { [key: number]: { [key: number]: boolean } }, sys) => {
-            sysMap[+sys] = Object.keys(this.livefeedMap[+sys]).reduce((tgMap: { [key: number]: boolean }, tg: string) => {
-                tgMap[+tg] = this.livefeedMap[+sys][+tg].active;
+            const systemId = +sys;
+            // Skip hidden systems
+            if (hiddenSystems.has(systemId)) {
+                return sysMap;
+            }
+            
+            sysMap[systemId] = Object.keys(this.livefeedMap[systemId]).reduce((tgMap: { [key: number]: boolean }, tg: string) => {
+                tgMap[+tg] = this.livefeedMap[systemId][+tg].active;
                 return tgMap;
             }, {});
             return sysMap;
@@ -1536,7 +1556,9 @@ export class RdioScannerService implements OnDestroy {
                 const tag = this.categories.find((cat) => cat.label === tg.tag);
 
                 // Check if this talkgroup exists in the saved livefeed map
-                const existsInSavedMap = this.livefeedMap[sys.id] && this.livefeedMap[sys.id][tg.id];
+                // Use explicit undefined check to handle falsy values correctly
+                const existsInSavedMap = this.livefeedMap[sys.id] !== undefined && 
+                                        this.livefeedMap[sys.id][tg.id] !== undefined;
 
                 tgMap[tg.id] = existsInSavedMap
                     ? this.livefeedMap[sys.id][tg.id]

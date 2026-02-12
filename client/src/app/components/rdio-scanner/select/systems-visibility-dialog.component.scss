@@ -1,0 +1,29 @@
+.dialog-description {
+  margin-bottom: 16px;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 14px;
+}
+
+.systems-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 16px 0;
+}
+
+.system-item {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  mat-checkbox {
+    width: 100%;
+  }
+}
+
+mat-dialog-actions {
+  margin-top: 16px;
+  padding: 8px 0;
+}

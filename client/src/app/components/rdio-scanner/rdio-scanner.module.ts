@@ -27,6 +27,7 @@ import { RdioScannerSupportComponent } from './main/support/support.component';
 import { RdioScannerNativeModule } from './native/native.module';
 import { RdioScannerSearchComponent } from './search/search.component';
 import { RdioScannerSelectComponent } from './select/select.component';
+import { SystemsVisibilityDialogComponent } from './select/systems-visibility-dialog.component';
 import { RdioScannerUserLoginComponent } from './user-login/user-login.component';
 import { RdioScannerUserRegistrationComponent } from './user-registration/user-registration.component';
 import { RdioScannerEmailVerificationComponent } from './email-verification/email-verification.component';
@@ -47,6 +48,7 @@ import { AlertSoundService } from './alert-sound.service';
         RdioScannerMainComponent,
         RdioScannerSearchComponent,
         RdioScannerSelectComponent,
+        SystemsVisibilityDialogComponent,
         RdioScannerSupportComponent,
         RdioScannerUserLoginComponent,
         RdioScannerUserRegistrationComponent,

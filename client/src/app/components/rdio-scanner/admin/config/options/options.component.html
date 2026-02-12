@@ -27,6 +27,39 @@
       </mat-hint>
     </mat-form-field>
   </div>
+
+  <!-- Audio Codec Selection -->
+  <div class="row">
+    <p>
+      <span class="mat-body">Audio Codec</span><br>
+      <span class="mat-caption">Select the audio codec for streaming and storage. Opus is more efficient for voice (smaller files), AAC is more universally compatible.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <mat-select formControlName="audioCodec" placeholder="Audio Codec">
+        <mat-option value="opus">Opus (Recommended for voice)</mat-option>
+        <mat-option value="aac">AAC / M4A (Universal compatibility)</mat-option>
+      </mat-select>
+      <mat-hint>Opus provides better quality at lower bitrates for voice compared to AAC</mat-hint>
+    </mat-form-field>
+  </div>
+
+  <!-- Audio Bitrate -->
+  <div class="row">
+    <p>
+      <span class="mat-body">Audio Bitrate (kbps)</span><br>
+      <span class="mat-caption">Higher bitrate = better quality but larger files. Opus: 16-32 kbps recommended, AAC: 32-64 kbps recommended.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="number" min="8" max="128" step="1" matInput formControlName="audioBitrate" placeholder="24">
+      <mat-hint *ngIf="form?.get('audioCodec')?.value === 'opus'">
+        Opus recommended: 16 kbps (very low), 24 kbps (good), 32 kbps (excellent)
+      </mat-hint>
+      <mat-hint *ngIf="form?.get('audioCodec')?.value === 'aac'">
+        AAC recommended: 32 kbps (good), 48 kbps (better), 64 kbps (excellent)
+      </mat-hint>
+    </mat-form-field>
+  </div>
+
   <div class="row">
     <p>
       <span class="mat-body">Auto Populate</span><br>

@@ -178,12 +178,14 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
     }
 
     async toggleSystemHealthAlertsEnabled(): Promise<void> {
-        const newValue = !this.systemHealthAlertsEnabled;
+        // Note: ngModel already changed the value, so use the current value
+        const newValue = this.systemHealthAlertsEnabled;
         try {
             await this.adminService.setSystemHealthAlertsEnabled(newValue);
-            this.systemHealthAlertsEnabled = newValue;
         } catch (error: any) {
             console.error('Failed to toggle system health alerts:', error);
+            // Revert the toggle on error
+            this.systemHealthAlertsEnabled = !newValue;
             alert('Failed to update setting: ' + (error.message || 'Unknown error'));
         }
     }

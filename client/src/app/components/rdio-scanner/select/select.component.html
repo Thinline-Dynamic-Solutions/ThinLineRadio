@@ -76,7 +76,7 @@
               <div class="system-label">{{ system.label }}</div>
               <div class="system-stats">
                 <span class="enabled-count">{{ getEnabledCountInSystem(system) }}</span>
-                <span class="total-count">/ {{ getFilteredTalkgroups(system).length }} total</span>
+                <span class="total-count">/ {{ getFavoriteTalkgroupsCount(system) }} total</span>
               </div>
             </div>
             <div class="system-status">
@@ -89,16 +89,16 @@
                     (click)="toggleSystemTalkgroups(system, $event)">
                 {{ isAllEnabledInSystem(system) ? 'All' : isSomeEnabledInSystem(system) ? 'Some' : 'None' }}
               </span>
-            </div>
-            <div class="system-actions">
-              <button class="mini-button" (click)="setSystemTalkgroupsStatus(system, true, $event)">Enable</button>
-              <button class="mini-button" (click)="setSystemTalkgroupsStatus(system, false, $event)">Disable</button>
-              <button class="favorite-toggle" (click)="toggleFavoriteSystem(system.id, $event)">
-                <mat-icon>{{ isSystemFavorite(system.id) ? 'star' : 'star_border' }}</mat-icon>
-              </button>
-            </div>
-            <mat-icon class="expand-icon">{{ isFavoriteSystemExpanded(system.id) ? 'keyboard_arrow_up' : 'keyboard_arrow_down' }}</mat-icon>
           </div>
+          <div class="system-actions">
+            <button class="mini-button" (click)="setFavoriteSystemTalkgroupsStatus(system, true, $event)">Enable</button>
+            <button class="mini-button" (click)="setFavoriteSystemTalkgroupsStatus(system, false, $event)">Disable</button>
+            <button class="favorite-toggle" (click)="toggleFavoriteSystem(system.id, $event)">
+              <mat-icon>{{ isSystemFavorite(system.id) ? 'star' : 'star_border' }}</mat-icon>
+            </button>
+          </div>
+          <mat-icon class="expand-icon">{{ isFavoriteSystemExpanded(system.id) ? 'keyboard_arrow_up' : 'keyboard_arrow_down' }}</mat-icon>
+        </div>
 
           <!-- System Content - Tag Groups -->
           <div *ngIf="(isSystemFavorite(system.id) || getFavoriteTagGroupsForSystem(system).length > 0) && isFavoriteSystemExpanded(system.id)" 

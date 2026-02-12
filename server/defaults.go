@@ -47,6 +47,8 @@ type DefaultDownstream struct {
 type DefaultOptions struct {
 	autoPopulate                bool
 	audioConversion             uint
+	audioCodec                  string
+	audioBitrate                uint
 	branding                    string
 	defaultSystemDelay          uint
 	dimmerDelay                 uint
@@ -164,6 +166,8 @@ var defaults = Defaults{
 	options: DefaultOptions{
 		autoPopulate:                true,
 		audioConversion:             0,
+		audioCodec:                  "opus",
+		audioBitrate:                24,
 		branding:                    "",
 		defaultSystemDelay:          0,
 		dimmerDelay:                 30000,

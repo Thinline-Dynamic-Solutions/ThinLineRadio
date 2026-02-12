@@ -1,0 +1,21 @@
+<h2 mat-dialog-title>Show/Hide Systems</h2>
+
+<mat-dialog-content>
+  <p class="dialog-description">Select which systems to show or hide in the Channel Select list.</p>
+  
+  <div class="systems-list">
+    <div *ngFor="let system of systems" class="system-item">
+      <mat-checkbox 
+        [checked]="!system.hidden"
+        (change)="toggleSystem(system)"
+        color="primary">
+        {{ system.label }}
+      </mat-checkbox>
+    </div>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Cancel</button>
+  <button mat-button color="primary" (click)="save()">Save</button>
+</mat-dialog-actions>
