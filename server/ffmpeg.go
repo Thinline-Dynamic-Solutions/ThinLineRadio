@@ -96,86 +96,64 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 	if mode >= AUDIO_CONVERSION_CONSERVATIVE_NORM && mode <= AUDIO_CONVERSION_MAXIMUM_NORM {
 		if ffmpeg.version43 {
 			// FFmpeg 4.3+ with loudnorm filter
-			// For over-modulated signals, we add a limiter BEFORE loudnorm to catch extreme peaks
+			// Conservative filtering: gentle highpass/lowpass to remove extreme frequencies only
 			switch mode {
 			case AUDIO_CONVERSION_CONSERVATIVE_NORM:
-				// -16 LUFS: Broadcast TV/radio standard (EBU R128)
-				// Pre-limit peaks at -1 dB, then normalize with linear mode for better quality
-				args = append(args, "-af", "apad=whole_dur=3s,alimiter=limit=0.9:attack=5:release=50,loudnorm=I=-16:TP=-1.5:LRA=11:dual_mono=true:linear=true")
-				
+				// -16 LUFS: Broadcast standard with minimal filtering (80 Hz - 8000 Hz)
+				args = append(args, "-af", "highpass=f=80:p=1,lowpass=f=8000:p=1,loudnorm=I=-16:TP=-2.0:LRA=11")
+
 			case AUDIO_CONVERSION_STANDARD_NORM:
-				// -12 LUFS: Modern streaming standard (YouTube, Spotify)
-				// 4 dB louder than conservative, good balance
-				args = append(args, "-af", "apad=whole_dur=3s,alimiter=limit=0.9:attack=5:release=50,loudnorm=I=-12:TP=-1.0:LRA=8:dual_mono=true:linear=true")
-				
+				// -12 LUFS: Recommended with gentle filtering (100 Hz - 7000 Hz)
+				args = append(args, "-af", "highpass=f=100:p=1,lowpass=f=7000:p=1,loudnorm=I=-12:TP=-1.5:LRA=10")
+
 			case AUDIO_CONVERSION_AGGRESSIVE_NORM:
-				// -10 LUFS: Dispatcher/public safety optimized
-				// 6 dB louder, compressed dynamics for consistent volume
-				args = append(args, "-af", "apad=whole_dur=3s,alimiter=limit=0.9:attack=5:release=50,loudnorm=I=-10:TP=-0.5:LRA=6:dual_mono=true:linear=true")
-				
+				// -10 LUFS: Dispatcher optimized with moderate filtering (120 Hz - 6000 Hz)
+				args = append(args, "-af", "highpass=f=120:p=1,lowpass=f=6000:p=1,loudnorm=I=-10:TP=-1.5:LRA=9")
+
 			case AUDIO_CONVERSION_MAXIMUM_NORM:
-				// -8 LUFS: Maximum loudness
-				// 8 dB louder, heavily compressed, minimal dynamics
-				args = append(args, "-af", "apad=whole_dur=3s,alimiter=limit=0.9:attack=5:release=50,loudnorm=I=-8:TP=-0.2:LRA=5:dual_mono=true:linear=true")
+				// -8 LUFS: Very loud with tighter filtering (150 Hz - 5000 Hz)
+				args = append(args, "-af", "highpass=f=150:p=1,lowpass=f=5000:p=1,loudnorm=I=-8:TP=-1.0:LRA=8")
 			}
 		} else {
 			// FFmpeg < 4.3: Fall back to dynamic audio normalization
-			// Not as accurate as loudnorm but better than nothing
 			if !ffmpeg.warned {
 				fmt.Println("Warning: FFmpeg 4.3+ required for loudnorm filter. Using fallback dynaudnorm filter.")
 				fmt.Println("For best results, please upgrade FFmpeg to version 4.3 or later.")
 				ffmpeg.warned = true
 			}
-			// dynaudnorm with aggressive compression for over-modulated signals
-			args = append(args, "-af", "apad=whole_dur=3s,alimiter=limit=0.9:attack=5:release=50,dynaudnorm=f=100:g=15:p=0.9:m=10:r=0.5:b=1")
+			// dynaudnorm fallback with conservative filtering
+			args = append(args, "-af", "highpass=f=100:p=1,lowpass=f=7000:p=1,dynaudnorm=f=75:g=9:p=0.95:m=15:r=0.5:b=1")
 		}
 	}
 
-	// Determine codec and bitrate from options (or fall back to config/defaults)
+	// Determine codec and encoding parameters from admin options
 	useOpus := false
-	bitrate := uint(24) // Default bitrate in kbps
-	
-	// Check options first (admin UI settings)
-	if options != nil {
-		if options.AudioCodec == "opus" {
-			useOpus = true
-		} else if options.AudioCodec == "aac" {
-			useOpus = false
-		} else if config != nil && config.UseOpus {
-			// Fall back to config if no explicit codec selected
-			useOpus = true
-		}
-		
-		// Use custom bitrate if specified
-		if options.AudioBitrate > 0 {
-			bitrate = options.AudioBitrate
-		}
-	} else if config != nil && config.UseOpus {
-		// Fall back to config if options not available
+	if options != nil && options.AudioCodec == "opus" {
 		useOpus = true
 	}
-	
-	// Apply codec-specific encoding
+
+	// Get bitrate from admin options with codec-specific limits
+	bitrate := defaults.options.audioBitrate
+	if options != nil && options.AudioBitrate > 0 {
+		bitrate = options.AudioBitrate
+	}
+
+	// Enforce minimum and codec-specific maximums
+	if bitrate < 16 {
+		bitrate = 16
+	}
+	if useOpus && bitrate > 256 {
+		bitrate = 256 // FFmpeg libopus max is 256 kbps
+	} else if !useOpus && bitrate > 320 {
+		bitrate = 320 // AAC max is 320 kbps
+	}
+
 	if useOpus {
-		// Force 16kHz mono for optimal Opus encoding
-		args = append(args, "-ar", "16000", "-ac", "1")
-		
-		// Use Opus codec optimized for voice
-		args = append(args, 
-			"-c:a", "libopus",
-			"-b:a", fmt.Sprintf("%dk", bitrate), // User-configurable bitrate
-			"-vbr", "on",               // Variable bitrate
-			"-application", "voip",     // Optimize for voice
-			"-compression_level", "10", // Max compression
-			"-f", "opus",               // Opus/OGG container format
-			"-",
-		)
+		// Encode as Opus (max 256 kbps) - Stereo 48 kHz (Opus doesn't support 44.1 kHz)
+		args = append(args, "-ac", "2", "-ar", "48000", "-c:a", "libopus", "-b:a", fmt.Sprintf("%dk", bitrate), "-vbr", "on", "-compression_level", "10", "-application", "voip", "-f", "opus", "-")
 	} else {
-		// Use AAC/M4A encoding
-		if bitrate == 0 {
-			bitrate = 32 // Default AAC bitrate
-		}
-		args = append(args, "-c:a", "aac", "-b:a", fmt.Sprintf("%dk", bitrate), "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
+		// Encode as AAC/M4A (max 320 kbps) - Stereo 44.1 kHz
+		args = append(args, "-ac", "2", "-ar", "44100", "-c:a", "aac", "-profile:a", "aac_low", "-b:a", fmt.Sprintf("%dk", bitrate), "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
 	}
 
 	cmd := exec.Command("ffmpeg", args...)
@@ -189,7 +167,6 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 
 	if err = cmd.Run(); err == nil {
 		call.Audio = stdout.Bytes()
-		
 		if useOpus {
 			call.AudioFilename = fmt.Sprintf("%v.opus", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
 			call.AudioMime = "audio/opus"
@@ -197,7 +174,6 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 			call.AudioFilename = fmt.Sprintf("%v.m4a", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
 			call.AudioMime = "audio/mp4"
 		}
-
 	} else {
 		fmt.Println(stderr.String())
 	}

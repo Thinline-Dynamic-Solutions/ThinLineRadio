@@ -48,6 +48,7 @@ docker/config/*.ini
 # Separate repositories (Git managed independently)
 relay-server/
 ThinlineRadio-Mobile/
+ThinlineResponder/
 whisper/
 
 #Package Lock for Node.js

@@ -1,5 +1,24 @@
 # Change log
 
+## Version 7.0 Beta 9.5 - Released TBD
+
+### Bug Fixes
+
+- **Audio conversion improvements**
+  - Re-implemented Opus codec support alongside AAC/M4A
+  - Admin page now allows codec selection (AAC recommended, Opus for lower bandwidth)
+  - Updated FFmpeg filters for clearer audio quality with reduced background noise
+  - Conservative normalization mode: Gentle highpass/lowpass (80Hz-8kHz), moderate loudnorm (I=-16, TP=-2.0)
+  - Standard normalization mode: Balanced filtering (100Hz-7kHz), higher loudness (I=-12, TP=-1.5)
+  - Aggressive normalization mode: Tighter bandwidth (120Hz-6kHz), FFT denoise, loudest output (I=-10, TP=-1.5)
+  - Maximum normalization mode: Narrowest bandwidth (150Hz-5kHz), stronger denoise, maximum loudness (I=-8, TP=-1.0)
+  - Bitrate range extended from 16-512 kbps (admin configurable)
+  - Opus encoding: 48kHz stereo, optimized for voice (VOIP mode)
+  - AAC encoding: 44.1kHz stereo, optimized for universal compatibility
+  - Fixed Opus sample rate error (Opus only supports 8/12/16/24/48 kHz, not 44.1 kHz)
+  - Removed hardcoded bitrate limits - now fully controlled by admin settings
+  - Files modified: `server/ffmpeg.go`, `server/options.go`, `server/defaults.go`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`, `client/src/app/components/rdio-scanner/admin/admin.service.ts`
+
 ## Version 7.0 Beta 9.4 - Released TBD
 
 ### Enhancements
@@ -18,16 +37,14 @@
   - Makes troubleshooting no-audio alerts much easier
   - Files modified: server/system_alert.go
 
-- **Added audio codec and bitrate selection to admin options page**
-  - Users can now choose between Opus and AAC (M4A) codecs for audio streaming/storage
-  - Custom bitrate selection (8-128 kbps) for fine-tuning quality vs. file size
-  - Codec options: "Opus (Recommended for voice)" or "AAC / M4A (Universal compatibility)"
-  - Bitrate recommendations shown in UI based on selected codec:
-    - Opus: 16 kbps (very low), 24 kbps (good), 32 kbps (excellent)
-    - AAC: 32 kbps (good), 48 kbps (better), 64 kbps (excellent)
-  - Defaults: Opus at 24 kbps (good quality, small files)
-  - Settings apply to all new calls after save
-  - Files modified: `server/options.go`, `server/ffmpeg.go`, `server/controller.go`, `client/src/app/components/rdio-scanner/admin/admin.service.ts`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`
+- **Simplified to AAC/M4A audio encoding only**
+  - Removed Opus codec option - all new calls now encode as AAC/M4A for universal compatibility
+  - Legacy Opus files can still be played, but new encoding is AAC only
+  - Fixes audio quality issues on iPhone 16/17 Pro Max (Opus resampling caused muffled audio)
+  - Admin UI simplified - only bitrate selection (32-128 kbps), codec is always AAC
+  - Default bitrate: 48 kbps (good quality, reasonable file size)
+  - Recommended: 48 kbps (better) or 64 kbps (excellent)
+  - Files modified: `server/options.go`, `server/ffmpeg.go`, `server/thinline-radio.ini`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`
 
 ### Bug Fixes
 
