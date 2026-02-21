@@ -22,7 +22,7 @@
         <mat-option [value]="4">Aggressive normalization (-10 LUFS) - Dispatcher optimized</mat-option>
         <mat-option [value]="5">Maximum normalization (-8 LUFS) - Very loud</mat-option>
       </mat-select>
-      <mat-hint *ngIf="form?.get('audioConversion')?.value >= 2" style="color: #666; font-size: 0.85em; margin-top: 8px;">
+      <mat-hint *ngIf="form?.get('audioConversion')?.value >= 2" style="color: #aaa; font-size: 0.85em; margin-top: 8px;">
         Normalization equalizes volume across all channels. Louder settings (-12 to -8 LUFS) boost quiet channels more and reduce loud channels more to maintain consistency.
       </mat-hint>
     </mat-form-field>
@@ -108,7 +108,7 @@
         <mat-icon>delete</mat-icon>
         Remove
       </button>
-      <div *ngIf="hasFavicon()" style="max-width: 64px; max-height: 64px; border: 1px solid #ddd; padding: 5px; border-radius: 4px; background: white;">
+      <div *ngIf="hasFavicon()" style="max-width: 64px; max-height: 64px; border: 1px solid #444; padding: 5px; border-radius: 4px; background: #1e1e1e;">
         <img [src]="getFaviconPreview()" style="max-width: 100%; max-height: 100%; display: block;">
       </div>
     </div>
@@ -391,8 +391,8 @@
 
   <!-- Info box about Whisper vs Qwen -->
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" style="margin: 8px 0;">
-    <div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px 16px; border-radius: 4px; width: 100%;">
-      <p style="margin: 0 0 8px 0; font-weight: 600; color: #1976d2;">
+    <div style="background-color: rgba(33, 150, 243, 0.08); border-left: 4px solid #2196f3; padding: 12px 16px; border-radius: 4px; width: 100%;">
+      <p style="margin: 0 0 8px 0; font-weight: 600; color: #64B5F6;">
         <mat-icon style="vertical-align: middle; font-size: 18px; width: 18px; height: 18px; margin-right: 4px;">info</mat-icon>
         Local ASR Servers - Whisper vs Qwen3-ASR
       </p>
@@ -613,9 +613,9 @@
   </div>
 
   <!-- Push Notifications -->
-  <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e0e0e0;">
+  <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #333;">
     <h3 style="width: 100%; margin: 0 0 16px 0;">Push Notification Settings</h3>
-    <p style="width: 100%; margin: 0 0 16px 0; color: #666; font-size: 14px;">
+    <p style="width: 100%; margin: 0 0 16px 0; color: #aaa; font-size: 14px;">
       Get a push notification API key and register your server so users can see it in the mobile app.
     </p>
   </div>

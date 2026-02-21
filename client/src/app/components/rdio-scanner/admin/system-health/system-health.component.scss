@@ -1,10 +1,28 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
 .system-health-container {
     padding: 16px;
 }
 
 .help-info-box {
-    background: #f0f7ff;
-    border: 1px solid #2196f3;
+    background: rgba(33, 150, 243, 0.08);
+    border: 1px solid #1565C0;
     border-radius: 8px;
     padding: 16px;
     margin-bottom: 20px;
@@ -14,7 +32,7 @@
         align-items: center;
         gap: 8px;
         margin: 0 0 12px 0;
-        color: #1976d2;
+        color: #64B5F6;
         font-size: 16px;
         font-weight: 500;
 
@@ -34,15 +52,15 @@
     .help-item {
         font-size: 13px;
         line-height: 1.6;
-        color: #333;
+        color: #ccc;
 
         strong {
-            color: #1976d2;
+            color: #64B5F6;
             font-weight: 600;
         }
 
         em {
-            color: #666;
+            color: #999;
             font-size: 12px;
             display: block;
             margin-top: 4px;
@@ -53,7 +71,7 @@
             display: flex;
             align-items: flex-start;
             gap: 12px;
-            background: #fff3cd;
+            background: rgba(255, 193, 7, 0.1);
             border: 1px solid #ffc107;
             border-radius: 6px;
             padding: 12px;
@@ -77,9 +95,9 @@
 
 .settings-section {
     margin-bottom: 24px;
-    background: white;
+    background: #1e1e1e;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 
     .settings-grid {
         display: flex;
@@ -94,7 +112,7 @@
 
         label {
             font-weight: 500;
-            color: #333;
+            color: #e0e0e0;
             font-size: 14px;
         }
 
@@ -149,7 +167,7 @@
 
         .setting-value {
             font-size: 16px;
-            color: #666;
+            color: #aaa;
             font-weight: 500;
         }
 
@@ -177,30 +195,30 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
+            background: #1e1e1e;
 
             thead {
-                background: #f5f5f5;
-                
+                background: #242424;
+
                 th {
                     padding: 12px 16px;
                     text-align: left;
                     font-weight: 600;
                     font-size: 13px;
-                    color: #666;
+                    color: #999;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
-                    border-bottom: 2px solid #e0e0e0;
+                    border-bottom: 2px solid #333;
                 }
             }
 
             tbody {
                 tr {
-                    border-bottom: 1px solid #e0e0e0;
+                    border-bottom: 1px solid #2a2a2a;
                     transition: background-color 0.2s;
 
                     &:hover {
-                        background: #fafafa;
+                        background: #2a2a2a;
                     }
 
                     &:last-child {
@@ -221,7 +239,7 @@
 
                 strong {
                     font-size: 14px;
-                    color: #333;
+                    color: #e0e0e0;
                     font-weight: 500;
                 }
 
@@ -251,7 +269,7 @@
 
                 ::ng-deep .mat-mdc-form-field-hint {
                     font-size: 11px;
-                    color: #666;
+                    color: #999;
                     margin-top: 2px;
                     white-space: normal;
                     word-wrap: break-word;
@@ -307,7 +325,7 @@
 
                     ::ng-deep .mat-mdc-form-field-hint {
                         font-size: 11px;
-                        color: #666;
+                        color: #999;
                         margin-top: 2px;
                         white-space: normal;
                         word-wrap: break-word;
@@ -373,11 +391,11 @@
 }
 
 .stat-card {
-    background: white;
+    background: #1e1e1e;
     border-radius: 8px;
     padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border-left: 4px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    border-left: 4px solid #333;
 
     &.critical {
         border-left-color: #dc3545;
@@ -393,7 +411,7 @@
 
     h3 {
         font-size: 14px;
-        color: #666;
+        color: #999;
         margin-bottom: 10px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -403,15 +421,15 @@
     .value {
         font-size: 32px;
         font-weight: bold;
-        color: #333;
+        color: #e0e0e0;
     }
 }
 
 .alerts-section {
-    background: white;
+    background: #1e1e1e;
     border-radius: 8px;
     padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .alerts-header {
@@ -430,7 +448,7 @@
 .loading {
     text-align: center;
     padding: 40px;
-    color: #666;
+    color: #999;
 
     p {
         margin-top: 16px;
@@ -442,10 +460,10 @@
     align-items: center;
     gap: 8px;
     padding: 16px;
-    background: #fff5f5;
+    background: rgba(220, 53, 69, 0.1);
     border: 1px solid #dc3545;
     border-radius: 4px;
-    color: #dc3545;
+    color: #ef9a9a;
 
     mat-icon {
         color: #dc3545;
@@ -455,7 +473,7 @@
 .no-alerts {
     text-align: center;
     padding: 40px;
-    color: #666;
+    color: #999;
 
     mat-icon {
         font-size: 48px;
@@ -473,10 +491,10 @@
 }
 
 .alert-group {
-    background: #f9f9f9;
+    background: #242424;
     border-radius: 8px;
     padding: 16px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid #333;
 
     .alert-group-header {
         display: flex;
@@ -484,13 +502,13 @@
         align-items: center;
         margin-bottom: 16px;
         padding-bottom: 12px;
-        border-bottom: 2px solid #e0e0e0;
+        border-bottom: 2px solid #333;
 
         h3 {
             margin: 0;
             font-size: 18px;
             font-weight: 600;
-            color: #333;
+            color: #e0e0e0;
         }
 
         .alert-group-actions {
@@ -501,8 +519,8 @@
 
         .alert-count {
             font-size: 14px;
-            color: #666;
-            background: #e0e0e0;
+            color: #ccc;
+            background: #333;
             padding: 4px 12px;
             border-radius: 12px;
         }
@@ -527,34 +545,34 @@
 }
 
 .alert-item {
-    border-left: 4px solid #ddd;
+    border-left: 4px solid #444;
     padding: 16px;
-    background: #f9f9f9;
+    background: #242424;
     border-radius: 4px;
     transition: box-shadow 0.2s;
 
     &:hover {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
 
     &.critical {
         border-left-color: #dc3545;
-        background: #fff5f5;
+        background: rgba(220, 53, 69, 0.08);
     }
 
     &.error {
         border-left-color: #dc3545;
-        background: #fff5f5;
+        background: rgba(220, 53, 69, 0.08);
     }
 
     &.warning {
         border-left-color: #ffc107;
-        background: #fffbf0;
+        background: rgba(255, 193, 7, 0.06);
     }
 
     &.info {
         border-left-color: #17a2b8;
-        background: #f0f9ff;
+        background: rgba(23, 162, 184, 0.06);
     }
 }
 
@@ -592,7 +610,7 @@
 }
 
 .alert-meta {
-    display: none; // Hide technical metadata
+    display: none;
 }
 
 .alert-time {
@@ -602,19 +620,19 @@
 }
 
 .alert-message {
-    color: #666;
+    color: #aaa;
     line-height: 1.6;
     margin-bottom: 12px;
 }
 
 .alert-data {
-    display: none; // Hide technical JSON data
+    display: none;
 }
 
 .transcription-failure-details {
     margin-top: 16px;
     padding-top: 16px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid #333;
 }
 
 .failure-controls {
@@ -633,7 +651,7 @@
 
     label {
         font-weight: 500;
-        color: #666;
+        color: #aaa;
     }
 
     .threshold-edit {
@@ -647,7 +665,7 @@
     align-items: center;
     gap: 12px;
     padding: 16px;
-    color: #666;
+    color: #999;
 }
 
 .failed-calls-list {
@@ -664,7 +682,7 @@
     align-items: center;
     padding: 12px;
     margin-bottom: 8px;
-    background: #fafafa;
+    background: #242424;
     border-radius: 4px;
     border-left: 3px solid #ff9800;
 
@@ -679,7 +697,7 @@
         margin-bottom: 4px;
 
         strong {
-            color: #333;
+            color: #e0e0e0;
         }
 
         .call-time {
@@ -690,7 +708,7 @@
 
     .call-details {
         font-size: 14px;
-        color: #666;
+        color: #aaa;
         margin-bottom: 8px;
     }
 
@@ -700,7 +718,7 @@
         gap: 8px;
         margin-top: 8px;
         padding: 8px;
-        background: #fff5f5;
+        background: rgba(220, 53, 69, 0.1);
         border-left: 3px solid #dc3545;
         border-radius: 4px;
         font-size: 13px;
@@ -715,7 +733,7 @@
         }
 
         .failure-text {
-            color: #721c24;
+            color: #ef9a9a;
             line-height: 1.5;
             word-break: break-word;
         }
@@ -738,7 +756,7 @@
 ::ng-deep .success-snackbar {
     background-color: #4caf50 !important;
     color: white !important;
-    
+
     .mat-mdc-snack-bar-label {
         color: white !important;
     }
@@ -747,9 +765,8 @@
 ::ng-deep .error-snackbar {
     background-color: #f44336 !important;
     color: white !important;
-    
+
     .mat-mdc-snack-bar-label {
         color: white !important;
     }
 }
-

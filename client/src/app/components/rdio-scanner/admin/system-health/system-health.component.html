@@ -1,3 +1,21 @@
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
 <div class="system-health-container">
     <div class="stats-grid">
         <div class="stat-card">
@@ -219,7 +237,7 @@
                                 </mat-slide-toggle>
                             </td>
                             <td colspan="3">
-                                <div style="padding: 8px 0; color: #666;">
+                                <div style="padding: 8px 0; color: #aaa;">
                                     <mat-icon style="vertical-align: middle; margin-right: 8px;">settings</mat-icon>
                                     <span>Per-system settings configured below</span>
                                 </div>
@@ -242,15 +260,15 @@
                                             <mat-spinner diameter="30"></mat-spinner>
                                             <span>Loading systems...</span>
                                         </div>
-                                        <div *ngIf="!loadingSystems && systems.length === 0" class="no-systems" style="display: flex; align-items: center; gap: 8px; padding: 20px; color: #666;">
+                                        <div *ngIf="!loadingSystems && systems.length === 0" class="no-systems" style="display: flex; align-items: center; gap: 8px; padding: 20px; color: #aaa;">
                                             <mat-icon>info</mat-icon>
                                             <span>No systems configured</span>
                                         </div>
                                         <div *ngIf="!loadingSystems && systems.length > 0" class="system-settings-grid" style="display: grid; gap: 16px;">
-                                            <div *ngFor="let system of systems" class="system-setting-row" style="display: grid; grid-template-columns: 2fr 1fr 100px; gap: 16px; align-items: center; padding: 12px; border: 1px solid #e0e0e0; border-radius: 4px;">
+                                            <div *ngFor="let system of systems" class="system-setting-row" style="display: grid; grid-template-columns: 2fr 1fr 100px; gap: 16px; align-items: center; padding: 12px; border: 1px solid #333; border-radius: 4px;">
                                                 <div class="system-info">
                                                     <strong>{{ system.label }}</strong>
-                                                    <span class="mat-caption" style="display: block; color: #666;">System ID: {{ system.systemRef }}</span>
+                                                    <span class="mat-caption" style="display: block; color: #aaa;">System ID: {{ system.systemRef }}</span>
                                                 </div>
                                                 <mat-form-field appearance="outline" class="compact-field" style="margin: 0;">
                                                     <mat-label>Threshold (minutes)</mat-label>

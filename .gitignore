@@ -50,6 +50,7 @@ relay-server/
 ThinlineRadio-Mobile/
 ThinlineResponder/
 whisper/
+central-management/
 
 #Package Lock for Node.js
 client/package-lock.json

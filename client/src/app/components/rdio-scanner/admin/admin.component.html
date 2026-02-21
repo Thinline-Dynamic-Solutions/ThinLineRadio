@@ -1,57 +1,93 @@
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
+<!-- Unauthenticated: show login -->
 <ng-container *ngIf="!authenticated">
     <rdio-scanner-admin-login></rdio-scanner-admin-login>
 </ng-container>
+
+<!-- Authenticated: show admin panel -->
 <ng-container *ngIf="authenticated">
+
+    <!-- Todos / notifications -->
     <rdio-scanner-admin-todos></rdio-scanner-admin-todos>
-    <div style="background-color: #ffebee; border: 2px solid #f44336; border-radius: 4px; padding: 16px; margin: 16px 0;">
-        <p style="color: #f44336; font-weight: 600; text-transform: uppercase; margin: 0; font-size: 1.1em; line-height: 1.5;">
-            WHEN MODIFYING ANY SETTINGS IT IS RECOMMENDED TO USE THE LOCALHOST OR LOCAL IP AND PORT, RUNNING UPDATES OR CHANGES OVER THE INTERNET CAN LEAD TO DATA LOSS AND UNEXPECTED ISSUES.
-        </p>
+
+    <!-- Compact warning bar -->
+    <div class="admin-warning-bar">
+        <mat-icon>warning</mat-icon>
+        <span>Use localhost or a local IP when modifying settings — remote changes over the internet can cause data loss.</span>
     </div>
-    <mat-accordion displayMode="flat">
-        <mat-expansion-panel #configPanel (afterCollapse)="configComponent?.closeAll()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>settings</mat-icon>
-                    Config
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-config #configComponent></rdio-scanner-admin-config>
-        </mat-expansion-panel>
-        <mat-expansion-panel (afterExpand)="logsComponent.reload()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>article</mat-icon>
-                    Logs
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
-        </mat-expansion-panel>
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>health_and_safety</mat-icon>
-                    System Health
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
-        </mat-expansion-panel>
-        <mat-expansion-panel (afterCollapse)="toolsComponent?.closeAll()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>build</mat-icon>
-                    Tools
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-tools #toolsComponent (config)="configComponent.reset($event, { dirty: true, isImport: true }); configPanel.open()"></rdio-scanner-admin-tools>
-        </mat-expansion-panel>
-        <mat-expansion-panel hideToggle (click)="logout()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>logout</mat-icon>
-                    Logout
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-        </mat-expansion-panel>
-    </mat-accordion>
+
+    <!-- Top-level tab navigation -->
+    <mat-tab-group
+        class="admin-tab-group"
+        [selectedIndex]="selectedTabIndex"
+        (selectedTabChange)="onTabChange($event)"
+        animationDuration="150ms">
+
+        <!-- ── Config ─────────────────────────────── -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">settings</mat-icon>
+                <span class="tab-label">Config</span>
+            </ng-template>
+            <div class="tab-content">
+                <rdio-scanner-admin-config #configComponent></rdio-scanner-admin-config>
+            </div>
+        </mat-tab>
+
+        <!-- ── Logs ──────────────────────────────── -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">article</mat-icon>
+                <span class="tab-label">Logs</span>
+            </ng-template>
+            <div class="tab-content">
+                <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
+            </div>
+        </mat-tab>
+
+        <!-- ── System Health ─────────────────────── -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">health_and_safety</mat-icon>
+                <span class="tab-label">System Health</span>
+            </ng-template>
+            <div class="tab-content">
+                <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
+            </div>
+        </mat-tab>
+
+        <!-- ── Tools ─────────────────────────────── -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">build</mat-icon>
+                <span class="tab-label">Tools</span>
+            </ng-template>
+            <div class="tab-content">
+                <rdio-scanner-admin-tools
+                    #toolsComponent
+                    (config)="configComponent.reset($event, { dirty: true, isImport: true }); selectedTabIndex = 0">
+                </rdio-scanner-admin-tools>
+            </div>
+        </mat-tab>
+
+    </mat-tab-group>
+
+
 </ng-container>

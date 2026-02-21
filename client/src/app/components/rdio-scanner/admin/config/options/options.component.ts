@@ -40,6 +40,10 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
     private originalRadioReferencePassword = '';
     faviconUrl: string = '';
     window = window;
+    
+    // Central Management Integration
+    centralConnectionStatus: 'success' | 'error' | null = null;
+    centralConnectionMessage: string = '';
 
     constructor(
         private snackBar: MatSnackBar,
@@ -428,5 +432,37 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         } else {
             this.faviconUrl = '';
         }
+    }
+
+    testCentralConnection(): void {
+        const url = this.form?.get('centralManagementURL')?.value;
+        const apiKey = this.form?.get('centralManagementAPIKey')?.value;
+
+        if (!url || !apiKey) {
+            this.snackBar.open('Please enter both URL and API key', 'Close', { duration: 3000 });
+            return;
+        }
+
+        // Test connection to central system
+        const testUrl = `${url}/api/webhook/central-test?api_key=${encodeURIComponent(apiKey)}`;
+        const headers = new HttpHeaders({
+            'X-API-Key': apiKey
+        });
+
+        this.centralConnectionStatus = null;
+        this.centralConnectionMessage = 'Testing connection...';
+
+        this.http.get(testUrl, { headers }).subscribe({
+            next: (response: any) => {
+                this.centralConnectionStatus = 'success';
+                this.centralConnectionMessage = `Connected successfully! Server: ${response.server || 'Unknown'}`;
+                this.snackBar.open('Connection test successful', 'Close', { duration: 3000 });
+            },
+            error: (error) => {
+                this.centralConnectionStatus = 'error';
+                this.centralConnectionMessage = `Connection failed: ${error.statusText || 'Unknown error'}`;
+                this.snackBar.open('Connection test failed', 'Close', { duration: 5000 });
+            }
+        });
     }
 }

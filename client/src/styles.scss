@@ -27,6 +27,126 @@ $rdio-scanner-theme: mat.define-light-theme(
 @include mat.all-component-themes($rdio-scanner-theme);
 @include mat.all-component-typographies($rdio-scanner-typography);
 
+// ── Dark theme scoped to the admin panel ──────────────────────────────────────
+// The global theme above is light (needed for the main scanner UI).
+// We define a separate dark theme and scope it to .admin-dark-theme so that
+// all Material components inside the admin panel render correctly on dark bg.
+$admin-primary: mat.define-palette(mat.$red-palette, 700, 300, 900);
+$admin-accent:  mat.define-palette(mat.$grey-palette, 400, 200, 700);
+$admin-dark-theme: mat.define-dark-theme((
+  color: (
+    primary: $admin-primary,
+    accent:  $admin-accent,
+    warn:    $rdio-scanner-warn,
+  ),
+));
+
+.admin-dark-theme {
+  @include mat.all-component-colors($admin-dark-theme);
+
+  // Force high-contrast text everywhere inside admin
+  color: #e0e0e0;
+
+  // Form field label & text
+  .mat-mdc-form-field {
+    .mdc-floating-label,
+    .mat-mdc-floating-label {
+      color: #aaa !important;
+    }
+    .mdc-text-field__input,
+    input,
+    textarea {
+      color: #fff !important;
+      caret-color: #fff;
+    }
+    .mdc-notched-outline__leading,
+    .mdc-notched-outline__notch,
+    .mdc-notched-outline__trailing {
+      border-color: #444 !important;
+    }
+    &:hover .mdc-notched-outline__leading,
+    &:hover .mdc-notched-outline__notch,
+    &:hover .mdc-notched-outline__trailing {
+      border-color: #888 !important;
+    }
+    .mat-mdc-select-value-text,
+    .mat-mdc-select-placeholder {
+      color: #fff !important;
+    }
+    .mat-mdc-select-arrow {
+      color: #aaa !important;
+    }
+    .mat-mdc-form-field-hint,
+    .mat-mdc-form-field-subscript-wrapper {
+      color: #888 !important;
+    }
+  }
+
+  // Slide toggles
+  .mat-mdc-slide-toggle .mdc-label {
+    color: #e0e0e0 !important;
+  }
+
+  // Checkboxes
+  .mat-mdc-checkbox label {
+    color: #e0e0e0 !important;
+  }
+
+  // Select panel options
+  .mat-mdc-option .mdc-list-item__primary-text {
+    color: #e0e0e0 !important;
+  }
+
+  // Card
+  .mat-mdc-card {
+    background: #242424;
+    color: #e0e0e0;
+  }
+
+  // Plain text & paragraphs
+  p, span, label, td, th, li {
+    color: inherit;
+  }
+
+  // Expansion panels
+  .mat-expansion-panel {
+    background: #242424;
+    color: #e0e0e0;
+
+    .mat-expansion-panel-header-title,
+    .mat-expansion-panel-header-description {
+      color: #e0e0e0;
+    }
+  }
+
+  // Tables
+  .mat-mdc-table {
+    background: #242424;
+    color: #e0e0e0;
+
+    .mat-mdc-header-cell {
+      color: #bbb;
+    }
+    .mat-mdc-cell {
+      color: #e0e0e0;
+      border-bottom-color: #333;
+    }
+  }
+
+  // Buttons
+  .mat-mdc-raised-button:not([color]):not(:disabled) {
+    background: #333;
+    color: #fff;
+  }
+  .mat-mdc-stroked-button:not([color]):not(:disabled) {
+    border-color: #555;
+    color: #ccc;
+  }
+  .mat-mdc-icon-button:not([color]):not(:disabled) {
+    color: #ccc;
+  }
+}
+
 body {
 	font-family: $rdio-scanner-font-family;
 	margin: 0;

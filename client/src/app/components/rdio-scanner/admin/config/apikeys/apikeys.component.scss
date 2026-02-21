@@ -1,0 +1,295 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
+// ─── Top Bar ─────────────────────────────────────────────────────────────────
+.row.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 16px;
+
+    p {
+        margin: 0;
+        flex: 1;
+        color: #aaa;
+    }
+}
+
+// ─── Empty State ─────────────────────────────────────────────────────────────
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 16px;
+    gap: 8px;
+    color: #666;
+
+    mat-icon {
+        font-size: 48px;
+        width: 48px;
+        height: 48px;
+        margin-bottom: 8px;
+    }
+
+    p { margin: 0; }
+}
+
+// ─── Table Wrapper ────────────────────────────────────────────────────────────
+.table-wrapper {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a2a;
+}
+
+.apikeys-table {
+    width: 100%;
+    background: transparent;
+
+    .mat-mdc-header-row {
+        background: #1a1a1a;
+        border-bottom: 1px solid #2a2a2a;
+    }
+
+    .mat-mdc-header-cell {
+        color: #888;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+        padding: 0 12px;
+    }
+
+    .apikey-row {
+        border-bottom: 1px solid #1e1e1e;
+        transition: background 0.12s ease;
+
+        &:last-child {
+            border-bottom: none;
+        }
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        // CDK drag preview
+        &.cdk-drag-preview {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        &.cdk-drag-placeholder {
+            opacity: 0.2;
+        }
+
+        .mat-mdc-cell {
+            border-bottom: none;
+            padding: 8px 12px;
+            vertical-align: middle;
+        }
+    }
+}
+
+// ─── Drag Handle ──────────────────────────────────────────────────────────────
+.drag-col {
+    width: 36px;
+    padding: 0 4px 0 8px !important;
+}
+
+.drag-handle {
+    color: #555;
+    cursor: grab;
+    display: block;
+
+    &:active { cursor: grabbing; }
+
+    &:hover { color: #999; }
+}
+
+// ─── Status Toggle Button ─────────────────────────────────────────────────────
+.status-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    border: 1px solid transparent;
+    cursor: pointer;
+    min-width: 0;
+    height: auto;
+
+    mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+    }
+
+    &.status-active {
+        background: rgba(76, 175, 80, 0.12);
+        color: #81c784;
+        border-color: rgba(76, 175, 80, 0.3);
+
+        &:hover {
+            background: rgba(76, 175, 80, 0.2);
+        }
+    }
+
+    &.status-disabled {
+        background: rgba(255, 255, 255, 0.05);
+        color: #666;
+        border-color: #333;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #999;
+        }
+    }
+}
+
+// ─── Ident Field ─────────────────────────────────────────────────────────────
+.ident-field {
+    width: 100%;
+    min-width: 160px;
+
+    // Remove bottom margin from mat-form-field in table
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+    }
+
+    ::ng-deep .mat-mdc-text-field-wrapper {
+        padding: 0 8px;
+    }
+}
+
+.field-error-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+// ─── Key Cell ─────────────────────────────────────────────────────────────────
+.key-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.key-display {
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 12px;
+    color: #bbb;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #2a2a2a;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+
+    &.key-masked {
+        color: #555;
+        letter-spacing: 2px;
+    }
+}
+
+.key-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    button {
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+
+        mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+        }
+    }
+}
+
+.key-error {
+    display: block;
+    font-size: 11px;
+    color: #f44336;
+    margin-top: 2px;
+}
+
+// ─── Access Cell ──────────────────────────────────────────────────────────────
+.access-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.access-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+
+    mat-icon {
+        font-size: 13px;
+        width: 13px;
+        height: 13px;
+    }
+
+    &.access-all {
+        background: rgba(76, 175, 80, 0.1);
+        color: #81c784;
+        border: 1px solid rgba(76, 175, 80, 0.25);
+    }
+
+    &.access-custom {
+        background: rgba(63, 81, 181, 0.12);
+        color: #9fa8da;
+        border: 1px solid rgba(63, 81, 181, 0.3);
+    }
+
+    button {
+        width: 28px;
+        height: 28px;
+        line-height: 28px;
+
+        mat-icon { font-size: 15px; }
+    }
+}
+
+// ─── Actions Column ───────────────────────────────────────────────────────────
+.actions-col {
+    width: 48px;
+    text-align: right;
+    padding-right: 8px !important;
+}

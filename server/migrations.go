@@ -1538,6 +1538,7 @@ func migrateUserPins(db *Database) error {
 		`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "pin" TEXT DEFAULT ''`,
 		`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "pinExpiresAt" BIGINT DEFAULT 0`,
 		`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "connectionLimit" INTEGER DEFAULT 0`,
+		`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "talkgroups" TEXT DEFAULT ''`,
 	}
 
 	for _, query := range addColumnQueries {

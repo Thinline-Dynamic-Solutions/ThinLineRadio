@@ -480,6 +480,18 @@ func main() {
 	// Stripe webhook route - keep recoveryMiddleware only (webhooks need special handling)
 	http.HandleFunc("/api/stripe/webhook", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.StripeWebhookHandler))).ServeHTTP)
 
+	// Central Management webhook routes (for receiving user grant/revoke from central system)
+	http.HandleFunc("/api/webhook/central-user-grant", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookUserGrantHandler))).ServeHTTP)
+	http.HandleFunc("/api/webhook/central-user-revoke", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookUserRevokeHandler))).ServeHTTP)
+	http.HandleFunc("/api/webhook/central-test", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookTestConnectionHandler))).ServeHTTP)
+	http.HandleFunc("/api/webhook/central-users", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookUsersListHandler))).ServeHTTP)
+	http.HandleFunc("/api/webhook/central-users-batch-update", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookUsersBatchUpdateHandler))).ServeHTTP)
+	http.HandleFunc("/api/webhook/central-systems-talkgroups-groups", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookSystemsTalkgroupsGroupsHandler))).ServeHTTP)
+	
+	// Admin endpoint to test connection TO central management system
+	http.HandleFunc("/api/admin/test-central-connection", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.TestCentralConnectionHandler)).ServeHTTP)
+
+
 	// Stripe checkout session route
 	http.HandleFunc("/api/stripe/create-checkout-session", wrapHandler(http.HandlerFunc(controller.Api.CreateCheckoutSessionHandler)).ServeHTTP)
 
@@ -721,6 +733,36 @@ func main() {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.WriteHeader(http.StatusNotFound)
 			return
+		}
+
+		// When this server is centrally managed, redirect normal web UI traffic to Central Management.
+		// Keep admin, API, websocket, and static asset traffic local so the admin panel continues to work.
+		isStaticAsset := func(p string) bool {
+			ext := strings.ToLower(filepath.Ext(p))
+			switch ext {
+			case ".js", ".css", ".map", ".json", ".webmanifest",
+				".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
+				".woff", ".woff2", ".ttf", ".eot",
+				".mp3", ".ogg", ".wav":
+				return true
+			}
+			return false
+		}
+		if controller.Options.CentralManagementEnabled &&
+			strings.TrimSpace(controller.Options.CentralManagementURL) != "" &&
+			!strings.HasPrefix(requestPath, "/admin") &&
+			!isStaticAsset(requestPath) &&
+			!strings.EqualFold(r.Header.Get("upgrade"), "websocket") &&
+			(r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			baseCentralURL := strings.TrimRight(strings.TrimSpace(controller.Options.CentralManagementURL), "/")
+			if baseCentralURL != "" {
+				target := baseCentralURL + requestPath
+				if rawQuery := strings.TrimSpace(r.URL.RawQuery); rawQuery != "" {
+					target += "?" + rawQuery
+				}
+				http.Redirect(w, r, target, http.StatusFound)
+				return
+			}
 		}
 
 		url := r.URL.Path[1:]

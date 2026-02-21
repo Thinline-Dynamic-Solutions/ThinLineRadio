@@ -1,6 +1,7 @@
 /*
  * *****************************************************************************
  * Copyright (C) 2019-2024 Chrystian Huot <chrystian@huot.qc.ca>
+ * Copyright (C) 2025 Thinline Dynamic Solutions
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,6 +44,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 @NgModule({
@@ -71,6 +73,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
         MatSlideToggleModule,
         MatSnackBarModule,
         MatTableModule,
+        MatTabsModule,
         MatToolbarModule,
         MatTooltipModule,
     ],

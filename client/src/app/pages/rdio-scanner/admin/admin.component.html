@@ -1,6 +1,46 @@
-<h1 class="mat-h1">ThinLine Radio server v{{version}}</h1>
-<div>
-    <mat-card appearance="outlined">
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
+<div class="admin-page-wrapper admin-dark-theme">
+    <header class="admin-header">
+        <div class="header-left">
+            <mat-icon class="header-radio-icon">radio</mat-icon>
+            <div class="header-brand">
+                <span class="brand-name">ThinLine Radio</span>
+                <span class="brand-version">Server Administration &nbsp;v{{ version }}</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="header-badge">
+                <mat-icon>admin_panel_settings</mat-icon>
+                Admin Console
+            </span>
+            <button
+                *ngIf="authenticated"
+                mat-stroked-button
+                class="header-logout-btn"
+                (click)="logout()">
+                <mat-icon>logout</mat-icon>
+                <span class="logout-label">Logout</span>
+            </button>
+        </div>
+    </header>
+    <main class="admin-body">
         <rdio-scanner-admin></rdio-scanner-admin>
-    </mat-card>
+    </main>
 </div>

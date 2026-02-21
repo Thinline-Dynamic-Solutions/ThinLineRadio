@@ -1,394 +1,550 @@
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
 <ng-container [formGroup]="form">
-    <div class="row">
-        <p>
-            <span class="mat-body">Id</span><br>
-            <span class="mat-caption">System identifier in decimal format.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="number" min="1" step="1" matInput formControlName="systemRef" placeholder="Id">
-            <mat-error *ngIf="form.get('systemRef')?.hasError('duplicate')">
-                Id is already defined
-            </mat-error>
-            <mat-error *ngIf="form.get('systemRef')?.hasError('min')">
-                Id is invalid
-            </mat-error>
-            <mat-error *ngIf="form.get('systemRef')?.hasError('required')">
-                Id is required
-            </mat-error>
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Label</span><br>
-            <span class="mat-caption">System label displayed on the main screen and on the search panel.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="label" placeholder="Label">
-            <mat-error *ngIf="form.get('label')?.hasError('required')">
-                Label is required
-            </mat-error>
-        </mat-form-field>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Auto Populate</span><br>
-            <span class="mat-caption">Allows the automatic creation of unconfigured talkgroups.</span>
-        </p>
-        <mat-slide-toggle color="primary" formControlName="autoPopulate"></mat-slide-toggle>
-    </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Delay</span><br>
-            <span class="mat-caption">
-                Delay in minutes before propagating calls to clients.
+
+<!-- ══════════════════════════════════════════════════════════════
+     System Header
+══════════════════════════════════════════════════════════════ -->
+<div class="system-detail-header">
+    <div class="system-title">
+        <mat-icon>podcasts</mat-icon>
+        <div>
+            <h3>{{ $any(form.value).label?.trim() || 'New System' }}</h3>
+            <span class="system-subtitle">
+                ID: {{ $any(form.value).systemRef || '—' }}
+                <ng-container *ngIf="$any(form.value).type"> · {{ $any(form.value).type | uppercase }}</ng-container>
             </span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="delay" placeholder="Minutes">
-        </mat-form-field>
+        </div>
+        <mat-icon *ngIf="form.invalid" color="warn" class="header-error"
+                  [matTooltip]="'Validation errors: ' + getTalkgroupsErrorSummary()">error</mat-icon>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Blacklists</span><br>
-            <span class="mat-caption">A comma separated list of talkgroup Ids to blacklist from this system. This only
-                has an effect if the auto populate option is enabled.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <textarea type="text" matInput formControlName="blacklists" placeholder="Blacklists"></textarea>
-            <mat-error *ngIf="form?.get('blacklists')?.hasError('invalid')">
-                Comma separated list of talkgroup Ids
-            </mat-error>
-        </mat-form-field>
+    <button type="button" mat-stroked-button color="warn" (click)="remove.emit()">
+        <mat-icon>delete</mat-icon> Delete System
+    </button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     System Settings
+══════════════════════════════════════════════════════════════ -->
+<div class="settings-card">
+    <h4 class="section-label"><mat-icon>settings</mat-icon> System Settings</h4>
+    <div class="settings-grid">
+
+        <div class="settings-field">
+            <label class="field-label">System ID</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <input type="number" min="1" step="1" matInput formControlName="systemRef" placeholder="e.g. 100">
+                <mat-error *ngIf="form.get('systemRef')?.hasError('duplicate')">ID already defined</mat-error>
+                <mat-error *ngIf="form.get('systemRef')?.hasError('min')">ID is invalid</mat-error>
+                <mat-error *ngIf="form.get('systemRef')?.hasError('required')">ID is required</mat-error>
+            </mat-form-field>
+        </div>
+
+        <div class="settings-field">
+            <label class="field-label">Label</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <input type="text" matInput formControlName="label" placeholder="System name">
+                <mat-error *ngIf="form.get('label')?.hasError('required')">Label is required</mat-error>
+            </mat-form-field>
+        </div>
+
+        <div class="settings-field">
+            <label class="field-label">Type</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <mat-select formControlName="type" placeholder="Type">
+                    <mat-option value="">No Type</mat-option>
+                    <mat-option value="am">AM</mat-option>
+                    <mat-option value="dmr">DMR</mat-option>
+                    <mat-option value="fm">FM</mat-option>
+                    <mat-option value="nfm">NFM</mat-option>
+                    <mat-option value="nxdn">NXDN</mat-option>
+                    <mat-option value="p25">P25</mat-option>
+                    <mat-option value="provoice">Provoice</mat-option>
+                    <mat-option value="smartnet">SmartNet</mat-option>
+                    <mat-option value="tetra">Tetra</mat-option>
+                </mat-select>
+            </mat-form-field>
+        </div>
+
+        <div class="settings-field">
+            <label class="field-label">Delay (min)</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <input type="number" min="0" step="1" matInput formControlName="delay" placeholder="0">
+            </mat-form-field>
+        </div>
+
+        <div class="settings-field settings-field--toggle">
+            <label class="field-label">Auto Populate</label>
+            <mat-slide-toggle color="primary" formControlName="autoPopulate"></mat-slide-toggle>
+            <span class="mat-caption toggle-hint">Auto-create unconfigured talkgroups</span>
+        </div>
+
+        <div class="settings-field settings-field--wide">
+            <label class="field-label">Blacklists</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <textarea matInput formControlName="blacklists" placeholder="Comma-separated talkgroup IDs to blacklist" rows="2"></textarea>
+                <mat-error *ngIf="form.get('blacklists')?.hasError('invalid')">Comma separated list of talkgroup IDs</mat-error>
+            </mat-form-field>
+        </div>
+
+        <div class="settings-field settings-field--wide">
+            <label class="field-label">Preferred API Key</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <mat-select formControlName="preferredApiKeyId" placeholder="Any API Key">
+                    <mat-option [value]="null">Any API Key (No Restriction)</mat-option>
+                    <mat-option *ngFor="let apikey of apikeys" [value]="apikey.id">
+                        {{ apikey.ident || 'API Key ' + apikey.id }}
+                    </mat-option>
+                </mat-select>
+            </mat-form-field>
+        </div>
+
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Type</span><br>
-            <span class="mat-caption">
-                Type of radio system displayed on main screen.
-                <ul>
-                    <li><b>AM</b> - Amplitude modulation.</li>
-                    <li><b>DMR</b> - Digital mobile radio system.</li>
-                    <li><b>FM</b> - Frequency modulation.</li>
-                    <li><b>NFM</b> - Narrow frequency modulation.</li>
-                    <li><b>NXDN</b> - Next Generation Digital Narrowband radio system.</li>
-                    <li><b>P25</b> - APCO-25 radio system.</li>
-                    <li><b>Provoice</b> - EDACS Provoice radio system.</li>
-                    <li><b>SmartNet</b> - Motorola SmartNet radio system.</li>
-                    <li><b>Tetra</b> - Trans european trunked radio system.</li>
-                </ul>
-            </span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <mat-select formControlName="type" placeholder="Type">
-                <mat-option value="">No Type</mat-option>
-                <mat-option value="am">AM</mat-option>
-                <mat-option value="dmr">DMR</mat-option>
-                <mat-option value="fm">FM</mat-option>
-                <mat-option value="nfm">NFM</mat-option>
-                <mat-option value="nxdn">NXDN</mat-option>
-                <mat-option value="p25">P25</mat-option>
-                <mat-option value="provoice">Provoice</mat-option>
-                <mat-option value="smartnet">SmartNet</mat-option>
-                <mat-option value="tetra">Tetra</mat-option>
-            </mat-select>
-        </mat-form-field>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     Talkgroups
+══════════════════════════════════════════════════════════════ -->
+<div class="sub-section">
+    <div class="sub-section-header">
+        <div class="sub-section-title">
+            <mat-icon>record_voice_over</mat-icon>
+            <h4>Talkgroups</h4>
+            <span class="count-chip">{{ talkgroups.length }}</span>
+            <mat-icon *ngIf="form.get('talkgroups')?.invalid" color="warn" class="section-error"
+                      [matTooltip]="getTalkgroupsErrorSummary()">error</mat-icon>
+        </div>
+        <div class="sub-section-actions">
+            <button type="button" mat-raised-button color="primary" (click)="addTalkgroup()">
+                <mat-icon>add</mat-icon> Add Talkgroup
+            </button>
+            <button type="button" mat-stroked-button (click)="sortTalkgroupsAlphabetically()"
+                    [disabled]="talkgroups.length === 0" matTooltip="Sort talkgroups A–Z">
+                <mat-icon>sort_by_alpha</mat-icon> Sort A–Z
+            </button>
+        </div>
     </div>
-    <div class="row">
-        <p>
-            <span class="mat-body">Preferred API Key</span><br>
-            <span class="mat-caption">
-                Optional: Prioritize calls from a specific API key (works with Advanced Mode). 
-                Preferred API key calls are accepted immediately. Non-preferred calls wait for preferred, then process if none arrives. 
-                Leave empty to treat all valid API keys equally.
-            </span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <mat-select formControlName="preferredApiKeyId" placeholder="Any API Key">
-                <mat-option [value]="null">Any API Key (No Restriction)</mat-option>
-                <mat-option *ngFor="let apikey of apikeys" [value]="apikey.id">
-                    {{ apikey.ident || 'API Key ' + apikey.id }}
-                </mat-option>
-            </mat-select>
+
+    <!-- Search -->
+    <div class="table-search-bar" *ngIf="talkgroups.length > 5">
+        <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Search talkgroups</mat-label>
+            <input matInput [value]="talkgroupsSearchTerm"
+                   (input)="onTalkgroupsSearchChange($any($event.target).value)"
+                   placeholder="ID, label, or name">
+            <mat-icon matSuffix>search</mat-icon>
         </mat-form-field>
+        <span *ngIf="talkgroupsSearchTerm" class="mat-caption search-count">
+            {{ filteredTalkgroups.length }} of {{ talkgroups.length }}
+        </span>
     </div>
-    <mat-accordion displayMode="flat">
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    Sites
-                    <mat-icon *ngIf="form.get('sites')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <ng-template matExpansionPanelContent>
-                <div class="row top">
-                    <p class="mat-caption">System sites, you can drag and drop sites to rearrange them.</p>
-                    <button type="button" mat-button color="accent" (click)="addSite()">New Site</button>
-                </div>
 
-                <!-- Search Bar -->
-                <div class="row" style="margin: 12px 0;">
-                    <mat-form-field floatLabel="auto" style="width: 100%;">
-                        <mat-label>Search sites</mat-label>
-                        <input matInput [value]="sitesSearchTerm" (input)="onSitesSearchChange($any($event.target).value)" 
-                               placeholder="Search by label">
-                        <mat-icon matSuffix>search</mat-icon>
-                    </mat-form-field>
-                </div>
+    <!-- Bulk Actions -->
+    <div class="bulk-toolbar" *ngIf="talkgroups.length > 0">
+        <button type="button" mat-button (click)="selectAllTalkgroups()" [disabled]="allTalkgroupsSelected">
+            Select All
+        </button>
+        <button type="button" mat-button (click)="unselectAllTalkgroups()" [disabled]="!hasSelectedTalkgroups">
+            Deselect All
+        </button>
+        <span class="mat-caption selection-count">{{ selectedTalkgroupIndices.size }} selected</span>
 
-                <!-- Results Count -->
-                <div *ngIf="sitesSearchTerm" class="row" style="margin: 0 0 12px 0;">
-                    <span class="mat-caption">
-                        Showing {{ filteredSites.length }} of {{ sites.length }} sites
-                    </span>
-                </div>
+        <ng-container *ngIf="hasSelectedTalkgroups">
+            <mat-form-field appearance="outline" class="bulk-select">
+                <mat-label>Group</mat-label>
+                <mat-select [(value)]="bulkAssignGroupId">
+                    <mat-option [value]="null">— Select Group —</mat-option>
+                    <mat-option *ngFor="let group of groups" [value]="group.id">{{ group.label }}</mat-option>
+                </mat-select>
+            </mat-form-field>
+            <button type="button" mat-raised-button color="primary" (click)="bulkAssignGroup()" [disabled]="bulkAssignGroupId === null">Add Group</button>
+            <button type="button" mat-stroked-button color="warn" (click)="bulkRemoveGroup()" [disabled]="bulkAssignGroupId === null">Remove Group</button>
 
-                <mat-accordion displayMode="flat" cdkDropList [cdkDropListAutoScrollStep]=64 [cdkDropListData]="paginatedSites"
-                    (cdkDropListDropped)="drop($event)">
-                    <mat-expansion-panel *ngFor="let site of paginatedSites; index as i" [formGroup]="site" cdkDrag>
-                        <mat-expansion-panel-header>
-                            <mat-panel-title>
-                                <mat-icon cdkDragHandle>drag_indicator</mat-icon>
-                                {{ site.value.label?.trim() || 'NewSite' }}
-                                <mat-icon *ngIf="site.invalid" color="warn">error</mat-icon>
-                            </mat-panel-title>
-                        </mat-expansion-panel-header>
-                        <ng-template matExpansionPanelContent>
-                            <rdio-scanner-admin-site [form]="site" (remove)="removeSite(i)"></rdio-scanner-admin-site>
-                        </ng-template>
-                    </mat-expansion-panel>
-                </mat-accordion>
+            <mat-form-field appearance="outline" class="bulk-select">
+                <mat-label>Tag</mat-label>
+                <mat-select [(value)]="bulkAssignTagId">
+                    <mat-option [value]="null">— Select Tag —</mat-option>
+                    <mat-option *ngFor="let tag of tags" [value]="tag.id">{{ tag.label }}</mat-option>
+                </mat-select>
+            </mat-form-field>
+            <button type="button" mat-raised-button color="primary" (click)="bulkAssignTag()" [disabled]="bulkAssignTagId === null">Assign Tag</button>
+        </ng-container>
+    </div>
 
-                <!-- Pagination Controls -->
-                <div *ngIf="filteredSites.length > sitesPageSize" class="row" style="margin: 16px 0; display: flex; justify-content: center; align-items: center; gap: 8px;">
-                    <button type="button" mat-icon-button (click)="onSitesPageChange(0)" [disabled]="sitesPage === 0">
-                        <mat-icon>first_page</mat-icon>
-                    </button>
-                    <button type="button" mat-icon-button (click)="onSitesPageChange(sitesPage - 1)" [disabled]="sitesPage === 0">
-                        <mat-icon>chevron_left</mat-icon>
-                    </button>
-                    <span class="mat-body">Page {{ sitesPage + 1 }} of {{ sitesTotalPages }}</span>
-                    <button type="button" mat-icon-button (click)="onSitesPageChange(sitesPage + 1)" [disabled]="sitesPage >= sitesTotalPages - 1">
-                        <mat-icon>chevron_right</mat-icon>
-                    </button>
-                    <button type="button" mat-icon-button (click)="onSitesPageChange(sitesTotalPages - 1)" [disabled]="sitesPage >= sitesTotalPages - 1">
-                        <mat-icon>last_page</mat-icon>
-                    </button>
-                </div>
-            </ng-template>
-        </mat-expansion-panel>
-    </mat-accordion>
-    <mat-accordion displayMode="flat">
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    Talkgroups
-                    <mat-icon *ngIf="form.get('talkgroups')?.invalid" color="warn" style="margin-left: 8px;">error</mat-icon>
-                    <span *ngIf="form.get('talkgroups')?.invalid" class="mat-caption" style="color: #f44336; margin-left: 4px;">
-                        ({{ getTalkgroupsErrorSummary() }})
-                    </span>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <ng-template matExpansionPanelContent>
-                <div class="row top">
-                    <p class="mat-caption">System talkgroups, you can drag and drop talkgroups to rearrange them. They
-                        will appear with the same order on the talkgroup selection panel unless the sort talkgroups
-                        option is enabled.</p>
-                    <div style="display: flex; gap: 8px;">
-                        <button type="button" mat-button color="accent" (click)="addTalkgroup()">New talkgroup</button>
-                        <button type="button" mat-button color="primary" (click)="sortTalkgroupsAlphabetically()" 
-                                [disabled]="talkgroups.length === 0">
-                            Sort A-Z
-                        </button>
+    <!-- Empty State -->
+    <div *ngIf="talkgroups.length === 0" class="sub-empty">
+        <mat-icon>record_voice_over</mat-icon>
+        <p>No talkgroups defined for this system.</p>
+    </div>
+
+    <!-- Talkgroups Table -->
+    <div class="table-wrapper" *ngIf="talkgroups.length > 0">
+        <mat-table [dataSource]="filteredTalkgroups"
+                   multiTemplateDataRows
+                   cdkDropList
+                   [cdkDropListData]="filteredTalkgroups"
+                   (cdkDropListDropped)="dropTalkgroup($event)"
+                   class="data-table talkgroups-table">
+
+            <!-- Select Column -->
+            <ng-container matColumnDef="select">
+                <th mat-header-cell *matHeaderCellDef class="select-col">
+                    <mat-checkbox
+                        [checked]="allTalkgroupsSelected"
+                        [indeterminate]="hasSelectedTalkgroups && !allTalkgroupsSelected"
+                        (change)="allTalkgroupsSelected ? unselectAllTalkgroups() : selectAllTalkgroups()"
+                        (click)="$event.stopPropagation()">
+                    </mat-checkbox>
+                </th>
+                <td mat-cell *matCellDef="let tg; let i = index" class="select-col">
+                    <mat-checkbox
+                        [checked]="isTalkgroupSelected(i)"
+                        (change)="toggleTalkgroupSelection(i)"
+                        (click)="$event.stopPropagation()">
+                    </mat-checkbox>
+                </td>
+            </ng-container>
+
+            <!-- Drag Column -->
+            <ng-container matColumnDef="drag">
+                <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+                <td mat-cell *matCellDef="let tg" class="drag-col">
+                    <mat-icon cdkDragHandle class="drag-handle" (click)="$event.stopPropagation()">drag_indicator</mat-icon>
+                </td>
+            </ng-container>
+
+            <!-- ID Column -->
+            <ng-container matColumnDef="talkgroupRef">
+                <th mat-header-cell *matHeaderCellDef>ID</th>
+                <td mat-cell *matCellDef="let tg">
+                    <code class="id-code">{{ tg.value.talkgroupRef || '—' }}</code>
+                </td>
+            </ng-container>
+
+            <!-- Label Column -->
+            <ng-container matColumnDef="label">
+                <th mat-header-cell *matHeaderCellDef>Label</th>
+                <td mat-cell *matCellDef="let tg">
+                    <span class="tg-label">{{ tg.value.label?.trim() || '—' }}</span>
+                    <mat-icon *ngIf="tg.invalid" color="warn" class="row-error"
+                              [matTooltip]="getTalkgroupErrors(tg)">error</mat-icon>
+                </td>
+            </ng-container>
+
+            <!-- Name Column -->
+            <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Name</th>
+                <td mat-cell *matCellDef="let tg">
+                    <span class="tg-name">{{ tg.value.name?.trim() || '—' }}</span>
+                </td>
+            </ng-container>
+
+            <!-- Groups Column -->
+            <ng-container matColumnDef="groups">
+                <th mat-header-cell *matHeaderCellDef>Groups</th>
+                <td mat-cell *matCellDef="let tg">
+                    <div class="chip-list">
+                        <span class="mini-chip" *ngFor="let label of getGroupLabels(tg.value.groupIds)">{{ label }}</span>
+                        <span class="no-value" *ngIf="!tg.value.groupIds?.length">—</span>
                     </div>
-                </div>
+                </td>
+            </ng-container>
 
-                <!-- Search Bar -->
-                <div class="row" style="margin: 12px 0;">
-                    <mat-form-field floatLabel="auto" style="width: 100%;">
-                        <mat-label>Search talkgroups</mat-label>
-                        <input matInput [value]="talkgroupsSearchTerm" (input)="onTalkgroupsSearchChange($any($event.target).value)" 
-                               placeholder="Search by label, name, or ID">
-                        <mat-icon matSuffix>search</mat-icon>
-                    </mat-form-field>
-                </div>
-                
-                <!-- Results Count -->
-                <div *ngIf="talkgroupsSearchTerm" class="row" style="margin: 0 0 12px 0;">
-                    <span class="mat-caption">
-                        Showing {{ filteredTalkgroups.length }} of {{ talkgroups.length }} talkgroups
-                    </span>
-                </div>
-                
-                <!-- Bulk Actions Section -->
-                <div class="row" style="background-color: #f5f5f5; padding: 12px; margin: 12px 0; border-radius: 4px;">
-                    <div style="flex: 1;">
-                        <p class="mat-body" style="margin: 0 0 8px 0;"><strong>Bulk Actions</strong></p>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                            <button type="button" mat-button (click)="selectAllTalkgroups()" [disabled]="allTalkgroupsSelected">
-                                Select All
-                            </button>
-                            <button type="button" mat-button (click)="unselectAllTalkgroups()" [disabled]="!hasSelectedTalkgroups">
-                                Unselect All
-                            </button>
-                            <span class="mat-caption" style="margin-left: 8px;">
-                                {{ selectedTalkgroupIndices.size }} selected
-                            </span>
-                        </div>
-                        <div *ngIf="hasSelectedTalkgroups" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px;">
-                            <mat-form-field floatLabel="auto" style="width: 200px;">
-                                <mat-label>Assign Group</mat-label>
-                                <mat-select [(value)]="bulkAssignGroupId">
-                                    <mat-option [value]="null">-- Select Group --</mat-option>
-                                    <mat-option *ngFor="let group of groups" [value]="group.id">
-                                        {{ group.label }}
-                                    </mat-option>
-                                </mat-select>
-                            </mat-form-field>
-                            <button type="button" mat-raised-button color="primary" (click)="bulkAssignGroup()" 
-                                    [disabled]="bulkAssignGroupId === null">
-                                Add Group
-                            </button>
-                            <button type="button" mat-button color="warn" (click)="bulkRemoveGroup()" 
-                                    [disabled]="bulkAssignGroupId === null">
-                                Remove Group
-                            </button>
-                        </div>
-                        <div *ngIf="hasSelectedTalkgroups" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px;">
-                            <mat-form-field floatLabel="auto" style="width: 200px;">
-                                <mat-label>Assign Tag</mat-label>
-                                <mat-select [(value)]="bulkAssignTagId">
-                                    <mat-option [value]="null">-- Select Tag --</mat-option>
-                                    <mat-option *ngFor="let tag of tags" [value]="tag.id">
-                                        {{ tag.label }}
-                                    </mat-option>
-                                </mat-select>
-                            </mat-form-field>
-                            <button type="button" mat-raised-button color="primary" (click)="bulkAssignTag()" 
-                                    [disabled]="bulkAssignTagId === null">
-                                Assign Tag
-                            </button>
-                        </div>
+            <!-- Tag Column -->
+            <ng-container matColumnDef="tag">
+                <th mat-header-cell *matHeaderCellDef>Tag</th>
+                <td mat-cell *matCellDef="let tg">
+                    <span class="tag-chip" *ngIf="getTagLabel(tg.value.tagId)">{{ getTagLabel(tg.value.tagId) }}</span>
+                    <span class="no-value" *ngIf="!getTagLabel(tg.value.tagId)">—</span>
+                </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
+                <td mat-cell *matCellDef="let tg; let i = index" class="actions-col">
+                    <button mat-icon-button [class.active-edit]="expandedTalkgroup === tg"
+                            (click)="toggleTalkgroupExpand(tg); $event.stopPropagation()"
+                            matTooltip="Edit">
+                        <mat-icon>{{ expandedTalkgroup === tg ? 'expand_less' : 'edit' }}</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn"
+                            (click)="removeTalkgroup(i); $event.stopPropagation()"
+                            matTooltip="Delete">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </td>
+            </ng-container>
+
+            <!-- Expanded Detail Column -->
+            <ng-container matColumnDef="expandedDetail">
+                <td mat-cell *matCellDef="let tg" [attr.colspan]="talkgroupDisplayedColumns.length" class="detail-cell">
+                    <div *ngIf="expandedTalkgroup === tg" class="expanded-form-wrapper">
+                        <rdio-scanner-admin-talkgroup
+                            [form]="tg"
+                            (blacklist)="blacklistTalkgroup(talkgroups.indexOf(tg))"
+                            (remove)="removeTalkgroup(talkgroups.indexOf(tg))">
+                        </rdio-scanner-admin-talkgroup>
                     </div>
-                </div>
+                </td>
+            </ng-container>
 
-                <mat-accordion displayMode="flat" cdkDropList [cdkDropListAutoScrollStep]=64
-                    [cdkDropListData]="paginatedTalkgroups" (cdkDropListDropped)="drop($event)">
-                    <mat-expansion-panel *ngFor="let talkgroup of paginatedTalkgroups; index as i" [formGroup]="talkgroup"
-                        cdkDrag>
-                        <mat-expansion-panel-header>
-                            <mat-panel-title>
-                                <mat-checkbox 
-                                    [checked]="isTalkgroupSelected(i)"
-                                    (change)="toggleTalkgroupSelection(i)"
-                                    (click)="$event.stopPropagation()"
-                                    style="margin-right: 8px;">
-                                </mat-checkbox>
-                                <mat-icon cdkDragHandle>drag_indicator</mat-icon>
-                                {{ talkgroup.value.label?.trim() || 'NewTalkgroup' }}
-                                <mat-icon *ngIf="talkgroup.invalid" color="warn" style="margin-left: 8px;">error</mat-icon>
-                                <span *ngIf="talkgroup.invalid && getTalkgroupErrors(talkgroup)" class="mat-caption" style="color: #f44336; margin-left: 4px;">
-                                    ({{ getTalkgroupErrors(talkgroup) }})
-                                </span>
-                            </mat-panel-title>
-                        </mat-expansion-panel-header>
-                        <ng-template matExpansionPanelContent>
-                            <rdio-scanner-admin-talkgroup [form]="talkgroup" (blacklist)="blacklistTalkgroup(i)"
-                                (remove)="removeTalkgroup(i)">
-                            </rdio-scanner-admin-talkgroup>
-                        </ng-template>
-                    </mat-expansion-panel>
-                </mat-accordion>
+            <tr mat-header-row *matHeaderRowDef="talkgroupDisplayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: talkgroupDisplayedColumns;"
+                class="data-row"
+                [class.row-expanded]="expandedTalkgroup === row"
+                cdkDrag [cdkDragData]="row"
+                (click)="toggleTalkgroupExpand(row)">
+            </tr>
+            <tr mat-row *matRowDef="let row; columns: ['expandedDetail'];" class="detail-row"
+                [class.row-hidden]="expandedTalkgroup !== row">
+            </tr>
 
-                <!-- Pagination Controls -->
-                <div *ngIf="filteredTalkgroups.length > talkgroupsPageSize" class="row" style="margin: 16px 0; display: flex; justify-content: center; align-items: center; gap: 8px;">
-                    <button type="button" mat-icon-button (click)="onTalkgroupsPageChange(0)" [disabled]="talkgroupsPage === 0">
-                        <mat-icon>first_page</mat-icon>
-                    </button>
-                    <button type="button" mat-icon-button (click)="onTalkgroupsPageChange(talkgroupsPage - 1)" [disabled]="talkgroupsPage === 0">
-                        <mat-icon>chevron_left</mat-icon>
-                    </button>
-                    <span class="mat-body">Page {{ talkgroupsPage + 1 }} of {{ talkgroupsTotalPages }}</span>
-                    <button type="button" mat-icon-button (click)="onTalkgroupsPageChange(talkgroupsPage + 1)" [disabled]="talkgroupsPage >= talkgroupsTotalPages - 1">
-                        <mat-icon>chevron_right</mat-icon>
-                    </button>
-                    <button type="button" mat-icon-button (click)="onTalkgroupsPageChange(talkgroupsTotalPages - 1)" [disabled]="talkgroupsPage >= talkgroupsTotalPages - 1">
-                        <mat-icon>last_page</mat-icon>
-                    </button>
-                </div>
-            </ng-template>
-        </mat-expansion-panel>
-    </mat-accordion>
-    <mat-accordion displayMode="flat">
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    Units
-                    <mat-icon *ngIf="form.get('units')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <ng-template matExpansionPanelContent>
-                <div class="row top">
-                    <p class="mat-caption">Create units to display the label instead of showing the unit id on the main
-                        screen.<br>You can drag and drop them to rearrange</p>
-                    <button type="button" mat-button color="accent" (click)="addUnit()">New unit</button>
-                </div>
+        </mat-table>
 
-                <!-- Search Bar -->
-                <div class="row" style="margin: 12px 0;">
-                    <mat-form-field floatLabel="auto" style="width: 100%;">
-                        <mat-label>Search units</mat-label>
-                        <input matInput [value]="unitsSearchTerm" (input)="onUnitsSearchChange($any($event.target).value)" 
-                               placeholder="Search by label or ID">
-                        <mat-icon matSuffix>search</mat-icon>
-                    </mat-form-field>
-                </div>
+    </div>
+</div>
 
-                <!-- Results Count -->
-                <div *ngIf="unitsSearchTerm" class="row" style="margin: 0 0 12px 0;">
-                    <span class="mat-caption">
-                        Showing {{ filteredUnits.length }} of {{ units.length }} units
-                    </span>
-                </div>
-
-                <mat-accordion displayMode="flat" cdkDropList [cdkDropListAutoScrollStep]=64 [cdkDropListData]="paginatedUnits"
-                    (cdkDropListDropped)="drop($event)">
-                    <mat-expansion-panel *ngFor="let unit of paginatedUnits; index as i" [formGroup]="unit" cdkDrag>
-                        <mat-expansion-panel-header>
-                            <mat-panel-title>
-                                <mat-icon cdkDragHandle>drag_indicator</mat-icon>
-                                {{ unit.value.label?.trim() || 'NewUnit' }}
-                                <mat-icon *ngIf="unit.invalid" color="warn">error</mat-icon>
-                            </mat-panel-title>
-                        </mat-expansion-panel-header>
-                        <ng-template matExpansionPanelContent>
-                            <rdio-scanner-admin-unit [form]="unit" (remove)="removeUnit(i)">
-                            </rdio-scanner-admin-unit>
-                        </ng-template>
-                    </mat-expansion-panel>
-                </mat-accordion>
-
-                <!-- Pagination Controls -->
-                <div *ngIf="filteredUnits.length > unitsPageSize" class="row" style="margin: 16px 0; display: flex; justify-content: center; align-items: center; gap: 8px;">
-                    <button type="button" mat-icon-button (click)="onUnitsPageChange(0)" [disabled]="unitsPage === 0">
-                        <mat-icon>first_page</mat-icon>
-                    </button>
-                    <button type="button" mat-icon-button (click)="onUnitsPageChange(unitsPage - 1)" [disabled]="unitsPage === 0">
-                        <mat-icon>chevron_left</mat-icon>
-                    </button>
-                    <span class="mat-body">Page {{ unitsPage + 1 }} of {{ unitsTotalPages }}</span>
-                    <button type="button" mat-icon-button (click)="onUnitsPageChange(unitsPage + 1)" [disabled]="unitsPage >= unitsTotalPages - 1">
-                        <mat-icon>chevron_right</mat-icon>
-                    </button>
-                    <button type="button" mat-icon-button (click)="onUnitsPageChange(unitsTotalPages - 1)" [disabled]="unitsPage >= unitsTotalPages - 1">
-                        <mat-icon>last_page</mat-icon>
-                    </button>
-                </div>
-            </ng-template>
-        </mat-expansion-panel>
-    </mat-accordion>
-    <div class="row bottom">
-        <button type="button" mat-button color="warn" (click)="remove.emit()">
-            Delete system
+<!-- ══════════════════════════════════════════════════════════════
+     Sites
+══════════════════════════════════════════════════════════════ -->
+<div class="sub-section">
+    <div class="sub-section-header">
+        <div class="sub-section-title">
+            <mat-icon>cell_tower</mat-icon>
+            <h4>Sites</h4>
+            <span class="count-chip">{{ sites.length }}</span>
+            <mat-icon *ngIf="form.get('sites')?.invalid" color="warn" class="section-error">error</mat-icon>
+        </div>
+        <button type="button" mat-raised-button color="primary" (click)="addSite()">
+            <mat-icon>add</mat-icon> Add Site
         </button>
     </div>
+
+    <div *ngIf="sites.length === 0" class="sub-empty">
+        <mat-icon>cell_tower</mat-icon>
+        <p>No sites defined. Sites are used for P25 preferred-site duplicate detection.</p>
+    </div>
+
+    <div class="table-wrapper" *ngIf="sites.length > 0">
+        <mat-table [dataSource]="filteredSites"
+                   multiTemplateDataRows
+                   cdkDropList
+                   [cdkDropListData]="filteredSites"
+                   (cdkDropListDropped)="dropSite($event)"
+                   class="data-table">
+
+            <!-- Drag Column -->
+            <ng-container matColumnDef="drag">
+                <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+                <td mat-cell *matCellDef="let site" class="drag-col">
+                    <mat-icon cdkDragHandle class="drag-handle" (click)="$event.stopPropagation()">drag_indicator</mat-icon>
+                </td>
+            </ng-container>
+
+            <!-- Site ID Column -->
+            <ng-container matColumnDef="siteRef">
+                <th mat-header-cell *matHeaderCellDef>Site ID</th>
+                <td mat-cell *matCellDef="let site">
+                    <code class="id-code">{{ site.value.siteRef || '—' }}</code>
+                </td>
+            </ng-container>
+
+            <!-- RFSS Column -->
+            <ng-container matColumnDef="rfss">
+                <th mat-header-cell *matHeaderCellDef>RFSS</th>
+                <td mat-cell *matCellDef="let site">
+                    <span class="dim-value">{{ site.value.rfss ?? '—' }}</span>
+                </td>
+            </ng-container>
+
+            <!-- Label Column -->
+            <ng-container matColumnDef="label">
+                <th mat-header-cell *matHeaderCellDef>Label</th>
+                <td mat-cell *matCellDef="let site">
+                    <span class="tg-label">{{ site.value.label?.trim() || '—' }}</span>
+                    <mat-icon *ngIf="site.invalid" color="warn" class="row-error">error</mat-icon>
+                </td>
+            </ng-container>
+
+            <!-- Preferred Column -->
+            <ng-container matColumnDef="preferred">
+                <th mat-header-cell *matHeaderCellDef>Preferred</th>
+                <td mat-cell *matCellDef="let site">
+                    <span class="preferred-badge" *ngIf="site.value.preferred">
+                        <mat-icon>star</mat-icon> Preferred
+                    </span>
+                    <span class="no-value" *ngIf="!site.value.preferred">—</span>
+                </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
+                <td mat-cell *matCellDef="let site; let i = index" class="actions-col">
+                    <button mat-icon-button [class.active-edit]="expandedSite === site"
+                            (click)="toggleSiteExpand(site); $event.stopPropagation()"
+                            matTooltip="Edit">
+                        <mat-icon>{{ expandedSite === site ? 'expand_less' : 'edit' }}</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn"
+                            (click)="removeSite(i); $event.stopPropagation()"
+                            matTooltip="Delete">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </td>
+            </ng-container>
+
+            <!-- Expanded Detail Column -->
+            <ng-container matColumnDef="expandedDetail">
+                <td mat-cell *matCellDef="let site" [attr.colspan]="siteDisplayedColumns.length" class="detail-cell">
+                    <div *ngIf="expandedSite === site" class="expanded-form-wrapper">
+                        <rdio-scanner-admin-site
+                            [form]="site"
+                            (remove)="removeSite(sites.indexOf(site))">
+                        </rdio-scanner-admin-site>
+                    </div>
+                </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="siteDisplayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: siteDisplayedColumns;"
+                class="data-row"
+                [class.row-expanded]="expandedSite === row"
+                cdkDrag [cdkDragData]="row"
+                (click)="toggleSiteExpand(row)">
+            </tr>
+            <tr mat-row *matRowDef="let row; columns: ['expandedDetail'];" class="detail-row"
+                [class.row-hidden]="expandedSite !== row">
+            </tr>
+
+        </mat-table>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     Units
+══════════════════════════════════════════════════════════════ -->
+<div class="sub-section">
+    <div class="sub-section-header">
+        <div class="sub-section-title">
+            <mat-icon>person_pin</mat-icon>
+            <h4>Units</h4>
+            <span class="count-chip">{{ units.length }}</span>
+            <mat-icon *ngIf="form.get('units')?.invalid" color="warn" class="section-error">error</mat-icon>
+        </div>
+        <button type="button" mat-raised-button color="primary" (click)="addUnit()">
+            <mat-icon>add</mat-icon> Add Unit
+        </button>
+    </div>
+
+    <div *ngIf="units.length === 0" class="sub-empty">
+        <mat-icon>person_pin</mat-icon>
+        <p>No units defined. Units map unit IDs to friendly labels on the main screen.</p>
+    </div>
+
+    <div class="table-wrapper" *ngIf="units.length > 0">
+        <mat-table [dataSource]="filteredUnits"
+                   multiTemplateDataRows
+                   cdkDropList
+                   [cdkDropListData]="filteredUnits"
+                   (cdkDropListDropped)="dropUnit($event)"
+                   class="data-table">
+
+            <!-- Drag Column -->
+            <ng-container matColumnDef="drag">
+                <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+                <td mat-cell *matCellDef="let unit" class="drag-col">
+                    <mat-icon cdkDragHandle class="drag-handle" (click)="$event.stopPropagation()">drag_indicator</mat-icon>
+                </td>
+            </ng-container>
+
+            <!-- Unit ID Column -->
+            <ng-container matColumnDef="unitRef">
+                <th mat-header-cell *matHeaderCellDef>Unit ID</th>
+                <td mat-cell *matCellDef="let unit">
+                    <code class="id-code">{{ unit.value.unitRef || '—' }}</code>
+                </td>
+            </ng-container>
+
+            <!-- Label Column -->
+            <ng-container matColumnDef="label">
+                <th mat-header-cell *matHeaderCellDef>Label</th>
+                <td mat-cell *matCellDef="let unit">
+                    <span class="tg-label">{{ unit.value.label?.trim() || '—' }}</span>
+                    <mat-icon *ngIf="unit.invalid" color="warn" class="row-error">error</mat-icon>
+                </td>
+            </ng-container>
+
+            <!-- Range Column -->
+            <ng-container matColumnDef="range">
+                <th mat-header-cell *matHeaderCellDef>Range</th>
+                <td mat-cell *matCellDef="let unit">
+                    <span *ngIf="unit.value.unitFrom && unit.value.unitTo" class="range-value">
+                        {{ unit.value.unitFrom }} – {{ unit.value.unitTo }}
+                    </span>
+                    <span class="no-value" *ngIf="!unit.value.unitFrom || !unit.value.unitTo">—</span>
+                </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
+                <td mat-cell *matCellDef="let unit; let i = index" class="actions-col">
+                    <button mat-icon-button [class.active-edit]="expandedUnit === unit"
+                            (click)="toggleUnitExpand(unit); $event.stopPropagation()"
+                            matTooltip="Edit">
+                        <mat-icon>{{ expandedUnit === unit ? 'expand_less' : 'edit' }}</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn"
+                            (click)="removeUnit(i); $event.stopPropagation()"
+                            matTooltip="Delete">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </td>
+            </ng-container>
+
+            <!-- Expanded Detail Column -->
+            <ng-container matColumnDef="expandedDetail">
+                <td mat-cell *matCellDef="let unit" [attr.colspan]="unitDisplayedColumns.length" class="detail-cell">
+                    <div *ngIf="expandedUnit === unit" class="expanded-form-wrapper">
+                        <rdio-scanner-admin-unit
+                            [form]="unit"
+                            (remove)="removeUnit(units.indexOf(unit))">
+                        </rdio-scanner-admin-unit>
+                    </div>
+                </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="unitDisplayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: unitDisplayedColumns;"
+                class="data-row"
+                [class.row-expanded]="expandedUnit === row"
+                cdkDrag [cdkDragData]="row"
+                (click)="toggleUnitExpand(row)">
+            </tr>
+            <tr mat-row *matRowDef="let row; columns: ['expandedDetail'];" class="detail-row"
+                [class.row-hidden]="expandedUnit !== row">
+            </tr>
+
+        </mat-table>
+    </div>
+</div>
+
 </ng-container>

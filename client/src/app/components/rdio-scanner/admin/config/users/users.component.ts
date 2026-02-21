@@ -77,7 +77,13 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     users: User[] = [];
     loading = false;
     error: string | null = null;
-    
+
+    // Table columns
+    displayedColumns: string[] = ['avatar', 'user', 'group', 'status', 'pin', 'lastLogin', 'actions'];
+
+    // Expanded row for inline editing
+    expandedUser: User | null = null;
+
     // Search and pagination
     searchText = '';
     filteredUsers: User[] = [];
@@ -130,7 +136,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     }
 
     ngOnInit(): void {
-        this.loadUsers();
+        // Always load fresh from the API so dates and other server-side fields
+        // are correct. The parent form is used for write-back only, not as the
+        // source of truth for display data.
+        this.loadUsers(true);
         this.loadGroups();
         this.loadSystems();
     }
@@ -531,8 +540,30 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         });
     }
 
+    // Table / row helpers
+    getUserInitials(user: User): string {
+        const first = (user.firstName || '').trim();
+        const last = (user.lastName || '').trim();
+        if (first && last) {
+            return (first[0] + last[0]).toUpperCase();
+        }
+        if (first) {
+            return first.slice(0, 2).toUpperCase();
+        }
+        return (user.email || '?').slice(0, 2).toUpperCase();
+    }
+
+    toggleEditRow(user: User): void {
+        if (this.expandedUser?.id === user.id) {
+            this.cancelEdit();
+        } else {
+            this.startEdit(user);
+        }
+    }
+
     // Editing methods
     startEdit(user: User): void {
+        this.expandedUser = user;
         this.editingUser = user;
         this.regeneratePinRequested = false;
         
@@ -595,6 +626,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     }
 
     cancelEdit(): void {
+        this.expandedUser = null;
         this.editingUser = null;
         this.editForm.reset();
         this.regeneratePinRequested = false;
@@ -701,7 +733,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 panelClass: ['success-snackbar']
             });
 
-            this.cancelEdit();
+            this.cancelEdit(); // also clears expandedUser
             this.cdr.detectChanges();
         } catch (error: any) {
             console.error('Failed to update user:', error);
@@ -726,17 +758,19 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
 
     formatDate(dateString: string): string {
         if (!dateString) return 'Never';
-        
-        // Check if it's our custom "never logged in" message
+
         if (dateString === 'User has not logged in' || dateString === 'Never') {
-            return dateString;
+            return 'Never';
         }
-        
-        try {
-            return new Date(dateString).toLocaleString();
-        } catch {
-            return 'Invalid date';
+
+        const date = new Date(dateString);
+
+        // Guard against NaN (unparseable string) or Go zero-time (year 0001)
+        if (isNaN(date.getTime()) || date.getFullYear() < 1970) {
+            return 'Never';
         }
+
+        return date.toLocaleString();
     }
 
     getVerificationStatus(user: User): string {

@@ -118,14 +118,14 @@
     <div *ngIf="importType === 'talkgroups' && selectedSystem && talkgroupCategories.length > 0" class="category-selection" style="margin-top: 12px;">
         <div style="margin-bottom: 12px;">
             <h5 class="mat-h5" style="margin-bottom: 8px;">Talkgroup Categories</h5>
-            <p class="mat-caption" style="color: #666; margin-bottom: 12px;">
+            <p class="mat-caption" style="color: #aaa; margin-bottom: 12px;">
                 <mat-icon style="font-size: 16px; vertical-align: middle; margin-right: 4px;">info</mat-icon>
                 Select one or more categories to load talkgroups, or select "All Categories" to load everything.
             </p>
         </div>
 
         <!-- Select All Categories Option -->
-        <div style="margin-bottom: 12px; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #f5f5f5;">
+        <div style="margin-bottom: 12px; padding: 8px; border: 1px solid #333; border-radius: 4px; background-color: #242424;">
             <mat-checkbox 
                 [(ngModel)]="selectAllCategories" 
                 (change)="toggleSelectAllCategories()"
@@ -133,7 +133,7 @@
                 style="font-weight: 500;">
                 All Categories
             </mat-checkbox>
-            <p class="mat-caption" style="margin: 4px 0 0 32px; color: #666;" *ngIf="selectAllCategories">
+            <p class="mat-caption" style="margin: 4px 0 0 32px; color: #aaa;" *ngIf="selectAllCategories">
                 All talkgroups from all categories will be loaded into the table.
             </p>
         </div>
@@ -152,7 +152,7 @@
         </div>
 
         <!-- Selected Categories Summary -->
-        <div *ngIf="selectedCategories.length > 0 && !selectAllCategories" class="mat-caption" style="margin-top: 8px; color: #666;">
+        <div *ngIf="selectedCategories.length > 0 && !selectAllCategories" class="mat-caption" style="margin-top: 8px; color: #aaa;">
             <mat-icon style="font-size: 16px; vertical-align: middle; margin-right: 4px;">check_circle</mat-icon>
             {{ selectedCategories.length }} categor{{ selectedCategories.length === 1 ? 'y' : 'ies' }} selected
         </div>
@@ -266,16 +266,16 @@
                 </div>
 
                 <!-- Checkpoint information -->
-                <div class="checkpoint-info" *ngIf="isCheckpointMessage(progressMessage)" style="margin-top: 8px; padding: 8px 12px; background: #e8f5e8; border-radius: 4px; border-left: 4px solid #4caf50;">
-                    <span class="mat-caption" style="color: #2e7d32;">
+                <div class="checkpoint-info" *ngIf="isCheckpointMessage(progressMessage)" style="margin-top: 8px; padding: 8px 12px; background: rgba(76, 175, 80, 0.1); border-radius: 4px; border-left: 4px solid #4caf50;">
+                    <span class="mat-caption" style="color: #a5d6a7;">
                         <mat-icon style="font-size: 16px; vertical-align: middle; margin-right: 4px;">check_circle</mat-icon>
                         {{ progressMessage }}
                     </span>
                 </div>
 
                 <!-- Retry information -->
-                <div class="retry-info" *ngIf="retryCount > 0" style="margin-top: 12px; padding: 8px 12px; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
-                    <span class="mat-caption" style="color: #856404;">
+                <div class="retry-info" *ngIf="retryCount > 0" style="margin-top: 12px; padding: 8px 12px; background: rgba(255, 193, 7, 0.1); border-radius: 4px; border-left: 4px solid #ffc107;">
+                    <span class="mat-caption" style="color: #ffe082;">
                         <mat-icon style="font-size: 16px; vertical-align: middle; margin-right: 4px;">refresh</mat-icon>
                         Retry attempt {{ retryCount }}/3 - Reconnecting due to network issue...
                     </span>

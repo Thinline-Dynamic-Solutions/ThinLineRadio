@@ -1,24 +1,41 @@
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
 <div class="users-container">
     <div class="row top">
-        <p class="mat-body">Manage registered users. You can view user details, resend verification emails, invite users, and delete users.</p>
-        <div>
+        <p class="mat-body">Manage registered users. View user details, edit profiles, resend verifications, and manage access.</p>
+        <div class="top-actions">
             <button type="button" mat-raised-button color="primary" (click)="openCreateUserDialog()">
                 <mat-icon>person_add</mat-icon>
                 Create User
             </button>
             <button type="button" mat-button color="primary" (click)="openInviteDialog()">
                 <mat-icon>mail</mat-icon>
-                Invite User
+                Invite
             </button>
-            <button type="button" mat-button color="accent" (click)="refreshUsers()" [disabled]="loading">
+            <button type="button" mat-icon-button color="accent" (click)="refreshUsers()" [disabled]="loading" matTooltip="Refresh">
                 <mat-icon>refresh</mat-icon>
-                Refresh
             </button>
         </div>
     </div>
 
     <!-- Search Box -->
-    <div class="search-container" *ngIf="!loading && !error && users.length > 0">
+    <div class="search-bar" *ngIf="!loading && !error && users.length > 0">
         <mat-form-field appearance="outline" class="search-field">
             <mat-label>Search by name, email, or group</mat-label>
             <input matInput type="text" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Enter name, email, or group...">
@@ -27,485 +44,436 @@
                 <mat-icon>clear</mat-icon>
             </button>
         </mat-form-field>
-        <div class="search-results-info" *ngIf="searchText">
-            <span class="mat-body-2">Showing {{ filteredUsers.length }} of {{ users.length }} users</span>
-        </div>
+        <span class="search-info mat-body-2" *ngIf="searchText">
+            {{ filteredUsers.length }} of {{ users.length }} users
+        </span>
     </div>
 
+    <!-- Loading State -->
     <div *ngIf="loading" class="loading-container">
         <mat-spinner diameter="40"></mat-spinner>
         <p class="mat-body">Loading users...</p>
     </div>
 
+    <!-- Error State -->
     <div *ngIf="error" class="error-container">
         <mat-icon color="warn">error</mat-icon>
         <p class="mat-body">{{ error }}</p>
         <button type="button" mat-button color="primary" (click)="loadUsers()">Retry</button>
     </div>
 
-    <div *ngIf="!loading && !error && users.length === 0" class="no-users-container">
+    <!-- Empty State -->
+    <div *ngIf="!loading && !error && users.length === 0" class="empty-container">
         <mat-icon>person_off</mat-icon>
         <p class="mat-body">No users registered yet</p>
     </div>
 
-    <mat-accordion displayMode="flat" *ngIf="!loading && !error && users.length > 0">
-        <mat-expansion-panel *ngFor="let user of paginatedUsers">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>person</mat-icon>
-                    <span class="user-name-email">
-                        <strong>{{ user.firstName }} {{ user.lastName }}</strong>
-                        <span class="email-text">{{ user.email }}</span>
+    <!-- Users Table -->
+    <div class="table-wrapper" *ngIf="!loading && !error && users.length > 0">
+        <mat-table [dataSource]="paginatedUsers" multiTemplateDataRows class="users-table">
+
+            <!-- Avatar Column -->
+            <ng-container matColumnDef="avatar">
+                <th mat-header-cell *matHeaderCellDef class="avatar-col"></th>
+                <td mat-cell *matCellDef="let user" class="avatar-col">
+                    <div class="user-avatar"
+                         [class.avatar-admin]="user.systemAdmin"
+                         [class.avatar-unverified]="!user.verified">
+                        {{ getUserInitials(user) }}
+                    </div>
+                </td>
+            </ng-container>
+
+            <!-- User Column -->
+            <ng-container matColumnDef="user">
+                <th mat-header-cell *matHeaderCellDef>User</th>
+                <td mat-cell *matCellDef="let user">
+                    <div class="user-cell">
+                        <span class="user-name">{{ user.firstName }} {{ user.lastName }}</span>
+                        <span class="user-email">{{ user.email }}</span>
+                    </div>
+                </td>
+            </ng-container>
+
+            <!-- Group Column -->
+            <ng-container matColumnDef="group">
+                <th mat-header-cell *matHeaderCellDef>Group</th>
+                <td mat-cell *matCellDef="let user">
+                    <div *ngIf="getGroupName(user.userGroupId)" class="group-tag">
+                        <mat-icon class="group-icon">group</mat-icon>
+                        <span>{{ getGroupName(user.userGroupId) }}</span>
+                        <span *ngIf="user.isGroupAdmin" class="badge badge-admin">Admin</span>
+                    </div>
+                    <span *ngIf="!getGroupName(user.userGroupId)" class="muted">—</span>
+                </td>
+            </ng-container>
+
+            <!-- Status Column -->
+            <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef>Status</th>
+                <td mat-cell *matCellDef="let user">
+                    <div class="status-chips">
+                        <span class="chip" [class.chip-success]="user.verified" [class.chip-warn]="!user.verified">
+                            <mat-icon>{{ user.verified ? 'verified' : 'pending' }}</mat-icon>
+                            {{ user.verified ? 'Verified' : 'Pending' }}
+                        </span>
+                        <span *ngIf="user.systemAdmin" class="chip chip-primary">
+                            <mat-icon>admin_panel_settings</mat-icon>
+                            Sys Admin
+                        </span>
+                        <span *ngIf="user.subscriptionStatus" class="chip"
+                              [class.chip-success]="user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing'"
+                              [class.chip-error]="user.subscriptionStatus === 'canceled' || user.subscriptionStatus === 'unpaid' || user.subscriptionStatus === 'past_due'"
+                              [class.chip-warn]="user.subscriptionStatus === 'incomplete'">
+                            {{ user.subscriptionStatus | titlecase }}
+                        </span>
+                    </div>
+                </td>
+            </ng-container>
+
+            <!-- PIN Column -->
+            <ng-container matColumnDef="pin">
+                <th mat-header-cell *matHeaderCellDef>PIN</th>
+                <td mat-cell *matCellDef="let user">
+                    <div class="pin-cell">
+                        <code class="pin-code">{{ user.pin || '—' }}</code>
+                        <span *ngIf="user.pinExpired" class="pin-expired">
+                            <mat-icon>warning</mat-icon> Expired
+                        </span>
+                        <span *ngIf="user.pinExpiresAt && !user.pinExpired" class="pin-expiry muted">
+                            Exp: {{ formatPinExpiration(user.pinExpiresAt) }}
+                        </span>
+                    </div>
+                </td>
+            </ng-container>
+
+            <!-- Last Login Column -->
+            <ng-container matColumnDef="lastLogin">
+                <th mat-header-cell *matHeaderCellDef>Last Login</th>
+                <td mat-cell *matCellDef="let user" class="date-cell">
+                    <span [class.muted]="!user.lastLogin || user.lastLogin === 'Never'">
+                        {{ formatDate(user.lastLogin) }}
                     </span>
-                    <mat-chip [color]="getVerificationStatusColor(user)" selected>
-                        {{ getVerificationStatus(user) }}
-                    </mat-chip>
-                    <mat-chip *ngIf="getGroupName(user.userGroupId)" color="accent" selected>
-                        <mat-icon>group</mat-icon>
-                        {{ getGroupName(user.userGroupId) }}
-                    </mat-chip>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
+                </td>
+            </ng-container>
 
-            <div class="user-details">
-                <!-- Edit Form (shown when editing) -->
-                <form [formGroup]="editForm" *ngIf="editingUser && editingUser.id === user.id" class="edit-form">
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="full-width">
-                            <mat-label>Email</mat-label>
-                            <input matInput type="email" formControlName="email" required>
-                            <mat-error *ngIf="editForm.get('email')?.hasError('required')">Email is required</mat-error>
-                            <mat-error *ngIf="editForm.get('email')?.hasError('email')">Please enter a valid email</mat-error>
-                        </mat-form-field>
-                    </div>
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
+                <td mat-cell *matCellDef="let user" class="actions-col">
+                    <div class="row-actions">
+                        <button mat-icon-button
+                                [color]="expandedUser?.id === user.id ? 'accent' : 'primary'"
+                                (click)="toggleEditRow(user); $event.stopPropagation()"
+                                [matTooltip]="expandedUser?.id === user.id ? 'Close' : 'Edit user'">
+                            <mat-icon>{{ expandedUser?.id === user.id ? 'close' : 'edit' }}</mat-icon>
+                        </button>
 
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>First Name</mat-label>
-                            <input matInput type="text" formControlName="firstName" required>
-                            <mat-error *ngIf="editForm.get('firstName')?.hasError('required')">First name is required</mat-error>
-                        </mat-form-field>
+                        <button mat-icon-button [matMenuTriggerFor]="userMenu" (click)="$event.stopPropagation()" matTooltip="More actions">
+                            <mat-icon>more_vert</mat-icon>
+                        </button>
 
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>Last Name</mat-label>
-                            <input matInput type="text" formControlName="lastName" required>
-                            <mat-error *ngIf="editForm.get('lastName')?.hasError('required')">Last name is required</mat-error>
-                        </mat-form-field>
-                    </div>
-
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>ZIP Code</mat-label>
-                            <input matInput type="text" formControlName="zipCode" placeholder="12345" required>
-                            <mat-error *ngIf="editForm.get('zipCode')?.hasError('required')">ZIP code is required</mat-error>
-                            <mat-error *ngIf="editForm.get('zipCode')?.hasError('pattern')">Please enter a valid ZIP code</mat-error>
-                        </mat-form-field>
-
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>Delay (minutes)</mat-label>
-                            <input matInput type="number" formControlName="delay" min="0" [disabled]="editingUser ? (editingUser.userGroupId || 0) > 0 : false">
-                            <mat-hint *ngIf="editingUser && editingUser.userGroupId">Delay is managed by the user's group</mat-hint>
-                        </mat-form-field>
-                    </div>
-
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="full-width">
-                            <mat-label>User Group</mat-label>
-                            <mat-select formControlName="userGroupId">
-                                <mat-option [value]="0">No Group (Unassigned)</mat-option>
-                                <mat-option *ngFor="let group of availableGroups" [value]="group.id">
-                                    {{ group.name }}
-                                </mat-option>
-                            </mat-select>
-                            <mat-hint>Assign user to a group to inherit group settings</mat-hint>
-                        </mat-form-field>
-                    </div>
-
-                    <div class="form-row pin-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>PIN</mat-label>
-                            <input matInput type="text" formControlName="pin" placeholder="Leave blank to generate a new PIN">
-                        </mat-form-field>
-                        <div class="pin-actions">
-                            <button mat-stroked-button color="primary" type="button" (click)="requestPinRegeneration()" [disabled]="saving">
-                                <mat-icon>autorenew</mat-icon>
-                                Regenerate PIN
+                        <mat-menu #userMenu="matMenu">
+                            <button mat-menu-item (click)="openTransferDialog(user)">
+                                <mat-icon>swap_horiz</mat-icon>
+                                <span>Transfer to Group</span>
                             </button>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>Connection Limit</mat-label>
-                            <input matInput type="number" min="0" formControlName="connectionLimit" placeholder="0 for unlimited">
-                            <mat-hint *ngIf="editingUser && editingUser.userGroupId && editingUser.effectiveConnectionLimit">
-                                Group limit: {{ editingUser.effectiveConnectionLimit }} (overrides user limit)
-                            </mat-hint>
-                            <mat-hint *ngIf="!editingUser || !editingUser.userGroupId || !editingUser.effectiveConnectionLimit">
-                                User's connection limit (0 = unlimited)
-                            </mat-hint>
-                        </mat-form-field>
-
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>PIN Expiration</mat-label>
-                            <input matInput type="datetime-local" formControlName="pinExpiresAt" placeholder="Leave blank for no expiration">
-                            <mat-hint>Leave blank to keep the PIN active indefinitely.</mat-hint>
-                        </mat-form-field>
-                    </div>
-
-                    <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
-                        <h4>System & Talkgroup Access</h4>
-                        <p class="mat-caption">
-                            This user allows access to <u>
-                                <ng-container *ngIf="editForm.get('systems')?.value === '*'">all</ng-container>
-                                <ng-container *ngIf="editForm.get('systems')?.value !== '*'">some</ng-container>
-                            </u> systems and talkgroups.
-                        </p>
-                        <button type="button" mat-button color="primary" (click)="selectUserSystems()">
-                            <mat-icon>tune</mat-icon>
-                            Choose Systems
-                        </button>
-                    </div>
-
-                    <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
-                        <h4>System-Specific Delays</h4>
-                        <p class="mat-caption">Override default delay for specific systems. Disabled when user is in a group (group settings apply).</p>
-                        <div *ngFor="let entry of systemDelayEntries; let i = index" class="delay-entry">
-                            <mat-form-field appearance="outline" class="system-select">
-                                <mat-label>System</mat-label>
-                                <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}">
-                                    <mat-option *ngFor="let system of systems" [value]="system.id">
-                                        {{ system.label || ('System ' + system.id) }}
-                                    </mat-option>
-                                </mat-select>
-                            </mat-form-field>
-                            <mat-form-field appearance="outline" class="delay-input">
-                                <mat-label>Delay (minutes)</mat-label>
-                                <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
-                            </mat-form-field>
-                            <button mat-icon-button type="button" (click)="removeSystemDelay(i)" color="warn">
-                                <mat-icon>delete</mat-icon>
+                            <button mat-menu-item (click)="openResetPasswordDialog(user)">
+                                <mat-icon>lock_reset</mat-icon>
+                                <span>Reset Password</span>
                             </button>
-                        </div>
-                        <button mat-button type="button" (click)="addSystemDelay()">
-                            <mat-icon>add</mat-icon>
-                            Add System Delay
-                        </button>
-                    </div>
-
-                    <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
-                        <h4>Talkgroup-Specific Delays</h4>
-                        <p class="mat-caption">Override default delay for specific talkgroups. Disabled when user is in a group (group settings apply).</p>
-                        <div *ngFor="let entry of talkgroupDelayEntries; let i = index" class="delay-entry">
-                            <mat-form-field appearance="outline" class="system-select">
-                                <mat-label>System</mat-label>
-                                <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}" (selectionChange)="entry.talkgroupId = 0">
-                                    <mat-option *ngFor="let system of systems" [value]="system.id">
-                                        {{ system.label || ('System ' + system.id) }}
-                                    </mat-option>
-                                </mat-select>
-                            </mat-form-field>
-                            <mat-form-field appearance="outline" class="talkgroup-select" *ngIf="entry.systemId > 0">
-                                <mat-label>Talkgroup</mat-label>
-                                <mat-select [(ngModel)]="entry.talkgroupId" [ngModelOptions]="{standalone: true}">
-                                    <mat-option *ngFor="let talkgroup of getTalkgroupsForSystem(entry.systemId)" [value]="talkgroup.id">
-                                        {{ talkgroup.label || ('Talkgroup ' + talkgroup.id) }}
-                                    </mat-option>
-                                </mat-select>
-                            </mat-form-field>
-                            <mat-form-field appearance="outline" class="delay-input">
-                                <mat-label>Delay (minutes)</mat-label>
-                                <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
-                            </mat-form-field>
-                            <button mat-icon-button type="button" (click)="removeTalkgroupDelay(i)" color="warn">
-                                <mat-icon>delete</mat-icon>
+                            <button mat-menu-item (click)="sendTestPush(user)">
+                                <mat-icon>notifications</mat-icon>
+                                <span>Send Test Push</span>
                             </button>
+                            <button mat-menu-item *ngIf="!user.verified" (click)="resendVerificationEmail(user)">
+                                <mat-icon>email</mat-icon>
+                                <span>Resend Verification</span>
+                            </button>
+                            <mat-divider></mat-divider>
+                            <button mat-menu-item (click)="deleteUser(user)" class="delete-menu-item">
+                                <mat-icon color="warn">delete</mat-icon>
+                                <span>Delete User</span>
+                            </button>
+                        </mat-menu>
+                    </div>
+                </td>
+            </ng-container>
+
+            <!-- Expanded Edit Row -->
+            <ng-container matColumnDef="expandedDetail">
+                <td mat-cell *matCellDef="let user" [attr.colspan]="displayedColumns.length" class="expanded-cell">
+                    <div class="expanded-row-content" *ngIf="expandedUser?.id === user.id">
+
+                        <!-- Quick Info Strip -->
+                        <div class="info-strip">
+                            <span><strong>ID:</strong> {{ user.id }}</span>
+                            <span><strong>ZIP:</strong> {{ user.zipCode || '—' }}</span>
+                            <span><strong>Delay:</strong> {{ user.delay > 0 ? user.delay + ' min' : 'None' }}</span>
+                            <span><strong>Connections:</strong> {{ getConnectionLimitLabel(user.effectiveConnectionLimit ?? user.connectionLimit) }}</span>
+                            <span><strong>Registered:</strong> {{ formatDate(user.createdAt) }}</span>
+                            <span *ngIf="user.systems && user.systems !== '*'"><strong>Systems:</strong> Custom</span>
+                            <span *ngIf="!user.systems || user.systems === '*'"><strong>Systems:</strong> All</span>
                         </div>
-                        <button mat-button type="button" (click)="addTalkgroupDelay()">
-                            <mat-icon>add</mat-icon>
-                            Add Talkgroup Delay
-                        </button>
-                    </div>
 
-                    <div *ngIf="editingUser && editingUser.userGroupId" class="form-section">
-                        <p class="mat-caption" style="color: #666; font-style: italic;">
-                            System/talkgroup access and delays are managed by the user's group. Remove the user from the group to configure individual access and delays.
-                        </p>
-                    </div>
-
-                    <div class="form-section">
-                        <h4>Stripe Billing Information</h4>
-                        <div class="form-row">
-                            <mat-form-field appearance="outline" class="full-width">
-                                <mat-label>Stripe Customer ID</mat-label>
-                                <input matInput type="text" formControlName="stripeCustomerId" placeholder="cus_...">
-                                <mat-hint>Stripe customer ID for billing (e.g., cus_abc123)</mat-hint>
-                            </mat-form-field>
-                        </div>
-                        <div class="form-row">
-                            <mat-form-field appearance="outline" class="half-width">
-                                <mat-label>Stripe Subscription ID</mat-label>
-                                <input matInput type="text" formControlName="stripeSubscriptionId" placeholder="sub_...">
-                                <mat-hint>Stripe subscription ID (e.g., sub_abc123)</mat-hint>
-                            </mat-form-field>
-                            <mat-form-field appearance="outline" class="half-width">
-                                <mat-label>Subscription Status</mat-label>
-                                <mat-select formControlName="subscriptionStatus">
-                                    <mat-option value="">None</mat-option>
-                                    <mat-option value="active">Active</mat-option>
-                                    <mat-option value="trialing">Trialing</mat-option>
-                                    <mat-option value="incomplete">Incomplete</mat-option>
-                                    <mat-option value="past_due">Past Due</mat-option>
-                                    <mat-option value="canceled">Canceled</mat-option>
-                                    <mat-option value="unpaid">Unpaid</mat-option>
-                                </mat-select>
-                                <mat-hint>Current subscription status</mat-hint>
-                            </mat-form-field>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <mat-checkbox formControlName="verified">Email Verified</mat-checkbox>
-                        <mat-checkbox formControlName="isGroupAdmin" [disabled]="!editingUser || !editingUser.userGroupId">
-                            Group Admin
-                        </mat-checkbox>
-                        <mat-checkbox formControlName="systemAdmin">
-                            System Admin
-                        </mat-checkbox>
-                        <mat-hint *ngIf="editingUser && !editingUser.userGroupId" style="display: block; margin-top: 8px; color: #666;">
-                            User must be assigned to a group to be a group admin
-                        </mat-hint>
-                        <mat-hint style="display: block; margin-top: 8px; color: #666;">
-                            System admins receive notifications about server health issues and can send system alerts
-                        </mat-hint>
-                    </div>
-
-                    <div class="form-actions">
-                        <button mat-raised-button color="primary" type="button" 
-                                (click)="saveUser()" [disabled]="editForm.invalid || saving">
-                            <mat-spinner diameter="20" *ngIf="saving"></mat-spinner>
-                            <span *ngIf="!saving">Save Changes</span>
-                        </button>
-                        <button mat-button type="button" (click)="cancelEdit()" [disabled]="saving">
-                            Cancel
-                        </button>
-                    </div>
-                </form>
-
-                <!-- Display Mode (shown when not editing) -->
-                <div *ngIf="!editingUser || editingUser.id !== user.id">
-                    <div class="detail-row">
-                        <span class="label">User ID:</span>
-                        <span class="value">{{ user.id }}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="label">Email:</span>
-                        <span class="value">{{ user.email }}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="label">First Name:</span>
-                        <span class="value">{{ user.firstName || 'Not provided' }}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="label">Last Name:</span>
-                        <span class="value">{{ user.lastName || 'Not provided' }}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="label">ZIP Code:</span>
-                        <span class="value">{{ user.zipCode || 'Not provided' }}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="label">Group:</span>
-                        <span class="value">
-                            {{ getGroupName(user.userGroupId) || 'No Group (Unassigned)' }}
-                            <mat-chip *ngIf="user.isGroupAdmin" color="primary" selected style="margin-left: 8px;">
-                                Group Admin
-                            </mat-chip>
-                        </span>
-                    </div>
-
-                    <div class="detail-row">
-                        <span class="label">System Admin:</span>
-                        <span class="value">
-                            <mat-icon [color]="user.systemAdmin ? 'primary' : ''">
-                                {{ user.systemAdmin ? 'check_circle' : 'cancel' }}
-                            </mat-icon>
-                            {{ user.systemAdmin ? 'Yes' : 'No' }}
-                            <mat-chip *ngIf="user.systemAdmin" color="warn" selected style="margin-left: 8px;">
-                                System Admin
-                            </mat-chip>
-                        </span>
-                    </div>
-
-                    <div class="detail-row">
-                        <span class="label">Verified:</span>
-                        <span class="value">
-                            <mat-icon [color]="getVerificationStatusColor(user)">
-                                {{ user.verified ? 'check_circle' : 'pending' }}
-                            </mat-icon>
-                            {{ getVerificationStatus(user) }}
-                        </span>
-                    </div>
-
-                    <div class="detail-row">
-                        <span class="label">PIN:</span>
-                        <span class="value">{{ user.pin || 'Not assigned' }}</span>
-                    </div>
-
-                    <div class="detail-row">
-                        <span class="label">PIN Expiration:</span>
-                        <span class="value">{{ formatPinExpiration(user.pinExpiresAt) }}</span>
-                    </div>
-
-                    <div class="detail-row" *ngIf="user.pinExpired">
-                        <span class="label">PIN Status:</span>
-                        <span class="value status-warn">
-                            <mat-icon color="warn">error</mat-icon>
-                            Expired
-                        </span>
-                    </div>
-
-                    <div class="detail-row">
-                        <span class="label">Connection Limit:</span>
-                        <span class="value">
-                            {{ getConnectionLimitLabel(user.effectiveConnectionLimit ?? user.connectionLimit) }}
-                            <span *ngIf="user.userGroupId && user.effectiveConnectionLimit" class="group-limit-hint">
-                                (from group)
-                            </span>
-                        </span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="label">Created:</span>
-                        <span class="value">{{ formatDate(user.createdAt) }}</span>
-                    </div>
-                    
-                    <div class="detail-row">
-                        <span class="label">Last Login:</span>
-                        <span class="value">{{ formatDate(user.lastLogin) }}</span>
-                    </div>
-                    
-                    <div class="detail-row" *ngIf="user.systems">
-                        <span class="label">Systems:</span>
-                        <span class="value">{{ user.systems }}</span>
-                    </div>
-                    
-                    <div class="detail-row" *ngIf="user.delay > 0">
-                        <span class="label">Delay:</span>
-                        <span class="value">{{ user.delay }} minutes</span>
-                    </div>
-
-                    <div class="detail-row" *ngIf="user.systemDelays">
-                        <span class="label">System Delays:</span>
-                        <div class="value code-block">
-                            <pre>{{ user.systemDelays }}</pre>
-                        </div>
-                    </div>
-
-                    <div class="detail-row" *ngIf="user.talkgroupDelays">
-                        <span class="label">Talkgroup Delays:</span>
-                        <div class="value code-block">
-                            <pre>{{ user.talkgroupDelays }}</pre>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="detail-row" *ngIf="user.stripeCustomerId">
-                    <span class="label">Stripe Customer:</span>
-                    <span class="value">{{ user.stripeCustomerId }}</span>
-                </div>
-                
-                <div class="detail-row" *ngIf="user.subscriptionStatus">
-                    <span class="label">Subscription:</span>
-                    <span class="value">{{ user.subscriptionStatus }}</span>
-                </div>
-
-                <div class="detail-row" *ngIf="user.fcmTokens && user.fcmTokens.length > 0">
-                    <span class="label">FCM Tokens ({{ user.fcmTokens.length }}):</span>
-                    <div class="value">
-                        <mat-list dense>
-                            <mat-list-item *ngFor="let token of user.fcmTokens" style="height: auto; padding: 8px 0;">
-                                <div style="display: flex; flex-direction: column; width: 100%;">
-                                    <div style="display: flex; align-items: center; margin-bottom: 4px; justify-content: space-between;">
-                                        <div style="display: flex; align-items: center;">
-                                            <mat-icon style="font-size: 16px; width: 16px; height: 16px; margin-right: 8px;" 
-                                                      [color]="token.platform === 'ios' ? 'primary' : 'accent'">
-                                                {{ token.platform === 'ios' ? 'phone_iphone' : 'phone_android' }}
-                                            </mat-icon>
-                                            <mat-chip style="font-size: 11px; min-height: 24px;">
-                                                {{ token.platform | uppercase }} - {{ token.pushType }}
-                                            </mat-chip>
-                                            <mat-chip style="font-size: 11px; min-height: 24px; margin-left: 4px;">
-                                                {{ token.sound || 'default' }}
-                                            </mat-chip>
-                                        </div>
-                                        <button mat-icon-button color="warn" (click)="deleteDeviceToken(user.id, token.id)" 
-                                                matTooltip="Delete this device token"
-                                                [disabled]="saving">
+                        <!-- FCM Tokens -->
+                        <div class="fcm-section" *ngIf="user.fcmTokens && user.fcmTokens.length > 0">
+                            <h5 class="section-label">
+                                <mat-icon>devices</mat-icon>
+                                Device Tokens ({{ user.fcmTokens.length }})
+                            </h5>
+                            <div class="fcm-list">
+                                <div *ngFor="let token of user.fcmTokens" class="fcm-item">
+                                    <div class="fcm-meta">
+                                        <mat-icon [color]="token.platform === 'ios' ? 'primary' : 'accent'">
+                                            {{ token.platform === 'ios' ? 'phone_iphone' : 'phone_android' }}
+                                        </mat-icon>
+                                        <span class="chip chip-muted">{{ token.platform | uppercase }} · {{ token.pushType }}</span>
+                                        <span class="chip chip-muted">{{ token.sound || 'default' }}</span>
+                                        <span class="muted" style="font-size: 11px;">{{ token.createdAt }}</span>
+                                    </div>
+                                    <div class="fcm-token-row">
+                                        <code class="token-code">{{ token.fcmToken }}</code>
+                                        <button mat-icon-button color="warn" (click)="deleteDeviceToken(user.id, token.id)"
+                                                matTooltip="Delete device token" [disabled]="saving">
                                             <mat-icon>delete</mat-icon>
                                         </button>
                                     </div>
-                                    <code style="font-size: 11px; background: #f5f5f5; padding: 4px 8px; border-radius: 4px; display: block; word-break: break-all; color: #333;">
-                                        {{ token.fcmToken }}
-                                    </code>
-                                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
-                                        Created: {{ token.createdAt }} | Last Used: {{ token.lastUsed }}
-                                    </div>
                                 </div>
-                            </mat-list-item>
-                        </mat-list>
-                    </div>
-                </div>
+                            </div>
+                        </div>
 
-                <div class="actions" *ngIf="!editingUser || editingUser.id !== user.id">
-                    <button type="button" mat-button color="accent" 
-                            (click)="startEdit(user)">
-                        <mat-icon>edit</mat-icon>
-                        Edit User
-                    </button>
-                    
-                    <button type="button" mat-button color="primary" 
-                            (click)="openTransferDialog(user)">
-                        <mat-icon>swap_horiz</mat-icon>
-                        Transfer to Group
-                    </button>
-                    
-                    <button type="button" mat-button color="primary" 
-                            (click)="openResetPasswordDialog(user)">
-                        <mat-icon>lock_reset</mat-icon>
-                        Reset Password
-                    </button>
-                    
-                    <button type="button" mat-button color="accent" 
-                            (click)="sendTestPush(user)">
-                        <mat-icon>notifications</mat-icon>
-                        Send Test Push
-                    </button>
-                    
-                    <button type="button" mat-button color="primary" 
-                            (click)="resendVerificationEmail(user)"
-                            *ngIf="!user.verified">
-                        <mat-icon>email</mat-icon>
-                        Resend Verification
-                    </button>
-                    
-                    <button type="button" mat-button color="warn" 
-                            (click)="deleteUser(user)">
-                        <mat-icon>delete</mat-icon>
-                        Delete User
-                    </button>
-                </div>
-            </div>
-        </mat-expansion-panel>
-    </mat-accordion>
+                        <!-- Edit Form -->
+                        <form [formGroup]="editForm" class="edit-form">
+                            <h5 class="section-label"><mat-icon>edit</mat-icon> Edit User</h5>
+
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="full-width">
+                                    <mat-label>Email</mat-label>
+                                    <input matInput type="email" formControlName="email" required>
+                                    <mat-error *ngIf="editForm.get('email')?.hasError('required')">Email is required</mat-error>
+                                    <mat-error *ngIf="editForm.get('email')?.hasError('email')">Please enter a valid email</mat-error>
+                                </mat-form-field>
+                            </div>
+
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="half-width">
+                                    <mat-label>First Name</mat-label>
+                                    <input matInput type="text" formControlName="firstName" required>
+                                    <mat-error *ngIf="editForm.get('firstName')?.hasError('required')">Required</mat-error>
+                                </mat-form-field>
+                                <mat-form-field appearance="outline" class="half-width">
+                                    <mat-label>Last Name</mat-label>
+                                    <input matInput type="text" formControlName="lastName" required>
+                                    <mat-error *ngIf="editForm.get('lastName')?.hasError('required')">Required</mat-error>
+                                </mat-form-field>
+                            </div>
+
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="half-width">
+                                    <mat-label>ZIP Code</mat-label>
+                                    <input matInput type="text" formControlName="zipCode" placeholder="12345" required>
+                                    <mat-error *ngIf="editForm.get('zipCode')?.hasError('required')">Required</mat-error>
+                                    <mat-error *ngIf="editForm.get('zipCode')?.hasError('pattern')">Invalid ZIP</mat-error>
+                                </mat-form-field>
+                                <mat-form-field appearance="outline" class="half-width">
+                                    <mat-label>Delay (minutes)</mat-label>
+                                    <input matInput type="number" formControlName="delay" min="0"
+                                           [disabled]="editingUser ? (editingUser.userGroupId || 0) > 0 : false">
+                                    <mat-hint *ngIf="editingUser && editingUser.userGroupId">Managed by group</mat-hint>
+                                </mat-form-field>
+                            </div>
+
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="full-width">
+                                    <mat-label>User Group</mat-label>
+                                    <mat-select formControlName="userGroupId">
+                                        <mat-option [value]="0">No Group (Unassigned)</mat-option>
+                                        <mat-option *ngFor="let group of availableGroups" [value]="group.id">
+                                            {{ group.name }}
+                                        </mat-option>
+                                    </mat-select>
+                                    <mat-hint>Assign to a group to inherit group settings</mat-hint>
+                                </mat-form-field>
+                            </div>
+
+                            <div class="form-row pin-row">
+                                <mat-form-field appearance="outline" class="half-width">
+                                    <mat-label>PIN</mat-label>
+                                    <input matInput type="text" formControlName="pin" placeholder="Leave blank to keep current">
+                                </mat-form-field>
+                                <div class="pin-actions">
+                                    <button mat-stroked-button color="primary" type="button" (click)="requestPinRegeneration()" [disabled]="saving">
+                                        <mat-icon>autorenew</mat-icon>
+                                        Regenerate PIN
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="half-width">
+                                    <mat-label>Connection Limit</mat-label>
+                                    <input matInput type="number" min="0" formControlName="connectionLimit" placeholder="0 for unlimited">
+                                    <mat-hint *ngIf="editingUser && editingUser.userGroupId && editingUser.effectiveConnectionLimit">
+                                        Group limit: {{ editingUser.effectiveConnectionLimit }}
+                                    </mat-hint>
+                                    <mat-hint *ngIf="!editingUser || !editingUser.userGroupId || !editingUser.effectiveConnectionLimit">
+                                        0 = unlimited
+                                    </mat-hint>
+                                </mat-form-field>
+                                <mat-form-field appearance="outline" class="half-width">
+                                    <mat-label>PIN Expiration</mat-label>
+                                    <input matInput type="datetime-local" formControlName="pinExpiresAt">
+                                    <mat-hint>Leave blank for no expiration</mat-hint>
+                                </mat-form-field>
+                            </div>
+
+                            <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
+                                <h6 class="form-section-title">System &amp; Talkgroup Access</h6>
+                                <p class="mat-caption muted">
+                                    This user has access to
+                                    <strong>{{ editForm.get('systems')?.value === '*' ? 'all' : 'selected' }}</strong>
+                                    systems and talkgroups.
+                                </p>
+                                <button type="button" mat-stroked-button color="primary" (click)="selectUserSystems()">
+                                    <mat-icon>tune</mat-icon>
+                                    Choose Systems
+                                </button>
+                            </div>
+
+                            <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
+                                <h6 class="form-section-title">System-Specific Delays</h6>
+                                <div *ngFor="let entry of systemDelayEntries; let i = index" class="delay-entry">
+                                    <mat-form-field appearance="outline" class="system-select">
+                                        <mat-label>System</mat-label>
+                                        <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}">
+                                            <mat-option *ngFor="let system of systems" [value]="system.id">
+                                                {{ system.label || ('System ' + system.id) }}
+                                            </mat-option>
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field appearance="outline" class="delay-input">
+                                        <mat-label>Delay (min)</mat-label>
+                                        <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
+                                    </mat-form-field>
+                                    <button mat-icon-button type="button" (click)="removeSystemDelay(i)" color="warn">
+                                        <mat-icon>delete</mat-icon>
+                                    </button>
+                                </div>
+                                <button mat-button type="button" (click)="addSystemDelay()">
+                                    <mat-icon>add</mat-icon> Add System Delay
+                                </button>
+                            </div>
+
+                            <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
+                                <h6 class="form-section-title">Talkgroup-Specific Delays</h6>
+                                <div *ngFor="let entry of talkgroupDelayEntries; let i = index" class="delay-entry">
+                                    <mat-form-field appearance="outline" class="system-select">
+                                        <mat-label>System</mat-label>
+                                        <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}" (selectionChange)="entry.talkgroupId = 0">
+                                            <mat-option *ngFor="let system of systems" [value]="system.id">
+                                                {{ system.label || ('System ' + system.id) }}
+                                            </mat-option>
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field appearance="outline" class="talkgroup-select" *ngIf="entry.systemId > 0">
+                                        <mat-label>Talkgroup</mat-label>
+                                        <mat-select [(ngModel)]="entry.talkgroupId" [ngModelOptions]="{standalone: true}">
+                                            <mat-option *ngFor="let tg of getTalkgroupsForSystem(entry.systemId)" [value]="tg.id">
+                                                {{ tg.label || ('Talkgroup ' + tg.id) }}
+                                            </mat-option>
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field appearance="outline" class="delay-input">
+                                        <mat-label>Delay (min)</mat-label>
+                                        <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
+                                    </mat-form-field>
+                                    <button mat-icon-button type="button" (click)="removeTalkgroupDelay(i)" color="warn">
+                                        <mat-icon>delete</mat-icon>
+                                    </button>
+                                </div>
+                                <button mat-button type="button" (click)="addTalkgroupDelay()">
+                                    <mat-icon>add</mat-icon> Add Talkgroup Delay
+                                </button>
+                            </div>
+
+                            <div *ngIf="editingUser && editingUser.userGroupId" class="group-managed-note">
+                                <mat-icon>info</mat-icon>
+                                System/talkgroup access and delays are managed by the user's group. Remove from the group to configure individually.
+                            </div>
+
+                            <div class="form-section">
+                                <h6 class="form-section-title">Stripe Billing</h6>
+                                <div class="form-row">
+                                    <mat-form-field appearance="outline" class="full-width">
+                                        <mat-label>Stripe Customer ID</mat-label>
+                                        <input matInput type="text" formControlName="stripeCustomerId" placeholder="cus_...">
+                                        <mat-hint>e.g. cus_abc123</mat-hint>
+                                    </mat-form-field>
+                                </div>
+                                <div class="form-row">
+                                    <mat-form-field appearance="outline" class="half-width">
+                                        <mat-label>Stripe Subscription ID</mat-label>
+                                        <input matInput type="text" formControlName="stripeSubscriptionId" placeholder="sub_...">
+                                    </mat-form-field>
+                                    <mat-form-field appearance="outline" class="half-width">
+                                        <mat-label>Subscription Status</mat-label>
+                                        <mat-select formControlName="subscriptionStatus">
+                                            <mat-option value="">None</mat-option>
+                                            <mat-option value="active">Active</mat-option>
+                                            <mat-option value="trialing">Trialing</mat-option>
+                                            <mat-option value="incomplete">Incomplete</mat-option>
+                                            <mat-option value="past_due">Past Due</mat-option>
+                                            <mat-option value="canceled">Canceled</mat-option>
+                                            <mat-option value="unpaid">Unpaid</mat-option>
+                                        </mat-select>
+                                    </mat-form-field>
+                                </div>
+                            </div>
+
+                            <div class="form-row checkboxes-row">
+                                <mat-checkbox formControlName="verified">Email Verified</mat-checkbox>
+                                <mat-checkbox formControlName="isGroupAdmin" [disabled]="!editingUser || !editingUser.userGroupId">
+                                    Group Admin
+                                </mat-checkbox>
+                                <mat-checkbox formControlName="systemAdmin">System Admin</mat-checkbox>
+                            </div>
+                            <div class="hint-row">
+                                <span class="muted" *ngIf="editingUser && !editingUser.userGroupId">
+                                    User must be in a group to be a group admin.
+                                </span>
+                                <span class="muted">
+                                    System admins receive health notifications and can send system alerts.
+                                </span>
+                            </div>
+
+                            <div class="form-actions">
+                                <button mat-raised-button color="primary" type="button"
+                                        (click)="saveUser()" [disabled]="editForm.invalid || saving">
+                                    <mat-spinner diameter="18" *ngIf="saving"></mat-spinner>
+                                    <span *ngIf="!saving">Save Changes</span>
+                                </button>
+                                <button mat-button type="button" (click)="cancelEdit()" [disabled]="saving">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let user; columns: displayedColumns;"
+                class="user-row"
+                [class.row-expanded]="expandedUser?.id === user.id"></tr>
+            <tr mat-row *matRowDef="let row; columns: ['expandedDetail']"
+                class="detail-row"></tr>
+
+        </mat-table>
+    </div>
 
     <!-- Paginator -->
-    <mat-paginator 
+    <mat-paginator
         *ngIf="!loading && !error && users.length > 0"
         [length]="filteredUsers.length"
         [pageSize]="pageSize"

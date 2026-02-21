@@ -1,0 +1,221 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
+.systems-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+// ─── Header ──────────────────────────────────────────────────────────────────
+.overview-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #2a2a2a;
+
+    .overview-intro {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+
+        mat-icon {
+            color: #cc0000;
+            font-size: 28px;
+            width: 28px;
+            height: 28px;
+            margin-top: 2px;
+        }
+
+        h3 {
+            margin: 0 0 4px;
+            font-size: 17px;
+            font-weight: 600;
+            color: #eee;
+        }
+
+        p { margin: 0; color: #888; }
+    }
+
+    .overview-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 16px;
+    gap: 10px;
+    color: #666;
+    text-align: center;
+
+    mat-icon {
+        font-size: 56px;
+        width: 56px;
+        height: 56px;
+        color: #333;
+        margin-bottom: 8px;
+    }
+
+    p { margin: 0; }
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+.table-wrapper {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a2a;
+}
+
+.table-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #2a2a2a;
+
+    .search-field {
+        flex: 1;
+        max-width: 340px;
+
+        ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+    }
+
+    .result-count { color: #888; }
+}
+
+.systems-table {
+    width: 100%;
+    background: transparent;
+
+    .mat-mdc-header-row {
+        background: #1a1a1a;
+        border-bottom: 1px solid #2a2a2a;
+    }
+
+    .mat-mdc-header-cell {
+        color: #777;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+        padding: 0 16px;
+    }
+
+    .system-row {
+        cursor: pointer;
+        border-bottom: 1px solid #1e1e1e;
+        transition: background 0.12s ease;
+
+        &:last-child { border-bottom: none; }
+        &:hover { background: rgba(255, 255, 255, 0.04); }
+
+        .mat-mdc-cell {
+            border-bottom: none;
+            padding: 12px 16px;
+            vertical-align: middle;
+        }
+    }
+
+    .actions-col {
+        width: 56px;
+        text-align: right;
+        padding-right: 8px !important;
+    }
+}
+
+// ─── Cell content ─────────────────────────────────────────────────────────────
+.sys-id {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    color: #999;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #2a2a2a;
+}
+
+.label-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .sys-label {
+        font-weight: 500;
+        color: #e0e0e0;
+    }
+
+    .error-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: #f44336;
+    }
+}
+
+.type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(204, 0, 0, 0.12);
+    color: #ff6666;
+    border: 1px solid rgba(204, 0, 0, 0.25);
+    letter-spacing: 0.5px;
+}
+
+.no-type { color: #555; }
+
+.count-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(0, 120, 212, 0.15);
+    color: #64b5f6;
+    border: 1px solid rgba(0, 120, 212, 0.25);
+
+    &.secondary {
+        background: rgba(76, 175, 80, 0.1);
+        color: #81c784;
+        border-color: rgba(76, 175, 80, 0.2);
+    }
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    background: #1a1a1a;
+    border-top: 1px solid #2a2a2a;
+    color: #888;
+}

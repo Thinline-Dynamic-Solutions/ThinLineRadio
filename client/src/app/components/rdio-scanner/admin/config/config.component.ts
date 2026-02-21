@@ -1,6 +1,7 @@
 /*
  * *****************************************************************************
  * Copyright (C) 2019-2024 Chrystian Huot <chrystian@huot.qc.ca>
+ * Copyright (C) 2025 Thinline Dynamic Solutions
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,10 +18,9 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, ViewChild, ViewEncapsulation } from '@angular/core';
 import { FormArray, FormControl, FormGroup } from '@angular/forms';
-import { MatExpansionPanel } from '@angular/material/expansion';
-import { AdminEvent, RdioScannerAdminService, Config } from '../admin.service';
+import { AdminEvent, RdioScannerAdminService, Config, Group, Tag } from '../admin.service';
 import { RdioScannerAdminUsersComponent } from './users/users.component';
 import { RdioScannerAdminUserGroupsComponent } from './user-groups/user-groups.component';
 import { Subscription } from 'rxjs';
@@ -35,10 +35,52 @@ import { Subscription } from 'rxjs';
 export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
     docker = false;
 
+    /** Currently active section in the sidebar nav */
+    activeSection = 'user-registration';
+
     form: FormGroup | undefined;
-    
+
+    /** True while the initial config is being fetched / form being built */
+    loading = true;
+
+    // ─── Systems sidebar nav state ────────────────────────────────────────────
+    /** Whether the systems sub-nav is expanded in the sidebar */
+    systemsNavExpanded = false;
+
+    /** The FormGroup of the currently selected system (for detail view) */
+    activeSystemForm: FormGroup | null = null;
+
+    /** Sorted list of system FormGroups for the sidebar */
+    get systemsList(): FormGroup[] {
+        return (this.systems.controls as FormGroup[])
+            .slice()
+            .sort((a, b) => (a.value.order || 0) - (b.value.order || 0));
+    }
+
+    /** Raw group values for passing to the system component */
+    get groupsValue(): Group[] {
+        return this.groups?.value || [];
+    }
+
+    /** Raw tag values for passing to the system component */
+    get tagsValue(): Tag[] {
+        return this.tags?.value || [];
+    }
+
+    /** Raw apikey values for passing to the system component */
+    get apikeysValue(): any[] {
+        return this.apikeys?.value || [];
+    }
+
     private isImportedForReview = false;
-    
+
+    /**
+     * Timestamp of the last reset() call. Used to suppress the WebSocket
+     * config push that arrives right after the HTTP GET already built the form
+     * — both carry identical data, rebuilding twice is wasted work.
+     */
+    private _lastResetTime = 0;
+
     // Track subscriptions to prevent memory leaks and duplicate subscriptions
     private groupsSubscription?: Subscription;
     private tagsSubscription?: Subscription;
@@ -88,7 +130,6 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
 
     private eventSubscription;
 
-    @ViewChildren(MatExpansionPanel) private panels: QueryList<MatExpansionPanel> | undefined;
     @ViewChild(RdioScannerAdminUsersComponent) private usersComponent: RdioScannerAdminUsersComponent | undefined;
     @ViewChild(RdioScannerAdminUserGroupsComponent) private userGroupsComponent: RdioScannerAdminUserGroupsComponent | undefined;
 
@@ -106,8 +147,17 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             if ('config' in event) {
                 this.config = event.config;
 
-                if (this.form?.pristine) {
+                if (!this.form) {
+                    // HTTP response hasn't arrived yet — WS beat it, build now.
                     this.reset();
+                } else if (this.form.pristine) {
+                    // Only rebuild from a WS push if enough time has passed since
+                    // the last reset. If the WS push arrives within 5 s of the
+                    // HTTP-triggered build it carries the same data — skip it.
+                    const msSinceLastReset = Date.now() - this._lastResetTime;
+                    if (msSinceLastReset > 5000) {
+                        this.reset();
+                    }
                 }
             }
 
@@ -125,26 +175,99 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
     }
 
     async ngOnInit(): Promise<void> {
-        // Only load data if user is authenticated
-        if (this.adminService.authenticated) {
-            await this.adminService.loadAlerts();
+        if (!this.adminService.authenticated) {
+            this.loading = false;
+            return;
+        }
 
-            this.config = await this.adminService.getConfig();
+        this.loading = true;
+        this.ngChangeDetectorRef.markForCheck(); // show spinner immediately
 
+        this.config = await this.adminService.getConfig();
+
+        // Yield one animation frame so the browser can paint the loading
+        // spinner before we synchronously build the entire form tree.
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+        // If the WebSocket already built the form while we were awaiting
+        // the HTTP response, don't rebuild it.
+        if (!this.form) {
             this.reset();
         }
+
+        this.loading = false;
+        this.ngChangeDetectorRef.markForCheck();
     }
 
-    closeAll(): void {
-        this.panels?.forEach((panel) => panel.close());
+    // ─── Section navigation ───────────────────────────────────────────────────
+
+    setSection(section: string): void {
+        // When navigating away from Systems, close the sub-nav and clear selection
+        if (section !== 'systems' && section !== 'system-detail') {
+            this.systemsNavExpanded = false;
+            this.activeSystemForm = null;
+        }
+        this.activeSection = section;
+        this.ngChangeDetectorRef.markForCheck();
     }
+
+    /** Toggle the systems sub-nav and navigate to the systems overview */
+    toggleSystemsSection(): void {
+        this.systemsNavExpanded = !this.systemsNavExpanded;
+        this.activeSystemForm = null;
+        this.activeSection = 'systems';
+        this.ngChangeDetectorRef.markForCheck();
+    }
+
+    /** Navigate to a specific system's detail view */
+    selectSystem(systemForm: FormGroup): void {
+        this.systemsNavExpanded = true;
+        this.activeSystemForm = systemForm;
+        this.activeSection = 'system-detail';
+        this.ngChangeDetectorRef.markForCheck();
+    }
+
+    /** Add a new system and immediately navigate to its detail view */
+    addNewSystem(): void {
+        const system = this.adminService.newSystemForm();
+        system.markAllAsTouched();
+        this.systems.insert(0, system);
+        this.form?.markAsDirty();
+        this.systemsNavExpanded = true;
+        this.activeSystemForm = system;
+        this.activeSection = 'system-detail';
+        this.ngChangeDetectorRef.markForCheck();
+    }
+
+    /** Remove the currently selected system and return to the overview */
+    removeCurrentSystem(): void {
+        if (!this.activeSystemForm) return;
+        const idx = this.systems.controls.indexOf(this.activeSystemForm);
+        if (idx !== -1) {
+            this.systems.removeAt(idx);
+            this.form?.markAsDirty();
+        }
+        this.activeSystemForm = null;
+        this.activeSection = 'systems';
+        this.ngChangeDetectorRef.markForCheck();
+    }
+
+    // ─── Form lifecycle ───────────────────────────────────────────────────────
 
     reset(config = this.config, options?: { dirty?: boolean, isImport?: boolean }): void {
+        // Stamp time so the WebSocket event handler can detect a recent rebuild
+        // and skip the redundant second reset.
+        this._lastResetTime = Date.now();
+
         // Unsubscribe from previous subscriptions to prevent duplicates
         this.groupsSubscription?.unsubscribe();
         this.tagsSubscription?.unsubscribe();
         this.statusSubscription?.unsubscribe();
-        
+
+        // Clear systems nav state since form is being rebuilt
+        this.activeSystemForm = null;
+        this.activeSection = this.activeSection === 'system-detail' ? 'systems' : this.activeSection;
+
         this.form = this.adminService.newConfigForm(config);
         
         // Track if this reset is from an "Import for Review"
@@ -168,6 +291,7 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                     }
                 });
             });
+            this.ngChangeDetectorRef.markForCheck();
         });
 
         this.tagsSubscription = this.tags.valueChanges.subscribe(() => {
@@ -184,6 +308,7 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                     }
                 });
             });
+            this.ngChangeDetectorRef.markForCheck();
         });
 
         if (options?.dirty === true) {
@@ -193,7 +318,6 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         this.ngChangeDetectorRef.markForCheck();
 
         // Reload users and user groups components if they exist
-        // Use setTimeout to ensure components are initialized
         setTimeout(() => {
             if (this.usersComponent) {
                 this.usersComponent.loadUsers();
@@ -204,7 +328,6 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         }, 0);
         
         // Force revalidation of all talkgroup tagIds after form is fully initialized
-        // Use a longer delay to ensure tags array is fully populated
         setTimeout(() => {
             this.systems.controls.forEach((system) => {
                 const talkgroups = system.get('talkgroups') as FormArray;
@@ -223,9 +346,6 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
 
         const formValue = this.form?.getRawValue();
         
-        // If NOT imported for review, exclude users, userGroups, keywordLists, userAlertPreferences, and deviceTokens
-        // These are managed via dedicated endpoints or should only be imported during full config imports
-        // If imported for review, include them and do a full import
         const isFullImport = this.isImportedForReview;
         
         if (!isFullImport) {
@@ -236,7 +356,6 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             delete formValue.deviceTokens;
         }
         
-        // Clear the import flag after save
         this.isImportedForReview = false;
 
         // Convert tone sets from flat form structure to nested structure
@@ -302,16 +421,13 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                 formValue.options.transcriptionConfig = formValue.options.transcriptionConfig || {};
                 formValue.options.transcriptionConfig.enabled = formValue.options.transcriptionEnabled;
             }
-            // Remove transcriptionEnabled if it exists separately (we use transcriptionConfig.enabled)
             if (formValue.options.transcriptionEnabled !== undefined && formValue.options.transcriptionConfig) {
                 formValue.options.transcriptionConfig.enabled = formValue.options.transcriptionEnabled;
             }
             
-            // Convert hallucination patterns from textarea string to array
             if (formValue.options.transcriptionConfig?.hallucinationPatterns) {
                 const patternsString = formValue.options.transcriptionConfig.hallucinationPatterns;
                 if (typeof patternsString === 'string') {
-                    // Split by newlines, trim each line, and filter out empty lines
                     formValue.options.transcriptionConfig.hallucinationPatterns = patternsString
                         .split('\n')
                         .map((line: string) => line.trim())
@@ -319,11 +435,9 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                 }
             }
             
-            // Convert AssemblyAI word boost from textarea string to array
             if (formValue.options.transcriptionConfig?.assemblyAIWordBoost) {
                 const wordBoostString = formValue.options.transcriptionConfig.assemblyAIWordBoost;
                 if (typeof wordBoostString === 'string') {
-                    // Split by newlines, trim each line, and filter out empty lines
                     formValue.options.transcriptionConfig.assemblyAIWordBoost = wordBoostString
                         .split('\n')
                         .map((line: string) => line.trim())
@@ -331,14 +445,11 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                 }
             }
             
-            // Always use hardcoded relay server URL
             formValue.options.relayServerURL = 'https://tlradioserver.thinlineds.com';
         }
 
         const updatedConfig = await this.adminService.saveConfig(formValue, isFullImport);
         
-        // Force a full page reload after save to ensure all database-assigned IDs are loaded
-        // This is the same as manual browser refresh which works correctly
         if (updatedConfig) {
             window.location.reload();
         }

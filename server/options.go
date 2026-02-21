@@ -123,6 +123,11 @@ type Options struct {
 	ReconnectionEnabled         bool              `json:"reconnectionEnabled"`
 	ReconnectionGracePeriod     uint              `json:"reconnectionGracePeriod"` // In seconds
 	ReconnectionMaxBufferSize   uint              `json:"reconnectionMaxBufferSize"` // Maximum calls to buffer per user
+	// Centralized Management Integration
+	CentralManagementEnabled    bool              `json:"centralManagementEnabled"`
+	CentralManagementURL        string            `json:"centralManagementURL"`
+	CentralManagementAPIKey     string            `json:"centralManagementAPIKey"`
+	CentralManagementServerName string            `json:"centralManagementServerName"` // Optional friendly name for this server
 	adminPassword               string
 	adminPasswordNeedChange     bool
 	mutex                       sync.Mutex
@@ -553,6 +558,34 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.BaseUrl = v
 	default:
 		options.BaseUrl = defaults.options.baseUrl
+	}
+
+	switch v := m["centralManagementEnabled"].(type) {
+	case bool:
+		options.CentralManagementEnabled = v
+	default:
+		options.CentralManagementEnabled = false
+	}
+
+	switch v := m["centralManagementURL"].(type) {
+	case string:
+		options.CentralManagementURL = v
+	default:
+		options.CentralManagementURL = ""
+	}
+
+	switch v := m["centralManagementAPIKey"].(type) {
+	case string:
+		options.CentralManagementAPIKey = v
+	default:
+		options.CentralManagementAPIKey = ""
+	}
+
+	switch v := m["centralManagementServerName"].(type) {
+	case string:
+		options.CentralManagementServerName = v
+	default:
+		options.CentralManagementServerName = ""
 	}
 
 	switch v := m["alertRetentionDays"].(type) {
@@ -1090,6 +1123,34 @@ func (options *Options) Read(db *Database) error {
 					options.PublicRegistrationMode = v
 				}
 			}
+		case "centralManagementEnabled":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.CentralManagementEnabled = v
+				}
+			}
+		case "centralManagementURL":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.CentralManagementURL = v
+				}
+			}
+		case "centralManagementAPIKey":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.CentralManagementAPIKey = v
+				}
+			}
+		case "centralManagementServerName":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.CentralManagementServerName = v
+				}
+			}
 		case "stripePaywallEnabled":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -1546,6 +1607,10 @@ func (options *Options) Write(db *Database) error {
 	set("userRegistrationEnabled", options.UserRegistrationEnabled)
 	set("publicRegistrationEnabled", options.PublicRegistrationEnabled)
 	set("publicRegistrationMode", options.PublicRegistrationMode)
+	set("centralManagementEnabled", options.CentralManagementEnabled)
+	set("centralManagementURL", options.CentralManagementURL)
+	set("centralManagementAPIKey", options.CentralManagementAPIKey)
+	set("centralManagementServerName", options.CentralManagementServerName)
 	set("stripePaywallEnabled", options.StripePaywallEnabled)
 	set("emailServiceEnabled", options.EmailServiceEnabled)
 	set("emailServiceApiKey", options.EmailServiceApiKey)

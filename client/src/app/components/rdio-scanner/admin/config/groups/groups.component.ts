@@ -1,6 +1,7 @@
 /*
  * *****************************************************************************
  * Copyright (C) 2019-2024 Chrystian Huot <chrystian@huot.qc.ca>
+ * Copyright (C) 2025 Thinline Dynamic Solutions
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,38 +19,33 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input, QueryList, ViewChildren } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
+import { Component, Input } from '@angular/core';
 import { FormArray, FormGroup } from '@angular/forms';
-import { MatExpansionPanel } from '@angular/material/expansion';
-import { MatSelectChange } from '@angular/material/select';
 import { RdioScannerAdminService } from '../../admin.service';
 
 @Component({
     selector: 'rdio-scanner-admin-groups',
     templateUrl: './groups.component.html',
+    styleUrls: ['./groups.component.scss'],
 })
 export class RdioScannerAdminGroupsComponent {
     @Input() form: FormArray | undefined;
+
+    displayedColumns: string[] = ['drag', 'label', 'usage', 'id', 'actions'];
 
     get groups(): FormGroup[] {
         return this.form?.controls
             .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
     }
 
-    @ViewChildren(MatExpansionPanel) private panels: QueryList<MatExpansionPanel> | undefined;
-
-    constructor(private adminService: RdioScannerAdminService, private matDialog: MatDialog) {
-    }
+    constructor(private adminService: RdioScannerAdminService) { }
 
     isGroupUnused(groupId: number): boolean {
         if (!this.form) return false;
 
-        // Get all systems and their talkgroups from the root form
         const systemsArray = this.form.root.get('systems') as FormArray;
         if (!systemsArray) return true;
 
-        // Check if this group ID is used in any talkgroup
         for (const systemControl of systemsArray.controls) {
             const talkgroupsArray = systemControl.get('talkgroups') as FormArray;
             if (talkgroupsArray) {
@@ -75,10 +71,6 @@ export class RdioScannerAdminGroupsComponent {
         this.form?.markAsDirty();
     }
 
-    closeAll(): void {
-        this.panels?.forEach((panel) => panel.close());
-    }
-
     drop(event: CdkDragDrop<FormGroup[]>): void {
         if (event.previousIndex !== event.currentIndex) {
             moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
@@ -98,11 +90,9 @@ export class RdioScannerAdminGroupsComponent {
     cleanupUnused(): void {
         if (!this.form) return;
 
-        // Get all systems and their talkgroups from the root form
         const systemsArray = this.form.root.get('systems') as FormArray;
         if (!systemsArray) return;
 
-        // Collect all group IDs that are actually used in talkgroups
         const usedGroupIds = new Set<number>();
         systemsArray.controls.forEach((systemControl) => {
             const talkgroupsArray = systemControl.get('talkgroups') as FormArray;
@@ -116,7 +106,6 @@ export class RdioScannerAdminGroupsComponent {
             }
         });
 
-        // Remove groups that aren't used, starting from the end to avoid index issues
         for (let i = this.form.controls.length - 1; i >= 0; i--) {
             const groupId = this.form.at(i).get('id')?.value;
             if (groupId && !usedGroupIds.has(groupId)) {

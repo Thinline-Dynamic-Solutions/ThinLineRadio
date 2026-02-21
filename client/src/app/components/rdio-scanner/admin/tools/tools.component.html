@@ -1,75 +1,91 @@
-<mat-accordion displayMode="flat">
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>description</mat-icon>
-                Import Talkgroups
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-import-talkgroups (config)="config.emit($event)"></rdio-scanner-admin-import-talkgroups>
-    </mat-expansion-panel>
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>description</mat-icon>
-                Import Units
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-import-units (config)="config.emit($event)"></rdio-scanner-admin-import-units>
-    </mat-expansion-panel>
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>cloud_download</mat-icon>
-                Radio Reference Import
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-radio-reference-import (config)="config.emit($event)"></rdio-scanner-admin-radio-reference-import>
-    </mat-expansion-panel>
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
+<div class="tools-layout">
 
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>password</mat-icon>
-                Admin password
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-password></rdio-scanner-admin-password>
-    </mat-expansion-panel>
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>sync_alt</mat-icon>
-                Import/export config
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-import-export-config (config)="config.emit($event)"></rdio-scanner-admin-import-export-config>
-    </mat-expansion-panel>
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>cloud_sync</mat-icon>
-                Config Sync
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-config-sync></rdio-scanner-admin-config-sync>
-    </mat-expansion-panel>
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>payment</mat-icon>
-                Stripe Customer Sync
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-stripe-sync></rdio-scanner-admin-stripe-sync>
-    </mat-expansion-panel>
-    <mat-expansion-panel>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon>delete_forever</mat-icon>
-                Purge Data
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-purge-data></rdio-scanner-admin-purge-data>
-    </mat-expansion-panel>
-</mat-accordion>
+    <!-- ── Left Sidebar ──────────────────────────────────────── -->
+    <nav class="tools-sidebar">
+        <div class="sidebar-section-label">Tools</div>
+
+        <button type="button" class="sidebar-item"
+                *ngFor="let tool of toolSections"
+                [class.active]="activeSection === tool.id"
+                (click)="setSection(tool.id)">
+            <mat-icon>{{ tool.icon }}</mat-icon>
+            <span>{{ tool.label }}</span>
+        </button>
+    </nav>
+
+    <!-- ── Right Content Area ────────────────────────────────── -->
+    <div class="tools-content">
+
+        <!-- Section header -->
+        <div class="section-header" *ngIf="activeToolSection">
+            <mat-icon>{{ activeToolSection.icon }}</mat-icon>
+            <div>
+                <h3>{{ activeToolSection.label }}</h3>
+                <p class="section-subtitle">{{ activeToolSection.description }}</p>
+            </div>
+        </div>
+
+        <ng-container [ngSwitch]="activeSection">
+
+            <ng-container *ngSwitchCase="'import-talkgroups'">
+                <rdio-scanner-admin-import-talkgroups
+                    (config)="config.emit($event)">
+                </rdio-scanner-admin-import-talkgroups>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'import-units'">
+                <rdio-scanner-admin-import-units
+                    (config)="config.emit($event)">
+                </rdio-scanner-admin-import-units>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'radio-reference'">
+                <rdio-scanner-admin-radio-reference-import
+                    (config)="config.emit($event)">
+                </rdio-scanner-admin-radio-reference-import>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'admin-password'">
+                <rdio-scanner-admin-password></rdio-scanner-admin-password>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'import-export-config'">
+                <rdio-scanner-admin-import-export-config
+                    (config)="config.emit($event)">
+                </rdio-scanner-admin-import-export-config>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'config-sync'">
+                <rdio-scanner-admin-config-sync></rdio-scanner-admin-config-sync>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'stripe-sync'">
+                <rdio-scanner-admin-stripe-sync></rdio-scanner-admin-stripe-sync>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'purge-data'">
+                <rdio-scanner-admin-purge-data></rdio-scanner-admin-purge-data>
+            </ng-container>
+
+        </ng-container>
+    </div>
+
+</div>

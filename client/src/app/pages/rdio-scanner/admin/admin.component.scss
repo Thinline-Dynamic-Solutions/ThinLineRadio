@@ -1,32 +1,166 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
 :host {
-  background: #1e1e1e;
-  box-sizing: border-box;
-  display: block;
-  min-height: 100vh;
-  padding: 16px;
+    background: #111;
+    display: block;
+    min-height: 100vh;
+}
 
-  > div {
-    margin: 16px auto;
-    max-width: 1200px;
-  }
+.admin-page-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
 
-  > h1 {
-    color: #ccc;
-    margin: 0;
-    text-align: center;
-  }
+.admin-header {
+    background: linear-gradient(135deg, #1a0000 0%, #2a0000 60%, #1a1a1a 100%);
+    border-bottom: 3px solid #cc0000;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .header-radio-icon {
+        color: #cc0000;
+        font-size: 40px;
+        width: 40px;
+        height: 40px;
+        text-shadow: 0 0 12px rgba(204, 0, 0, 0.5);
+    }
+
+    .header-brand {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+    }
+
+    .brand-name {
+        color: #fff;
+        font-family: 'Audiowide', 'Rajdhani', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 2px;
+    }
+
+    .brand-version {
+        color: #cc0000;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        opacity: 0.9;
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .header-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #666;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+
+        mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+        }
+    }
+
+    .header-logout-btn {
+        color: #999;
+        border-color: #444;
+        font-size: 13px;
+        height: 34px;
+        line-height: 34px;
+        transition: color 0.2s, border-color 0.2s;
+
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            margin-right: 4px;
+        }
+
+        &:hover {
+            color: #ff4444;
+            border-color: #cc0000;
+        }
+    }
+}
+
+.admin-body {
+    flex: 1;
+    padding: 28px;
+    max-width: 1500px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 @media (max-width: 719px) {
-  :host > h1 {
-    font-size: 28px;
-    line-height: 32px;
-  }
+    .admin-body {
+        padding: 12px;
+    }
 
-  .mat-mdc-card {
-    padding: 8px;
-  }
-}
+    .admin-header {
+        padding: 10px 14px;
 
-@media (min-width: 720px) {
+        .header-badge {
+            display: none;
+        }
+
+        .header-radio-icon {
+            font-size: 28px;
+            width: 28px;
+            height: 28px;
+        }
+
+        .brand-name {
+            font-size: 16px;
+        }
+
+        .brand-version {
+            font-size: 10px;
+        }
+
+        .header-logout-btn {
+            .logout-label {
+                display: none;
+            }
+        }
+    }
 }

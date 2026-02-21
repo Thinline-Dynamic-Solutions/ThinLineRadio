@@ -35,6 +35,7 @@ interface KeywordList {
 @Component({
     selector: 'rdio-scanner-admin-keyword-lists',
     templateUrl: './keyword-lists.component.html',
+    styleUrls: ['./keyword-lists.component.scss'],
 })
 export class RdioScannerAdminKeywordListsComponent implements OnInit, OnDestroy {
     keywordLists: KeywordList[] = [];
@@ -42,6 +43,7 @@ export class RdioScannerAdminKeywordListsComponent implements OnInit, OnDestroy 
     editingIndex: number | null = null;
     editingForm: FormGroup | null = null;
     editingKeywords: string[] = [];
+    newKeywordText = '';
     private keywordsSubscription?: Subscription;
 
     get currentEditingKeywords(): string[] {
@@ -190,11 +192,22 @@ export class RdioScannerAdminKeywordListsComponent implements OnInit, OnDestroy 
         this.startEdit(0);
     }
 
+    addKeywordFromInput(): void {
+        if (!this.editingForm || !this.newKeywordText.trim()) return;
+        const keywordsControl = this.editingForm.get('keywords');
+        if (!keywordsControl) return;
+        const keyword = this.newKeywordText.trim();
+        const keywords: string[] = keywordsControl.value || [];
+        if (!keywords.includes(keyword)) {
+            keywordsControl.setValue([...keywords, keyword]);
+            keywordsControl.markAsDirty();
+        }
+        this.newKeywordText = '';
+    }
+
     addKeyword(form: FormGroup): void {
         const keywordsControl = form.get('keywords');
-        if (!keywordsControl) {
-            return;
-        }
+        if (!keywordsControl) return;
         const keywords = keywordsControl.value || [];
         const newKeyword = prompt('Enter keyword:');
         if (newKeyword && newKeyword.trim() && !keywords.includes(newKeyword.trim())) {

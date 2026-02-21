@@ -1,5 +1,128 @@
 # Change log
 
+## Version 7.0 Beta 9.6 - Released TBD
+
+### Enhancements
+
+- **Complete Admin Panel UI/UX Overhaul**
+  - New sticky dark-themed header with ThinLine Radio logo, brand name, server version badge, and admin console indicator
+  - Tab-based top navigation replacing the previous single-page accordion layout (Config, Logs, System Health, Tools)
+  - Logout button relocated to the header for persistent, accessible logout regardless of active tab
+  - Applied `admin-dark-theme` class globally to the admin wrapper for consistent dark styling
+  - Redesigned login page with modern card layout, animated blocked state with countdown timer for failed attempts
+  - Files modified: `client/src/app/pages/rdio-scanner/admin/admin.component.html`, `client/src/app/pages/rdio-scanner/admin/admin.component.scss`, `client/src/app/components/rdio-scanner/admin/admin.component.html`, `client/src/app/components/rdio-scanner/admin/admin.component.ts`, `client/src/app/components/rdio-scanner/admin/admin.component.scss`, `client/src/app/components/rdio-scanner/admin/login/login.component.html`, `client/src/app/components/rdio-scanner/admin/login/login.component.scss`
+
+- **Config Section — Sidebar Navigation**
+  - Replaced `mat-accordion` expansion panels with a persistent left sidebar navigation listing all configuration sections
+  - Active section highlighted with red left-border indicator matching the brand accent colour
+  - Error indicators (⚠) shown inline on sidebar items when a section has invalid form fields
+  - Save and Reset buttons anchored to the bottom of the sidebar, always accessible without scrolling
+  - Loading spinner shown while configuration is fetched and form is built, preventing blank-state flash
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/config.component.ts`, `client/src/app/components/rdio-scanner/admin/config/config.component.html`, `client/src/app/components/rdio-scanner/admin/config/config.component.scss`
+
+- **Config Performance Improvements**
+  - Parallelized `getConfig` and `loadAlerts` API calls using `Promise.all`
+  - Deferred form initialization with `setTimeout(0)` so the loading spinner renders before the heavy form-build blocks the UI thread
+  - Prevented redundant form rebuilds triggered by WebSocket updates on a pristine form within 500ms of last reset
+  - Deduplicated concurrent `getConfig` calls using a shared `_configPromise` — multiple callers share a single in-flight request
+  - Cached static `Alerts` data in `localStorage` to avoid repeated network requests on every load
+  - Removed unused `loadAlerts()` calls from `ngOnInit` and the service constructor
+  - Files modified: `client/src/app/components/rdio-scanner/admin/admin.service.ts`, `client/src/app/components/rdio-scanner/admin/config/config.component.ts`
+
+- **Systems Section — New Sidebar Architecture**
+  - Systems expand in the Config sidebar to list every configured system individually
+  - Clicking a system in the sidebar navigates to a full-page detail view for that system
+  - Systems overview page displays all systems in a sortable, drag-and-drop `mat-table` with columns for ID, label, type, talkgroup count, site count, and an edit button
+  - System detail view uses a settings grid for core system properties, with separate `mat-table`s for Talkgroups, Sites, and Units — all visible without expansion
+  - Talkgroups table supports inline editing, bulk group/tag assignment, drag-and-drop reordering, group chips, and tag labels
+  - Sites and Units tables support inline editing and drag-and-drop reordering
+  - Removed all pagination from systems, talkgroups, sites, and units — all records load at once
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/systems/systems.component.ts`, `client/src/app/components/rdio-scanner/admin/config/systems/systems.component.html`, `client/src/app/components/rdio-scanner/admin/config/systems/systems.component.scss`, `client/src/app/components/rdio-scanner/admin/config/systems/system/system.component.ts`, `client/src/app/components/rdio-scanner/admin/config/systems/system/system.component.html`, `client/src/app/components/rdio-scanner/admin/config/systems/system/system.component.scss`
+
+- **Users Section — Table Layout**
+  - Replaced `mat-accordion` expansion panels with a `mat-table` showing all user details inline
+  - Columns: avatar (initials), username/email, group, status, PIN, last login, and actions menu
+  - Clicking a row expands an inline edit form for that user below the row; all other rows remain visible
+  - Actions menu (⋮) provides Transfer, Reset Password, Test Push, Resend Verification, and Delete
+  - Sortable columns via `mat-sort-header`
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/users/users.component.ts`, `client/src/app/components/rdio-scanner/admin/config/users/users.component.html`, `client/src/app/components/rdio-scanner/admin/config/users/users.component.scss`
+
+- **API Keys Section — Table Layout**
+  - Replaced `mat-accordion` expansion panels with a `mat-table` showing all key data inline
+  - Columns: drag handle, status chip (toggleable active/disabled), name (inline editable), masked API key with show/hide toggle and copy button, systems access badge, and delete
+  - Drag-and-drop reordering preserves key visibility state
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/apikeys/apikeys.component.ts`, `client/src/app/components/rdio-scanner/admin/config/apikeys/apikeys.component.html`, `client/src/app/components/rdio-scanner/admin/config/apikeys/apikeys.component.scss`
+
+- **Groups Section — Table Layout**
+  - Replaced `mat-accordion` expansion panels with a `mat-table` showing all groups inline
+  - Columns: drag handle, group label (inline editable), usage chip (unused/in-use), ID, and delete
+  - Drag-and-drop reordering
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/groups/groups.component.ts`, `client/src/app/components/rdio-scanner/admin/config/groups/groups.component.html`, `client/src/app/components/rdio-scanner/admin/config/groups/groups.component.scss`
+
+- **Tags Section — Table Layout**
+  - Replaced `mat-accordion` expansion panels with a `mat-table` showing all tags inline
+  - Columns: drag handle, colour swatch (with live preview in select trigger), label (inline editable), usage chip, and delete
+  - Inline `⚠ Required` placeholder replaces separate error message to prevent row height shift
+  - Drag-and-drop reordering
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/tags/tags.component.ts`, `client/src/app/components/rdio-scanner/admin/config/tags/tags.component.html`, `client/src/app/components/rdio-scanner/admin/config/tags/tags.component.scss`
+
+- **Keyword Lists Section — Card Layout**
+  - Replaced `mat-accordion` expansion panels with a card-based layout
+  - Each card shows the list name, keyword count badge, optional description, and a preview of the first 12 keywords as chips with a "+N more" indicator
+  - Clicking Edit expands the card in-place with an inline keyword input field — press Enter or click Add to add keywords without a browser `prompt()` dialog
+  - Import from file (`.txt` or `.json`) remains available in edit mode
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/keyword-lists/keyword-lists.component.ts`, `client/src/app/components/rdio-scanner/admin/config/keyword-lists/keyword-lists.component.html`, `client/src/app/components/rdio-scanner/admin/config/keyword-lists/keyword-lists.component.scss`
+
+- **Tools Section — Sidebar Navigation**
+  - Replaced `mat-accordion` expansion panels with a left sidebar navigation identical in layout to the Config section
+  - 8 tools listed: Import Talkgroups, Import Units, Radio Reference, Admin Password, Import/Export Config, Config Sync, Stripe Customer Sync, Purge Data
+  - Section header shows icon, tool name, and a short description on tool selection
+  - Responsive: collapses to a compact horizontal icon row on screens ≤ 600 px
+  - Files modified: `client/src/app/components/rdio-scanner/admin/tools/tools.component.ts`, `client/src/app/components/rdio-scanner/admin/tools/tools.component.html`, `client/src/app/components/rdio-scanner/admin/tools/tools.component.scss`
+
+- **Docker environment awareness**
+  - `dirwatch` configuration section is automatically hidden when the application is running inside a Docker container
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/config.component.ts`
+
+- **`central-management/` added to `.gitignore`**
+  - Central management folder excluded from the main repository tracking
+  - Files modified: `.gitignore`
+
+### Bug Fixes
+
+- **"Invalid Date" shown for Registered and Last Login in Users table**
+  - Dates were being read from a parent `FormArray` which stored them in a non-parseable format rather than RFC 3339 strings from the API
+  - Fixed by always calling `loadUsers(true)` on `ngOnInit` to force a fresh API fetch with properly formatted date strings
+  - Hardened `formatDate()` to check `isNaN(date.getTime())` and years before 1970 (Go zero-time), returning `'Never'` instead of `'Invalid Date'`
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/users/users.component.ts`
+
+- **Dark theme — hardcoded light colours overriding admin dark theme**
+  - Systematically identified and replaced hardcoded light-theme `background-color`, `color`, and `border` values across 13+ files
+  - Affected components: User Registration, Password, Config Sync, Options, Users, System, System Health, Radio Reference Import, Stripe Sync, Purge Data, User Groups, Keyword Lists
+  - Inline styles updated to dark-theme compatible values; SCSS files rewritten with dark backgrounds and lighter text colours
+  - Files modified: `user-registration.component.html`, `user-registration.component.scss`, `password.component.html`, `config-sync.component.html`, `options.component.html`, `users.component.scss`, `system.component.html`, `system-health.component.html`, `system-health.component.scss`, `radio-reference-import.component.html`, `radio-reference-import.component.scss`, `stripe-sync.component.scss`, `purge-data.component.scss`, `user-groups.component.scss`
+
+- **`login.component.scss` — `color: #555` invisible on dark background**
+  - `.wait-text` colour changed from `#555` to `#999` for readability on the dark login card
+  - Files modified: `client/src/app/components/rdio-scanner/admin/login/login.component.scss`
+
+- **Tags table — text not vertically centred, required error shifting row height**
+  - Wrapped `mat-cell` content in `<div class="cell-content">` with `display: flex; align-items: center` for consistent vertical alignment
+  - Removed `<mat-error>` from the label field; replaced with a dynamic `placeholder="⚠ Required"` shown only when the field is touched and invalid, eliminating the subscript space reservation that caused the row shift
+  - Added `::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }` to suppress reserved subscript space
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/tags/tags.component.html`, `client/src/app/components/rdio-scanner/admin/config/tags/tags.component.scss`
+
+- **Tools sidebar rendering as horizontal bar instead of vertical sidebar**
+  - Root cause: `ViewEncapsulation.None` was missing from the `@Component` decorator; without it Angular's emulated view encapsulation scoped and broke the flex-direction styles
+  - Added `encapsulation: ViewEncapsulation.None` to match the pattern used by `config.component.ts`
+  - Files modified: `client/src/app/components/rdio-scanner/admin/tools/tools.component.ts`
+
+### Copyright
+
+- Added Thinline Dynamic Solutions copyright headers to all files created or significantly modified during this release cycle (33 files)
+- Chrystian Huot's original copyright is retained at the top of all files derived from the upstream rdio-scanner codebase
+- Files modified: all `.ts`, `.html`, and `.scss` files listed in the sections above
+
 ## Version 7.0 Beta 9.5 - Released TBD
 
 ### Bug Fixes

@@ -1,6 +1,7 @@
 /*
  * *****************************************************************************
  * Copyright (C) 2019-2024 Chrystian Huot <chrystian@huot.qc.ca>
+ * Copyright (C) 2025 Thinline Dynamic Solutions
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -307,6 +308,11 @@ export interface Options {
     turnstileEnabled?: boolean;
     turnstileSiteKey?: string;
     turnstileSecretKey?: string;
+    // Centralized Management Integration
+    centralManagementEnabled?: boolean;
+    centralManagementURL?: string;
+    centralManagementAPIKey?: string;
+    centralManagementServerName?: string;
 }
 
 export interface ToneImportResponse {
@@ -487,7 +493,21 @@ export class RdioScannerAdminService implements OnDestroy {
         }
     }
 
+    // Deduplication: if a getConfig HTTP request is already in-flight, reuse the same promise
+    // instead of firing a second parallel request that returns the same data.
+    private _getConfigPromise: Promise<Config> | undefined;
+
     async getConfig(): Promise<Config> {
+        if (this._getConfigPromise) {
+            return this._getConfigPromise;
+        }
+        this._getConfigPromise = this._fetchConfig().finally(() => {
+            this._getConfigPromise = undefined;
+        });
+        return this._getConfigPromise;
+    }
+
+    private async _fetchConfig(): Promise<Config> {
         try {
             const res = await firstValueFrom(this.ngHttpClient.get<{
                 config: Config;
@@ -517,7 +537,7 @@ export class RdioScannerAdminService implements OnDestroy {
         }
 
         return {};
-    }
+    } // end _fetchConfig
 
     async getLogs(options: LogsQueryOptions): Promise<LogsQuery | undefined> {
         try {
@@ -568,13 +588,30 @@ export class RdioScannerAdminService implements OnDestroy {
     }
 
     async loadAlerts(): Promise<void> {
+        // Alerts are hardcoded oscillator beep patterns that NEVER change at runtime.
+        // In-memory cache: skip if already loaded this session.
+        if (this.Alerts) {
+            return;
+        }
+        // Persistent cache: they're baked into the server binary so the data
+        // is identical on every fetch. Serve from localStorage to avoid the
+        // HTTP round-trip entirely on subsequent page loads.
+        const ALERTS_CACHE_KEY = 'rdio-scanner-admin-alerts-cache';
+        try {
+            const cached = localStorage.getItem(ALERTS_CACHE_KEY);
+            if (cached) {
+                this.Alerts = JSON.parse(cached);
+                return;
+            }
+        } catch (_) { /* ignore localStorage errors */ }
+
         try {
             this.Alerts = await firstValueFrom(this.ngHttpClient.get<Alerts>(
                 this.getUrl(url.alerts),
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
-
-
+            // Persist for future page loads
+            try { localStorage.setItem(ALERTS_CACHE_KEY, JSON.stringify(this.Alerts)); } catch (_) { /* ignore */ }
         } catch (error) {
             this.errorHandler(error);
         }
@@ -1196,6 +1233,11 @@ export class RdioScannerAdminService implements OnDestroy {
             turnstileEnabled: this.ngFormBuilder.control(options?.turnstileEnabled || false),
             turnstileSiteKey: this.ngFormBuilder.control(options?.turnstileSiteKey || ''),
             turnstileSecretKey: this.ngFormBuilder.control(options?.turnstileSecretKey || ''),
+            // Centralized Management Integration
+            centralManagementEnabled: this.ngFormBuilder.control(options?.centralManagementEnabled || false),
+            centralManagementURL: this.ngFormBuilder.control(options?.centralManagementURL || ''),
+            centralManagementAPIKey: this.ngFormBuilder.control(options?.centralManagementAPIKey || ''),
+            centralManagementServerName: this.ngFormBuilder.control(options?.centralManagementServerName || ''),
         });
     }
 

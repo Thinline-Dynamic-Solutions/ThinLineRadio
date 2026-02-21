@@ -1,6 +1,7 @@
 /*
  * *****************************************************************************
  * Copyright (C) 2019-2024 Chrystian Huot <chrystian@huot.qc.ca>
+ * Copyright (C) 2025 Thinline Dynamic Solutions
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,10 +19,9 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input, QueryList, ViewChildren } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { FormArray, FormGroup } from '@angular/forms';
-import { MatExpansionPanel } from '@angular/material/expansion';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
 import { RdioScannerAdminSystemsSelectComponent } from '../systems/select/select.component';
@@ -29,19 +29,23 @@ import { RdioScannerAdminSystemsSelectComponent } from '../systems/select/select
 @Component({
     selector: 'rdio-scanner-admin-apikeys',
     templateUrl: './apikeys.component.html',
+    styleUrls: ['./apikeys.component.scss'],
 })
 export class RdioScannerAdminApikeysComponent {
     @Input() form: FormArray | undefined;
+
+    displayedColumns: string[] = ['drag', 'status', 'ident', 'key', 'access', 'actions'];
+
+    // Per-row key visibility state
+    keyVisible: boolean[] = [];
 
     get apikeys(): FormGroup[] {
         return this.form?.controls
             .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
     }
 
-    @ViewChildren(MatExpansionPanel) private panels: QueryList<MatExpansionPanel> | undefined;
-
     constructor(
-        private adminService: RdioScannerAdminService, 
+        private adminService: RdioScannerAdminService,
         private matDialog: MatDialog,
         private snackBar: MatSnackBar
     ) { }
@@ -55,36 +59,16 @@ export class RdioScannerAdminApikeysComponent {
         apikey.markAllAsTouched();
 
         this.form?.insert(0, apikey);
+        this.keyVisible.unshift(true); // Show new key's value by default
 
         this.form?.markAsDirty();
     }
 
-    closeAll(): void {
-        this.panels?.forEach((panel) => panel.close());
-    }
+    remove(index: number): void {
+        this.form?.removeAt(index);
+        this.keyVisible.splice(index, 1);
 
-    copy(inputElement: HTMLInputElement): void {
-        const value = inputElement.value;
-        if (!value) {
-            this.snackBar.open('No API key to copy', 'Close', { duration: 3000 });
-            return;
-        }
-
-        navigator.clipboard.writeText(value).then(() => {
-            this.snackBar.open('API key copied to clipboard', 'Close', { duration: 3000 });
-        }).catch(err => {
-            console.error('Failed to copy API key:', err);
-            // Fallback to older method
-            try {
-                inputElement.select();
-                document.execCommand('copy');
-                inputElement.setSelectionRange(0, 0);
-                this.snackBar.open('API key copied to clipboard', 'Close', { duration: 3000 });
-            } catch (fallbackErr) {
-                console.error('Fallback copy also failed:', fallbackErr);
-                this.snackBar.open('Failed to copy API key. Please copy manually.', 'Close', { duration: 5000 });
-            }
-        });
+        this.form?.markAsDirty();
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
@@ -93,14 +77,12 @@ export class RdioScannerAdminApikeysComponent {
 
             event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
 
+            // Sync visibility array
+            const vis = this.keyVisible.splice(event.previousIndex, 1);
+            this.keyVisible.splice(event.currentIndex, 0, ...vis);
+
             this.form?.markAsDirty();
         }
-    }
-
-    remove(index: number): void {
-        this.form?.removeAt(index);
-
-        this.form?.markAsDirty();
     }
 
     select(access: FormGroup): void {
@@ -109,21 +91,53 @@ export class RdioScannerAdminApikeysComponent {
         matDialogRef.afterClosed().subscribe((data) => {
             if (data) {
                 access.get('systems')?.setValue(data);
-
                 access.markAsDirty();
             }
         });
     }
 
-    private uuid() {
+    toggleDisabled(apikey: FormGroup): void {
+        const ctrl = apikey.get('disabled');
+        if (ctrl) {
+            ctrl.setValue(!ctrl.value);
+            apikey.markAsDirty();
+        }
+    }
+
+    toggleKeyVisible(index: number): void {
+        this.keyVisible[index] = !this.keyVisible[index];
+    }
+
+    maskKey(key: string): string {
+        if (!key) return '—';
+        // Show first 8 chars then mask the rest: xxxxxxxx-••••-••••-••••-••••••••••••
+        const parts = key.split('-');
+        if (parts.length === 5) {
+            return `${parts[0]}-••••-••••-••••-••••••••••••`;
+        }
+        return key.slice(0, 8) + '••••••••••••••••••••••••••••';
+    }
+
+    copyKey(key: string): void {
+        if (!key) {
+            this.snackBar.open('No API key to copy', 'Close', { duration: 3000 });
+            return;
+        }
+
+        navigator.clipboard.writeText(key).then(() => {
+            this.snackBar.open('API key copied to clipboard', 'Close', { duration: 3000 });
+        }).catch(() => {
+            this.snackBar.open('Failed to copy. Please copy manually.', 'Close', { duration: 5000 });
+        });
+    }
+
+    private uuid(): string {
         let dt = new Date().getTime();
 
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
             const r = (dt + Math.random() * 16) % 16 | 0;
-
             dt = Math.floor(dt / 16);
-
-            return (c == 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
     }
 }

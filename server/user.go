@@ -41,6 +41,7 @@ type User struct {
 	LastName             string
 	ZipCode              string
 	Systems              string
+	Talkgroups           string // JSON array of talkgroup IDs or "*" for all
 	Delay                int
 	SystemDelays         string
 	TalkgroupDelays      string
@@ -106,6 +107,7 @@ func NewUser(email, password string) *User {
 		CreatedAt:            fmt.Sprintf("%d", time.Now().Unix()), // Initialize with current timestamp
 		LastLogin:            "0",                                   // 0 means never logged in
 		Systems:              "",
+		Talkgroups:           "",
 		Delay:                0,
 		SystemDelays:         "",
 		TalkgroupDelays:      "",
@@ -585,7 +587,7 @@ func (users *Users) Read(db *Database) error {
 	users.users = make(map[uint64]*User)
 	users.pins = make(map[string]*User)
 
-	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("systemAdmin", false), "resetCode", "resetCodeExpires", "accountExpiresAt" FROM "users"`)
+	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("systemAdmin", false), "resetCode", "resetCodeExpires", "accountExpiresAt" FROM "users"`)
 	if err != nil {
 		return formatError(err, "")
 	}
@@ -593,7 +595,7 @@ func (users *Users) Read(db *Database) error {
 
 	for rows.Next() {
 		user := &User{}
-		var systems, systemDelays, talkgroupDelays sql.NullString
+		var systems, talkgroups, systemDelays, talkgroupDelays sql.NullString
 		var pin sql.NullString
 		var pinExpiresAt sql.NullInt64
 		var connectionLimit sql.NullInt64
@@ -606,7 +608,7 @@ func (users *Users) Read(db *Database) error {
 		var resetCodeExpires sql.NullInt64
 		var accountExpiresAt sql.NullInt64
 
-		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &systemAdmin, &resetCode, &resetCodeExpires, &accountExpiresAt)
+		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &talkgroups, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &systemAdmin, &resetCode, &resetCodeExpires, &accountExpiresAt)
 		if err != nil {
 			return formatError(err, "")
 		}
@@ -623,6 +625,9 @@ func (users *Users) Read(db *Database) error {
 
 		if systems.Valid {
 			user.Systems = systems.String
+		}
+		if talkgroups.Valid {
+			user.Talkgroups = talkgroups.String
 		}
 		if systemDelays.Valid {
 			user.SystemDelays = systemDelays.String
@@ -694,6 +699,7 @@ func (users *Users) Write(db *Database) error {
 	for _, user := range users.users {
 		// Use empty strings instead of NULL for NOT NULL columns
 		systems := user.Systems
+		talkgroups := user.Talkgroups
 		systemDelays := user.SystemDelays
 		talkgroupDelays := user.TalkgroupDelays
 		settings := user.Settings
@@ -755,8 +761,8 @@ func (users *Users) Write(db *Database) error {
 				accountExpiresAtVal = int64(0)
 			}
 
-		result, err := db.Sql.Exec(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", "systemAdmin", "resetCode", "resetCodeExpires", "accountExpiresAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
-			user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal)
+		result, err := db.Sql.Exec(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", "systemAdmin", "resetCode", "resetCodeExpires", "accountExpiresAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
+			user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal)
 			if err != nil {
 				return formatError(err, "")
 			}
@@ -815,8 +821,8 @@ func (users *Users) Write(db *Database) error {
 				accountExpiresAtVal = int64(0)
 			}
 
-		_, err = db.Sql.Exec(`UPDATE "users" SET "email"=$1, "password"=$2, "pin"=$3, "pinExpiresAt"=$4, "connectionLimit"=$5, "verified"=$6, "verificationToken"=$7, "createdAt"=$8, "lastLogin"=$9, "firstName"=$10, "lastName"=$11, "zipCode"=$12, "systems"=$13, "delay"=$14, "systemDelays"=$15, "talkgroupDelays"=$16, "settings"=$17, "stripeCustomerId"=$18, "stripeSubscriptionId"=$19, "subscriptionStatus"=$20, "userGroupId"=$21, "isGroupAdmin"=$22, "systemAdmin"=$23, "resetCode"=$24, "resetCodeExpires"=$25, "accountExpiresAt"=$26 WHERE "userId"=$27`,
-			user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.Id)
+		_, err = db.Sql.Exec(`UPDATE "users" SET "email"=$1, "password"=$2, "pin"=$3, "pinExpiresAt"=$4, "connectionLimit"=$5, "verified"=$6, "verificationToken"=$7, "createdAt"=$8, "lastLogin"=$9, "firstName"=$10, "lastName"=$11, "zipCode"=$12, "systems"=$13, "talkgroups"=$14, "delay"=$15, "systemDelays"=$16, "talkgroupDelays"=$17, "settings"=$18, "stripeCustomerId"=$19, "stripeSubscriptionId"=$20, "subscriptionStatus"=$21, "userGroupId"=$22, "isGroupAdmin"=$23, "systemAdmin"=$24, "resetCode"=$25, "resetCodeExpires"=$26, "accountExpiresAt"=$27 WHERE "userId"=$28`,
+			user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.Id)
 			if err != nil {
 				return formatError(err, "")
 			}
@@ -953,8 +959,8 @@ func (users *Users) SaveNewUser(user *User, db *Database) error {
 	}
 
 	// Insert user with all fields including systems, delays, settings, and Stripe data
-	err := db.Sql.QueryRow(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "accountExpiresAt", "userGroupId", "isGroupAdmin", "systemAdmin") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING "userId"`,
-		user.Email, user.Password, user.Pin, user.PinExpiresAt, user.ConnectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.AccountExpiresAt, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin).Scan(&userId)
+	err := db.Sql.QueryRow(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "accountExpiresAt", "userGroupId", "isGroupAdmin", "systemAdmin") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING "userId"`,
+		user.Email, user.Password, user.Pin, user.PinExpiresAt, user.ConnectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.AccountExpiresAt, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin).Scan(&userId)
 	if err != nil {
 		return formatError(err, "")
 	}

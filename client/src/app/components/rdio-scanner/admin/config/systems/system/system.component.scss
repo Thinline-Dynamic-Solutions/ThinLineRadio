@@ -1,0 +1,472 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
+// ─── System Header ────────────────────────────────────────────────────────────
+.system-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #2a2a2a;
+
+    .system-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        > mat-icon:first-child {
+            font-size: 32px;
+            width: 32px;
+            height: 32px;
+            color: #cc0000;
+        }
+
+        h3 {
+            margin: 0 0 2px;
+            font-size: 20px;
+            font-weight: 600;
+            color: #eee;
+        }
+
+        .system-subtitle {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .header-error {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+        }
+    }
+}
+
+// ─── Settings Card ────────────────────────────────────────────────────────────
+.settings-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    padding: 16px 20px 20px;
+    margin-bottom: 24px;
+
+    .section-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 16px;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #888;
+
+        mat-icon {
+            font-size: 15px;
+            width: 15px;
+            height: 15px;
+        }
+    }
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px 20px;
+    align-items: start;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &--wide {
+        grid-column: span 2;
+    }
+
+    &--toggle {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 0;
+    }
+}
+
+.field-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+}
+
+.toggle-hint {
+    color: #666;
+    margin-left: 4px;
+}
+
+.compact-field {
+    width: 100%;
+
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+        margin-top: 2px;
+    }
+}
+
+// ─── Sub-sections (Talkgroups / Sites / Units) ────────────────────────────────
+.sub-section {
+    margin-bottom: 28px;
+}
+
+.sub-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.sub-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    mat-icon:first-child {
+        color: #cc0000;
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+    }
+
+    h4 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        color: #ddd;
+    }
+
+    .section-error {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+    }
+}
+
+.sub-section-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.count-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: rgba(204, 0, 0, 0.15);
+    color: #ff6666;
+    border: 1px solid rgba(204, 0, 0, 0.3);
+    border-radius: 11px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+// ─── Search bar ───────────────────────────────────────────────────────────────
+.table-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+
+    .search-field {
+        flex: 1;
+        max-width: 320px;
+
+        ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+    }
+
+    .search-count { color: #888; }
+}
+
+// ─── Bulk toolbar ─────────────────────────────────────────────────────────────
+.bulk-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    margin-bottom: 10px;
+
+    .selection-count { color: #888; font-size: 12px; }
+
+    .bulk-select {
+        min-width: 160px;
+
+        ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+    }
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+.sub-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+    color: #555;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed #2a2a2a;
+    border-radius: 8px;
+
+    mat-icon {
+        font-size: 22px;
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+    }
+
+    p { margin: 0; }
+}
+
+// ─── Tables ───────────────────────────────────────────────────────────────────
+.table-wrapper {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a2a;
+}
+
+.data-table {
+    width: 100%;
+    background: transparent;
+
+    .mat-mdc-header-row {
+        background: #1a1a1a;
+        border-bottom: 1px solid #2a2a2a;
+        min-height: 40px;
+    }
+
+    .mat-mdc-header-cell {
+        color: #777;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: none;
+        padding: 0 10px;
+    }
+
+    .data-row {
+        cursor: pointer;
+        border-bottom: 1px solid #1e1e1e;
+        transition: background 0.1s ease;
+        min-height: 44px;
+
+        &:last-of-type { border-bottom: none; }
+        &:hover { background: rgba(255, 255, 255, 0.03); }
+
+        &.row-expanded {
+            background: rgba(204, 0, 0, 0.06);
+            border-bottom: none;
+        }
+
+        .mat-mdc-cell {
+            border-bottom: none;
+            padding: 8px 10px;
+            vertical-align: middle;
+        }
+
+        // CDK drag states
+        &.cdk-drag-preview {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+        &.cdk-drag-placeholder { opacity: 0.15; }
+    }
+
+    // Expanded detail row
+    .detail-row {
+        border-bottom: 1px solid #2a2a2a;
+
+        &.row-hidden {
+            display: none;
+        }
+
+        .mat-mdc-cell {
+            border-bottom: none;
+            padding: 0;
+        }
+    }
+}
+
+// ─── Table: special columns ───────────────────────────────────────────────────
+.drag-col  { width: 32px; padding: 0 4px !important; }
+.select-col { width: 40px; padding: 0 4px !important; }
+.actions-col {
+    width: 88px;
+    text-align: right;
+    padding-right: 6px !important;
+    white-space: nowrap;
+}
+
+.drag-handle {
+    color: #444;
+    cursor: grab;
+    display: block;
+    font-size: 20px;
+    &:active { cursor: grabbing; }
+    &:hover  { color: #888; }
+}
+
+// ─── Cell content helpers ─────────────────────────────────────────────────────
+.id-code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    color: #999;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #2a2a2a;
+}
+
+.tg-label {
+    font-weight: 500;
+    color: #e0e0e0;
+    font-size: 13px;
+}
+
+.tg-name {
+    color: #aaa;
+    font-size: 12px;
+}
+
+.dim-value { color: #888; font-size: 13px; }
+.no-value  { color: #444; font-size: 12px; }
+
+.row-error {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.active-edit { color: #cc0000 !important; }
+
+// ─── Group/Tag chips ──────────────────────────────────────────────────────────
+.chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.mini-chip {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(0, 120, 212, 0.12);
+    color: #64b5f6;
+    border: 1px solid rgba(0, 120, 212, 0.2);
+    white-space: nowrap;
+}
+
+.tag-chip {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(76, 175, 80, 0.12);
+    color: #81c784;
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    white-space: nowrap;
+}
+
+.preferred-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(255, 193, 7, 0.1);
+    color: #ffd54f;
+    border: 1px solid rgba(255, 193, 7, 0.25);
+
+    mat-icon {
+        font-size: 12px;
+        width: 12px;
+        height: 12px;
+    }
+}
+
+.range-value {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    color: #888;
+}
+
+// ─── Expanded form ────────────────────────────────────────────────────────────
+.expanded-form-wrapper {
+    padding: 16px 20px 20px;
+    background: rgba(0, 0, 0, 0.15);
+    border-top: 1px solid #2a2a2a;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+.table-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 16px;
+    background: #1a1a1a;
+    border-top: 1px solid #2a2a2a;
+    color: #888;
+}
+
+// ─── Responsive ───────────────────────────────────────────────────────────────
+@media (max-width: 720px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-field--wide {
+        grid-column: span 1;
+    }
+
+    .talkgroups-table {
+        .mat-mdc-header-cell:is([matColumnDef="name"]),
+        .mat-mdc-cell:is([matColumnDef="name"]) {
+            display: none;
+        }
+    }
+}

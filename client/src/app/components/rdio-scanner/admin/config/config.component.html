@@ -1,117 +1,282 @@
-<form *ngIf="form" autocomplete="off" [formGroup]="form">
-    <mat-accordion displayMode="flat">
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
+<div class="config-layout">
+
+    <!-- ── Left Sidebar Navigation ──────────────────────────── -->
+    <nav class="config-sidebar">
+        <div class="sidebar-section-label">Configuration Sections</div>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'user-registration'"
+                (click)="setSection('user-registration')">
+            <mat-icon>person_add</mat-icon>
+            <span>User Registration</span>
+            <mat-icon *ngIf="form?.get('options')?.invalid" class="error-dot" color="warn">error</mat-icon>
+        </button>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'user-groups'"
+                (click)="setSection('user-groups')">
+            <mat-icon>group_work</mat-icon>
+            <span>User Groups</span>
+        </button>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'users'"
+                (click)="setSection('users')">
+            <mat-icon>people</mat-icon>
+            <span>Users</span>
+        </button>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'apikeys'"
+                (click)="setSection('apikeys')">
+            <mat-icon>vpn_key</mat-icon>
+            <span>API Keys</span>
+            <mat-icon *ngIf="form?.get('apikey')?.invalid" class="error-dot" color="warn">error</mat-icon>
+        </button>
+
+        <button type="button" class="sidebar-item" *ngIf="!docker"
+                [class.active]="activeSection === 'dirwatch'"
+                (click)="setSection('dirwatch')">
+            <mat-icon>folder</mat-icon>
+            <span>Dirwatch</span>
+            <mat-icon *ngIf="form?.get('dirwatch')?.invalid" class="error-dot" color="warn">error</mat-icon>
+        </button>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'downstreams'"
+                (click)="setSection('downstreams')">
+            <mat-icon>share</mat-icon>
+            <span>Downstreams</span>
+            <mat-icon *ngIf="form?.get('downstreams')?.invalid" class="error-dot" color="warn">error</mat-icon>
+        </button>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'groups'"
+                (click)="setSection('groups')">
+            <mat-icon>workspaces</mat-icon>
+            <span>Groups</span>
+            <mat-icon *ngIf="form?.get('groups')?.invalid" class="error-dot" color="warn">error</mat-icon>
+        </button>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'options'"
+                (click)="setSection('options')">
+            <mat-icon>tune</mat-icon>
+            <span>Options</span>
+            <mat-icon *ngIf="form?.get('options')?.invalid" class="error-dot" color="warn">error</mat-icon>
+        </button>
+
+        <!-- ── Systems expandable nav group ── -->
+        <div class="sidebar-nav-group">
+            <button type="button" class="sidebar-item sidebar-group-toggle"
+                    [class.active]="activeSection === 'systems' || activeSection === 'system-detail'"
+                    (click)="toggleSystemsSection()">
+                <mat-icon>podcasts</mat-icon>
+                <span>Systems</span>
+                <div class="group-toggle-right">
+                    <mat-icon *ngIf="form?.get('systems')?.invalid" class="error-dot" color="warn">error</mat-icon>
+                    <mat-icon class="expand-chevron" [class.open]="systemsNavExpanded">expand_more</mat-icon>
+                </div>
+            </button>
+
+            <div class="sidebar-sub-nav" [class.visible]="systemsNavExpanded">
+                <!-- Add System -->
+                <button type="button" class="sidebar-sub-item add-system-btn" (click)="addNewSystem()">
+                    <mat-icon>add_circle_outline</mat-icon>
+                    <span>Add System</span>
+                </button>
+
+                <!-- Individual systems -->
+                <button type="button" class="sidebar-sub-item"
+                        *ngFor="let sys of systemsList"
+                        [class.active]="activeSection === 'system-detail' && activeSystemForm === sys"
+                        (click)="selectSystem(sys)">
+                    <mat-icon class="system-icon" [class.has-error]="sys.invalid">
+                        {{ sys.invalid ? 'error' : 'radio' }}
+                    </mat-icon>
+                    <span>{{ sys.value.label?.trim() || ('Sys ' + sys.value.systemRef) || 'New System' }}</span>
+                </button>
+
+                <div *ngIf="!systemsList?.length" class="sidebar-sub-empty">
+                    No systems configured
+                </div>
+            </div>
+        </div>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'tags'"
+                (click)="setSection('tags')">
+            <mat-icon>sell</mat-icon>
+            <span>Tags</span>
+            <mat-icon *ngIf="form?.get('tags')?.invalid" class="error-dot" color="warn">error</mat-icon>
+        </button>
+
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'keyword-lists'"
+                (click)="setSection('keyword-lists')">
+            <mat-icon>format_list_bulleted</mat-icon>
+            <span>Keyword Lists</span>
+        </button>
+
+        <!-- Save / Reset at bottom of sidebar -->
+        <div class="sidebar-actions">
+            <button type="button" mat-raised-button class="btn-reset"
+                    [disabled]="loading || !form || form.disabled || form.pristine"
+                    (click)="reset()">
+                <mat-icon>undo</mat-icon>
+                Reset
+            </button>
+            <button type="button" mat-raised-button color="primary" class="btn-save"
+                    [disabled]="loading || !form || form.disabled || form.pristine || !form.valid"
+                    (click)="save()">
+                <mat-icon>save</mat-icon>
+                Save
+            </button>
+        </div>
+    </nav>
+
+    <!-- ── Right Content Area ────────────────────────────────── -->
+    <div class="config-content">
+
+        <!-- Loading state: shown until config is fetched and form is built -->
+        <div *ngIf="loading" class="config-loading">
+            <mat-spinner diameter="48"></mat-spinner>
+            <p>Loading configuration…</p>
+        </div>
+
+        <form *ngIf="!loading && form" autocomplete="off" [formGroup]="form" class="config-form-body">
+        <ng-container [ngSwitch]="activeSection">
+
+            <ng-container *ngSwitchCase="'user-registration'">
+                <div class="section-header">
                     <mat-icon>person_add</mat-icon>
-                    User Registration
-                    <mat-icon *ngIf="form?.get('options')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-user-registration [form]="options"></rdio-scanner-admin-user-registration>
-        </mat-expansion-panel>
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>User Registration</h3>
+                </div>
+                <rdio-scanner-admin-user-registration [form]="options"></rdio-scanner-admin-user-registration>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'user-groups'">
+                <div class="section-header">
                     <mat-icon>group_work</mat-icon>
-                    User Groups
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-user-groups [form]="userGroups"></rdio-scanner-admin-user-groups>
-        </mat-expansion-panel>
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>User Groups</h3>
+                </div>
+                <rdio-scanner-admin-user-groups [form]="userGroups"></rdio-scanner-admin-user-groups>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'users'">
+                <div class="section-header">
                     <mat-icon>people</mat-icon>
-                    Users
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-users [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value" [form]="users"></rdio-scanner-admin-users>
-        </mat-expansion-panel>
-        <mat-expansion-panel (afterCollapse)="apikeyComponent.closeAll()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>Users</h3>
+                </div>
+                <rdio-scanner-admin-users
+                    [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value"
+                    [form]="users">
+                </rdio-scanner-admin-users>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'apikeys'">
+                <div class="section-header">
                     <mat-icon>vpn_key</mat-icon>
-                    ApiKey
-                    <mat-icon *ngIf="form?.get('apikey')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys"></rdio-scanner-admin-apikeys>
-        </mat-expansion-panel>
-        <mat-expansion-panel *ngIf="!docker" (afterCollapse)="dirwatchComponent.closeAll()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>API Keys</h3>
+                </div>
+                <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys"></rdio-scanner-admin-apikeys>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'dirwatch'">
+                <div class="section-header">
                     <mat-icon>folder</mat-icon>
-                    Dirwatch
-                    <mat-icon *ngIf="form?.get('dirwatch')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch"></rdio-scanner-admin-dirwatch>
-        </mat-expansion-panel>
-        <mat-expansion-panel (afterCollapse)="downstreamsComponent.closeAll()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>Dirwatch</h3>
+                </div>
+                <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch"></rdio-scanner-admin-dirwatch>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'downstreams'">
+                <div class="section-header">
                     <mat-icon>share</mat-icon>
-                    Downstreams
-                    <mat-icon *ngIf="form?.get('downstreams')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams"></rdio-scanner-admin-downstreams>
-        </mat-expansion-panel>
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>Downstreams</h3>
+                </div>
+                <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams"></rdio-scanner-admin-downstreams>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'groups'">
+                <div class="section-header">
                     <mat-icon>workspaces</mat-icon>
-                    Groups
-                    <mat-icon *ngIf="form?.get('groups')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-groups [form]="groups"></rdio-scanner-admin-groups>
-        </mat-expansion-panel>
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>Groups</h3>
+                </div>
+                <rdio-scanner-admin-groups [form]="groups"></rdio-scanner-admin-groups>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'options'">
+                <div class="section-header">
                     <mat-icon>tune</mat-icon>
-                    Options
-                    <mat-icon *ngIf="form?.get('options')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-options [form]="options"></rdio-scanner-admin-options>
-        </mat-expansion-panel>
-        <mat-expansion-panel (afterCollapse)="systemsComponent.closeAll()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>Options</h3>
+                </div>
+                <rdio-scanner-admin-options [form]="options"></rdio-scanner-admin-options>
+            </ng-container>
+
+            <!-- Systems overview (landing when none selected) -->
+            <ng-container *ngSwitchCase="'systems'">
+                <div class="section-header">
                     <mat-icon>podcasts</mat-icon>
-                    Systems
-                    <mat-icon *ngIf="form?.get('systems')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-systems #systemsComponent [form]="systems"></rdio-scanner-admin-systems>
-        </mat-expansion-panel>
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>Systems</h3>
+                </div>
+                <rdio-scanner-admin-systems
+                    [form]="systems"
+                    (systemSelected)="selectSystem($event)"
+                    (addSystem)="addNewSystem()">
+                </rdio-scanner-admin-systems>
+            </ng-container>
+
+            <!-- Individual system detail view -->
+            <ng-container *ngSwitchCase="'system-detail'">
+                <ng-container *ngIf="activeSystemForm">
+                    <rdio-scanner-admin-system
+                        [form]="activeSystemForm"
+                        [groups]="groupsValue"
+                        [tags]="tagsValue"
+                        [apikeys]="apikeysValue"
+                        (remove)="removeCurrentSystem()">
+                    </rdio-scanner-admin-system>
+                </ng-container>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'tags'">
+                <div class="section-header">
                     <mat-icon>sell</mat-icon>
-                    Tags
-                    <mat-icon *ngIf="form?.get('tags')?.invalid" color="warn">error</mat-icon>
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-tags [form]="tags"></rdio-scanner-admin-tags>
-        </mat-expansion-panel>
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <mat-panel-title>
+                    <h3>Tags</h3>
+                </div>
+                <rdio-scanner-admin-tags [form]="tags"></rdio-scanner-admin-tags>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'keyword-lists'">
+                <div class="section-header">
                     <mat-icon>format_list_bulleted</mat-icon>
-                    Keyword Lists
-                </mat-panel-title>
-            </mat-expansion-panel-header>
-            <rdio-scanner-admin-keyword-lists></rdio-scanner-admin-keyword-lists>
-        </mat-expansion-panel>
-    </mat-accordion>
-    <div class="row bottom">
-        <button type="button" mat-raised-button [disabled]="form.disabled || form.pristine"
-            (click)="reset()">Reset</button>
-        <button type="button" mat-raised-button color="primary"
-            [disabled]="form.disabled || form.pristine || !form.valid" (click)="save()">Save</button>
+                    <h3>Keyword Lists</h3>
+                </div>
+                <rdio-scanner-admin-keyword-lists></rdio-scanner-admin-keyword-lists>
+            </ng-container>
+
+        </ng-container>
+        </form>
+
     </div>
-</form>
+
+</div>

@@ -1,3 +1,21 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
 .purge-data-container {
     padding: 24px;
 
@@ -12,7 +30,7 @@
 
         p {
             margin: 0;
-            color: rgba(0, 0, 0, 0.6);
+            color: #aaa;
         }
     }
 
@@ -22,7 +40,7 @@
         gap: 12px;
         padding: 16px;
         margin-bottom: 24px;
-        background-color: #fff3e0;
+        background-color: rgba(255, 152, 0, 0.1);
         border: 2px solid #ff9800;
         border-radius: 4px;
 
@@ -36,7 +54,7 @@
 
         .warning-text {
             flex: 1;
-            color: #e65100;
+            color: #ffcc80;
             font-size: 14px;
             line-height: 1.5;
 
@@ -53,9 +71,9 @@
 
     .purge-section {
         padding: 20px;
-        border: 1px solid rgba(0, 0, 0, 0.12);
+        border: 1px solid #333;
         border-radius: 4px;
-        background-color: #fafafa;
+        background-color: #242424;
 
         h4 {
             margin: 0 0 8px 0;
@@ -65,7 +83,7 @@
 
         p {
             margin: 0 0 16px 0;
-            color: rgba(0, 0, 0, 0.6);
+            color: #aaa;
         }
 
         button {
@@ -94,7 +112,7 @@
 
             .selected-count {
                 font-weight: 500;
-                color: #1976d2;
+                color: #64B5F6;
             }
 
             button {
@@ -124,7 +142,7 @@
 
         p {
             margin: 0 0 16px 0;
-            color: rgba(0, 0, 0, 0.6);
+            color: #aaa;
         }
 
         .full-width {
@@ -148,7 +166,7 @@
     .selected-ids-display {
         margin-top: 24px;
         padding: 16px;
-        background-color: #f5f5f5;
+        background-color: #242424;
         border-radius: 4px;
 
         h4 {
@@ -165,4 +183,3 @@
     }
 }
 }
-

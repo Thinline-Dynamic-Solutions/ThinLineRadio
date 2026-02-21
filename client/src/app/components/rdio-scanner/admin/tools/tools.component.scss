@@ -1,0 +1,193 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
+/* ── Tools layout: sidebar + content ──────────────────────── */
+rdio-scanner-admin-tools {
+
+    .tools-layout {
+        display: flex;
+        flex-direction: row;
+        gap: 0;
+        min-height: 500px;
+        align-items: flex-start;
+    }
+
+    /* ── Sidebar ───────────────────────────────────────────── */
+    .tools-sidebar {
+        width: 220px;
+        min-width: 220px;
+        flex-shrink: 0;
+        background: #161616;
+        border-right: 1px solid #2a2a2a;
+        border-radius: 0 0 0 8px;
+        padding: 12px 0 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+
+        .sidebar-section-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #777;
+            padding: 4px 16px 10px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            border-left: 3px solid transparent;
+            border-radius: 0;
+            cursor: pointer;
+            text-align: left;
+            font-size: 13.5px;
+            color: #ccc;
+            transition: all 0.15s ease;
+
+            mat-icon {
+                font-size: 18px;
+                width: 18px;
+                height: 18px;
+                flex-shrink: 0;
+                color: #888;
+                transition: color 0.15s;
+            }
+
+            span {
+                flex: 1;
+            }
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.06);
+                color: #fff;
+
+                mat-icon { color: #ccc; }
+            }
+
+            &.active {
+                background: rgba(204, 0, 0, 0.08);
+                border-left-color: #cc0000;
+                color: #fff;
+                font-weight: 600;
+
+                mat-icon { color: #cc0000; }
+            }
+        }
+    }
+
+    /* ── Content area ──────────────────────────────────────── */
+    .tools-content {
+        flex: 1;
+        padding: 20px 24px;
+        min-width: 0;
+
+        .section-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #2a2a2a;
+
+            > mat-icon {
+                color: #cc0000;
+                font-size: 24px;
+                width: 24px;
+                height: 24px;
+                margin-top: 2px;
+                flex-shrink: 0;
+            }
+
+            > div {
+                h3 {
+                    margin: 0 0 3px;
+                    font-size: 17px;
+                    font-weight: 600;
+                    color: #eee;
+                    letter-spacing: 0.3px;
+                }
+
+                .section-subtitle {
+                    margin: 0;
+                    font-size: 12px;
+                    color: #666;
+                }
+            }
+        }
+    }
+}
+
+/* ── Responsive: collapse on small screens ─────────────────── */
+@media (max-width: 900px) {
+    rdio-scanner-admin-tools {
+        .tools-layout {
+            flex-direction: column;
+        }
+
+        .tools-sidebar {
+            width: 100%;
+            min-width: 0;
+            border-right: none;
+            border-bottom: 1px solid #2a2a2a;
+            border-radius: 0;
+            position: static;
+            flex-direction: row;
+            flex-wrap: wrap;
+            padding: 8px 4px;
+            gap: 4px;
+
+            .sidebar-section-label { display: none; }
+
+            .sidebar-item {
+                width: auto;
+                flex: 0 0 auto;
+                padding: 8px 12px;
+                border-left: none;
+                border-bottom: 3px solid transparent;
+                border-radius: 4px 4px 0 0;
+                font-size: 12px;
+
+                span { display: none; }
+
+                mat-icon {
+                    font-size: 20px;
+                    width: 20px;
+                    height: 20px;
+                }
+
+                &.active {
+                    border-left-color: transparent;
+                    border-bottom-color: #cc0000;
+                }
+            }
+        }
+
+        .tools-content {
+            padding: 16px 12px;
+        }
+    }
+}

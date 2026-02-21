@@ -2,15 +2,15 @@
     <p class="mat-body" style="margin-bottom: 12px;">
         <strong>Config Sync</strong>
     </p>
-    <p class="mat-caption" style="margin-bottom: 16px; color: #666;">
+    <p class="mat-caption" style="margin-bottom: 16px; color: #aaa;">
         Automatically sync your configuration to a file location (e.g., Google Drive folder). 
         Each config change will overwrite the same file, and Google Drive will maintain version history automatically.
     </p>
-    
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #f5f5f5; border-radius: 4px; margin-bottom: 24px;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #242424; border-radius: 4px; border: 1px solid #333; margin-bottom: 24px;">
         <div>
             <span class="mat-body">Enable Config Sync</span><br>
-            <span class="mat-caption" style="color: #666;">Automatically sync config changes to the specified folder</span>
+            <span class="mat-caption" style="color: #aaa;">Automatically sync config changes to the specified folder</span>
         </div>
         <mat-slide-toggle 
             color="primary" 
@@ -46,8 +46,8 @@
         </div>
     </form>
 
-    <div *ngIf="!configSyncEnabled" style="padding: 12px; background: #f9f9f9; border-radius: 4px; margin-top: 16px;">
-        <p class="mat-caption" style="color: #666; margin: 0;">
+    <div *ngIf="!configSyncEnabled" style="padding: 12px; background: #242424; border-radius: 4px; border: 1px solid #333; margin-top: 16px;">
+        <p class="mat-caption" style="color: #aaa; margin: 0;">
             Enable config sync above to configure the sync folder path.
         </p>
     </div>

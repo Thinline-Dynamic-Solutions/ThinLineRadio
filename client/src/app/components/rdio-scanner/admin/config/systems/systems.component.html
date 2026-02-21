@@ -1,63 +1,142 @@
-<div class="row top">
-    <p class="mat-body">This is where you define all your systems and talkgroups are defined. Audio files to unknown
-        systems/talkgroups won't be ingested unless the auto populate option is activated. You can also drag and drop
-        systems to rearrange their order.</p>
-    <div>
-        <button type="button" mat-button color="accent" (click)="add()">New system</button>
-        <button type="button" mat-button color="warn" (click)="removeAll()" [disabled]="!form || form.length === 0">
-            Delete all systems
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
+<!-- Systems Overview -->
+<div class="systems-overview">
+
+    <!-- Header -->
+    <div class="overview-header">
+        <div class="overview-intro">
+            <mat-icon>podcasts</mat-icon>
+            <div>
+                <h3>Systems</h3>
+                <p class="mat-caption">Define radio systems and their talkgroups. Select a system from the sidebar to edit it, or add a new one.</p>
+            </div>
+        </div>
+        <div class="overview-actions">
+            <button type="button" mat-raised-button color="primary" (click)="addSystem.emit()">
+                <mat-icon>add</mat-icon>
+                Add System
+            </button>
+            <button type="button" mat-stroked-button color="warn"
+                    [disabled]="!form || form.length === 0"
+                    (click)="removeAll()">
+                <mat-icon>delete_sweep</mat-icon>
+                Delete All
+            </button>
+        </div>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="!systems?.length" class="empty-state">
+        <mat-icon>podcasts</mat-icon>
+        <p class="mat-body">No systems configured</p>
+        <p class="mat-caption">Add a system to get started. Audio from unknown systems won't be ingested unless auto-populate is enabled.</p>
+        <button type="button" mat-raised-button color="primary" (click)="addSystem.emit()">
+            <mat-icon>add</mat-icon>
+            Add First System
         </button>
     </div>
-</div>
 
-<!-- Search Bar -->
-<div class="row" style="margin: 12px 0;">
-    <mat-form-field floatLabel="auto" style="width: 100%;">
-        <mat-label>Search systems</mat-label>
-        <input matInput [value]="systemsSearchTerm" (input)="onSystemsSearchChange($any($event.target).value)" 
-               placeholder="Search by label or ID">
-        <mat-icon matSuffix>search</mat-icon>
-    </mat-form-field>
-</div>
+    <!-- Systems Summary Table -->
+    <div class="table-wrapper" *ngIf="systems?.length">
 
-<!-- Results Count -->
-<div *ngIf="systemsSearchTerm" class="row" style="margin: 0 0 12px 0;">
-    <span class="mat-caption">
-        Showing {{ filteredSystems.length }} of {{ systems.length }} systems
-    </span>
-</div>
+        <!-- Search -->
+        <div class="table-toolbar">
+            <mat-form-field appearance="outline" class="search-field">
+                <mat-label>Search systems</mat-label>
+                <input matInput [value]="systemsSearchTerm"
+                       (input)="onSystemsSearchChange($any($event.target).value)"
+                       placeholder="Search by label or ID">
+                <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+            <span *ngIf="systemsSearchTerm" class="mat-caption result-count">
+                {{ filteredSystems.length }} of {{ systems.length }} systems
+            </span>
+        </div>
 
-<mat-accordion displayMode="flat" cdkDropList [cdkDropListAutoScrollStep]=64 [cdkDropListData]="paginatedSystems" (cdkDropListDropped)="drop($event)">
-    <mat-expansion-panel *ngFor="let system of paginatedSystems; index as i" [formGroup]="system"
-        (afterCollapse)="systemComponent.closeAll()" cdkDrag>
-        <mat-expansion-panel-header>
-            <mat-panel-title>
-                <mat-icon cdkDragHandle>drag_indicator</mat-icon>
-                {{ system.value.label?.trim() || 'NewSystem' }}
-                <mat-icon *ngIf="system.invalid" color="warn" style="margin-left: 8px;">error</mat-icon>
-                <span *ngIf="system.invalid && getFormErrors(system)" class="mat-caption" style="color: #f44336; margin-left: 4px;">
-                    ({{ getFormErrors(system) }})
-                </span>
-            </mat-panel-title>
-        </mat-expansion-panel-header>
-        <rdio-scanner-admin-system #systemComponent [form]="system" [groups]="groups" [tags]="tags" [apikeys]="apikeys" (add)="add()" (remove)="remove(i)">
-        </rdio-scanner-admin-system>
-    </mat-expansion-panel>
-</mat-accordion>
+        <mat-table [dataSource]="filteredSystems" class="systems-table">
 
-<!-- Pagination Controls -->
-<div *ngIf="filteredSystems.length > systemsPageSize" class="row" style="margin: 16px 0; display: flex; justify-content: center; align-items: center; gap: 8px;">
-    <button type="button" mat-icon-button (click)="onSystemsPageChange(0)" [disabled]="systemsPage === 0">
-        <mat-icon>first_page</mat-icon>
-    </button>
-    <button type="button" mat-icon-button (click)="onSystemsPageChange(systemsPage - 1)" [disabled]="systemsPage === 0">
-        <mat-icon>chevron_left</mat-icon>
-    </button>
-    <span class="mat-body">Page {{ systemsPage + 1 }} of {{ systemsTotalPages }}</span>
-    <button type="button" mat-icon-button (click)="onSystemsPageChange(systemsPage + 1)" [disabled]="systemsPage >= systemsTotalPages - 1">
-        <mat-icon>chevron_right</mat-icon>
-    </button>
-    <button type="button" mat-icon-button (click)="onSystemsPageChange(systemsTotalPages - 1)" [disabled]="systemsPage >= systemsTotalPages - 1">
-        <mat-icon>last_page</mat-icon>
-    </button>
+            <!-- System ID Column -->
+            <ng-container matColumnDef="systemRef">
+                <th mat-header-cell *matHeaderCellDef>System ID</th>
+                <td mat-cell *matCellDef="let system">
+                    <code class="sys-id">{{ system.value.systemRef || '—' }}</code>
+                </td>
+            </ng-container>
+
+            <!-- Label Column -->
+            <ng-container matColumnDef="label">
+                <th mat-header-cell *matHeaderCellDef>Label</th>
+                <td mat-cell *matCellDef="let system">
+                    <div class="label-cell">
+                        <span class="sys-label">{{ system.value.label?.trim() || 'Unnamed System' }}</span>
+                        <mat-icon *ngIf="system.invalid" color="warn" class="error-icon"
+                                  matTooltip="This system has validation errors">error</mat-icon>
+                    </div>
+                </td>
+            </ng-container>
+
+            <!-- Type Column -->
+            <ng-container matColumnDef="type">
+                <th mat-header-cell *matHeaderCellDef>Type</th>
+                <td mat-cell *matCellDef="let system">
+                    <span class="type-badge" *ngIf="system.value.type">{{ system.value.type | uppercase }}</span>
+                    <span class="no-type" *ngIf="!system.value.type">—</span>
+                </td>
+            </ng-container>
+
+            <!-- Talkgroups Column -->
+            <ng-container matColumnDef="talkgroups">
+                <th mat-header-cell *matHeaderCellDef>Talkgroups</th>
+                <td mat-cell *matCellDef="let system">
+                    <span class="count-badge">{{ getTalkgroupCount(system) }}</span>
+                </td>
+            </ng-container>
+
+            <!-- Sites Column -->
+            <ng-container matColumnDef="sites">
+                <th mat-header-cell *matHeaderCellDef>Sites</th>
+                <td mat-cell *matCellDef="let system">
+                    <span class="count-badge secondary">{{ getSiteCount(system) }}</span>
+                </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
+                <td mat-cell *matCellDef="let system; let i = index" class="actions-col">
+                    <button type="button" mat-icon-button
+                            (click)="systemSelected.emit(system)"
+                            matTooltip="Edit system">
+                        <mat-icon>edit</mat-icon>
+                    </button>
+                </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+                class="system-row"
+                (click)="systemSelected.emit(row)">
+            </tr>
+
+        </mat-table>
+
+    </div>
+
 </div>

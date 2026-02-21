@@ -1,74 +1,430 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
+/* ── Config layout: sidebar + content ─────────────────────── */
 rdio-scanner-admin-config {
-  .row {
-    align-items: center;
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-between;
 
-    &.bottom {
-      margin-top: 1rem;
+    .config-layout {
+        display: flex;
+        gap: 0;
+        min-height: 500px;
+        align-items: flex-start;
     }
 
-    &.top {
-      margin-bottom: 1rem;
+    /* Loading spinner shown while config fetch + form build is in progress */
+    .config-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 80px 24px;
+        width: 100%;
+        color: #888;
+
+        p {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #888;
+        }
     }
 
-    > p {
-      box-sizing: border-box;
-      flex: 1;
-      padding-right: 1rem;
+    /* Form body inside the content area (replaces the outer form wrapper) */
+    .config-form-body {
+        width: 100%;
     }
 
-    ul {
-      list-style-type: none;
-      padding-left: 1rem;
+    /* ── Sidebar ───────────────────────────────────────────── */
+    .config-sidebar {
+        width: 220px;
+        flex-shrink: 0;
+        background: #161616;
+        border-right: 1px solid #2a2a2a;
+        border-radius: 0 0 0 8px;
+        padding: 12px 0 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+
+        .sidebar-section-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #777;
+            padding: 4px 16px 10px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            border-left: 3px solid transparent;
+            border-radius: 0;
+            cursor: pointer;
+            text-align: left;
+            font-size: 13.5px;
+            color: #ccc;
+            transition: all 0.15s ease;
+
+            mat-icon:first-child {
+                font-size: 18px;
+                width: 18px;
+                height: 18px;
+                flex-shrink: 0;
+                color: #888;
+                transition: color 0.15s;
+            }
+
+            span {
+                flex: 1;
+            }
+
+            .error-dot {
+                font-size: 14px;
+                width: 14px;
+                height: 14px;
+                color: #f44336;
+                margin-left: auto;
+            }
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.06);
+                color: #fff;
+
+                mat-icon:first-child {
+                    color: #ccc;
+                }
+            }
+
+            &.active {
+                background: rgba(204, 0, 0, 0.08);
+                border-left-color: #cc0000;
+                color: #fff;
+                font-weight: 600;
+
+                mat-icon:first-child {
+                    color: #cc0000;
+                }
+            }
+        }
+
+        /* ── Systems expandable nav group ── */
+        .sidebar-nav-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-group-toggle {
+            .group-toggle-right {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+                margin-left: auto;
+            }
+
+            .expand-chevron {
+                font-size: 16px;
+                width: 16px;
+                height: 16px;
+                color: #666;
+                transition: transform 0.2s ease;
+
+                &.open {
+                    transform: rotate(180deg);
+                }
+            }
+        }
+
+        /* Systems sub-nav (collapsed by default) */
+        .sidebar-sub-nav {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease;
+            background: rgba(0, 0, 0, 0.2);
+
+            &.visible {
+                max-height: 600px; /* Scrollable for large fleets */
+                overflow-y: auto;
+            }
+        }
+
+        .sidebar-sub-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 7px 16px 7px 28px; /* indent */
+            background: none;
+            border: none;
+            border-left: 3px solid transparent;
+            cursor: pointer;
+            text-align: left;
+            font-size: 12.5px;
+            color: #aaa;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.12s ease;
+
+            .system-icon {
+                font-size: 14px;
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+                color: #666;
+
+                &.has-error { color: #f44336; }
+            }
+
+            span {
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.05);
+                color: #ddd;
+            }
+
+            &.active {
+                background: rgba(204, 0, 0, 0.12);
+                border-left-color: #cc0000;
+                color: #fff;
+                font-weight: 500;
+            }
+
+            &.add-system-btn {
+                color: #cc0000;
+                font-weight: 500;
+                padding-left: 24px;
+
+                mat-icon { color: #cc0000; }
+
+                &:hover { background: rgba(204, 0, 0, 0.08); }
+            }
+        }
+
+        .sidebar-sub-empty {
+            padding: 8px 16px 8px 28px;
+            font-size: 11px;
+            color: #555;
+            font-style: italic;
+        }
+
+        /* Save / Reset buttons */
+        .sidebar-actions {
+            margin-top: auto;
+            padding: 20px 12px 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border-top: 1px solid #2a2a2a;
+
+            button {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                font-size: 13px;
+
+                mat-icon {
+                    font-size: 16px;
+                    width: 16px;
+                    height: 16px;
+                }
+            }
+
+            .btn-save {
+                background-color: #cc0000 !important;
+            }
+        }
     }
 
-    .mat-mdc-button:last-child {
-      margin-left: auto;
+    /* ── Content area ──────────────────────────────────────── */
+    .config-content {
+        flex: 1;
+        padding: 20px 24px;
+        min-width: 0;
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #2a2a2a;
+
+            mat-icon {
+                color: #cc0000;
+                font-size: 22px;
+                width: 22px;
+                height: 22px;
+            }
+
+            h3 {
+                margin: 0;
+                font-size: 17px;
+                font-weight: 600;
+                color: #eee;
+                letter-spacing: 0.3px;
+            }
+        }
     }
-  }
 
-  .cdk-drag-handle {
-    opacity: 0.5;
-  }
+    /* ── Shared form helpers ───────────────────────────────── */
+    .row {
+        align-items: center;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
 
-  .mat-expansion-panel-header-title {
-    align-items: center;
-  }
+        &.bottom {
+            margin-top: 1rem;
+        }
 
-  .mat-icon[color="warn"] {
-    font-size: 1rem;
-    height: 1rem;
-    opacity: 0.9;
-    padding-left: 0.5rem;
-    width: 1rem;
-  }
+        &.top {
+            margin-bottom: 1rem;
+        }
 
-  .text-center {
-    text-align: center;
-  }
+        > p {
+            box-sizing: border-box;
+            flex: 1;
+            padding-right: 1rem;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 1rem;
+        }
+
+        .mat-mdc-button:last-child {
+            margin-left: auto;
+        }
+    }
+
+    .cdk-drag-handle {
+        opacity: 0.5;
+    }
+
+    .mat-icon[color='warn'] {
+        font-size: 1rem;
+        height: 1rem;
+        opacity: 0.9;
+        padding-left: 0.5rem;
+        width: 1rem;
+    }
+
+    .text-center {
+        text-align: center;
+    }
 }
 
-@media (max-width: 719px) {
-  rdio-scanner-admin-config .mat-mdc-form-field {
-    flex: 100%;
-  }
+/* ── Responsive: stack sidebar above content on small screens ─ */
+@media (max-width: 900px) {
+    rdio-scanner-admin-config {
+        .config-layout {
+            flex-direction: column;
+        }
+
+        .config-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid #2a2a2a;
+            border-radius: 0;
+            position: static;
+            flex-direction: row;
+            flex-wrap: wrap;
+            padding: 8px 4px;
+            gap: 4px;
+
+            .sidebar-section-label {
+                display: none;
+            }
+
+            .sidebar-item {
+                width: auto;
+                flex: 0 0 auto;
+                padding: 8px 12px;
+                border-left: none;
+                border-bottom: 3px solid transparent;
+                border-radius: 4px 4px 0 0;
+                font-size: 12px;
+
+                span {
+                    display: none;
+                }
+
+                mat-icon:first-child {
+                    font-size: 20px;
+                    width: 20px;
+                    height: 20px;
+                }
+
+                &.active {
+                    border-left-color: transparent;
+                    border-bottom-color: #cc0000;
+                }
+            }
+
+            .sidebar-actions {
+                border-top: none;
+                border-left: 1px solid #2a2a2a;
+                margin-top: 0;
+                margin-left: auto;
+                padding: 4px 8px;
+                flex-direction: row;
+                align-items: center;
+
+                button {
+                    width: auto;
+                }
+            }
+        }
+
+        .config-content {
+            padding: 16px 12px;
+        }
+    }
 }
 
 @media (min-width: 720px) {
-  .row {
-    > p ~ div,
-    .mat-mdc-form-field {
-      min-width: 260px;
-    }
+    rdio-scanner-admin-config .row {
+        > p ~ div,
+        .mat-mdc-form-field {
+            min-width: 260px;
+        }
 
-    > p ~ div > {
-      .mat-mdc-button,
-      .mat-mdc-slide-toggle {
-        float: right;
-      }
+        > p ~ div > {
+            .mat-mdc-button,
+            .mat-mdc-slide-toggle {
+                float: right;
+            }
+        }
     }
-  }
 }

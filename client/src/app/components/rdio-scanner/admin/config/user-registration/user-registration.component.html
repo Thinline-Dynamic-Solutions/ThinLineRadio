@@ -2,14 +2,18 @@
   <form [formGroup]="userRegistrationForm" (ngModelChange)="syncToParentForm()">
     <div class="config-section">
       <h3>User Registration Settings</h3>
+      <div style="color: #f44336; font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 16px; padding: 8px; background-color: rgba(244, 67, 54, 0.1); border-left: 3px solid #f44336;">
+        CENTRAL MANAGEMENT IS IN DEVELOPMENT DO NOT USE THIS OPTION AS YOUR USERS WILL NOT BE ABLE TO REGISTER, THIS SOFTWARE WILL BE RELEASED WHEN ITS AVAILABLE
+      </div>
       
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Registration Mode</mat-label>
         <mat-select formControlName="registrationMode">
           <mat-option value="invite">Invite Only (Requires registration or invitation code)</mat-option>
           <mat-option value="public" [disabled]="!hasPublicRegistrationGroup">Public Registration (Anyone can sign up)</mat-option>
+          <mat-option value="centralized">Centralized Management (Multi-Server Billing & User Management)</mat-option>
         </mat-select>
-        <mat-hint *ngIf="!hasPublicRegistrationGroup" style="color: #f44336;">
+        <mat-hint *ngIf="!hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value !== 'centralized'" style="color: #f44336;">
           Public Registration requires a Public Registration Group. Create one in the Groups section first.
         </mat-hint>
         <mat-hint *ngIf="hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'invite'">
@@ -18,18 +22,78 @@
         <mat-hint *ngIf="hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'public'">
           Anyone can create an account without a code (optional codes still work)
         </mat-hint>
+        <mat-hint *ngIf="userRegistrationForm.get('registrationMode')?.value === 'centralized'" style="color: #64B5F6;">
+          User authentication and billing will be managed by the centralized system. Local user management will be disabled.
+        </mat-hint>
       </mat-form-field>
+
+      <!-- Centralized Management Settings (only shown when mode is 'centralized') -->
+      <ng-container *ngIf="userRegistrationForm.get('registrationMode')?.value === 'centralized'">
+        <div style="background-color: #1a2a3a; border: 1px solid #1565C0; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="margin: 0 0 15px 0; color: #64B5F6;">
+            <mat-icon style="vertical-align: middle; margin-right: 8px;">cloud</mat-icon>
+            Centralized Management Configuration
+          </h4>
+          
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Server Name</mat-label>
+            <input matInput type="text" formControlName="centralManagementServerName" placeholder="Ohio RSN TEST">
+            <mat-hint>Friendly name for this server (displayed in the central management portal)</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Central Management URL</mat-label>
+            <input matInput type="text" formControlName="centralManagementUrl" placeholder="https://central.example.com">
+            <mat-hint>URL of the centralized management system (e.g., https://central.example.com)</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>This Server's Public URL</mat-label>
+            <input matInput type="text" formControlName="baseUrl" placeholder="https://ohio-rsn.example.com">
+            <mat-hint><strong>Required:</strong> YOUR server's public URL. The central system needs this to send user access updates and for users to connect.</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>API Key</mat-label>
+            <input matInput type="password" formControlName="centralManagementApiKey" placeholder="Enter API key from central system">
+            <mat-hint>API key provided by the central management system admin</mat-hint>
+          </mat-form-field>
+
+          <div style="margin-top: 15px;">
+            <button mat-raised-button color="primary" type="button" (click)="testCentralConnection()" 
+                    [disabled]="!userRegistrationForm.get('centralManagementUrl')?.value || !userRegistrationForm.get('centralManagementApiKey')?.value">
+              <mat-icon>sync</mat-icon>
+              Test Connection
+            </button>
+          </div>
+
+          <div *ngIf="centralConnectionStatus" style="margin-top: 15px;">
+            <mat-chip-set>
+              <mat-chip [color]="centralConnectionStatus === 'success' ? 'primary' : 'warn'" [highlighted]="true">
+                {{ centralConnectionMessage }}
+              </mat-chip>
+            </mat-chip-set>
+          </div>
+
+          <div style="margin-top: 15px; padding: 12px; background-color: rgba(251, 192, 45, 0.1); border-left: 4px solid #FBC02D; border-radius: 4px; color: #ffe082;">
+            <strong style="color: #FFD54F;">Note:</strong> When centralized management is enabled, local user registration, Stripe settings, and email service will be disabled. All user management and billing will be handled by the central system.
+          </div>
+        </div>
+      </ng-container>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Enable Stripe Paywall</mat-label>
-        <mat-select formControlName="stripePaywallEnabled">
+        <mat-select formControlName="stripePaywallEnabled" [disabled]="userRegistrationForm.get('registrationMode')?.value === 'centralized'">
           <mat-option [value]="true">Enabled</mat-option>
           <mat-option [value]="false">Disabled</mat-option>
         </mat-select>
+        <mat-hint *ngIf="userRegistrationForm.get('registrationMode')?.value === 'centralized'" style="color: #FF9800;">
+          Disabled when using Centralized Management (billing handled by central system)
+        </mat-hint>
       </mat-form-field>
   </div>
 
-  <div class="config-section">
+  <div class="config-section" *ngIf="userRegistrationForm.get('registrationMode')?.value !== 'centralized'">
     <h3>Email Service Settings</h3>
     
       <mat-form-field appearance="outline" class="full-width">
@@ -142,7 +206,7 @@
       </mat-form-field>
 
       <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value" style="margin: 20px 0;">
-        <label style="display: block; margin-bottom: 10px; font-size: 14px; color: rgba(0,0,0,0.6);">
+        <label style="display: block; margin-bottom: 10px; font-size: 14px; color: rgba(255,255,255,0.6);">
           Email Logo (Optional)
         </label>
         <div style="display: flex; align-items: center; gap: 15px;">
@@ -156,7 +220,7 @@
             <mat-icon>delete</mat-icon>
             Remove
           </button>
-          <div *ngIf="hasLogo()" style="max-width: 225px; max-height: 120px; border: 1px solid #ddd; padding: 5px; border-radius: 4px;">
+          <div *ngIf="hasLogo()" style="max-width: 225px; max-height: 120px; border: 1px solid #444; padding: 5px; border-radius: 4px; background: #1e1e1e;">
             <img [src]="getLogoPreview()" [style]="getLogoStyle()" (error)="onImageError()" (load)="onImageLoad()">
           </div>
         </div>
@@ -167,7 +231,7 @@
             <mat-hint>e.g., 0px, 8px, 50%</mat-hint>
           </mat-form-field>
         </div>
-        <div style="margin-top: 8px; font-size: 12px; color: rgba(0,0,0,0.6);">
+        <div style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.6);">
           Recommended: PNG or JPG. Will be embedded in verification emails.
         </div>
       </div>
@@ -175,12 +239,12 @@
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Base URL</mat-label>
         <input matInput type="text" formControlName="baseUrl" placeholder="https://yourdomain.com">
-        <mat-hint>Base URL for verification links (must be HTTPS in production)</mat-hint>
+        <mat-hint>Base URL for email verification links (must be HTTPS in production)</mat-hint>
       </mat-form-field>
 
-      <div style="margin-top: 20px; padding: 20px; background-color: #f5f5f5; border-radius: 8px;">
-        <h4 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 500;">Test Email Configuration</h4>
-        <p style="margin: 0 0 15px 0; font-size: 14px; color: rgba(0,0,0,0.6);">
+      <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value" style="margin-top: 20px; padding: 20px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px;">
+        <h4 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 500; color: #e0e0e0;">Test Email Configuration</h4>
+        <p style="margin: 0 0 15px 0; font-size: 14px; color: #aaa;">
           Send a test email to verify your SMTP settings are configured correctly.
         </p>
         <div style="display: flex; gap: 10px; align-items: flex-start;">
@@ -195,16 +259,16 @@
             <span style="margin-left: 8px;">{{ sendingTestEmail ? 'Sending...' : 'Send Test Email' }}</span>
           </button>
         </div>
-        <div *ngIf="testEmailError" style="margin-top: 15px; padding: 12px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
+        <div *ngIf="testEmailError" style="margin-top: 15px; padding: 12px; background-color: rgba(244,67,54,0.1); border: 1px solid #c62828; border-radius: 4px; color: #ef9a9a;">
           <strong>Error:</strong> {{ testEmailError }}
         </div>
-        <div *ngIf="testEmailSuccess" style="margin-top: 15px; padding: 12px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; color: #155724;">
+        <div *ngIf="testEmailSuccess" style="margin-top: 15px; padding: 12px; background-color: rgba(76,175,80,0.1); border: 1px solid #2e7d32; border-radius: 4px; color: #a5d6a7;">
           <strong>Success:</strong> {{ testEmailSuccess }}
         </div>
       </div>
   </div>
 
-  <div class="config-section">
+  <div class="config-section" *ngIf="userRegistrationForm.get('registrationMode')?.value !== 'centralized'">
     <h3>Stripe Settings</h3>
     
       <mat-form-field appearance="outline" class="full-width">
@@ -229,7 +293,7 @@
         <mat-hint>Number of extra days to allow access after a payment fails (only applies to users who have had at least one successful payment). Users get a 2-day buffer by default after their first successful payment.</mat-hint>
       </mat-form-field>
 
-      <div class="mat-caption" style="margin-top: -16px; margin-bottom: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+      <div class="mat-caption" style="margin-top: -16px; margin-bottom: 16px; padding: 8px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 4px; color: #ccc;">
         <strong>Webhook Configuration:</strong><br>
         <strong>Endpoint URL:</strong> <code>https://yoururl.com/api/stripe/webhook</code> or <code>https://your.url.com/api/stripe/webhook</code><br>
         <em>Configure your Stripe webhook endpoint to the URL above (replace with your actual domain). This should be the same public URL you use for your scanner. <strong>Do not include www. in the URL.</strong></em><br><br>

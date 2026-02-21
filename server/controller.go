@@ -39,36 +39,37 @@ import (
 )
 
 type Controller struct {
-	Admin                 *Admin
-	Api                   *Api
-	Apikeys               *Apikeys
-	Calls                 *Calls
-	CallQueue             *CallQueue
-	Clients               *Clients
-	Config                *Config
-	Database              *Database
-	Delayer               *Delayer
-	Dirwatches            *Dirwatches
-	Downstreams           *Downstreams
-	FFMpeg                *FFMpeg
-	Groups                *Groups
-	Logs                  *Logs
-	Options               *Options
-	ReconnectionMgr       *ReconnectionManager
-	Scheduler             *Scheduler
-	Systems               *Systems
-	Tags                  *Tags
-	Users                 *Users
-	UserGroups            *UserGroups
-	RegistrationCodes     *RegistrationCodes
-	TransferRequests      *TransferRequests
-	DeviceTokens          *DeviceTokens
-	EmailService          *EmailService
-	ToneDetector          *ToneDetector
-	TranscriptionQueue    *TranscriptionQueue
-	KeywordMatcher        *KeywordMatcher
-	AlertEngine           *AlertEngine
-	HallucinationDetector *HallucinationDetector
+	Admin                  *Admin
+	Api                    *Api
+	Apikeys                *Apikeys
+	Calls                  *Calls
+	CallQueue              *CallQueue
+	Clients                *Clients
+	Config                 *Config
+	Database               *Database
+	Delayer                *Delayer
+	Dirwatches             *Dirwatches
+	Downstreams            *Downstreams
+	FFMpeg                 *FFMpeg
+	Groups                 *Groups
+	Logs                   *Logs
+	Options                *Options
+	ReconnectionMgr        *ReconnectionManager
+	Scheduler              *Scheduler
+	Systems                *Systems
+	Tags                   *Tags
+	Users                  *Users
+	UserGroups             *UserGroups
+	RegistrationCodes      *RegistrationCodes
+	TransferRequests       *TransferRequests
+	DeviceTokens           *DeviceTokens
+	EmailService           *EmailService
+	ToneDetector           *ToneDetector
+	TranscriptionQueue     *TranscriptionQueue
+	KeywordMatcher         *KeywordMatcher
+	AlertEngine            *AlertEngine
+	HallucinationDetector  *HallucinationDetector
+	CentralManagement      *CentralManagementService
 	Register              chan *Client
 	Unregister            chan *Client
 	Ingest                chan *Call
@@ -153,6 +154,7 @@ func NewController(config *Config) *Controller {
 	controller.TransferRequests = NewTransferRequests()
 	controller.DeviceTokens = NewDeviceTokens()
 	controller.EmailService = NewEmailService(controller)
+	controller.CentralManagement = NewCentralManagementService(controller)
 	controller.Delayer = NewDelayer(controller)
 	controller.Downstreams = NewDownstreams(controller)
 	controller.Scheduler = NewScheduler(controller)
@@ -2813,6 +2815,12 @@ func (controller *Controller) Start() error {
 	if controller.ReconnectionMgr != nil {
 		controller.ReconnectionMgr.StartCleanup()
 		controller.Logs.LogEvent(LogLevelInfo, "Reconnection manager started")
+	}
+
+	// Start central management service if enabled
+	if controller.Options.CentralManagementEnabled {
+		controller.CentralManagement.Start()
+		controller.Logs.LogEvent(LogLevelInfo, "Central Management service started")
 	}
 
 	if err = controller.Admin.Start(); err != nil {

@@ -1,20 +1,49 @@
-<!-- Blocked Message with Countdown -->
-<div *ngIf="isBlocked" style="text-align: center; padding: 40px 20px;">
-    <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
-    <h2 style="color: #d32f2f; margin-bottom: 16px;">Too Many Failed Attempts</h2>
-    <p style="margin-bottom: 24px;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
-    <div style="font-size: 48px; font-weight: bold; color: #667eea; margin-bottom: 16px;">
-        {{ getCountdownDisplay() }}
+<!--
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+-->
+<!-- Blocked State -->
+<div *ngIf="isBlocked" class="blocked-state">
+    <div class="blocked-icon-wrap">
+        <mat-icon>lock</mat-icon>
     </div>
-    <p style="color: #666;">Please wait before trying again.</p>
+    <h2>Access Temporarily Blocked</h2>
+    <p>Too many failed login attempts. Your IP address has been temporarily blocked for security.</p>
+    <div class="countdown-timer">{{ getCountdownDisplay() }}</div>
+    <p class="wait-text">Time remaining before access is restored</p>
 </div>
 
-<form [formGroup]="form" (ngSubmit)="login()" *ngIf="!isBlocked">
-    <p class="mat-body-2">Please enter the admin password to gain access to the administrative dashboard</p>
-    <mat-form-field hideRequiredMarker>
-        <mat-label>Password</mat-label>
-        <input matInput formControlName="password" type="password" required>
-        <mat-error>{{ message }}</mat-error>
+<!-- Login Form -->
+<form [formGroup]="form" (ngSubmit)="login()" *ngIf="!isBlocked" class="login-form">
+    <div class="login-icon-wrap">
+        <mat-icon>admin_panel_settings</mat-icon>
+    </div>
+    <h2 class="login-title">Admin Login</h2>
+    <p class="login-sub">Enter your password to access the administration console</p>
+
+    <mat-form-field appearance="outline" class="pw-field">
+        <mat-label>Admin Password</mat-label>
+        <input matInput formControlName="password" type="password" required autocomplete="current-password">
+        <mat-icon matSuffix>lock</mat-icon>
+        <mat-error>{{ message || 'Password is required' }}</mat-error>
     </mat-form-field>
-    <button mat-raised-button color="primary" type="submit" [disabled]="form.disabled || form.invalid">Login</button>
+
+    <button mat-raised-button type="submit" class="login-btn" [disabled]="form.disabled || form.invalid">
+        <mat-icon>login</mat-icon>
+        Sign In
+    </button>
 </form>

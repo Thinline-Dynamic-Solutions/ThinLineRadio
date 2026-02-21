@@ -1,19 +1,281 @@
-.tags {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: space-between;
-
-  > div {
-    align-items: center;
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
+/* ── Section header ──────────────────────────────────────────── */
+.section-header {
     display: flex;
-    flex-direction: row;
-    margin-right: 0.5rem;
-  }
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+
+    .section-intro {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        mat-icon {
+            font-size: 28px;
+            width: 28px;
+            height: 28px;
+            color: #cc0000;
+            flex-shrink: 0;
+        }
+
+        h3 {
+            margin: 0 0 2px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        .mat-caption {
+            color: #999;
+            margin: 0;
+        }
+    }
+
+    .section-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+
+        button {
+            font-size: 13px;
+            color: #ccc;
+            border-color: #444;
+
+            mat-icon {
+                font-size: 18px;
+                width: 18px;
+                height: 18px;
+            }
+
+            &:hover:not([disabled]) {
+                color: #fff;
+                border-color: #666;
+            }
+        }
+    }
 }
 
-@media (max-width: 719px) {
-  .tags > div {
-    flex: 100%;
-  }
+/* ── Empty state ─────────────────────────────────────────────── */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    color: #666;
+    gap: 8px;
+
+    mat-icon {
+        font-size: 48px;
+        width: 48px;
+        height: 48px;
+        opacity: 0.4;
+    }
+
+    .mat-body { color: #999; margin: 0; }
+    .mat-caption { color: #666; margin: 0; }
+}
+
+/* ── Table wrapper ───────────────────────────────────────────── */
+.table-wrapper {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2a2a;
+}
+
+/* ── Table ───────────────────────────────────────────────────── */
+.tags-table {
+    width: 100%;
+    background: #1a1a1a;
+
+    /* Header */
+    .mat-mdc-header-row {
+        background: #141414;
+        border-bottom: 1px solid #2a2a2a;
+        height: 44px;
+    }
+
+    .mat-mdc-header-cell {
+        color: #888;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        border-bottom: none;
+    }
+
+    /* Rows */
+    .mat-mdc-row {
+        border-bottom: 1px solid #222;
+        background: #1a1a1a;
+        transition: background 0.15s;
+        height: 56px;
+
+        &:last-child { border-bottom: none; }
+        &:hover { background: #1f1f1f; }
+    }
+
+    .mat-mdc-cell {
+        border-bottom: none;
+        color: #e0e0e0;
+        vertical-align: middle;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+}
+
+/* ── Column widths ───────────────────────────────────────────── */
+.drag-col   { width: 40px;  min-width: 40px;  padding-left: 8px !important; }
+.color-col  { width: 180px; min-width: 160px; }
+.usage-col  { width: 100px; min-width: 90px;  }
+.delete-col { width: 52px;  min-width: 52px;  text-align: right; padding-right: 8px !important; }
+
+/* ── Drag handle ─────────────────────────────────────────────── */
+.drag-handle {
+    color: #555;
+    cursor: grab;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+
+    &:hover { color: #888; }
+}
+
+.cdk-drag-preview {
+    background: #242424;
+    border: 1px solid #444;
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+
+.cdk-drag-placeholder { opacity: 0.2; }
+
+/* ── Color swatch ────────────────────────────────────────────── */
+.color-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    margin-right: 8px;
+    vertical-align: middle;
+    flex-shrink: 0;
+
+    &.swatch-bordered { border: 1px solid #555; }
+}
+
+.color-label {
+    vertical-align: middle;
+    font-size: 13px;
+    color: #e0e0e0;
+}
+
+/* ── Cell content wrapper (flex, vertically centered) ────────── */
+.cell-content {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ── Inline form fields ──────────────────────────────────────── */
+.color-field,
+.label-field {
+    width: 100%;
+    font-size: 13px;
+    // Strip Angular Material's default top margin on outline fields
+    margin-top: 0 !important;
+
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+
+    ::ng-deep .mat-mdc-text-field-wrapper {
+        background: transparent !important;
+        padding: 0 10px;
+        margin: 0 !important;
+    }
+
+    ::ng-deep .mat-mdc-form-field-flex {
+        height: 38px;
+        align-items: center;
+    }
+
+    ::ng-deep .mat-mdc-form-field-infix {
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+        min-height: unset;
+    }
+
+    ::ng-deep .mdc-notched-outline__leading,
+    ::ng-deep .mdc-notched-outline__notch,
+    ::ng-deep .mdc-notched-outline__trailing {
+        border-color: #333 !important;
+    }
+
+    ::ng-deep .mdc-notched-outline:hover .mdc-notched-outline__leading,
+    ::ng-deep .mdc-notched-outline:hover .mdc-notched-outline__notch,
+    ::ng-deep .mdc-notched-outline:hover .mdc-notched-outline__trailing {
+        border-color: #555 !important;
+    }
+
+    ::ng-deep input,
+    ::ng-deep .mat-mdc-select-value-text {
+        color: #e0e0e0 !important;
+        font-size: 13px;
+        line-height: 22px;
+    }
+
+    ::ng-deep input::placeholder {
+        color: #666;
+    }
+}
+
+.color-field { max-width: 165px; }
+
+/* ── Usage chips ─────────────────────────────────────────────── */
+.chip-unused,
+.chip-inuse {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    border-radius: 11px !important;
+    pointer-events: none;
+}
+
+.chip-unused {
+    background: rgba(255, 152, 0, 0.12) !important;
+    color: #ffa726 !important;
+    border: 1px solid rgba(255, 152, 0, 0.3) !important;
+}
+
+.chip-inuse {
+    background: rgba(76, 175, 80, 0.12) !important;
+    color: #66bb6a !important;
+    border: 1px solid rgba(76, 175, 80, 0.3) !important;
+}
+
+/* ── Row error icon ──────────────────────────────────────────── */
+.row-error {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-left: 4px;
 }

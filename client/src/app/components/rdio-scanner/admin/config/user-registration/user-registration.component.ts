@@ -39,7 +39,9 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
   testEmailSuccess: string = '';
   window = window; // Expose window to template
   hasPublicRegistrationGroup: boolean = false;
-  registrationModeValue: string = 'invite'; // 'invite' or 'public'
+  registrationModeValue: string = 'invite'; // 'invite', 'public', or 'centralized'
+  centralConnectionStatus: string = '';
+  centralConnectionMessage: string = '';
 
   constructor(private fb: FormBuilder, private http: HttpClient, private cdr: ChangeDetectorRef) {}
 
@@ -75,6 +77,9 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
       stripeGracePeriodDays: new FormControl(0),
       baseUrl: new FormControl(''),
       registrationMode: new FormControl('invite'), // New field for the UI dropdown
+      centralManagementServerName: new FormControl(''),
+      centralManagementUrl: new FormControl(''),
+      centralManagementApiKey: new FormControl(''),
     });
 
     // Update logo URL when filename changes (but debounce to avoid loops)
@@ -99,6 +104,13 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
           this.userRegistrationForm.patchValue({
             publicRegistrationEnabled: true,
             publicRegistrationMode: 'both' // Always default to both codes and email
+          }, { emitEvent: false });
+        } else if (mode === 'centralized') {
+          // Disable local user management when centralized is selected
+          this.userRegistrationForm.patchValue({
+            publicRegistrationEnabled: false,
+            stripePaywallEnabled: false,
+            emailServiceEnabled: false
           }, { emitEvent: false });
         } else { // 'invite'
           this.userRegistrationForm.patchValue({
@@ -165,7 +177,16 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
       if (this.form && this.form.get('userRegistrationEnabled') !== null) {
         // This is the options form group directly
         const publicRegEnabled = this.form.get('publicRegistrationEnabled')?.value ?? false;
+        const centralEnabled = this.form.get('centralManagementEnabled')?.value ?? false;
         
+        // Determine registration mode
+        let registrationMode = 'invite';
+        if (centralEnabled) {
+          registrationMode = 'centralized';
+        } else if (publicRegEnabled) {
+          registrationMode = 'public';
+        }
+
         this.userRegistrationForm.patchValue({
           userRegistrationEnabled: true, // Always true now
           publicRegistrationEnabled: publicRegEnabled,
@@ -192,13 +213,25 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
           stripeWebhookSecret: this.form.get('stripeWebhookSecret')?.value || '',
           stripeGracePeriodDays: this.form.get('stripeGracePeriodDays')?.value || 0,
           baseUrl: this.form.get('baseUrl')?.value || '',
-          registrationMode: publicRegEnabled ? 'public' : 'invite',
+          registrationMode: registrationMode,
+          centralManagementServerName: this.form.get('centralManagementServerName')?.value || '',
+          centralManagementUrl: this.form.get('centralManagementURL')?.value || '',
+          centralManagementApiKey: this.form.get('centralManagementAPIKey')?.value || '',
         }, { emitEvent: false }); // Don't emit events to prevent loops
       } else if (this.form && this.form.get('options')) {
         // This is the full form, get the options form group
         const options = this.form.get('options');
         if (options) {
           const publicRegEnabled = options.get('publicRegistrationEnabled')?.value ?? false;
+          const centralEnabled = options.get('centralManagementEnabled')?.value ?? false;
+          
+          // Determine registration mode
+          let registrationMode = 'invite';
+          if (centralEnabled) {
+            registrationMode = 'centralized';
+          } else if (publicRegEnabled) {
+            registrationMode = 'public';
+          }
           
           this.userRegistrationForm.patchValue({
             userRegistrationEnabled: true, // Always true now
@@ -226,7 +259,10 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
             stripeWebhookSecret: options.get('stripeWebhookSecret')?.value || '',
             stripeGracePeriodDays: options.get('stripeGracePeriodDays')?.value || 0,
             baseUrl: options.get('baseUrl')?.value || '',
-            registrationMode: publicRegEnabled ? 'public' : 'invite',
+            registrationMode: registrationMode,
+            centralManagementServerName: options.get('centralManagementServerName')?.value || '',
+            centralManagementUrl: options.get('centralManagementURL')?.value || '',
+            centralManagementApiKey: options.get('centralManagementAPIKey')?.value || '',
           }, { emitEvent: false }); // Don't emit events to prevent loops
         }
       }
@@ -250,6 +286,10 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
     if (this.form.get('userRegistrationEnabled') !== null) {
       // This is the options form group directly - update each field individually
       const values = this.userRegistrationForm.value;
+      
+      // Determine if centralized management is enabled based on registration mode
+      const isCentralized = values.registrationMode === 'centralized';
+      
       this.form.patchValue({
         userRegistrationEnabled: true, // Always true now
         publicRegistrationEnabled: values.publicRegistrationEnabled,
@@ -274,15 +314,26 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
         stripePublishableKey: values.stripePublishableKey,
         stripeSecretKey: values.stripeSecretKey,
         stripeWebhookSecret: values.stripeWebhookSecret,
-        stripeGracePeriodDays: values.stripeGracePeriodDays || 0,
+        stripeGracePeriodDays: values.stripeGracePeriodDays,
         baseUrl: values.baseUrl,
-      }, { emitEvent: false }); // Don't emit events to prevent loops
+        // Centralized management fields
+        centralManagementEnabled: isCentralized,
+        centralManagementServerName: values.centralManagementServerName || '',
+        centralManagementURL: values.centralManagementUrl || '',
+        centralManagementAPIKey: values.centralManagementApiKey || '',
+      }, { emitEvent: false });
+      
+      this.form.markAsDirty();
       this.form.markAsDirty();
     } else if (this.form.get('options')) {
       // This is the full form, get the options form group
       const options = this.form.get('options');
       if (options) {
         const values = this.userRegistrationForm.value;
+        
+        // Determine if centralized management is enabled based on registration mode
+        const isCentralized = values.registrationMode === 'centralized';
+        
         options.patchValue({
           userRegistrationEnabled: true, // Always true now
           publicRegistrationEnabled: values.publicRegistrationEnabled,
@@ -309,6 +360,11 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
           stripeWebhookSecret: values.stripeWebhookSecret,
           stripeGracePeriodDays: values.stripeGracePeriodDays || 0,
           baseUrl: values.baseUrl,
+          // Centralized management fields
+          centralManagementEnabled: isCentralized,
+          centralManagementServerName: values.centralManagementServerName,
+          centralManagementURL: values.centralManagementUrl,
+          centralManagementAPIKey: values.centralManagementApiKey,
         }, { emitEvent: false }); // Don't emit events to prevent loops
       }
     }
@@ -622,6 +678,67 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
           this.cdr.detectChanges();
         }
       });
+  }
+
+  testCentralConnection(): void {
+    const url = this.userRegistrationForm.get('centralManagementUrl')?.value;
+    const apiKey = this.userRegistrationForm.get('centralManagementApiKey')?.value;
+    const serverName = this.userRegistrationForm.get('centralManagementServerName')?.value;
+    const baseUrl = this.userRegistrationForm.get('baseUrl')?.value;
+
+    if (!url || !apiKey) {
+      this.centralConnectionStatus = 'error';
+      this.centralConnectionMessage = 'Please enter both URL and API Key';
+      return;
+    }
+
+    this.centralConnectionStatus = 'testing';
+    this.centralConnectionMessage = 'Testing connection...';
+
+    // Get auth token
+    const token = sessionStorage.getItem('rdio-scanner-admin-token');
+    if (!token) {
+      this.centralConnectionStatus = 'error';
+      this.centralConnectionMessage = 'Not authenticated. Please log in again.';
+      return;
+    }
+
+    // Call backend endpoint to test connection (backend will test the connection to central system)
+    this.http.post(`${window.location.origin}/api/admin/test-central-connection`, {
+      central_management_url: url,
+      api_key: apiKey,
+      server_name: serverName || 'Unnamed Server',
+      server_url: baseUrl || window.location.origin
+    }, {
+      headers: new HttpHeaders({
+        'Authorization': token
+      })
+    }).subscribe({
+      next: (response: any) => {
+        this.centralConnectionStatus = 'success';
+        this.centralConnectionMessage = response.message || '✓ Connection successful!';
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        this.centralConnectionStatus = 'error';
+        let errorMsg = 'Connection failed. ';
+        
+        if (error.status === 0) {
+          errorMsg += 'Cannot reach TLR server backend.';
+        } else if (error.status === 400) {
+          errorMsg += error.error?.error || 'Central management not configured.';
+        } else if (error.error?.error) {
+          errorMsg += error.error.error;
+        } else if (error.error?.message) {
+          errorMsg += error.error.message;
+        } else {
+          errorMsg += `Error: ${error.message || 'Unknown error'}`;
+        }
+        
+        this.centralConnectionMessage = errorMsg;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   async loadGroups(): Promise<void> {
