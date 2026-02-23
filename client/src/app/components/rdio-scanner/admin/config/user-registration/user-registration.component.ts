@@ -78,6 +78,7 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
       baseUrl: new FormControl(''),
       registrationMode: new FormControl('invite'), // New field for the UI dropdown
       centralManagementServerName: new FormControl(''),
+      centralManagementServerID: new FormControl(''),
       centralManagementUrl: new FormControl(''),
       centralManagementApiKey: new FormControl(''),
     });
@@ -215,6 +216,7 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
           baseUrl: this.form.get('baseUrl')?.value || '',
           registrationMode: registrationMode,
           centralManagementServerName: this.form.get('centralManagementServerName')?.value || '',
+          centralManagementServerID: this.form.get('centralManagementServerID')?.value || '',
           centralManagementUrl: this.form.get('centralManagementURL')?.value || '',
           centralManagementApiKey: this.form.get('centralManagementAPIKey')?.value || '',
         }, { emitEvent: false }); // Don't emit events to prevent loops
@@ -261,6 +263,7 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
             baseUrl: options.get('baseUrl')?.value || '',
             registrationMode: registrationMode,
             centralManagementServerName: options.get('centralManagementServerName')?.value || '',
+            centralManagementServerID: options.get('centralManagementServerID')?.value || '',
             centralManagementUrl: options.get('centralManagementURL')?.value || '',
             centralManagementApiKey: options.get('centralManagementAPIKey')?.value || '',
           }, { emitEvent: false }); // Don't emit events to prevent loops
@@ -319,6 +322,7 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
         // Centralized management fields
         centralManagementEnabled: isCentralized,
         centralManagementServerName: values.centralManagementServerName || '',
+        centralManagementServerID: values.centralManagementServerID || '',
         centralManagementURL: values.centralManagementUrl || '',
         centralManagementAPIKey: values.centralManagementApiKey || '',
       }, { emitEvent: false });
@@ -363,6 +367,7 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
           // Centralized management fields
           centralManagementEnabled: isCentralized,
           centralManagementServerName: values.centralManagementServerName,
+          centralManagementServerID: values.centralManagementServerID,
           centralManagementURL: values.centralManagementUrl,
           centralManagementAPIKey: values.centralManagementApiKey,
         }, { emitEvent: false }); // Don't emit events to prevent loops

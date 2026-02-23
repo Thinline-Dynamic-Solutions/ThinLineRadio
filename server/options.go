@@ -128,6 +128,7 @@ type Options struct {
 	CentralManagementURL        string            `json:"centralManagementURL"`
 	CentralManagementAPIKey     string            `json:"centralManagementAPIKey"`
 	CentralManagementServerName string            `json:"centralManagementServerName"` // Optional friendly name for this server
+	CentralManagementServerID   string            `json:"centralManagementServerID"`   // Identifier used to correlate users/CSV imports
 	adminPassword               string
 	adminPasswordNeedChange     bool
 	mutex                       sync.Mutex
@@ -586,6 +587,13 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.CentralManagementServerName = v
 	default:
 		options.CentralManagementServerName = ""
+	}
+
+	switch v := m["centralManagementServerID"].(type) {
+	case string:
+		options.CentralManagementServerID = v
+	default:
+		options.CentralManagementServerID = ""
 	}
 
 	switch v := m["alertRetentionDays"].(type) {
@@ -1151,6 +1159,13 @@ func (options *Options) Read(db *Database) error {
 					options.CentralManagementServerName = v
 				}
 			}
+		case "centralManagementServerID":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.CentralManagementServerID = v
+				}
+			}
 		case "stripePaywallEnabled":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -1611,6 +1626,7 @@ func (options *Options) Write(db *Database) error {
 	set("centralManagementURL", options.CentralManagementURL)
 	set("centralManagementAPIKey", options.CentralManagementAPIKey)
 	set("centralManagementServerName", options.CentralManagementServerName)
+	set("centralManagementServerID", options.CentralManagementServerID)
 	set("stripePaywallEnabled", options.StripePaywallEnabled)
 	set("emailServiceEnabled", options.EmailServiceEnabled)
 	set("emailServiceApiKey", options.EmailServiceApiKey)

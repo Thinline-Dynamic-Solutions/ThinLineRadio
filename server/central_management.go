@@ -103,12 +103,9 @@ func (cms *CentralManagementService) register() error {
 		"version": Version,
 	}
 
-	// Add Radio Reference system ID if available (from first system)
-	if len(cms.controller.Systems.List) > 0 {
-		firstSystem := cms.controller.Systems.List[0]
-		if firstSystem.SystemRef > 0 {
-			payload["radio_reference_system_id"] = firstSystem.SystemRef
-		}
+	// Add the admin-configured Server ID if set
+	if cms.controller.Options.CentralManagementServerID != "" {
+		payload["server_id"] = cms.controller.Options.CentralManagementServerID
 	}
 
 	// Send registration request
@@ -143,7 +140,14 @@ func (cms *CentralManagementService) heartbeatLoop() {
 
 // sendHeartbeat sends a heartbeat to the central system
 func (cms *CentralManagementService) sendHeartbeat() error {
-	return cms.sendRequest("POST", "/api/tlr/heartbeat", nil)
+	payload := map[string]interface{}{}
+	if id := cms.controller.Options.CentralManagementServerID; id != "" {
+		payload["server_id"] = id
+	}
+	if len(payload) == 0 {
+		return cms.sendRequest("POST", "/api/tlr/heartbeat", nil)
+	}
+	return cms.sendRequest("POST", "/api/tlr/heartbeat", payload)
 }
 
 // sendRequest sends an HTTP request to the central management system

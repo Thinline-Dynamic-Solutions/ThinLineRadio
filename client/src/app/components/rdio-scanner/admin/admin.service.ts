@@ -313,6 +313,7 @@ export interface Options {
     centralManagementURL?: string;
     centralManagementAPIKey?: string;
     centralManagementServerName?: string;
+    centralManagementServerID?: string;
 }
 
 export interface ToneImportResponse {
@@ -1238,6 +1239,7 @@ export class RdioScannerAdminService implements OnDestroy {
             centralManagementURL: this.ngFormBuilder.control(options?.centralManagementURL || ''),
             centralManagementAPIKey: this.ngFormBuilder.control(options?.centralManagementAPIKey || ''),
             centralManagementServerName: this.ngFormBuilder.control(options?.centralManagementServerName || ''),
+            centralManagementServerID: this.ngFormBuilder.control(options?.centralManagementServerID || ''),
         });
     }
 
