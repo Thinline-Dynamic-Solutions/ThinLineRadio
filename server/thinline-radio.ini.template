@@ -8,6 +8,15 @@ db_pass = your_password
 # Enable debug logging (default: false)
 enable_debug_log = false
 
+# Auto-update: automatically check GitHub for new releases every 12 hours
+# and apply updates without manual intervention (default: false).
+# The server will restart gracefully after applying an update.
+# On Windows, a PowerShell script handles the binary swap on restart.
+# You can also trigger a manual check/apply via the admin API:
+#   GET  /api/admin/update/check
+#   POST /api/admin/update/apply
+auto_update = false
+
 # Audio Encoding: AAC/M4A format only
 # All new calls are encoded as AAC/M4A for universal compatibility
 # Legacy Opus files (if any) can still be played but new encoding is AAC only

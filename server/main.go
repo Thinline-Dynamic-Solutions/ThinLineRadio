@@ -126,7 +126,7 @@ func main() {
 		fmt.Println("Starting background migration while server runs...")
 		fmt.Println("Migration will use reduced resources to avoid impacting server.")
 		fmt.Println("")
-		
+
 		// Run migration in background goroutine
 		go func() {
 			// Use smaller batch (100 instead of 5000) and fewer workers (10 instead of 200)
@@ -136,7 +136,7 @@ func main() {
 			} else {
 				fmt.Println("")
 				fmt.Println("✅ Background migration complete! Setting opus_migration = false in INI file...")
-				
+
 				// Automatically set opus_migration = false in the INI file
 				if err := config.SetOpusMigration(false); err != nil {
 					log.Printf("⚠️  Warning: Could not update INI file: %v", err)
@@ -147,12 +147,12 @@ func main() {
 				}
 			}
 		}()
-		
+
 		// Give migration a moment to start
 		time.Sleep(1 * time.Second)
 		fmt.Println("🚀 Server starting while migration runs in background...")
 		fmt.Println("")
-		
+
 		// Continue to start the server normally
 		config.OpusMigration = false // Ensure we don't try to migrate again on next iteration
 	}
@@ -161,15 +161,14 @@ func main() {
 	if config.migrateToOpus {
 		fmt.Printf("\nThinLine Radio v%s - Opus Migration\n", Version)
 		fmt.Printf("----------------------------------\n\n")
-		
+
 		if err := controller.Database.MigrateToOpus(config.migrateOpusBatch, config.migrateOpusDryRun, false); err != nil {
 			log.Fatalf("Migration failed: %v", err)
 		}
-		
+
 		// Command-line migration still exits (user explicitly ran migration tool)
 		os.Exit(0)
 	}
-
 
 	if config.newAdminPassword != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(config.newAdminPassword), bcrypt.DefaultCost)
@@ -235,6 +234,22 @@ func main() {
 	// Helper to wrap handlers with recovery, rate limiting, and security headers
 	wrapHandler := func(handler http.Handler) http.Handler {
 		return securityHeadersWrapper(rateLimitWrapper(recoveryMiddleware(handler)))
+	}
+
+	// corsMiddleware adds CORS headers so the Central Management frontend (a different
+	// origin) can call user-facing API endpoints.  Authentication is still enforced by
+	// each handler via PIN, so opening these endpoints to any origin is safe.
+	corsMiddleware := func(handler http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			handler.ServeHTTP(w, r)
+		})
 	}
 
 	if h, err := os.Hostname(); err == nil {
@@ -343,10 +358,10 @@ func main() {
 		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 		if len(pathParts) >= 6 && pathParts[4] == "device-tokens" && r.Method == http.MethodDelete {
 			controller.Admin.DeviceTokenDeleteHandler(w, r)
-		// Check if it's a test-push endpoint
+			// Check if it's a test-push endpoint
 		} else if strings.HasSuffix(r.URL.Path, "/test-push") && r.Method == http.MethodPost {
 			controller.Admin.UserTestPushHandler(w, r)
-		// Check if it's a reset-password endpoint
+			// Check if it's a reset-password endpoint
 		} else if strings.HasSuffix(r.URL.Path, "/reset-password") && r.Method == http.MethodPost {
 			controller.Admin.UserResetPasswordHandler(w, r)
 		} else if r.Method == http.MethodDelete {
@@ -456,9 +471,9 @@ func main() {
 	})).ServeHTTP)
 
 	// Alert routes
-	http.HandleFunc("/api/alerts", wrapHandler(http.HandlerFunc(controller.Api.AlertsHandler)).ServeHTTP)
-	http.HandleFunc("/api/alerts/preferences", wrapHandler(http.HandlerFunc(controller.Api.AlertPreferencesHandler)).ServeHTTP)
-	http.HandleFunc("/api/transcripts", wrapHandler(http.HandlerFunc(controller.Api.TranscriptsHandler)).ServeHTTP)
+	http.HandleFunc("/api/alerts", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.AlertsHandler))).ServeHTTP)
+	http.HandleFunc("/api/alerts/preferences", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.AlertPreferencesHandler))).ServeHTTP)
+	http.HandleFunc("/api/transcripts", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.TranscriptsHandler))).ServeHTTP)
 	http.HandleFunc("/api/keyword-lists", wrapHandler(http.HandlerFunc(controller.Api.KeywordListsHandler)).ServeHTTP)
 
 	// System alert routes (system admins only)
@@ -466,8 +481,8 @@ func main() {
 	http.HandleFunc("/api/system-alerts/", wrapHandler(http.HandlerFunc(controller.Api.SystemAlertDismissHandler)).ServeHTTP)
 	http.HandleFunc("/api/keyword-lists/", wrapHandler(http.HandlerFunc(controller.Api.KeywordListHandler)).ServeHTTP)
 
-	// User settings routes
-	http.HandleFunc("/api/settings", wrapHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// User settings routes — wrapped with CORS so Central Management can call across origins
+	http.HandleFunc("/api/settings", wrapHandler(corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			controller.Api.SettingsGetHandler(w, r)
 		} else if r.Method == http.MethodPost {
@@ -475,7 +490,7 @@ func main() {
 		} else {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
-	})).ServeHTTP)
+	}))).ServeHTTP)
 
 	// Stripe webhook route - keep recoveryMiddleware only (webhooks need special handling)
 	http.HandleFunc("/api/stripe/webhook", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.StripeWebhookHandler))).ServeHTTP)
@@ -487,10 +502,13 @@ func main() {
 	http.HandleFunc("/api/webhook/central-users", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookUsersListHandler))).ServeHTTP)
 	http.HandleFunc("/api/webhook/central-users-batch-update", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookUsersBatchUpdateHandler))).ServeHTTP)
 	http.HandleFunc("/api/webhook/central-systems-talkgroups-groups", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookSystemsTalkgroupsGroupsHandler))).ServeHTTP)
-	
+
 	// Admin endpoint to test connection TO central management system
 	http.HandleFunc("/api/admin/test-central-connection", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.TestCentralConnectionHandler)).ServeHTTP)
 
+	// Auto-update endpoints
+	http.HandleFunc("/api/admin/update/check", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UpdateCheckHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/update/apply", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UpdateApplyHandler)).ServeHTTP)
 
 	// Stripe checkout session route
 	http.HandleFunc("/api/stripe/create-checkout-session", wrapHandler(http.HandlerFunc(controller.Api.CreateCheckoutSessionHandler)).ServeHTTP)
@@ -798,12 +816,12 @@ func main() {
 					baseUrl := fmt.Sprintf("%s://%s/", scheme, host)
 					html = strings.Replace(html, `<base href="./">`, fmt.Sprintf(`<base href="%s">`, baseUrl), 1)
 
-				// Get initial config data
-				branding := controller.Options.Branding
-				if branding == "" {
-					branding = "Thinline Radio"
-				}
-				email := controller.Options.Email
+					// Get initial config data
+					branding := controller.Options.Branding
+					if branding == "" {
+						branding = "Thinline Radio"
+					}
+					email := controller.Options.Email
 
 					// Inject config into HTML
 					configScript := fmt.Sprintf(`

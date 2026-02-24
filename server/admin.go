@@ -5473,3 +5473,92 @@ func (admin *Admin) DeviceTokenDeleteHandler(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Device token deleted successfully"})
 }
+
+// UpdateCheckHandler handles GET /api/admin/update/check
+// Returns the current and latest version along with whether an update is available.
+func (admin *Admin) UpdateCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if admin.Controller.Updater == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "updater not initialised"})
+		return
+	}
+
+	info, err := admin.Controller.Updater.CheckForUpdate()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(info)
+}
+
+// UpdateApplyHandler handles POST /api/admin/update/apply
+// Downloads and applies the latest release then triggers a graceful restart.
+// The HTTP response is sent BEFORE the restart begins so the client receives it.
+func (admin *Admin) UpdateApplyHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if admin.Controller.Updater == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "updater not initialised"})
+		return
+	}
+
+	info, err := admin.Controller.Updater.CheckForUpdate()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	if !info.UpdateAvailable {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "Already up to date",
+			"version": info.CurrentVersion,
+		})
+		return
+	}
+
+	// Send the response first — the server will restart shortly after.
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": fmt.Sprintf("Applying update to %s — server will restart momentarily", info.LatestVersion),
+		"from":    info.CurrentVersion,
+		"to":      info.LatestVersion,
+	})
+
+	// Flush so the client receives the response before we restart.
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+
+	// Apply the update in a goroutine so the handler returns cleanly.
+	go func() {
+		if err := admin.Controller.Updater.ApplyUpdate(info.DownloadURL); err != nil {
+			log.Printf("Auto-update apply failed: %v", err)
+		}
+	}()
+}

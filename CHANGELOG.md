@@ -1,6 +1,21 @@
 # Change log
 
-## Version 7.0 Beta 9.6 - Released TBD
+## Version 7.0 Beta 9.6.2 - Released TBD
+
+### New Features
+
+- **Auto-Update Support**
+  - Server can now automatically check GitHub Releases for new versions and apply updates without manual intervention
+  - On Unix platforms (Linux, macOS, BSD, Solaris): new binary is atomically swapped in place via `os.Rename()` and the server restarts gracefully via `SIGTERM` — systemd/process managers pick it up automatically
+  - On Windows: a detached PowerShell script handles the binary swap after the process exits, then relaunches the server
+  - Background check runs 5 minutes after startup, then every 12 hours thereafter
+  - Controlled by a new ini setting: `auto_update = true/false` (default: `false`)
+  - Even with `auto_update = false`, manual update check and apply are available via the admin API:
+    - `GET  /api/admin/update/check` — returns current version, latest version, and whether an update is available
+    - `POST /api/admin/update/apply` — downloads and applies the update immediately, server restarts after responding
+  - Current binary is backed up as `thinline-radio.bak` before replacement for safety
+  - Files added: `server/updater.go`, `server/updater_unix.go`, `server/updater_windows.go`
+  - Files modified: `server/config.go`, `server/controller.go`, `server/admin.go`, `server/main.go`, `server/thinline-radio.ini.template`
 
 ### Enhancements
 

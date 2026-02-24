@@ -51,6 +51,7 @@ type Config struct {
 	EnableDebugLog       bool
 	UseOpus              bool   // Enable Opus encoding for new calls
 	OpusMigration        bool   // Migrate existing calls to Opus on startup
+	AutoUpdate           bool   // Automatically check and apply updates from GitHub
 	daemon               *Daemon
 	newAdminPassword     string
 	migrateToOpus        bool
@@ -187,6 +188,11 @@ func NewConfig() *Config {
 		// Read opus_migration setting (defaults to false)
 		if v, err := cfg.Section("").Key("opus_migration").Bool(); err == nil {
 			config.OpusMigration = v
+		}
+
+		// Read auto_update setting (defaults to false)
+		if v, err := cfg.Section("").Key("auto_update").Bool(); err == nil {
+			config.AutoUpdate = v
 		}
 	}
 

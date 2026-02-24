@@ -101,6 +101,9 @@ type Controller struct {
 	RateLimiter         *RateLimiter
 	LoginAttemptTracker *LoginAttemptTracker
 
+	// Auto-updater
+	Updater *Updater
+
 	// Debug logging for tones/keywords
 	DebugLogger              *DebugLogger
 	TranscriptionDebugLogger *TranscriptionDebugLogger
@@ -193,6 +196,10 @@ func NewController(config *Config) *Controller {
 	controller.RateLimiter = NewRateLimiter(1000, 1*time.Minute)
 	// Login attempt tracker: 6 failed attempts = 15 minute block
 	controller.LoginAttemptTracker = NewLoginAttemptTracker(6, 15*time.Minute)
+
+	// Initialize auto-updater (always created so admin API works;
+	// background checks only run when auto_update = true in the ini).
+	controller.Updater = NewUpdater(controller)
 
 	// Initialize reconnection manager with default settings
 	// Will be reconfigured with actual settings from Options after Options.Read()
@@ -2823,6 +2830,9 @@ func (controller *Controller) Start() error {
 		controller.Logs.LogEvent(LogLevelInfo, "Central Management service started")
 	}
 
+	// Start auto-updater (no-op if auto_update = false in ini)
+	controller.Updater.Start()
+
 	if err = controller.Admin.Start(); err != nil {
 		return err
 	}
@@ -3181,6 +3191,11 @@ func (controller *Controller) Terminate() {
 		case <-time.After(10 * time.Second):
 			log.Println("Worker shutdown timeout reached (10s), proceeding with shutdown")
 		}
+	}
+
+	// Stop auto-updater background goroutine
+	if controller.Updater != nil {
+		controller.Updater.Stop()
 	}
 
 	controller.Dirwatches.Stop()
