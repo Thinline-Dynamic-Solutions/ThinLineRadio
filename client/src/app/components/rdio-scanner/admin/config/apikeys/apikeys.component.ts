@@ -19,7 +19,7 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input } from '@angular/core';
+import { ChangeDetectorRef, Component, Input } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { FormArray, FormGroup } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -40,12 +40,19 @@ export class RdioScannerAdminApikeysComponent {
     keyVisible: boolean[] = [];
 
     get apikeys(): FormGroup[] {
-        return this.form?.controls
+        // Spread into a new array so mat-table always receives a new reference
+        // and correctly detects additions/removals even inside an OnPush parent.
+        return [...(this.form?.controls || [])]
             .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
+    }
+
+    trackByKey(_index: number, apikey: FormGroup): string {
+        return apikey.get('key')?.value ?? String(_index);
     }
 
     constructor(
         private adminService: RdioScannerAdminService,
+        private cdr: ChangeDetectorRef,
         private matDialog: MatDialog,
         private snackBar: MatSnackBar
     ) { }
@@ -62,6 +69,11 @@ export class RdioScannerAdminApikeysComponent {
         this.keyVisible.unshift(true); // Show new key's value by default
 
         this.form?.markAsDirty();
+
+        // markForCheck() propagates up through the OnPush parent (config.component)
+        // so the new array reference from the getter is picked up and mat-table
+        // renders the new row immediately without the user having to click elsewhere.
+        this.cdr.markForCheck();
     }
 
     remove(index: number): void {

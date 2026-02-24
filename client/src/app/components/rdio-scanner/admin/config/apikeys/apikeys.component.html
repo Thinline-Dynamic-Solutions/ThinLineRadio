@@ -35,6 +35,7 @@
 <!-- API Keys Table -->
 <div class="table-wrapper" *ngIf="apikeys?.length">
     <mat-table [dataSource]="apikeys"
+               [trackBy]="trackByKey"
                cdkDropList
                [cdkDropListData]="apikeys"
                (cdkDropListDropped)="drop($event)"

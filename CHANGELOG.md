@@ -1,5 +1,23 @@
 # Change log
 
+## Version 7.0 Beta 9.6.3 - Released TBD
+
+### Bug Fixes
+
+- **Admin — API Keys: New key row renders immediately on click**
+  - Clicking "New API Key" now instantly shows the blank input row without requiring the user to navigate away and back first
+  - Root cause was three compounding issues: the parent `config.component` uses `ChangeDetectionStrategy.OnPush`; the `apikeys` getter was returning the same mutated array reference so `mat-table` saw no change; and no `trackBy` function meant the table reused existing DOM rows with stale data
+  - Fixed by spreading into a new array in the getter (`[...controls].sort(...)`), switching from `detectChanges()` to `markForCheck()` to propagate up through the OnPush ancestor, and adding `[trackBy]="trackByKey"` on the `mat-table` so rows are identified by their unique API key UUID
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/apikeys/apikeys.component.ts`, `client/src/app/components/rdio-scanner/admin/config/apikeys/apikeys.component.html`
+
+### Testing Notes
+
+- **Auto-Update — Beta 9.6.3 is the first release that can self-update**
+  - Servers running Beta 9.6.2 with `auto_update = true` in `thinline-radio.ini` will automatically detect and download this release within 12 hours of it being published
+  - To test immediately without waiting: `POST /api/admin/update/apply` from the admin API (requires admin token)
+  - After update: server restarts gracefully — on Linux/macOS systemd picks it back up automatically; on Windows the PowerShell script relaunches the new `.exe`
+  - Old binary is preserved as `thinline-radio.bak` in the install directory as a rollback option
+
 ## Version 7.0 Beta 9.6.2 - Released TBD
 
 ### New Features
