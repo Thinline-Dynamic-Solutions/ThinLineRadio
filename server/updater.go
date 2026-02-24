@@ -36,8 +36,8 @@ const (
 	githubOwner         = "Thinline-Dynamic-Solutions"
 	githubRepo          = "ThinLineRadio"
 	githubAPIURL        = "https://api.github.com/repos/Thinline-Dynamic-Solutions/ThinLineRadio/releases/latest"
-	updateCheckInterval = 12 * time.Hour
-	updateCheckDelay    = 5 * time.Minute // Wait after startup before first check
+	updateCheckInterval = 30 * time.Minute
+	updateCheckDelay    = 30 * time.Second // Wait after startup before first check
 )
 
 // GitHubRelease represents the GitHub releases API response.
@@ -246,19 +246,22 @@ func (u *Updater) ApplyUpdate(downloadURL string) error {
 		return fmt.Errorf("failed to chmod new binary: %w", err)
 	}
 
-	// Backup the current binary so we can restore it on failure.
+	// Platform-specific swap and restart.
+	if runtime.GOOS == "windows" {
+		// On Windows ALL file operations (backup, swap, restart) are handled by a
+		// detached PowerShell script AFTER the Go process exits and releases the
+		// exe file lock.  We must NOT touch the current exe here — if anything
+		// goes wrong before os.Exit the old binary stays intact.
+		return applyUpdateWindows(newBinaryPath, exePath)
+	}
+
+	// Unix: back up then atomically rename the new binary into place.
 	backupPath := exePath + ".bak"
 	if err := os.Rename(exePath, backupPath); err != nil {
 		return fmt.Errorf("failed to backup current binary: %w", err)
 	}
 	log.Printf("Auto-update: backed up current binary to %s", backupPath)
 
-	// Platform-specific swap and restart.
-	if runtime.GOOS == "windows" {
-		return applyUpdateWindows(newBinaryPath, exePath, backupPath)
-	}
-
-	// Unix: atomic rename then signal ourselves to restart gracefully.
 	if err := os.Rename(newBinaryPath, exePath); err != nil {
 		// Restore backup so the server stays functional.
 		if restoreErr := os.Rename(backupPath, exePath); restoreErr != nil {
@@ -267,11 +270,28 @@ func (u *Updater) ApplyUpdate(downloadURL string) error {
 		return fmt.Errorf("failed to replace binary (backup restored): %w", err)
 	}
 
+	// Re-apply executable permission on the final path.  Permissions survive
+	// os.Rename on the same filesystem, but on systems where /tmp is a separate
+	// mount (tmpfs, noexec, etc.) the mode bits can be lost during the move.
+	if err := os.Chmod(exePath, 0755); err != nil {
+		log.Printf("Auto-update: warning — could not chmod new binary: %v", err)
+	}
+
 	log.Printf("Auto-update: binary replaced successfully (%s → %s)", Version, exePath)
 	u.controller.Logs.LogEvent(LogLevelInfo, "Auto-update applied — restarting server")
 
-	// Give the log a moment to flush, then signal graceful shutdown.
-	// systemd / the daemon manager will restart us with the new binary.
+	// Spawn the new binary as a fully detached process before shutting down.
+	// This guarantees the server restarts even when not managed by systemd
+	// (e.g. run directly in a terminal).  Under systemd, systemd will also
+	// restart it after SIGTERM — whichever process loses the port race exits
+	// immediately, so there is no double-server risk.
+	if err := spawnNewProcess(exePath); err != nil {
+		log.Printf("Auto-update: warning — could not spawn new process: %v (relying on systemd to restart)", err)
+	} else {
+		log.Println("Auto-update: new server process spawned, shutting down current process...")
+	}
+
+	// Give logs a moment to flush, then signal graceful shutdown.
 	time.AfterFunc(1*time.Second, triggerRestart)
 	return nil
 }

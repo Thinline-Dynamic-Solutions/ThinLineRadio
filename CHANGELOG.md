@@ -1,5 +1,40 @@
 # Change log
 
+## Version 7.0 Beta 9.6.4 - Released Feb 23, 2026
+
+### Bug Fixes
+
+- **Auto-Update Linux: Server now restarts automatically after update**
+  - Previously the server would download, replace the binary, and shut down gracefully but never come back up — requiring a manual restart
+  - Root cause: the new binary was spawned immediately while the old process was still holding the port; the new process tried to bind port 3000, failed, and exited silently before the old process finished shutting down
+  - Fixed by spawning the new binary via `sh -c "sleep 5 && exec <path>"` — the 5-second shell delay gives the current process time to complete graceful shutdown and release the port before the new binary attempts to bind it
+  - Works whether running directly in a terminal, under `nohup`, or managed by systemd
+
+- **Auto-Update Windows: Switched from PowerShell script to cmd.exe batch script**
+  - PowerShell execution policy (`Restricted`) at the machine/Group Policy level blocked the `.ps1` script even with `-ExecutionPolicy Bypass`, causing the update to silently do nothing after backing up the binary
+  - Replaced with a `.cmd` batch script executed via `cmd.exe` — batch scripts have no execution policy restrictions and run on any Windows machine regardless of PowerShell configuration
+  - Full update log written to `thinline-update.log` in the install directory for diagnosing any future issues
+
+- **Auto-Update Unix: New binary now has correct executable permissions after update**
+  - On systems where `/tmp` is a separate mount (tmpfs), permissions could be lost during the binary move
+  - Fixed by re-applying `chmod 0755` to the binary after it is moved to its final location
+
+- **Auto-Update: Check interval changed from 12 hours / 5 min delay to 30 min / 30 sec delay**
+  - First update check now runs 30 seconds after startup (was 5 minutes)
+  - Subsequent checks run every 30 minutes (was every 12 hours)
+
+### Bug Fixes
+
+- **Auto-Update Windows: Critical fix — binary swap now fully handled by PowerShell script**
+  - Previous behaviour: the Go process renamed the current `.exe` to `.bak` *before* launching the PowerShell script. If the script failed to start for any reason (permissions, PowerShell policy, AV, etc.) the server was left with no executable and could not restart
+  - Root cause 1: all file operations (backup + swap) were done inside the Go process before `os.Exit(0)`, meaning a script-launch failure left the install directory in a broken state
+  - Root cause 2: `Write-Host` on a detached/hidden process with no console could silently crash PowerShell before it did anything, and no log file meant zero visibility into what went wrong
+  - Fix: the Go process now only downloads, extracts, writes the script, and exits. **All file operations** (rename old exe → `.bak`, move new binary → `.exe`, start new server) are performed by the PowerShell script after the process has exited and released the file lock
+  - If the PowerShell script fails to launch, the old binary is completely untouched — the server keeps running normally
+  - Added `thinline-update.log` written to the install directory with timestamped entries for every step, so failures are fully diagnosable
+  - Script now uses `Add-Content` to log file instead of `Write-Host` (detached processes have no console)
+  - Added `-WindowStyle Hidden` to PowerShell invocation to suppress any console window flash
+
 ## Version 7.0 Beta 9.6.3 - Released TBD
 
 ### Bug Fixes
