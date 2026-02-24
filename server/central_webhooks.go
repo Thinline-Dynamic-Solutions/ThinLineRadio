@@ -20,7 +20,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // CentralUserGrantRequest represents a request to grant user access from central system
@@ -470,6 +475,88 @@ func (api *Api) CentralWebhookUsersListHandler(w http.ResponseWriter, r *http.Re
 	})
 }
 
+// CentralManagementPairRequest is the payload sent by Central Management to pair this server.
+type CentralManagementPairRequest struct {
+	AdminPassword         string `json:"admin_password"`
+	CentralManagementURL  string `json:"central_management_url"`
+	APIKey                string `json:"api_key"`
+	ServerName            string `json:"server_name"`
+	ServerID              string `json:"server_id"`
+}
+
+// PairWithCentralManagementHandler is called by the Central Management backend to authenticate
+// and push the API key + CM URL directly to this server, enabling centralized management mode
+// without any manual copy-paste on the TLR server side.
+//
+// This endpoint is intentionally NOT localhost-restricted so that the CM backend can reach it,
+// but it is protected by admin password verification (bcrypt).
+func (api *Api) PairWithCentralManagementHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req CentralManagementPairRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.AdminPassword == "" || req.CentralManagementURL == "" || req.APIKey == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "admin_password, central_management_url and api_key are required"})
+		return
+	}
+
+	// Verify the admin password via bcrypt — same check as the normal admin login.
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(api.Controller.Options.adminPassword),
+		[]byte(req.AdminPassword),
+	); err != nil {
+		log.Printf("Central Management pairing: invalid admin password from %s", r.RemoteAddr)
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid admin password"})
+		return
+	}
+
+	// Apply the centralized management configuration.
+	api.Controller.Options.mutex.Lock()
+	api.Controller.Options.CentralManagementEnabled = true
+	api.Controller.Options.CentralManagementURL = req.CentralManagementURL
+	api.Controller.Options.CentralManagementAPIKey = req.APIKey
+	if req.ServerName != "" {
+		api.Controller.Options.CentralManagementServerName = req.ServerName
+	}
+	if req.ServerID != "" {
+		api.Controller.Options.CentralManagementServerID = req.ServerID
+	}
+	api.Controller.Options.mutex.Unlock()
+
+	// Persist to database.
+	if err := api.Controller.Options.Write(api.Controller.Database); err != nil {
+		log.Printf("Central Management pairing: failed to persist options: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to save configuration"})
+		return
+	}
+
+	// Start (or restart) the central management service so it registers immediately.
+	if api.Controller.CentralManagement != nil {
+		api.Controller.CentralManagement.Stop()
+	}
+	cms := NewCentralManagementService(api.Controller)
+	api.Controller.CentralManagement = cms
+	go cms.Start()
+
+	log.Printf("Central Management pairing: server successfully paired with %s", req.CentralManagementURL)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"message": "Server paired with Central Management successfully",
+	})
+}
+
 // TestCentralConnectionHandler tests the connection FROM this server TO the central management system
 func (admin *Admin) TestCentralConnectionHandler(w http.ResponseWriter, r *http.Request) {
 	// Read test parameters from request body (settings may not be saved yet)
@@ -529,4 +616,217 @@ func (admin *Admin) TestCentralConnectionHandler(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	_, _ = w.Write(responseBody)
+}
+
+// CMAdminTokenHandler issues a short-lived admin JWT so that Central Management can open
+// this server's admin UI in a new browser tab without requiring the admin password.
+// The caller must supply the correct X-API-Key header matching this server's stored CM API key.
+// POST /api/central-management/admin-token
+func (api *Api) CMAdminTokenHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Central management must be enabled on this server
+	if !api.Controller.Options.CentralManagementEnabled {
+		api.exitWithError(w, http.StatusForbidden, "Central management is not enabled on this server")
+		return
+	}
+
+	// Verify the API key
+	apiKey := r.Header.Get("X-API-Key")
+	if apiKey == "" || apiKey != api.Controller.Options.CentralManagementAPIKey {
+		api.exitWithError(w, http.StatusUnauthorized, "Invalid or missing API key")
+		return
+	}
+
+	// Generate a UUID claim ID
+	id, err := uuid.NewRandom()
+	if err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, "Failed to generate token")
+		return
+	}
+
+	// Sign a JWT the same way LoginHandler does so it is accepted by ValidateToken
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{ID: id.String()})
+	sToken, err := token.SignedString([]byte(api.Controller.Options.secret))
+	if err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, "Failed to sign token")
+		return
+	}
+
+	// Register the token in the Admin token list so it will be accepted
+	admin := api.Controller.Admin
+	admin.mutex.Lock()
+	if len(admin.Tokens) < 5 {
+		admin.Tokens = append(admin.Tokens, sToken)
+	} else {
+		admin.Tokens = append(admin.Tokens[1:], sToken)
+	}
+	admin.mutex.Unlock()
+
+	log.Printf("Central Management: issued temporary admin token for CM access")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"token": sToken,
+	})
+}
+
+// SetRemovalCodeHandler receives a one-time removal code from Central Management.
+// CM calls this when an admin clicks "Generate Removal Code" in the CM UI.
+// The code is stored temporarily (15 min) and validated when the local admin
+// clicks "Leave Central Management" in the TLR admin panel.
+// POST /api/central-management/set-removal-code
+func (api *Api) SetRemovalCodeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	if !api.Controller.Options.CentralManagementEnabled {
+		api.exitWithError(w, http.StatusForbidden, "Central management is not enabled")
+		return
+	}
+
+	// Authenticate via the CM API key
+	apiKey := r.Header.Get("X-API-Key")
+	if apiKey == "" || apiKey != api.Controller.Options.CentralManagementAPIKey {
+		api.exitWithError(w, http.StatusUnauthorized, "Invalid or missing API key")
+		return
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Code) == "" {
+		api.exitWithError(w, http.StatusBadRequest, "code is required")
+		return
+	}
+
+	cms := api.Controller.CentralManagement
+	if cms == nil {
+		api.exitWithError(w, http.StatusInternalServerError, "Central management service not running")
+		return
+	}
+
+	cms.removalCodeMu.Lock()
+	cms.removalCode = strings.ToUpper(strings.TrimSpace(req.Code))
+	cms.removalCodeExpiry = time.Now().Add(15 * time.Minute)
+	cms.removalCodeMu.Unlock()
+
+	log.Printf("Central Management: removal code set (expires in 15 min)")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// LeaveCentralManagementHandler lets a local TLR admin remove this server from Central Management.
+// Requires a valid admin JWT token + the one-time removal code previously pushed by CM.
+// POST /api/central-management/leave
+func (api *Api) LeaveCentralManagementHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Require a valid admin session token
+	token := r.Header.Get("Authorization")
+	if !api.Controller.Admin.ValidateToken(token) {
+		api.exitWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Code) == "" {
+		api.exitWithError(w, http.StatusBadRequest, "code is required")
+		return
+	}
+	enteredCode := strings.ToUpper(strings.TrimSpace(req.Code))
+
+	cms := api.Controller.CentralManagement
+	if cms == nil {
+		api.exitWithError(w, http.StatusBadRequest, "No removal code has been generated. Ask a Central Management admin to generate one first.")
+		return
+	}
+
+	// Validate code
+	cms.removalCodeMu.Lock()
+	validCode := cms.removalCode
+	expiry := cms.removalCodeExpiry
+	cms.removalCodeMu.Unlock()
+
+	if validCode == "" {
+		api.exitWithError(w, http.StatusBadRequest, "No removal code has been generated. Ask a Central Management admin to generate one first.")
+		return
+	}
+	if time.Now().After(expiry) {
+		cms.removalCodeMu.Lock()
+		cms.removalCode = ""
+		cms.removalCodeMu.Unlock()
+		api.exitWithError(w, http.StatusBadRequest, "Removal code has expired. Please generate a new one from Central Management.")
+		return
+	}
+	if enteredCode != validCode {
+		api.exitWithError(w, http.StatusUnauthorized, "Invalid removal code.")
+		return
+	}
+
+	// Code is valid — clear it immediately (one-time use)
+	cms.removalCodeMu.Lock()
+	cms.removalCode = ""
+	cms.removalCodeMu.Unlock()
+
+	// Snapshot the CM credentials before we wipe them so we can notify CM
+	api.Controller.Options.mutex.Lock()
+	cmURL := api.Controller.Options.CentralManagementURL
+	cmAPIKey := api.Controller.Options.CentralManagementAPIKey
+	api.Controller.Options.mutex.Unlock()
+
+	// Notify the CM system to remove this server from its list.
+	// This is best-effort — we proceed with unlinking even if CM is unreachable.
+	if cmURL != "" && cmAPIKey != "" {
+		selfRemoveURL := strings.TrimRight(cmURL, "/") + "/api/tlr/server"
+		req, err := http.NewRequest(http.MethodDelete, selfRemoveURL, nil)
+		if err == nil {
+			req.Header.Set("X-API-Key", cmAPIKey)
+			client := &http.Client{Timeout: 10 * time.Second}
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Printf("Central Management: could not notify CM to remove server (continuing anyway): %v", err)
+			} else {
+				resp.Body.Close()
+				log.Printf("Central Management: notified CM to remove server (HTTP %d)", resp.StatusCode)
+			}
+		}
+	}
+
+	// Stop the CM service
+	cms.Stop()
+	api.Controller.CentralManagement = nil
+
+	// Clear all CM settings
+	api.Controller.Options.mutex.Lock()
+	api.Controller.Options.CentralManagementEnabled = false
+	api.Controller.Options.CentralManagementURL = ""
+	api.Controller.Options.CentralManagementAPIKey = ""
+	api.Controller.Options.CentralManagementServerName = ""
+	api.Controller.Options.CentralManagementServerID = ""
+	api.Controller.Options.mutex.Unlock()
+
+	// Persist to database
+	if err := api.Controller.Options.Write(api.Controller.Database); err != nil {
+		log.Printf("Central Management: warning — failed to persist options after leaving CM: %v", err)
+	}
+
+	log.Printf("Central Management: server successfully removed from Central Management")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"message": "Server successfully removed from Central Management",
+	})
 }

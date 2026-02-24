@@ -1,12 +1,21 @@
+// Ensure the component element itself starts from the top of the parent flex
+// container (mat-sidenav-content uses align-items: center for the main UI,
+// which would push the auth card to the middle and clip the logo at the top
+// on mobile where the visible area is smaller than 100vh).
+:host {
+  display: block;
+  width: 100%;
+  align-self: flex-start; // Override parent align-items: center → start from top
+}
+
 .auth-screen {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  display: block; // Block layout — centering is handled by margin: auto on .auth-container
   min-height: 100vh;
+  min-height: 100dvh; // Use dynamic viewport height on modern browsers
   background: #f5f5f5;
   padding: 20px;
+  padding-top: calc(40px + env(safe-area-inset-top, 0px)); // Account for iOS notch / status bar
   box-sizing: border-box;
-  padding-top: 40px; // Add padding to keep some space from top
 }
 
 
@@ -19,6 +28,7 @@
   max-width: 400px;
   box-sizing: border-box;
   border: 1px solid #e0e0e0;
+  margin: 0 auto; // Center horizontally — reliable regardless of flex parent behavior
 }
 
 .auth-header {
@@ -216,6 +226,7 @@
 @media (max-width: 480px) {
   .auth-screen {
     padding: 10px;
+    padding-top: calc(20px + env(safe-area-inset-top, 0px)); // Keep safe-area clearance on mobile
   }
 
   .auth-container {

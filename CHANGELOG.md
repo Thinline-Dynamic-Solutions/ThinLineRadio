@@ -1,5 +1,43 @@
 # Change log
 
+## Version 7.0 Beta 9.6.5 - Released Feb 24, 2026
+
+### Bug Fixes
+
+- **Mobile Login Screen: Header/logo no longer cut off on iOS mobile browsers (Issue #109)**
+  - The `<meta name="viewport">` tag was missing `viewport-fit=cover`, preventing `env(safe-area-inset-top)` from working
+  - `mat-sidenav-content` uses `align-items: center` for the main scanner UI; the auth-screen component was treated as a centered flex child, so when the visible viewport was smaller than `100vh` (browser chrome eating into it), the top of the card was clipped above the scroll origin and unreachable
+  - Fixed by adding `align-self: flex-start` to the auth-screen `:host` so it anchors to the top of the container instead of being vertically centered
+  - Added `padding-top: calc(40px + env(safe-area-inset-top, 0px))` to clear the iOS notch and status bar on both desktop and the `@media (max-width: 480px)` breakpoint
+  - Added `min-height: 100dvh` alongside `100vh` to use the dynamic viewport height on modern browsers
+  - Files modified: `client/src/index.html`, `client/src/app/components/rdio-scanner/auth-screen/auth-screen.component.scss`
+
+- **Mobile Login Screen: Auth card is now correctly centered horizontally**
+  - The card was visually shifted slightly to the right due to flex centering being susceptible to scrollbar gutters and Angular Material's dynamic margin injection on `mat-sidenav-content`
+  - Replaced flex-based centering with `margin: 0 auto` directly on `.auth-container` (the classic block-level auto-margin technique), which is immune to parent flex container behavior
+  - Changed `.auth-screen` from `display: flex` to `display: block` since centering is now handled by the container's own margin
+  - Files modified: `client/src/app/components/rdio-scanner/auth-screen/auth-screen.component.scss`
+
+- **Sign-Up: "View Available Channels" count now shows total talkgroups, not number of systems**
+  - The button label showed `availableChannels.length` which counted the number of *systems* in the response, not the individual talkgroups within them
+  - Added `getTotalChannelCount()` method that sums `system.talkgroups.length` across all systems
+  - Files modified: `client/src/app/components/rdio-scanner/auth-screen/auth-screen.component.ts`, `client/src/app/components/rdio-scanner/auth-screen/auth-screen.component.html`
+
+- **Admin — Systems: Manual drag-and-drop sorting restored (Issue #110)**
+  - The systems overview table lost `cdkDropList`/`cdkDrag` support during the Beta 9.6 rewrite; the `order` field still existed on each system's `FormGroup` but there was no UI to change it
+  - Restored a `drag_indicator` handle column, `cdkDropList` on the table, `cdkDrag` on each row, and a `dropSystem()` method that mirrors the existing `dropTalkgroup`/`dropSite` pattern: moves the item in the displayed array, rewrites each system's `order` field (1-based), and marks the form dirty
+  - Drag is automatically disabled when a search filter is active (`[cdkDropListDisabled]="!!systemsSearchTerm"`) since reordering a filtered subset would produce incorrect order values for hidden rows; a tooltip "Clear search to reorder" is shown instead
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/systems/systems.component.ts`, `client/src/app/components/rdio-scanner/admin/config/systems/systems.component.html`, `client/src/app/components/rdio-scanner/admin/config/systems/systems.component.scss`
+
+- **Admin — Talkgroups: Delete now removes the correct talkgroup; Select All checkboxes now render correctly**
+  - **Delete bug**: The inline delete button used `let i = index` (positional index in `filteredTalkgroups`) and passed it to `arr.removeAt(i)` on the full `FormArray`. When a search filter is active, `filteredTalkgroups[i]` and `talkgroups[i]` are different items — the delete always acted on the first item in the *full* sorted list (the "top one"), not the clicked row
+  - **Select All visual bug**: `isTalkgroupSelected(i)` and `toggleTalkgroupSelection(i)` also relied on the same potentially wrong positional index `i`, causing individual row checkboxes to appear unchecked even though `allTalkgroupsSelected` reported true
+  - Fixed by eliminating all positional-index usage in the select and actions columns; the HTML now passes the `FormGroup` object reference (`tg`) directly; TypeScript methods (`isTalkgroupSelected`, `toggleTalkgroupSelection`, `removeTalkgroup`, `blacklistTalkgroup`) perform reference-based lookups using `talkgroups.indexOf(tg)` and `arr.controls.indexOf(tg)`, which are immune to filtered-index drift
+  - `allTalkgroupsSelected` now checks whether all *currently visible* (filtered) talkgroups are selected, making the header checkbox reflect the filtered view correctly
+  - `selectAllTalkgroups()` now selects only the currently visible (filtered) talkgroups
+  - Removed the now-unnecessary `_fullTalkgroupIdx` private helper
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/systems/system/system.component.ts`, `client/src/app/components/rdio-scanner/admin/config/systems/system/system.component.html`
+
 ## Version 7.0 Beta 9.6.4 - Released Feb 23, 2026
 
 ### Bug Fixes

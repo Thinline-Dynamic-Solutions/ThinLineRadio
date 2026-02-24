@@ -1,19 +1,56 @@
 <div class="user-registration-config" *ngIf="userRegistrationForm">
+
+  <!-- Central Management message (replaces settings when CM is active) -->
+  <div *ngIf="isCentrallyManaged" class="cm-managed-message">
+    <mat-icon class="cm-overlay-icon">hub</mat-icon>
+    <h3 class="cm-overlay-title">Managed by Central Management</h3>
+    <p class="cm-overlay-message">
+      This server's users are managed through Central Management.<br>
+      User registration settings are controlled centrally and cannot be modified here.
+    </p>
+
+    <!-- Leave Central Management section -->
+    <div class="leave-cm-section" *ngIf="!showLeaveCMForm">
+      <button mat-stroked-button class="leave-cm-btn" (click)="openLeaveCMForm()">
+        <mat-icon>link_off</mat-icon>
+        Leave Central Management
+      </button>
+    </div>
+
+    <div class="leave-cm-form" *ngIf="showLeaveCMForm">
+      <p class="leave-cm-instructions">
+        To unlink this server, ask a Central Management admin to generate a removal code from the server's
+        actions menu in the CM panel. Enter that code below.
+      </p>
+      <mat-form-field appearance="outline" class="leave-cm-input">
+        <mat-label>Removal Code</mat-label>
+        <input matInput [(ngModel)]="leaveCMCode" [ngModelOptions]="{standalone: true}"
+               placeholder="e.g. X4K9M2" maxlength="8" style="text-transform: uppercase; letter-spacing: 4px; font-size: 20px;">
+      </mat-form-field>
+      <div class="leave-cm-error" *ngIf="leaveCMError">{{ leaveCMError }}</div>
+      <div class="leave-cm-actions">
+        <button mat-button (click)="cancelLeaveCM()">Cancel</button>
+        <button mat-raised-button color="warn" (click)="leaveCentralManagement()"
+                [disabled]="!leaveCMCode || leavingCM">
+          <mat-icon *ngIf="!leavingCM">link_off</mat-icon>
+          <mat-spinner *ngIf="leavingCM" diameter="18" style="display:inline-block;"></mat-spinner>
+          {{ leavingCM ? 'Unlinking…' : 'Confirm &amp; Leave' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="!isCentrallyManaged">
   <form [formGroup]="userRegistrationForm" (ngModelChange)="syncToParentForm()">
     <div class="config-section">
       <h3>User Registration Settings</h3>
-      <div style="color: #f44336; font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 16px; padding: 8px; background-color: rgba(244, 67, 54, 0.1); border-left: 3px solid #f44336;">
-        CENTRAL MANAGEMENT IS IN DEVELOPMENT DO NOT USE THIS OPTION AS YOUR USERS WILL NOT BE ABLE TO REGISTER, THIS SOFTWARE WILL BE RELEASED WHEN ITS AVAILABLE
-      </div>
-      
-      <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="full-width">
         <mat-label>Registration Mode</mat-label>
         <mat-select formControlName="registrationMode">
           <mat-option value="invite">Invite Only (Requires registration or invitation code)</mat-option>
           <mat-option value="public" [disabled]="!hasPublicRegistrationGroup">Public Registration (Anyone can sign up)</mat-option>
-          <mat-option value="centralized">Centralized Management (Multi-Server Billing & User Management)</mat-option>
         </mat-select>
-        <mat-hint *ngIf="!hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value !== 'centralized'" style="color: #f44336;">
+        <mat-hint *ngIf="!hasPublicRegistrationGroup" style="color: #f44336;">
           Public Registration requires a Public Registration Group. Create one in the Groups section first.
         </mat-hint>
         <mat-hint *ngIf="hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'invite'">
@@ -22,84 +59,18 @@
         <mat-hint *ngIf="hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'public'">
           Anyone can create an account without a code (optional codes still work)
         </mat-hint>
-        <mat-hint *ngIf="userRegistrationForm.get('registrationMode')?.value === 'centralized'" style="color: #64B5F6;">
-          User authentication and billing will be managed by the centralized system. Local user management will be disabled.
-        </mat-hint>
       </mat-form-field>
-
-      <!-- Centralized Management Settings (only shown when mode is 'centralized') -->
-      <ng-container *ngIf="userRegistrationForm.get('registrationMode')?.value === 'centralized'">
-        <div style="background-color: #1a2a3a; border: 1px solid #1565C0; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h4 style="margin: 0 0 15px 0; color: #64B5F6;">
-            <mat-icon style="vertical-align: middle; margin-right: 8px;">cloud</mat-icon>
-            Centralized Management Configuration
-          </h4>
-          
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Server Name</mat-label>
-            <input matInput type="text" formControlName="centralManagementServerName" placeholder="Ohio RSN TEST">
-            <mat-hint>Friendly name for this server (displayed in the central management portal)</mat-hint>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Server ID</mat-label>
-            <input matInput type="text" formControlName="centralManagementServerID" placeholder="e.g. ohio-rsn-01">
-            <mat-hint>Unique identifier used to correlate users and scanner access (e.g. during CSV import)</mat-hint>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Central Management URL</mat-label>
-            <input matInput type="text" formControlName="centralManagementUrl" placeholder="https://central.example.com">
-            <mat-hint>URL of the centralized management system (e.g., https://central.example.com)</mat-hint>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>This Server's Public URL</mat-label>
-            <input matInput type="text" formControlName="baseUrl" placeholder="https://ohio-rsn.example.com">
-            <mat-hint><strong>Required:</strong> YOUR server's public URL. The central system needs this to send user access updates and for users to connect.</mat-hint>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>API Key</mat-label>
-            <input matInput type="password" formControlName="centralManagementApiKey" placeholder="Enter API key from central system">
-            <mat-hint>API key provided by the central management system admin</mat-hint>
-          </mat-form-field>
-
-          <div style="margin-top: 15px;">
-            <button mat-raised-button color="primary" type="button" (click)="testCentralConnection()" 
-                    [disabled]="!userRegistrationForm.get('centralManagementUrl')?.value || !userRegistrationForm.get('centralManagementApiKey')?.value">
-              <mat-icon>sync</mat-icon>
-              Test Connection
-            </button>
-          </div>
-
-          <div *ngIf="centralConnectionStatus" style="margin-top: 15px;">
-            <mat-chip-set>
-              <mat-chip [color]="centralConnectionStatus === 'success' ? 'primary' : 'warn'" [highlighted]="true">
-                {{ centralConnectionMessage }}
-              </mat-chip>
-            </mat-chip-set>
-          </div>
-
-          <div style="margin-top: 15px; padding: 12px; background-color: rgba(251, 192, 45, 0.1); border-left: 4px solid #FBC02D; border-radius: 4px; color: #ffe082;">
-            <strong style="color: #FFD54F;">Note:</strong> When centralized management is enabled, local user registration, Stripe settings, and email service will be disabled. All user management and billing will be handled by the central system.
-          </div>
-        </div>
-      </ng-container>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Enable Stripe Paywall</mat-label>
-        <mat-select formControlName="stripePaywallEnabled" [disabled]="userRegistrationForm.get('registrationMode')?.value === 'centralized'">
+        <mat-select formControlName="stripePaywallEnabled">
           <mat-option [value]="true">Enabled</mat-option>
           <mat-option [value]="false">Disabled</mat-option>
         </mat-select>
-        <mat-hint *ngIf="userRegistrationForm.get('registrationMode')?.value === 'centralized'" style="color: #FF9800;">
-          Disabled when using Centralized Management (billing handled by central system)
-        </mat-hint>
       </mat-form-field>
   </div>
 
-  <div class="config-section" *ngIf="userRegistrationForm.get('registrationMode')?.value !== 'centralized'">
+  <div class="config-section">
     <h3>Email Service Settings</h3>
     
       <mat-form-field appearance="outline" class="full-width">
@@ -274,7 +245,7 @@
       </div>
   </div>
 
-  <div class="config-section" *ngIf="userRegistrationForm.get('registrationMode')?.value !== 'centralized'">
+  <div class="config-section">
     <h3>Stripe Settings</h3>
     
       <mat-form-field appearance="outline" class="full-width">
@@ -316,4 +287,5 @@
       </div>
     </div>
   </form>
+  </div><!-- end cm-blurred wrapper -->
 </div>

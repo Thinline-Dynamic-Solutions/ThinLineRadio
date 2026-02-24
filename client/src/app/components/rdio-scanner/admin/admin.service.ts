@@ -447,6 +447,12 @@ export class RdioScannerAdminService implements OnDestroy {
         return this.token;
     }
 
+    /** Set a token issued externally (e.g. by Central Management for passwordless admin access). */
+    setTokenFromExternal(token: string): void {
+        this.token = token;
+        this.event.emit({ authenticated: this.authenticated });
+    }
+
     private get token(): string {
         return window?.sessionStorage?.getItem(SESSION_STORAGE_KEY) || '';
     }

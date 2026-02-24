@@ -257,7 +257,7 @@
         <div class="channels-section" *ngIf="!isInviteOnlyMode">
           <button mat-button type="button" (click)="toggleChannels()" class="channels-toggle">
             <mat-icon>{{ showChannels ? 'expand_less' : 'expand_more' }}</mat-icon>
-            <span>View Available Channels ({{ availableChannels.length }})</span>
+            <span>View Available Channels ({{ getTotalChannelCount() }})</span>
           </button>
           
           <div class="channels-list" *ngIf="showChannels && !loadingChannels">

@@ -503,6 +503,14 @@ func main() {
 	http.HandleFunc("/api/webhook/central-users-batch-update", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookUsersBatchUpdateHandler))).ServeHTTP)
 	http.HandleFunc("/api/webhook/central-systems-talkgroups-groups", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookSystemsTalkgroupsGroupsHandler))).ServeHTTP)
 
+	// Central Management pairing endpoint — called by the CM backend to push the API key and
+	// enable centralized mode. Not localhost-restricted; protected by admin password (bcrypt).
+	http.HandleFunc("/api/central-management/pair", securityHeadersWrapper(rateLimitWrapper(http.HandlerFunc(controller.Api.PairWithCentralManagementHandler))).ServeHTTP)
+	http.HandleFunc("/api/central-management/admin-token", securityHeadersWrapper(rateLimitWrapper(http.HandlerFunc(controller.Api.CMAdminTokenHandler))).ServeHTTP)
+	// CM pushes a one-time removal code here; local admin then calls /leave to unlink the server
+	http.HandleFunc("/api/central-management/set-removal-code", securityHeadersWrapper(rateLimitWrapper(http.HandlerFunc(controller.Api.SetRemovalCodeHandler))).ServeHTTP)
+	http.HandleFunc("/api/central-management/leave", securityHeadersWrapper(rateLimitWrapper(http.HandlerFunc(controller.Api.LeaveCentralManagementHandler))).ServeHTTP)
+
 	// Admin endpoint to test connection TO central management system
 	http.HandleFunc("/api/admin/test-central-connection", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.TestCentralConnectionHandler)).ServeHTTP)
 

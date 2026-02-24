@@ -19,6 +19,7 @@
  */
 
 import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { FormArray, FormGroup } from '@angular/forms';
 
 @Component({
@@ -35,7 +36,7 @@ export class RdioScannerAdminSystemsComponent {
     /** Emitted when the user clicks Add System */
     @Output() addSystem = new EventEmitter<void>();
 
-    displayedColumns: string[] = ['systemRef', 'label', 'type', 'talkgroups', 'sites', 'actions'];
+    displayedColumns: string[] = ['drag', 'systemRef', 'label', 'type', 'talkgroups', 'sites', 'actions'];
 
     // Search
     systemsSearchTerm: string = '';
@@ -86,5 +87,16 @@ export class RdioScannerAdminSystemsComponent {
 
     onSystemsSearchChange(searchTerm: string): void {
         this.systemsSearchTerm = searchTerm;
+    }
+
+    dropSystem(event: CdkDragDrop<FormGroup[]>): void {
+        if (event.previousIndex === event.currentIndex) return;
+        if (!this.form) return;
+        // Move within the displayed (sorted) array and update each system's order field
+        moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+        event.container.data.forEach((sys, idx) =>
+            sys.get('order')?.setValue(idx + 1, { emitEvent: false })
+        );
+        this.form.markAsDirty();
     }
 }

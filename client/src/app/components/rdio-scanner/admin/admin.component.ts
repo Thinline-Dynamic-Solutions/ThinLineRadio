@@ -45,6 +45,7 @@ export class RdioScannerAdminComponent implements OnDestroy {
         private titleService: Title,
     ) {
         // Initialize authenticated state from admin service
+        // (cm_token auto-login is handled by the page-level component before this runs)
         this.authenticated = this.adminService.authenticated;
 
         // Set initial title if already authenticated

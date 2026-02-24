@@ -907,6 +907,12 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.showChannels = !this.showChannels;
   }
 
+  getTotalChannelCount(): number {
+    return this.availableChannels.reduce((total: number, system: any) => {
+      return total + (system.talkgroups?.length || 0);
+    }, 0);
+  }
+
   getTalkgroupsByTag(talkgroups: any[]): Array<{tag: string, talkgroups: any[]}> {
     const grouped: {[key: string]: any[]} = {};
     const noTag: any[] = [];

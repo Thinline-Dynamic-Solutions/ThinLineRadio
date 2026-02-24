@@ -146,6 +146,53 @@
         text-align: right;
         padding-right: 8px !important;
     }
+
+    // Drag handle column
+    .drag-col {
+        width: 40px;
+        padding: 0 4px !important;
+    }
+}
+
+// ─── Drag & drop ──────────────────────────────────────────────────────────────
+.drag-handle {
+    color: #555;
+    cursor: grab;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    display: block;
+    transition: color 0.15s ease;
+
+    &:hover { color: #aaa; }
+    &:active { cursor: grabbing; }
+
+    &.drag-disabled {
+        cursor: not-allowed;
+        color: #333;
+        opacity: 0.4;
+    }
+}
+
+// Row placeholder while dragging
+.cdk-drag-placeholder {
+    opacity: 0;
+}
+
+// Animate rows moving out of the way
+.cdk-drop-list-dragging .system-row:not(.cdk-drag-placeholder) {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+// Preview card while dragging
+.cdk-drag-preview {
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    opacity: 0.95;
+    display: flex;
+    align-items: center;
 }
 
 // ─── Cell content ─────────────────────────────────────────────────────────────

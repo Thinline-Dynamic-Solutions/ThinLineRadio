@@ -177,32 +177,39 @@ export class RdioScannerAdminSystemComponent {
 
     get hasSelectedTalkgroups(): boolean { return this.selectedTalkgroupIndices.size > 0; }
 
+    /** True when every currently-visible (filtered) talkgroup is selected. */
     get allTalkgroupsSelected(): boolean {
-        return this.talkgroups.length > 0 && this.selectedTalkgroupIndices.size === this.talkgroups.length;
+        const visible = this.filteredTalkgroups;
+        if (visible.length === 0) return false;
+        return visible.every(tg => {
+            const idx = this.talkgroups.indexOf(tg);
+            return idx !== -1 && this.selectedTalkgroupIndices.has(idx);
+        });
     }
 
-    toggleTalkgroupSelection(paginatedIdx: number): void {
-        const fullIdx = this._fullTalkgroupIdx(paginatedIdx);
-        if (fullIdx === -1) return;
-        if (this.selectedTalkgroupIndices.has(fullIdx)) {
-            this.selectedTalkgroupIndices.delete(fullIdx);
+    /** Toggle selection by FormGroup reference — immune to filtered-index drift. */
+    toggleTalkgroupSelection(tg: FormGroup): void {
+        const idx = this.talkgroups.indexOf(tg);
+        if (idx === -1) return;
+        if (this.selectedTalkgroupIndices.has(idx)) {
+            this.selectedTalkgroupIndices.delete(idx);
         } else {
-            this.selectedTalkgroupIndices.add(fullIdx);
+            this.selectedTalkgroupIndices.add(idx);
         }
     }
 
-    isTalkgroupSelected(paginatedIdx: number): boolean {
-        return this.selectedTalkgroupIndices.has(this._fullTalkgroupIdx(paginatedIdx));
+    /** Check selection by FormGroup reference — immune to filtered-index drift. */
+    isTalkgroupSelected(tg: FormGroup): boolean {
+        const idx = this.talkgroups.indexOf(tg);
+        return idx !== -1 && this.selectedTalkgroupIndices.has(idx);
     }
 
-    private _fullTalkgroupIdx(idx: number): number {
-        const tg = this.filteredTalkgroups[idx];
-        return tg ? this.talkgroups.indexOf(tg) : -1;
-    }
-
+    /** Select only the currently visible (filtered) talkgroups. */
     selectAllTalkgroups(): void {
-        this.selectedTalkgroupIndices.clear();
-        this.talkgroups.forEach((_, i) => this.selectedTalkgroupIndices.add(i));
+        this.filteredTalkgroups.forEach(tg => {
+            const idx = this.talkgroups.indexOf(tg);
+            if (idx !== -1) this.selectedTalkgroupIndices.add(idx);
+        });
     }
 
     unselectAllTalkgroups(): void { this.selectedTalkgroupIndices.clear(); }
@@ -270,11 +277,18 @@ export class RdioScannerAdminSystemComponent {
         this._lastUnitsVersion++;
     }
 
-    removeTalkgroup(index: number): void {
-        if (this.expandedTalkgroup === this.talkgroups[index]) this.expandedTalkgroup = null;
-        const arr = this.form.get('talkgroups') as unknown as FormArray;
-        arr?.removeAt(index);
-        arr?.markAsDirty();
+    /** Remove a talkgroup by FormGroup reference — immune to filtered-index drift. */
+    removeTalkgroup(tg: FormGroup): void {
+        if (this.expandedTalkgroup === tg) this.expandedTalkgroup = null;
+        // Deselect it if currently selected
+        const selIdx = this.talkgroups.indexOf(tg);
+        if (selIdx !== -1) this.selectedTalkgroupIndices.delete(selIdx);
+        // Find its actual position in the raw FormArray by reference, not by index
+        const arr = this.form.get('talkgroups') as FormArray | null;
+        if (!arr) return;
+        const arrIdx = (arr.controls as FormGroup[]).indexOf(tg);
+        if (arrIdx !== -1) arr.removeAt(arrIdx);
+        arr.markAsDirty();
         this._lastTalkgroupsVersion++;
     }
 
@@ -294,15 +308,14 @@ export class RdioScannerAdminSystemComponent {
         this._lastUnitsVersion++;
     }
 
-    blacklistTalkgroup(index: number): void {
-        const talkgroup = this.talkgroups[index];
-        const talkgroupRef = talkgroup.value.talkgroupRef;
+    blacklistTalkgroup(tg: FormGroup): void {
+        const talkgroupRef = tg.value.talkgroupRef;
         if (typeof talkgroupRef !== 'number') return;
         const blacklists = this.form.get('blacklists') as FormControl | null;
         blacklists?.setValue(blacklists.value?.trim()
             ? `${blacklists.value},${talkgroupRef}`
             : `${talkgroupRef}`);
-        this.removeTalkgroup(index);
+        this.removeTalkgroup(tg);
     }
 
     // ─── Drag & drop ───────────────────────────────────────────────────────────

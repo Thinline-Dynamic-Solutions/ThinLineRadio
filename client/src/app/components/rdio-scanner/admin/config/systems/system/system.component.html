@@ -212,10 +212,10 @@
                         (click)="$event.stopPropagation()">
                     </mat-checkbox>
                 </th>
-                <td mat-cell *matCellDef="let tg; let i = index" class="select-col">
+                <td mat-cell *matCellDef="let tg" class="select-col">
                     <mat-checkbox
-                        [checked]="isTalkgroupSelected(i)"
-                        (change)="toggleTalkgroupSelection(i)"
+                        [checked]="isTalkgroupSelected(tg)"
+                        (change)="toggleTalkgroupSelection(tg)"
                         (click)="$event.stopPropagation()">
                     </mat-checkbox>
                 </td>
@@ -278,14 +278,14 @@
             <!-- Actions Column -->
             <ng-container matColumnDef="actions">
                 <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
-                <td mat-cell *matCellDef="let tg; let i = index" class="actions-col">
+                <td mat-cell *matCellDef="let tg" class="actions-col">
                     <button mat-icon-button [class.active-edit]="expandedTalkgroup === tg"
                             (click)="toggleTalkgroupExpand(tg); $event.stopPropagation()"
                             matTooltip="Edit">
                         <mat-icon>{{ expandedTalkgroup === tg ? 'expand_less' : 'edit' }}</mat-icon>
                     </button>
                     <button mat-icon-button color="warn"
-                            (click)="removeTalkgroup(i); $event.stopPropagation()"
+                            (click)="removeTalkgroup(tg); $event.stopPropagation()"
                             matTooltip="Delete">
                         <mat-icon>delete</mat-icon>
                     </button>
@@ -298,8 +298,8 @@
                     <div *ngIf="expandedTalkgroup === tg" class="expanded-form-wrapper">
                         <rdio-scanner-admin-talkgroup
                             [form]="tg"
-                            (blacklist)="blacklistTalkgroup(talkgroups.indexOf(tg))"
-                            (remove)="removeTalkgroup(talkgroups.indexOf(tg))">
+                            (blacklist)="blacklistTalkgroup(tg)"
+                            (remove)="removeTalkgroup(tg)">
                         </rdio-scanner-admin-talkgroup>
                     </div>
                 </td>

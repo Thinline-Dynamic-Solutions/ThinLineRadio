@@ -70,7 +70,23 @@
             </span>
         </div>
 
-        <mat-table [dataSource]="filteredSystems" class="systems-table">
+        <mat-table [dataSource]="filteredSystems"
+                   cdkDropList
+                   [cdkDropListData]="filteredSystems"
+                   [cdkDropListDisabled]="!!systemsSearchTerm"
+                   (cdkDropListDropped)="dropSystem($event)"
+                   class="systems-table">
+
+            <!-- Drag Handle Column -->
+            <ng-container matColumnDef="drag">
+                <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+                <td mat-cell *matCellDef="let system" class="drag-col">
+                    <mat-icon cdkDragHandle class="drag-handle"
+                              [class.drag-disabled]="!!systemsSearchTerm"
+                              [matTooltip]="systemsSearchTerm ? 'Clear search to reorder' : 'Drag to reorder'"
+                              (click)="$event.stopPropagation()">drag_indicator</mat-icon>
+                </td>
+            </ng-container>
 
             <!-- System ID Column -->
             <ng-container matColumnDef="systemRef">
@@ -132,6 +148,7 @@
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns;"
                 class="system-row"
+                cdkDrag [cdkDragData]="row"
                 (click)="systemSelected.emit(row)">
             </tr>
 

@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,6 +32,11 @@ type CentralManagementService struct {
 	controller *Controller
 	stopChan   chan struct{}
 	registered bool
+
+	// Pending removal code issued by the CM system (cleared after use or expiry)
+	removalCodeMu     sync.Mutex
+	removalCode       string
+	removalCodeExpiry time.Time
 }
 
 // NewCentralManagementService creates a new central management service
