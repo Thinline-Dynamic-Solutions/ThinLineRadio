@@ -289,6 +289,7 @@ export interface Options {
         minCallDuration?: number;
         whisperAPIURL?: string;
         whisperAPIKey?: string;
+        whisperAPIModel?: string;
         azureKey?: string;
         azureRegion?: string;
         googleAPIKey?: string;
@@ -1146,6 +1147,7 @@ export class RdioScannerAdminService implements OnDestroy {
             minCallDuration: 0, // 0 = transcribe all calls
             whisperAPIURL: 'http://localhost:8000',
             whisperAPIKey: '',
+            whisperAPIModel: 'whisper-1',
             azureKey: '',
             azureRegion: 'eastus',
             googleAPIKey: '',
@@ -1218,6 +1220,7 @@ export class RdioScannerAdminService implements OnDestroy {
                 minCallDuration: this.ngFormBuilder.control(transcriptionConfig?.minCallDuration || 0, [Validators.min(0)]),
                 whisperAPIURL: this.ngFormBuilder.control(transcriptionConfig?.whisperAPIURL || 'http://localhost:8000'),
                 whisperAPIKey: this.ngFormBuilder.control(transcriptionConfig?.whisperAPIKey || ''),
+                whisperAPIModel: this.ngFormBuilder.control(transcriptionConfig?.whisperAPIModel || 'whisper-1'),
                 azureKey: this.ngFormBuilder.control(transcriptionConfig?.azureKey || ''),
                 azureRegion: this.ngFormBuilder.control(transcriptionConfig?.azureRegion || 'eastus'),
                 googleAPIKey: this.ngFormBuilder.control(transcriptionConfig?.googleAPIKey || ''),

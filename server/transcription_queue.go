@@ -72,6 +72,7 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 		queue.provider = NewWhisperAPITranscription(&WhisperAPIConfig{
 			BaseURL: config.WhisperAPIURL,
 			APIKey:  config.WhisperAPIKey,
+			Model:   config.WhisperAPIModel,
 		})
 	case "azure":
 		// Azure Speech Services
@@ -98,6 +99,7 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 		queue.provider = NewWhisperAPITranscription(&WhisperAPIConfig{
 			BaseURL: config.WhisperAPIURL,
 			APIKey:  config.WhisperAPIKey,
+			Model:   config.WhisperAPIModel,
 		})
 	}
 

@@ -830,3 +830,52 @@ func (api *Api) LeaveCentralManagementHandler(w http.ResponseWriter, r *http.Req
 		"message": "Server successfully removed from Central Management",
 	})
 }
+
+// CentralWebhookSetRelayAPIKeyHandler receives a relay server API key from
+// Central Management and saves it to this server's options so push
+// notifications can be sent via the relay.
+// POST /api/webhook/central-set-relay-key
+func (api *Api) CentralWebhookSetRelayAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
+	if !api.Controller.Options.CentralManagementEnabled {
+		api.exitWithError(w, http.StatusForbidden, "Central management not enabled")
+		return
+	}
+
+	apiKey := r.Header.Get("X-API-Key")
+	if apiKey == "" || apiKey != api.Controller.Options.CentralManagementAPIKey {
+		api.exitWithError(w, http.StatusUnauthorized, "Invalid API key")
+		return
+	}
+
+	var req struct {
+		RelayAPIKey string `json:"relay_api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.RelayAPIKey == "" {
+		api.exitWithError(w, http.StatusBadRequest, "relay_api_key is required")
+		return
+	}
+
+	// Save to options
+	api.Controller.Options.mutex.Lock()
+	api.Controller.Options.RelayServerAPIKey = req.RelayAPIKey
+	api.Controller.Options.mutex.Unlock()
+
+	// Persist to database
+	if err := api.Controller.Options.Write(api.Controller.Database); err != nil {
+		log.Printf("CentralWebhookSetRelayAPIKey: failed to persist relay API key: %v", err)
+		api.exitWithError(w, http.StatusInternalServerError, "failed to save relay API key")
+		return
+	}
+
+	log.Printf("CentralWebhookSetRelayAPIKey: relay API key updated via Central Management")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"message": "Relay API key updated successfully",
+	})
+}

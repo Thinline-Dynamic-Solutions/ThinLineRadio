@@ -224,14 +224,17 @@
     flex-shrink: 0;
 
     button {
-        width: 32px;
-        height: 32px;
-        line-height: 32px;
+        --mdc-icon-button-state-layer-size: 34px;
+        --mdc-icon-button-icon-size: 18px;
+        width: 34px;
+        height: 34px;
+        padding: 0;
 
         mat-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            line-height: 18px;
         }
     }
 }
@@ -279,11 +282,18 @@
     }
 
     button {
-        width: 28px;
-        height: 28px;
-        line-height: 28px;
+        --mdc-icon-button-state-layer-size: 34px;
+        --mdc-icon-button-icon-size: 18px;
+        width: 34px;
+        height: 34px;
+        padding: 0;
 
-        mat-icon { font-size: 15px; }
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            line-height: 18px;
+        }
     }
 }
 

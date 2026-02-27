@@ -182,6 +182,9 @@ var PostgresqlSchema = []string{
     "timestamp" bigint NOT NULL
   );`,
 
+	// Index for fast timestamp-based sorting and filtering on the logs table
+	`CREATE INDEX IF NOT EXISTS "logs_timestamp_idx" ON "logs" ("timestamp" DESC);`,
+
 	`CREATE TABLE IF NOT EXISTS "options" (
     "optionId" bigserial NOT NULL PRIMARY KEY,
     "key" text NOT NULL,

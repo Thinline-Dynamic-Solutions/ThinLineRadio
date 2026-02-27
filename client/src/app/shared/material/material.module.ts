@@ -20,6 +20,7 @@
 
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { NgModule } from '@angular/core';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -50,6 +51,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 @NgModule({
     exports: [
         DragDropModule,
+        MatAutocompleteModule,
         MatButtonModule,
         MatCardModule,
         MatCheckboxModule,

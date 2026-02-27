@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -157,7 +158,8 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		offset uint
 		order  string
 		query  string
-		where  string = "TRUE"
+
+		whereConditions []string
 
 		level     sql.NullString
 		logId     sql.NullInt64
@@ -173,13 +175,31 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 	logResults := &LogsSearchResults{
 		Options: searchOptions,
 		Logs:    []Log{},
+		// DateStart/DateStop are omitted (zero value) to avoid expensive MIN/MAX full-table scans.
+		// The date picker in the UI will simply have no enforced min/max boundary.
 	}
 
+	// Level filter
 	switch v := searchOptions.Level.(type) {
 	case string:
-		where += fmt.Sprintf(` AND "level" = '%s'`, v)
+		whereConditions = append(whereConditions, fmt.Sprintf(`"level" = '%s'`, v))
 	}
 
+	// Keyword / text search filter — case-insensitive substring match on the message.
+	// PostgreSQL ILIKE is safe here because the timestamp window already limits the
+	// scan to a small fraction of the table via the logs_timestamp_idx index.
+	switch v := searchOptions.Search.(type) {
+	case string:
+		if v != "" {
+			// Escape SQL wildcards in the user's term so they are treated as literals
+			escaped := strings.ReplaceAll(v, `\`, `\\`)
+			escaped = strings.ReplaceAll(escaped, `%`, `\%`)
+			escaped = strings.ReplaceAll(escaped, `_`, `\_`)
+			whereConditions = append(whereConditions, fmt.Sprintf(`"message" ILIKE '%%%s%%' ESCAPE '\'`, escaped))
+		}
+	}
+
+	// Sort order
 	switch v := searchOptions.Sort.(type) {
 	case int:
 		if v < 0 {
@@ -191,25 +211,29 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		order = ascOrder
 	}
 
+	// Date filter
 	switch v := searchOptions.Date.(type) {
 	case time.Time:
-		var (
-			start time.Time
-			stop  time.Time
-		)
-
-		if order == ascOrder {
-			start = time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), 0, 0, time.UTC)
-			stop = start.Add(time.Hour*24 - time.Millisecond)
-
-		} else {
-			start = time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), 0, 0, time.UTC).Add(time.Hour*-24 - time.Duration(v.Hour())).Add(time.Minute * time.Duration(-v.Minute()))
-			stop = start.Add(time.Hour*24 - time.Millisecond - time.Duration(v.Hour())).Add(time.Minute * time.Duration(-v.Minute()))
+		// When the user picks a specific date, show logs from that point forward (>=).
+		// Sort order (ASC/DESC) controls oldest-first vs newest-first within the window.
+		whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %d`, v.UnixMilli()))
+	default:
+		// No date selected — apply a 24-hour lookback for DESC (newest-first) searches
+		// to avoid a full table scan on tables with millions of rows.
+		// ASC (oldest-first) has no default restriction so the user can still browse history.
+		if order == descOrder {
+			defaultLookback := time.Now().Add(-24 * time.Hour)
+			whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %d`, defaultLookback.UnixMilli()))
 		}
-
-		where += fmt.Sprintf(` AND ("timestamp" BETWEEN %d AND %d)`, start.UnixMilli(), stop.UnixMilli())
 	}
 
+	// Build WHERE clause
+	where := "TRUE"
+	if len(whereConditions) > 0 {
+		where = strings.Join(whereConditions, " AND ")
+	}
+
+	// Limit / offset
 	switch v := searchOptions.Limit.(type) {
 	case uint:
 		limit = uint(math.Min(float64(500), float64(v)))
@@ -222,69 +246,76 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		offset = v
 	}
 
-	query = fmt.Sprintf(`SELECT "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" ASC`, where)
-	if err = db.Sql.QueryRow(query).Scan(&timestamp); err != nil && err != sql.ErrNoRows {
+	// Fetch limit+1 rows so we can detect whether there are more pages without COUNT(*)
+	queryLimit := limit + 1
+
+	query = fmt.Sprintf(`SELECT "logId", "level", "message", "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" %s LIMIT %d OFFSET %d`, where, order, queryLimit, offset)
+
+	// 30-second timeout matches the calls search timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if rows, err = db.Sql.QueryContext(ctx, query); err != nil && err != sql.ErrNoRows {
 		return nil, formatError(err, query)
 	}
 
-	if timestamp.Valid {
-		logResults.DateStart = time.UnixMilli(timestamp.Int64)
-	}
-
-	query = fmt.Sprintf(`SELECT "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" DESC`, where)
-	if err = db.Sql.QueryRow(query).Scan(&timestamp); err != nil && err != sql.ErrNoRows {
-		return nil, formatError(err, query)
-	}
-
-	if timestamp.Valid {
-		logResults.DateStop = time.UnixMilli(timestamp.Int64)
-	}
-
-	query = fmt.Sprintf(`SELECT COUNT(*) FROM "logs" WHERE %s`, where)
-	if err = db.Sql.QueryRow(query).Scan(&logResults.Count); err != nil && err != sql.ErrNoRows {
-		return nil, formatError(err, query)
-	}
-
-	query = fmt.Sprintf(`SELECT "logId", "level", "message", "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" %s limit %d offset %d`, where, order, limit, offset)
-	if rows, err = db.Sql.Query(query); err != nil && err != sql.ErrNoRows {
-		return nil, formatError(err, query)
-	}
+	var totalRows int
 
 	for rows.Next() {
-		log := NewLog()
+		totalRows++
+
+		l := NewLog()
 
 		if err = rows.Scan(&logId, &level, &message, &timestamp); err != nil {
 			continue
 		}
 
 		if logId.Valid {
-			log.Id = uint64(logId.Int64)
+			l.Id = uint64(logId.Int64)
 		} else {
 			continue
 		}
 
 		if level.Valid && len(level.String) > 0 {
-			log.Level = level.String
+			l.Level = level.String
 		} else {
 			continue
 		}
 
 		if message.Valid && len(message.String) > 0 {
-			log.Message = message.String
+			l.Message = message.String
 		} else {
 			continue
 		}
 
 		if timestamp.Valid && timestamp.Int64 > 0 {
-			log.DateTime = time.UnixMilli(timestamp.Int64)
+			l.DateTime = time.UnixMilli(timestamp.Int64)
 		} else {
 			continue
 		}
 
-		logResults.Logs = append(logResults.Logs, *log)
+		// Only keep up to limit rows; the extra row just tells us HasMore
+		if uint(len(logResults.Logs)) < limit {
+			logResults.Logs = append(logResults.Logs, *l)
+		}
 	}
 
 	rows.Close()
+
+	if err != nil {
+		return nil, formatError(err, "")
+	}
+
+	logResults.HasMore = totalRows > int(limit)
+
+	// Expose an approximate total that keeps the paginator working:
+	//   - exact when on the last page (HasMore == false)
+	//   - offset + results + 1 when more pages exist, so the paginator shows a next-page button
+	if logResults.HasMore {
+		logResults.Count = uint64(offset) + uint64(len(logResults.Logs)) + 1
+	} else {
+		logResults.Count = uint64(offset) + uint64(len(logResults.Logs))
+	}
 
 	return logResults, nil
 }
@@ -302,6 +333,7 @@ type LogsSearchOptions struct {
 	Level  any `json:"level,omitempty"`
 	Limit  any `json:"limit,omitempty"`
 	Offset any `json:"offset,omitempty"`
+	Search any `json:"search,omitempty"`
 	Sort   any `json:"sort,omitempty"`
 }
 
@@ -332,6 +364,11 @@ func (searchOptions *LogsSearchOptions) FromMap(m map[string]any) *LogsSearchOpt
 		searchOptions.Offset = uint(v)
 	}
 
+	switch v := m["search"].(type) {
+	case string:
+		searchOptions.Search = v
+	}
+
 	switch v := m["sort"].(type) {
 	case float64:
 		searchOptions.Sort = int(v)
@@ -342,6 +379,7 @@ func (searchOptions *LogsSearchOptions) FromMap(m map[string]any) *LogsSearchOpt
 
 type LogsSearchResults struct {
 	Count     uint64             `json:"count"`
+	HasMore   bool               `json:"hasMore"`
 	DateStart time.Time          `json:"dateStart"`
 	DateStop  time.Time          `json:"dateStop"`
 	Options   *LogsSearchOptions `json:"options"`

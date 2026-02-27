@@ -59,11 +59,6 @@
                         <strong>Threshold:</strong> The minimum number of failures/calls needed to trigger an alert. For "No Audio", this is the base threshold in minutes.
                     </div>
                     <div class="help-item">
-                        <strong>Multiplier (No Audio only):</strong> Used for adaptive threshold calculation. The system learns patterns and adjusts the alert threshold based on historical data. 
-                        <br><em>Formula: threshold = max(base threshold, historical average × multiplier)</em>
-                        <br>Higher values = less sensitive (fewer alerts during quiet times). Lower values = more sensitive.
-                    </div>
-                    <div class="help-item">
                         <strong>Historical Days (No Audio only):</strong> How many days of past data to analyze when calculating adaptive thresholds. The system looks at the same hour of day over the last N days to learn patterns (e.g., "2 AM is usually quiet, but 3 PM is busy").
                     </div>
                 </div>

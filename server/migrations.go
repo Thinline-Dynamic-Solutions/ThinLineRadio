@@ -2340,3 +2340,45 @@ func migrateSystemHealthAlertOptions(db *Database) error {
 
 	return nil
 }
+
+// migrateLogsIndex adds a timestamp index to the logs table for fast searching.
+// Without this index, COUNT(*) / ORDER BY queries do full table scans that time
+// out when there are millions of log rows.
+func migrateLogsIndex(db *Database) error {
+	log.Println("migrating logs timestamp index...")
+
+	// Check whether the index already exists to make this idempotent.
+	// We can't use IF NOT EXISTS with CONCURRENTLY, so we check manually.
+	var exists bool
+	checkQuery := `SELECT EXISTS (
+		SELECT 1 FROM pg_indexes
+		WHERE tablename = 'logs' AND indexname = 'logs_timestamp_idx'
+	)`
+	if err := db.Sql.QueryRow(checkQuery).Scan(&exists); err != nil {
+		// Non-fatal: fall back to a regular CREATE INDEX IF NOT EXISTS
+		log.Printf("migration note (logs index check): %v", err)
+		if _, err2 := db.Sql.Exec(`CREATE INDEX IF NOT EXISTS "logs_timestamp_idx" ON "logs" ("timestamp" DESC)`); err2 != nil {
+			return fmt.Errorf("migrateLogsIndex: %w", err2)
+		}
+		log.Println("logs timestamp index migration completed successfully")
+		return nil
+	}
+
+	if exists {
+		log.Println("logs timestamp index already exists, skipping")
+		return nil
+	}
+
+	// CONCURRENTLY builds the index without holding a write lock on the logs table,
+	// so the server stays responsive during startup even on very large log tables.
+	// It cannot run inside a transaction, which is fine here.
+	log.Println("building logs_timestamp_idx concurrently (this may take a few minutes on large tables)...")
+	query := `CREATE INDEX CONCURRENTLY "logs_timestamp_idx" ON "logs" ("timestamp" DESC)`
+	if _, err := db.Sql.Exec(query); err != nil {
+		return fmt.Errorf("migrateLogsIndex: %w", err)
+	}
+
+	log.Println("logs timestamp index migration completed successfully")
+
+	return nil
+}

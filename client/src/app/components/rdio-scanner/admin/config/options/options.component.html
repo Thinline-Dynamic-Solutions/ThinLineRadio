@@ -413,6 +413,34 @@
     </mat-form-field>
   </div>
 
+  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" formGroupName="transcriptionConfig">
+    <p>
+      <span class="mat-body">Model</span><br>
+      <span class="mat-caption">
+        Select a known model or type any model name your server supports.<br>
+        <strong>OpenAI cloud:</strong> whisper-1 · gpt-4o-transcribe · gpt-4o-mini-transcribe<br>
+        <strong>Groq cloud:</strong> whisper-large-v3 · whisper-large-v3-turbo · distil-whisper-large-v3-en<br>
+        <strong>Local server:</strong> type the model name your server was started with (e.g. large-v3, medium.en)
+      </span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input type="text" matInput formControlName="whisperAPIModel" placeholder="whisper-1"
+             [matAutocomplete]="modelAuto">
+      <mat-autocomplete #modelAuto="matAutocomplete">
+        <mat-optgroup label="OpenAI Cloud (api.openai.com)">
+          <mat-option value="whisper-1">whisper-1 — original Whisper, works local &amp; cloud</mat-option>
+          <mat-option value="gpt-4o-transcribe">gpt-4o-transcribe — best accuracy</mat-option>
+          <mat-option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe — faster &amp; cheaper</mat-option>
+        </mat-optgroup>
+        <mat-optgroup label="Groq Cloud (api.groq.com/openai)">
+          <mat-option value="whisper-large-v3">whisper-large-v3</mat-option>
+          <mat-option value="whisper-large-v3-turbo">whisper-large-v3-turbo — faster</mat-option>
+          <mat-option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en — English only, fastest</mat-option>
+        </mat-optgroup>
+      </mat-autocomplete>
+    </mat-form-field>
+  </div>
+
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'azure'" formGroupName="transcriptionConfig">
     <p>
       <span class="mat-body">Azure Subscription Key</span><br>
@@ -675,4 +703,50 @@
       <input type="password" matInput formControlName="turnstileSecretKey" placeholder="0x4AAAAAAC...">
     </mat-form-field>
   </div>
+
+  <!-- External Management API -->
+  <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #333;">
+    <h3 style="width: 100%; margin: 0 0 8px 0;">External Management API</h3>
+    <p style="width: 100%; margin: 0 0 0 0; color: #aaa; font-size: 14px;">
+      Enable this to allow an external billing system or management tool to control user access on this server via the webhook API.
+      Once enabled, set a strong API key and share it with your billing system. See the TLR Server API documentation for the available endpoints.
+    </p>
+  </div>
+
+  <div class="row">
+    <p>
+      <span class="mat-body">Enable External Management API</span><br>
+      <span class="mat-caption">Allows external systems to grant and revoke user access using the webhook endpoints.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="centralManagementEnabled"></mat-slide-toggle>
+    </div>
+  </div>
+
+  <div class="row" *ngIf="form?.get('centralManagementEnabled')?.value">
+    <p>
+      <span class="mat-body">API Key</span><br>
+      <span class="mat-caption">
+        A shared secret your billing system must send in the <code>X-API-Key</code> header with every webhook request.
+        Use a long random string — treat it like a password.
+      </span>
+    </p>
+    <mat-form-field floatLabel="auto" style="width: 100%;">
+      <input [type]="showExternalAPIKey ? 'text' : 'password'" matInput formControlName="centralManagementAPIKey" placeholder="Enter a strong API key">
+      <button mat-icon-button matSuffix type="button" (click)="showExternalAPIKey = !showExternalAPIKey" [matTooltip]="showExternalAPIKey ? 'Hide API key' : 'Show API key'">
+        <mat-icon>{{ showExternalAPIKey ? 'visibility_off' : 'visibility' }}</mat-icon>
+      </button>
+      <button mat-icon-button matSuffix type="button" (click)="generateExternalAPIKey()" matTooltip="Generate a random API key">
+        <mat-icon>casino</mat-icon>
+      </button>
+    </mat-form-field>
+  </div>
+
+  <div class="row" *ngIf="form?.get('centralManagementEnabled')?.value && centralConnectionStatus">
+    <div [style.color]="centralConnectionStatus === 'success' ? '#81c784' : '#e57373'"
+         style="font-size: 13px; padding: 8px 0;">
+      {{ centralConnectionMessage }}
+    </div>
+  </div>
+
 </ng-container>

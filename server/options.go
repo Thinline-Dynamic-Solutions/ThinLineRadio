@@ -145,6 +145,7 @@ type TranscriptionConfig struct {
 	MinCallDuration              float64  `json:"minCallDuration"`              // Minimum call duration in seconds to transcribe (default: 0 = transcribe all)
 	WhisperAPIURL                string   `json:"whisperAPIURL"`                // Base URL for external Whisper API server (e.g., "http://localhost:8000") or OpenAI API URL
 	WhisperAPIKey                string   `json:"whisperAPIKey"`                // Optional API key for external Whisper API server or OpenAI API key
+	WhisperAPIModel              string   `json:"whisperAPIModel"`              // Model to use for transcription (e.g., "whisper-1", "gpt-4o-transcribe")
 	AzureKey                     string   `json:"azureKey"`                     // Azure Speech Services subscription key
 	AzureRegion                  string   `json:"azureRegion"`                  // Azure Speech Services region (e.g., "eastus", "westus2")
 	GoogleAPIKey                 string   `json:"googleAPIKey"`                 // Google Cloud Speech-to-Text API key
@@ -810,6 +811,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		}
 		if v, ok := tc["whisperAPIKey"].(string); ok {
 			options.TranscriptionConfig.WhisperAPIKey = v
+		}
+		if v, ok := tc["whisperAPIModel"].(string); ok {
+			options.TranscriptionConfig.WhisperAPIModel = v
 		}
 		if v, ok := tc["azureKey"].(string); ok {
 			options.TranscriptionConfig.AzureKey = v

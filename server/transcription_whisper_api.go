@@ -33,6 +33,7 @@ type WhisperAPITranscription struct {
 	available  bool
 	baseURL    string // Base URL of the Whisper API server (e.g., "http://localhost:8000")
 	apiKey     string // Optional API key (if required)
+	model      string // Model name (e.g., "whisper-1", "gpt-4o-transcribe")
 	httpClient *http.Client
 	warned     bool
 }
@@ -41,6 +42,7 @@ type WhisperAPITranscription struct {
 type WhisperAPIConfig struct {
 	BaseURL string // Base URL of the API server
 	APIKey  string // Optional API key
+	Model   string // Model name (e.g., "whisper-1", "gpt-4o-transcribe"); defaults to "whisper-1"
 }
 
 // NewWhisperAPITranscription creates a new external Whisper API transcription service
@@ -71,9 +73,15 @@ func NewWhisperAPITranscription(config *WhisperAPIConfig) *WhisperAPITranscripti
 		DisableKeepAlives: false, // Keep connections alive for reuse
 	}
 
+	model := config.Model
+	if model == "" {
+		model = "whisper-1"
+	}
+
 	api := &WhisperAPITranscription{
 		baseURL: config.BaseURL,
 		apiKey:  config.APIKey,
+		model:   model,
 		httpClient: &http.Client{
 			Timeout:   5 * time.Minute, // Allow up to 5 minutes for transcription
 			Transport: transport,
@@ -225,7 +233,7 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 	}
 
 	// Add model field (required by OpenAI API format)
-	if err := writer.WriteField("model", "whisper-1"); err != nil {
+	if err := writer.WriteField("model", api.model); err != nil {
 		return nil, fmt.Errorf("failed to write model field: %v", err)
 	}
 

@@ -300,6 +300,11 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Index on logs.timestamp to prevent full table scans on large log tables
+	if err := migrateLogsIndex(db); err != nil {
+		return formatError(err, "")
+	}
+
 	return nil
 }
 

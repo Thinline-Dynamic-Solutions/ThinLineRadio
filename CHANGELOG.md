@@ -1,5 +1,62 @@
 # Change log
 
+## Version 7.0 Beta 9.6.6 - Released Feb 27, 2026
+
+### Improvements
+
+- **Transcription: Configurable OpenAI-compatible model**
+  - The `whisper-api` transcription provider previously hardcoded the model name `whisper-1` in every request, making it impossible to use newer or alternative models without rebuilding the server
+  - Added a `whisperAPIModel` field to `TranscriptionConfig`. The model defaults to `whisper-1` when left blank so existing configurations are unaffected
+  - The admin UI **Transcription → Model** field is now a free-text input with autocomplete suggestions grouped by provider:
+    - **OpenAI Cloud** (`api.openai.com`): `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`
+    - **Groq Cloud** (`api.groq.com/openai`): `whisper-large-v3`, `whisper-large-v3-turbo`, `distil-whisper-large-v3-en`
+    - Any other model name can be typed freely for self-hosted or third-party OpenAI-compatible endpoints
+  - Files modified: `server/options.go`, `server/transcription_whisper_api.go`, `server/transcription_queue.go`, `client/src/app/components/rdio-scanner/admin/admin.service.ts`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`, `client/src/app/shared/material/material.module.ts`
+
+- **Admin — Options: External Management API section**
+  - Added a new **External Management API** section at the bottom of the Options tab allowing server owners to enable/disable the inbound webhook API, manage the API key, and test connectivity without exposing internal Central Management pairing details
+  - The API key field supports visibility toggle and one-click cryptographic key generation (`window.crypto.getRandomValues`, 256-bit hex)
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.ts`
+
+### Bug Fixes
+
+- **Admin — Options: Generated External Management API key now visible immediately**
+  - After clicking "Generate", the key field stayed in `type="password"` mode so the new value was invisible
+  - The field now switches to visible mode automatically on generation; the eye-icon toggle lets the user re-hide it afterwards
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.ts`
+
+- **Admin — API Keys / Options: Icon button hover circle now correctly centred**
+  - Material MDC icon buttons have a `--mdc-icon-button-state-layer-size` CSS variable (default 40 px) that controls the hover ripple circle independently of the element's `width`/`height`. When only `width`/`height` were overridden the visible button shrank but the hover target stayed 40 px, causing the hover highlight to appear off-centre
+  - Fixed by setting `--mdc-icon-button-state-layer-size` to match the actual button size so the ripple is centred correctly
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/apikeys/apikeys.component.scss`
+
+- **Admin — System Health: Removed obsolete "Multiplier" help text**
+  - The settings description panel still referenced the adaptive-threshold multiplier formula (`threshold = max(base threshold, historical average × multiplier)`) which is no longer used
+  - Removed the entire multiplier help block from the UI
+  - Files modified: `client/src/app/components/rdio-scanner/admin/system-health/system-health.component.html`
+
+- **Admin — Logs: Log viewer no longer returns 417 on large log tables (Issue #112)**
+  - The logs search handler was performing three sequential full-table scans before returning any data: `SELECT MIN(timestamp)`, `SELECT MAX(timestamp)`, and `SELECT COUNT(*)`. On tables with millions of rows and no index these queries timed out, causing `Logs.Search` to return an error and the handler to respond with HTTP 417
+  - Added a `CREATE INDEX CONCURRENTLY "logs_timestamp_idx" ON "logs" ("timestamp" DESC)` migration that runs on startup. The index is built without holding a write lock on the logs table so the server stays fully responsive during the build. A `pg_indexes` existence check makes the migration a no-op on subsequent startups
+  - Rewrote `Logs.Search` to mirror the calls search pattern: the three expensive pre-queries are eliminated entirely, a 30-second `context.WithTimeout` is applied to the main query, and `limit+1` row fetching is used to detect `HasMore` without a `COUNT(*)`
+  - When no date filter is selected and sort order is descending (newest-first), a 24-hour default lookback is applied automatically so the query uses the new index instead of scanning the entire table — exactly the same optimisation already applied to the calls search
+  - `LogsSearchResults.Count` is now computed as `offset + returned rows (+1 if HasMore)` so the admin UI paginator continues to show a next-page button correctly without the real total
+  - Files modified: `server/log.go`, `server/migrations.go`, `server/database.go`, `server/postgresql.go`
+
+- **Admin — System Health: `noAudioAlertsEnabled` reset to `true` after any config save**
+  - When the admin saved any configuration change the backend called `Systems.FromMap(v)` which defaults `NoAudioAlertsEnabled` to `true` when the key is absent from the payload. Standard config-editor payloads (talkgroup edits, etc.) do not include the System Health tab fields, so every save silently overwrote a user's "disabled" setting back to enabled
+  - Fixed by preserving the existing per-system `noAudioAlertsEnabled` and `noAudioThresholdMinutes` values from the database before calling `FromMap`, and writing them back into the parsed map for any system whose payload omits those keys
+  - Files modified: `server/admin.go`
+
+### Improvements
+
+- **Admin — Logs: Keyword search and improved time display**
+  - Added a "Search messages" text field to the logs filter bar; typing a keyword (e.g. `failed`, `tone detection`, a system name) filters results server-side using a case-insensitive substring match (`ILIKE`) on the message column. SQL wildcard characters in the search term are escaped so they are treated as literals
+  - Keyword search is applied after the timestamp index narrows the scan to the active date window, so performance is not impacted
+  - Time column now shows seconds (`HH:mm:ss`) instead of just hours and minutes, making it practical to correlate rapid sequences of events
+  - Search field submits on `Enter` or field blur and is cleared by the existing Reset button
+  - Files modified: `server/log.go`, `central-management/frontend/src/app/components/rdio-scanner/admin/admin.service.ts`, `central-management/frontend/src/app/components/rdio-scanner/admin/logs/logs.component.ts`, `central-management/frontend/src/app/components/rdio-scanner/admin/logs/logs.component.html`
+
 ## Version 7.0 Beta 9.6.5 - Released Feb 24, 2026
 
 ### Bug Fixes

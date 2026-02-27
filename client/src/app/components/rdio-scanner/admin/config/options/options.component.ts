@@ -44,6 +44,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
     // Central Management Integration
     centralConnectionStatus: 'success' | 'error' | null = null;
     centralConnectionMessage: string = '';
+    showExternalAPIKey: boolean = false;
 
     constructor(
         private snackBar: MatSnackBar,
@@ -432,6 +433,18 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         } else {
             this.faviconUrl = '';
         }
+    }
+
+    generateExternalAPIKey(): void {
+        if (!this.form) return;
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let key = '';
+        const array = new Uint8Array(48);
+        window.crypto.getRandomValues(array);
+        array.forEach(b => key += chars[b % chars.length]);
+        this.form.get('centralManagementAPIKey')?.setValue(key);
+        this.form.markAsDirty();
+        this.snackBar.open('New API key generated — save your configuration to apply it.', 'Close', { duration: 5000 });
     }
 
     testCentralConnection(): void {

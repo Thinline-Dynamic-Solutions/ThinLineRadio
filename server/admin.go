@@ -1328,10 +1328,45 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			switch v := m["systems"].(type) {
-			case []any:
-				admin.Controller.Systems.FromMap(v)
-				err = admin.Controller.Systems.Write(admin.Controller.Database)
+		switch v := m["systems"].(type) {
+		case []any:
+			// Preserve per-system noAudioAlertsEnabled / noAudioThresholdMinutes values
+			// when the incoming config payload omits them (e.g. a normal talkgroup save from
+			// the admin UI that is unaware of the System Health tab settings).
+			// Without this, Systems.FromMap defaults noAudioAlertsEnabled to true, silently
+			// overwriting a user's "disabled" setting and causing it to reappear after restart.
+			for _, r := range v {
+				m, ok := r.(map[string]any)
+				if !ok {
+					continue
+				}
+				// Only patch fields that are completely absent from the payload
+				_, hasEnabled := m["noAudioAlertsEnabled"]
+				_, hasThreshold := m["noAudioThresholdMinutes"]
+				if hasEnabled && hasThreshold {
+					continue
+				}
+				// Try to find the matching existing system by id, then by systemRef
+				var existing *System
+				if idVal, ok := m["id"].(float64); ok {
+					existing, _ = admin.Controller.Systems.GetSystemById(uint64(idVal))
+				}
+				if existing == nil {
+					if refVal, ok := m["systemRef"].(float64); ok {
+						existing, _ = admin.Controller.Systems.GetSystemByRef(uint(refVal))
+					}
+				}
+				if existing != nil {
+					if !hasEnabled {
+						m["noAudioAlertsEnabled"] = existing.NoAudioAlertsEnabled
+					}
+					if !hasThreshold {
+						m["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
+					}
+				}
+			}
+			admin.Controller.Systems.FromMap(v)
+			err = admin.Controller.Systems.Write(admin.Controller.Database)
 				if err != nil {
 					logError(err)
 				} else {
