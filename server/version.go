@@ -16,4 +16,4 @@
 
 package main
 
-const Version = "7.0.0-beta9.6.6"
+const Version = "7.0.0-beta9.6.7"

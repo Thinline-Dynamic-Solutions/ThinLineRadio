@@ -1,5 +1,17 @@
 # Change log
 
+## Version 7.0 Beta 9.6.7 - Released Feb 27, 2026
+
+### Bug Fixes
+
+- **Admin — Logs: HTTP 417 caused by corrupt timestamp values in the logs table**
+  - The real cause of the persistent 417 error was identified as corrupt log rows where the `timestamp` column was stored in the wrong unit (microseconds or nanoseconds instead of milliseconds). When those rows were converted via `time.UnixMilli()` they produced years far beyond 9999 (e.g. year ~58,000), which caused `time.Time.MarshalJSON` to return an error. That error propagated from `json.Marshal` in the handler, which responded with HTTP 417
+  - Fixed with two layers of protection:
+    1. **SQL filter** — a `AND "timestamp" > 0 AND "timestamp" < 253402300800000` clause is now always added to the search query, preventing out-of-range rows from being fetched at all
+    2. **Go guard** — after `time.UnixMilli` conversion, a year-range check (`year < 1 || year > 9999`) skips any row that still somehow slips through rather than aborting the entire response
+  - Corrupt rows are left in place but silently excluded; they can be permanently removed with `DELETE FROM logs WHERE timestamp <= 0 OR timestamp >= 253402300800000`
+  - Files modified: `server/log.go`
+
 ## Version 7.0 Beta 9.6.6 - Released Feb 27, 2026
 
 ### Improvements

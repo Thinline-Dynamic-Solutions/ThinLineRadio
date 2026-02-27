@@ -211,6 +211,12 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		order = ascOrder
 	}
 
+	// Hard-clamp timestamps to the range that time.Time.MarshalJSON accepts (years 0–9999).
+	// Rows outside this range have corrupt/wrong-unit timestamps and cannot be serialised;
+	// filtering them in SQL avoids a json.Marshal failure that causes HTTP 417.
+	const maxSafeTimestampMs = int64(253402300800000) // 9999-12-31 23:59:59 UTC in ms
+	whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" > 0 AND "timestamp" < %d`, maxSafeTimestampMs))
+
 	// Date filter
 	switch v := searchOptions.Date.(type) {
 	case time.Time:
@@ -289,7 +295,15 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		}
 
 		if timestamp.Valid && timestamp.Int64 > 0 {
-			l.DateTime = time.UnixMilli(timestamp.Int64)
+			t := time.UnixMilli(timestamp.Int64)
+			// Skip rows whose converted time falls outside the year range that
+			// time.Time.MarshalJSON accepts (0–9999). Such rows have corrupt or
+			// wrong-unit timestamps; marshalling them would return an error and
+			// cause the handler to respond with HTTP 417.
+			if y := t.Year(); y < 1 || y > 9999 {
+				continue
+			}
+			l.DateTime = t
 		} else {
 			continue
 		}
