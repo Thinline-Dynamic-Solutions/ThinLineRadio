@@ -1,5 +1,15 @@
 # Change log
 
+## Version 7.0 Beta 9.6.8 - Released Feb 27, 2026
+
+### Bug Fixes
+
+- **System Health Alerts: No-audio and health alerts not delivered to all devices**
+  - `SendSystemAlertNotification` was collecting all registered device tokens but then sending every token — regardless of platform — in a single batch hardcoded as `"android"`. iOS devices received a payload formatted for Android, which the relay server / FCM silently dropped, so only Android devices ever received system health alerts
+  - Fixed by mirroring the same per-platform grouping logic used by the regular tone/talkgroup alert path: device tokens are now grouped by their stored `platform` field (`"ios"` / `"android"`), a separate batch is dispatched for each platform, iOS sound names have the file extension stripped as required by APNs, and each batch fires in its own goroutine with a 200 ms stagger to avoid relay-server rate limiting
+  - Admins signed into the same account on multiple devices (mixed iOS and Android) will now receive system health and no-audio alerts on all devices, consistent with tone/talkgroup alerts
+  - Files modified: `server/system_alert.go`
+
 ## Version 7.0 Beta 9.6.7 - Released Feb 27, 2026
 
 ### Bug Fixes

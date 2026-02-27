@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -124,50 +125,96 @@ func (controller *Controller) SendSystemAlertNotification(title, message, alertT
 		return
 	}
 
-	// Get device tokens for target users
-	var playerIds []string
+	// Determine icon and sound based on severity
+	icon := "🔔"
+	defaultSound := "startup.wav"
+	switch severity {
+	case "critical":
+		icon = "🚨"
+	case "error":
+		icon = "❌"
+	case "warning":
+		icon = "⚠️"
+	case "info":
+		icon = "ℹ️"
+	}
+
+	notificationTitle := fmt.Sprintf("%s System Alert", icon)
+
+	// Collect device tokens grouped by platform, preferring FCMToken over Token
+	// This mirrors the logic in sendBatchedPushNotification so iOS and Android
+	// devices each receive a correctly formatted batch.
+	type platformBatch struct {
+		ids   []string
+		sound string
+	}
+	platformBatches := make(map[string]*platformBatch) // key: "ios" or "android"
+
+	totalDevices := 0
 	for _, userId := range targetUserIds {
 		tokens := controller.DeviceTokens.GetByUser(userId)
-		for _, token := range tokens {
-			if token.Token != "" {
-				playerIds = append(playerIds, token.Token)
+		for _, device := range tokens {
+			// Prefer FCM token (new system), fall back to OneSignal token (legacy)
+			token := device.FCMToken
+			if token == "" {
+				token = device.Token
 			}
+			if token == "" {
+				continue
+			}
+
+			platform := device.Platform
+			if platform == "" {
+				platform = "android" // safe default for legacy tokens
+			}
+
+			sound := device.Sound
+			if sound == "" {
+				sound = defaultSound
+			}
+
+			if _, ok := platformBatches[platform]; !ok {
+				platformBatches[platform] = &platformBatch{sound: sound}
+			}
+			platformBatches[platform].ids = append(platformBatches[platform].ids, token)
+			totalDevices++
 		}
 	}
 
-	if len(playerIds) == 0 {
+	if totalDevices == 0 {
 		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("no device tokens found for %s", targetDescription))
 		return
 	}
 
-	// Determine icon and sound based on severity
-	icon := "🔔"
-	sound := "startup.wav"
-	switch severity {
-	case "critical":
-		icon = "🚨"
-		sound = "startup.wav" // Could be customized per severity
-	case "error":
-		icon = "❌"
-		sound = "startup.wav"
-	case "warning":
-		icon = "⚠️"
-		sound = "startup.wav"
-	case "info":
-		icon = "ℹ️"
-		sound = "startup.wav"
+	// Send a separate batch per platform so iOS and Android are handled correctly
+	batchIndex := 0
+	for platform, batch := range platformBatches {
+		if len(batch.ids) == 0 {
+			continue
+		}
+
+		finalSound := batch.sound
+		if platform == "ios" {
+			// iOS requires sound name without file extension
+			finalSound = strings.TrimSuffix(finalSound, ".wav")
+			finalSound = strings.TrimSuffix(finalSound, ".mp3")
+			finalSound = strings.TrimSuffix(finalSound, ".m4a")
+		}
+
+		delay := time.Duration(batchIndex) * 200 * time.Millisecond
+		ids := batch.ids
+		plat := platform
+		snd := finalSound
+		go func() {
+			if delay > 0 {
+				time.Sleep(delay)
+			}
+			controller.sendNotificationBatch(ids, notificationTitle, title, message, plat, snd, nil, "", "")
+		}()
+		batchIndex++
 	}
 
-	// Group player IDs by platform (if we had platform info, but we don't store it in device tokens lookup)
-	// For now, send to all devices using the batch system
-	notificationTitle := fmt.Sprintf("%s System Alert", icon)
-
-	// Send to all player IDs at once
-	// The relay server will handle the actual platform-specific formatting
-	if len(playerIds) > 0 {
-		go controller.sendNotificationBatch(playerIds, notificationTitle, title, message, "android", sound, nil, "", "")
-		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("[%s] system alert notification sent to %d device(s) (%s)", alertType, len(playerIds), targetDescription))
-	}
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("[%s] system alert notification sent to %d device(s) across %d platform(s) (%s)", alertType, totalDevices, batchIndex, targetDescription))
 }
 
 // GetSystemAlerts retrieves system alerts (optionally filtered by dismissed status)
