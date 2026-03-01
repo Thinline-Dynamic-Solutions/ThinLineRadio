@@ -81,19 +81,19 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 	// Step 1: Convert audio to WAV format using ffmpeg
 	// This ensures AssemblyAI can recognize and process the audio correctly
 	fmt.Printf("DEBUG: Converting audio to WAV - original size: %d bytes, mime: %s\n", len(audio), options.AudioMime)
-	
+
 	wavAudio, err := convertToWAV(audio)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert audio to WAV: %v", err)
 	}
-	
+
 	fmt.Printf("DEBUG: Converted to WAV - new size: %d bytes\n", len(wavAudio))
-	
+
 	// Validate WAV audio data
 	if len(wavAudio) == 0 {
 		return nil, fmt.Errorf("WAV audio data is empty after conversion")
 	}
-	
+
 	// Check WAV header
 	if len(wavAudio) >= 4 {
 		header := wavAudio[:4]
@@ -139,7 +139,7 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 	if uploadResponse.UploadURL == "" {
 		return nil, fmt.Errorf("AssemblyAI upload returned empty URL. Response body: %s", string(uploadRespBody))
 	}
-	
+
 	// Validate URL format (should be a valid URL)
 	if !strings.HasPrefix(uploadResponse.UploadURL, "http://") && !strings.HasPrefix(uploadResponse.UploadURL, "https://") {
 		return nil, fmt.Errorf("AssemblyAI upload returned invalid URL format: %s", uploadResponse.UploadURL)
@@ -152,9 +152,18 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 	}
 
 	// Add speech model if configured. AssemblyAI requires "speech_models" as an array.
-	// Valid values include: "universal-3-pro", "universal-2"
+	// Only send known valid model names; if the stored value is stale/invalid, omit the
+	// field so AssemblyAI falls back to its own default (currently "universal-2").
+	validSpeechModels := map[string]bool{
+		"universal-3-pro": true,
+		"universal-2":     true,
+	}
 	if assemblyai.speechModel != "" {
-		transcriptBody["speech_models"] = []string{assemblyai.speechModel}
+		if validSpeechModels[assemblyai.speechModel] {
+			transcriptBody["speech_models"] = []string{assemblyai.speechModel}
+		} else {
+			fmt.Printf("WARNING: AssemblyAI speech model %q is not a recognized value — omitting field and using API default. Valid values: universal-3-pro, universal-2\n", assemblyai.speechModel)
+		}
 	}
 
 	// Add word boost/keyterms if provided (AssemblyAI supports word_boost parameter)
@@ -174,7 +183,7 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 			transcriptBody["word_boost"] = validKeyterms
 		}
 	}
-	
+
 	// Only add optional fields if needed
 	// Try minimal request first - just audio_url
 
@@ -241,15 +250,15 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 		}
 
 		var result struct {
-			Status           string `json:"status"`
-			Text             string `json:"text"`
-			Words            []struct {
-				Start  int64  `json:"start"`
-				End    int64  `json:"end"`
-				Text   string `json:"text"`
+			Status string `json:"status"`
+			Text   string `json:"text"`
+			Words  []struct {
+				Start int64  `json:"start"`
+				End   int64  `json:"end"`
+				Text  string `json:"text"`
 			} `json:"words"`
-			Confidence       float64 `json:"confidence"`
-			LanguageCode     string  `json:"language_code"`
+			Confidence   float64 `json:"confidence"`
+			LanguageCode string  `json:"language_code"`
 		}
 
 		if err := json.NewDecoder(getResp.Body).Decode(&result); err != nil {
@@ -327,23 +336,22 @@ func convertToWAV(audio []byte) ([]byte, error) {
 		"-y", "-loglevel", "error",
 		"-i", "pipe:0", // Read from stdin
 		"-ar", "16000", // 16kHz sample rate
-		"-ac", "1",     // Mono
-		"-f", "wav",    // WAV format
-		"pipe:1",       // Write to stdout
+		"-ac", "1", // Mono
+		"-f", "wav", // WAV format
+		"pipe:1", // Write to stdout
 	}
-	
+
 	cmd := exec.Command("ffmpeg", ffArgs...)
 	cmd.Stdin = bytes.NewReader(audio)
-	
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("ffmpeg conversion failed: %v, stderr: %s", err, stderr.String())
 	}
-	
+
 	return stdout.Bytes(), nil
 }
-

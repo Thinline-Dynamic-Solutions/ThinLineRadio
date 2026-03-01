@@ -1,5 +1,17 @@
 # Change log
 
+## Version 7.0 Beta 9.7.3 - Released Mar 1, 2026
+
+### Bug Fixes
+
+- **AssemblyAI: Gracefully handle stale/unrecognized speech model names**
+  - If a user had an old model value (e.g. `best`, `nano`, `slam-1-5`) saved in their config from before the AssemblyAI API change, the server would send it as `["best"]` which the API rejects with HTTP 400
+  - Added a whitelist check: only `universal-3-pro` and `universal-2` are sent; any other stored value is silently ignored and the API default is used instead, with a warning logged
+  - **Action required for affected users:** Go to Admin → Options → Transcription → AssemblyAI Speech Model and set it to `universal-2` or `universal-3-pro` (or leave it blank)
+  - Files modified: `server/transcription_assemblyai.go`
+
+---
+
 ## Version 7.0 Beta 9.7.2 - Released Mar 1, 2026
 
 ### Bug Fixes
