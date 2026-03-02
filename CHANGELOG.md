@@ -1,5 +1,17 @@
 # Change log
 
+## Version 7.0 Beta 9.7.4 - Released Mar 1, 2026
+
+### Bug Fixes
+
+- **AssemblyAI: Remove speech model field entirely — revert to API default**
+  - Removed the configurable speech model feature introduced in 9.7.0 due to ongoing AssemblyAI API instability around the `speech_models` parameter
+  - The server no longer sends any `speech_models` field in transcription requests; AssemblyAI will use its own default model automatically (the same behavior as before 9.7.0)
+  - Removed the Speech Model input from the admin options page and all supporting backend code
+  - Files modified: `server/transcription_assemblyai.go`, `server/transcription_queue.go`, `server/options.go`, `client/src/app/components/rdio-scanner/admin/admin.service.ts`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`
+
+---
+
 ## Version 7.0 Beta 9.7.3 - Released Mar 1, 2026
 
 ### Bug Fixes

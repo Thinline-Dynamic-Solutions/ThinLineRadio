@@ -89,8 +89,7 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 	case "assemblyai":
 		// AssemblyAI
 		queue.provider = NewAssemblyAITranscription(&AssemblyAIConfig{
-			APIKey:      config.AssemblyAIKey,
-			SpeechModel: config.AssemblyAISpeechModel,
+			APIKey: config.AssemblyAIKey,
 		})
 	default:
 		// Default to whisper-api

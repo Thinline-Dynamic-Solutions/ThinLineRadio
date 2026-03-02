@@ -29,24 +29,21 @@ import (
 
 // AssemblyAITranscription implements TranscriptionProvider for AssemblyAI
 type AssemblyAITranscription struct {
-	available   bool
-	apiKey      string
-	speechModel string
-	httpClient  *http.Client
-	warned      bool
+	available  bool
+	apiKey     string
+	httpClient *http.Client
+	warned     bool
 }
 
 // AssemblyAIConfig contains configuration for AssemblyAI
 type AssemblyAIConfig struct {
-	APIKey      string // AssemblyAI API key
-	SpeechModel string // AssemblyAI speech model (e.g. "best", "nano", "slam-1-5")
+	APIKey string // AssemblyAI API key
 }
 
 // NewAssemblyAITranscription creates a new AssemblyAI transcription provider
 func NewAssemblyAITranscription(config *AssemblyAIConfig) *AssemblyAITranscription {
 	assemblyai := &AssemblyAITranscription{
-		apiKey:      config.APIKey,
-		speechModel: config.SpeechModel,
+		apiKey: config.APIKey,
 		httpClient: &http.Client{
 			Timeout: 5 * time.Minute,
 		},
@@ -149,21 +146,6 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 	// Build transcript request body with absolute minimum required fields
 	transcriptBody := map[string]interface{}{
 		"audio_url": uploadResponse.UploadURL,
-	}
-
-	// Add speech model if configured. AssemblyAI requires "speech_models" as an array.
-	// Only send known valid model names; if the stored value is stale/invalid, omit the
-	// field so AssemblyAI falls back to its own default (currently "universal-2").
-	validSpeechModels := map[string]bool{
-		"universal-3-pro": true,
-		"universal-2":     true,
-	}
-	if assemblyai.speechModel != "" {
-		if validSpeechModels[assemblyai.speechModel] {
-			transcriptBody["speech_models"] = []string{assemblyai.speechModel}
-		} else {
-			fmt.Printf("WARNING: AssemblyAI speech model %q is not a recognized value — omitting field and using API default. Valid values: universal-3-pro, universal-2\n", assemblyai.speechModel)
-		}
 	}
 
 	// Add word boost/keyterms if provided (AssemblyAI supports word_boost parameter)

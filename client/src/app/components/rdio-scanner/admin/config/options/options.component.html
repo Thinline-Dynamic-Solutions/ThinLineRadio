@@ -493,22 +493,6 @@
 
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai'" formGroupName="transcriptionConfig">
     <p>
-      <span class="mat-body">Speech Model (AssemblyAI)</span><br>
-      <span class="mat-caption">AssemblyAI speech model to use for transcription. Leave blank to use AssemblyAI's default. Current models: <strong>universal-3-pro</strong> (highest accuracy), <strong>universal-2</strong> (fast &amp; cost-effective). Check <a href="https://www.assemblyai.com/docs/pre-recorded-audio/select-the-speech-model" target="_blank" rel="noopener">AssemblyAI docs</a> for the latest model names.</span>
-    </p>
-    <mat-form-field floatLabel="auto">
-      <input type="text" matInput formControlName="assemblyAISpeechModel" placeholder="universal-2"
-             [matAutocomplete]="assemblyModelAuto">
-      <mat-autocomplete #assemblyModelAuto="matAutocomplete">
-        <mat-option value="universal-3-pro">universal-3-pro — highest accuracy</mat-option>
-        <mat-option value="universal-2">universal-2 — fast &amp; cost-effective</mat-option>
-      </mat-autocomplete>
-      <mat-hint>Leave blank to use AssemblyAI's default model.</mat-hint>
-    </mat-form-field>
-  </div>
-
-  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai'" formGroupName="transcriptionConfig">
-    <p>
       <span class="mat-body">Word Boost / Keyterms (AssemblyAI)</span><br>
       <span class="mat-caption">Enter words or phrases (one per line) to improve recognition accuracy. Maximum 100 terms, each up to 50 characters. Examples: unit names, technical terms, proper names. Leave empty for default behavior.</span>
     </p>
