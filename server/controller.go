@@ -2808,6 +2808,9 @@ func (controller *Controller) Start() error {
 		controller.fetchRadioReferenceAPIKey()
 	}
 
+	// Push tone set list to any configured TonesToActive downstream servers
+	go syncToneSetsToDownstreams(controller)
+
 	// Initialize transcription queue after options are loaded
 	if controller.Options.TranscriptionConfig.Enabled {
 		controller.TranscriptionQueue = NewTranscriptionQueue(controller, controller.Options.TranscriptionConfig)

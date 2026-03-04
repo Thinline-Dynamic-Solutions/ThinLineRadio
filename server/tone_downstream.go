@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -147,6 +148,86 @@ func sendToneAlertDownstream(controller *Controller, destination string, apiKey 
 	}
 
 	return nil
+}
+
+// syncToneSetsToDownstreams collects every tone set that has a downstream URL
+// configured (per-tone-set or per-talkgroup channel) and pushes the full list
+// to each unique TonesToActive server via POST /api/sync-tone-sets.
+// Called once on startup after all system/talkgroup data is loaded.
+func syncToneSetsToDownstreams(controller *Controller) {
+	// Map: baseURL → { apiKey, []toneSetEntry }
+	type toneSetEntry struct {
+		ID    string `json:"id"`
+		Label string `json:"label"`
+	}
+	type destInfo struct {
+		apiKey   string
+		toneSets []toneSetEntry
+	}
+	dests := map[string]*destInfo{}
+
+	for _, sys := range controller.Systems.List {
+		for _, tg := range sys.Talkgroups.List {
+			// Per-tone-set downstreams
+			for _, ts := range tg.ToneSets {
+				if ts.DownstreamEnabled && ts.DownstreamURL != "" {
+					base := strings.TrimSuffix(ts.DownstreamURL, "/api/tone-alert")
+					base = strings.TrimRight(base, "/")
+					if _, ok := dests[base]; !ok {
+						dests[base] = &destInfo{apiKey: ts.DownstreamAPIKey}
+					}
+					dests[base].toneSets = append(dests[base].toneSets, toneSetEntry{
+						ID:    ts.Id,
+						Label: ts.Label,
+					})
+				}
+			}
+			// Per-channel (talkgroup-level) downstream
+			if tg.ToneDownstreamEnabled && tg.ToneDownstreamURL != "" {
+				base := strings.TrimSuffix(tg.ToneDownstreamURL, "/api/tone-alert")
+				base = strings.TrimRight(base, "/")
+				if _, ok := dests[base]; !ok {
+					dests[base] = &destInfo{apiKey: tg.ToneDownstreamAPIKey}
+				}
+				for _, ts := range tg.ToneSets {
+					dests[base].toneSets = append(dests[base].toneSets, toneSetEntry{
+						ID:    ts.Id,
+						Label: ts.Label,
+					})
+				}
+			}
+		}
+	}
+
+	for base, info := range dests {
+		url := base + "/api/sync-tone-sets"
+		payload, err := json.Marshal(map[string]any{"toneSets": info.toneSets})
+		if err != nil {
+			controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("sync-tone-sets: marshal: %v", err))
+			continue
+		}
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+		if err != nil {
+			controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("sync-tone-sets: build request to %s: %v", url, err))
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if info.apiKey != "" {
+			req.Header.Set("X-API-Key", info.apiKey)
+		}
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("sync-tone-sets: POST to %s: %v", url, err))
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("sync-tone-sets: %s returned %s", url, resp.Status))
+		} else {
+			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sync-tone-sets: pushed %d tone sets to %s", len(info.toneSets), url))
+		}
+	}
 }
 
 // dispatchToneDownstreams checks per-tone-set and per-channel downstream config
