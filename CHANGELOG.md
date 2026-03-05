@@ -1,5 +1,21 @@
 # Change log
 
+## Version 7.0 Beta 9.7.12 - Released Mar 4, 2026
+
+### Bug Fixes
+
+- **Billing: Tax Collection Mode not showing saved value after page refresh**
+  - `taxMode` and `stripeTaxRateId` were missing from `newUserGroupForm()` in `admin.service.ts`, so when the admin page reloaded and rebuilt the form from the API response those fields were never populated — the dropdown always fell back to "None" regardless of what was saved in the database
+  - Added `collectSalesTax`, `taxMode`, and `stripeTaxRateId` to `newUserGroupForm()` so saved values are correctly restored on reload
+  - Files modified: `client/src/app/components/rdio-scanner/admin/admin.service.ts`
+
+- **Billing: Apply Tax Rate to Existing Subscribers fails with Stripe error `invalid_request_error`**
+  - Stripe rejects adding manual tax rates (`DefaultTaxRates`) to a subscription that already has `automatic_tax[enabled]=true` — the two modes are mutually exclusive
+  - The apply-tax-rate handler now disables `AutomaticTax` on the subscription at the same time as setting `DefaultTaxRates`, resolving the conflict in a single Stripe API call
+  - Files modified: `server/api.go`
+
+---
+
 ## Version 7.0 Beta 9.7.11 - Released Mar 4, 2026
 
 ### New Features

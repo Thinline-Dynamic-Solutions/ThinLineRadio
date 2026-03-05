@@ -8884,6 +8884,11 @@ func (api *Api) AdminApplyGroupTaxRateHandler(w http.ResponseWriter, r *http.Req
 		}
 
 		params := &stripe.SubscriptionParams{
+			// Disable Stripe Automatic Tax first — Stripe does not allow manual
+			// tax rates on a subscription that has automatic_tax enabled
+			AutomaticTax: &stripe.SubscriptionAutomaticTaxParams{
+				Enabled: stripe.Bool(false),
+			},
 			DefaultTaxRates: stripe.StringSlice([]string{group.StripeTaxRateId}),
 		}
 		_, err := subscription.Update(user.StripeSubscriptionId, params)

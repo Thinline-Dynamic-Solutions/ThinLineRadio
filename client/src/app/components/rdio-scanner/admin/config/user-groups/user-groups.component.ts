@@ -201,6 +201,9 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
         stripePriceId: group.stripePriceId || '',
         pricingOptions: group.pricingOptions || [],
         billingMode: group.billingMode || 'all_users',
+        collectSalesTax: group.collectSalesTax || false,
+        taxMode: group.taxMode || 'none',
+        stripeTaxRateId: group.stripeTaxRateId || '',
         isPublicRegistration: group.isPublicRegistration || false,
         allowAddExistingUsers: group.allowAddExistingUsers || false,
         createdAt: group.createdAt || 0
