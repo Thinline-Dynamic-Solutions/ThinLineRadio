@@ -1,5 +1,21 @@
 # Change log
 
+## Version 7.0 Beta 9.7.15 - Released Mar 8, 2026
+
+### Bug Fixes
+
+- **Upload: `signal_jobid` field not parsed — always stored as empty**
+  - The upload parser matched `signal_jobID` (capital ID) but uploaders send `signal_jobid` (all lowercase). The field was visible in raw logs but always showed `SignalJobId=""` in parsed logs and was never stored in the database
+  - Added `signal_jobid` as an additional case alongside `signal_jobID` so both capitalizations are accepted
+  - Files modified: `server/parsers.go`
+
+- **Upload logging: consolidated from ~20 lines per upload to 2**
+  - Each call upload logged one line per multipart header and one per field, producing 20–30 log lines per upload that made logs difficult to read
+  - The RAW log now collects all fields into a single pipe-separated line. The PARSED log is also a single line with all metadata. Both `UPLOAD` and `TR-UPLOAD` paths updated
+  - Files modified: `server/api.go`
+
+---
+
 ## Version 7.0 Beta 9.7.14 - Released Mar 8, 2026
 
 ### New Features

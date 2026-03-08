@@ -171,8 +171,8 @@ func (api *Api) CallUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		mr := multipart.NewReader(r.Body, params["boundary"])
 
-		// Log raw request info
-		log.Printf("api: [UPLOAD RAW] %s - from=%s ua=%q", r.URL.Path, r.RemoteAddr, r.UserAgent())
+		var rawParts strings.Builder
+		rawParts.WriteString(fmt.Sprintf("api: [UPLOAD RAW] %s from=%s ua=%q |", r.URL.Path, r.RemoteAddr, r.UserAgent()))
 
 		for {
 			p, err := mr.NextPart()
@@ -189,14 +189,10 @@ func (api *Api) CallUploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Log raw multipart part
-			for hk, hv := range p.Header {
-				log.Printf("api: [UPLOAD RAW]   header: %q = %v", hk, hv)
-			}
 			if p.FileName() != "" {
-				log.Printf("api: [UPLOAD RAW]   field=%q filename=%q mime=%q size=%d bytes", p.FormName(), p.FileName(), p.Header.Get("Content-Type"), len(b))
+				rawParts.WriteString(fmt.Sprintf(" %s=%q(%d bytes)", p.FormName(), p.FileName(), len(b)))
 			} else {
-				log.Printf("api: [UPLOAD RAW]   field=%q value=%q", p.FormName(), string(b))
+				rawParts.WriteString(fmt.Sprintf(" %s=%q", p.FormName(), string(b)))
 			}
 
 			switch p.FormName() {
@@ -206,19 +202,15 @@ func (api *Api) CallUploadHandler(w http.ResponseWriter, r *http.Request) {
 				ParseMultipartContent(call, p, b)
 			}
 		}
+		log.Print(rawParts.String())
 
-		// Log the full parsed call metadata for every upload
-		log.Printf("api: [UPLOAD PARSED] SystemId=%d TalkgroupId=%d Timestamp=%q Frequency=%d SiteRef=%q AudioLen=%d AudioFilename=%q AudioMime=%q",
-			call.SystemId, call.TalkgroupId, call.Timestamp.String(), call.Frequency, call.SiteRef, len(call.Audio), call.AudioFilename, call.AudioMime)
-		log.Printf("api: [UPLOAD PARSED] Meta.SystemRef=%d Meta.SystemLabel=%q Meta.SystemId=%d",
-			call.Meta.SystemRef, call.Meta.SystemLabel, call.Meta.SystemId)
-		log.Printf("api: [UPLOAD PARSED] Meta.TalkgroupRef=%d Meta.TalkgroupLabel=%q Meta.TalkgroupName=%q Meta.TalkgroupTag=%q Meta.TalkgroupGroups=%v",
-			call.Meta.TalkgroupRef, call.Meta.TalkgroupLabel, call.Meta.TalkgroupName, call.Meta.TalkgroupTag, call.Meta.TalkgroupGroups)
-		log.Printf("api: [UPLOAD PARSED] Meta.SiteRef=%q Meta.SiteId=%d Meta.SiteLabel=%q",
-			call.Meta.SiteRef, call.Meta.SiteId, call.Meta.SiteLabel)
-		log.Printf("api: [UPLOAD PARSED] Units=%v Meta.UnitRefs=%v Meta.UnitLabels=%v Patches=%v",
-			call.Units, call.Meta.UnitRefs, call.Meta.UnitLabels, call.Patches)
-		log.Printf("api: [UPLOAD PARSED] TransmissionId=%q RequestId=%q SignalJobId=%q",
+		// Log the full parsed call metadata as a single line
+		log.Printf("api: [UPLOAD PARSED] sys=%d tg=%d ts=%q freq=%d site=%q audio=%q(%d bytes) mime=%q | sysRef=%d sysLabel=%q | tgRef=%d tgLabel=%q tgName=%q tgTag=%q tgGroups=%v | siteRef=%q siteId=%d siteLabel=%q | units=%v unitRefs=%v unitLabels=%v patches=%v | txId=%q reqId=%q sigJobId=%q",
+			call.SystemId, call.TalkgroupId, call.Timestamp.String(), call.Frequency, call.SiteRef, call.AudioFilename, len(call.Audio), call.AudioMime,
+			call.Meta.SystemRef, call.Meta.SystemLabel,
+			call.Meta.TalkgroupRef, call.Meta.TalkgroupLabel, call.Meta.TalkgroupName, call.Meta.TalkgroupTag, call.Meta.TalkgroupGroups,
+			call.Meta.SiteRef, call.Meta.SiteId, call.Meta.SiteLabel,
+			call.Units, call.Meta.UnitRefs, call.Meta.UnitLabels, call.Patches,
 			call.TransmissionId, call.RequestId, call.SignalJobId)
 
 		// Check if this is a test connection (SDRTrunk sends key, system, test fields)
@@ -356,8 +348,8 @@ func (api *Api) TrunkRecorderCallUploadHandler(w http.ResponseWriter, r *http.Re
 
 		mr := multipart.NewReader(r.Body, params["boundary"])
 
-		// Log raw request info
-		log.Printf("api: [TR-UPLOAD RAW] %s - from=%s ua=%q", r.URL.Path, r.RemoteAddr, r.UserAgent())
+		var trRawParts strings.Builder
+		trRawParts.WriteString(fmt.Sprintf("api: [TR-UPLOAD RAW] %s from=%s ua=%q |", r.URL.Path, r.RemoteAddr, r.UserAgent()))
 
 		parts := map[*multipart.Part][]byte{}
 
@@ -376,14 +368,10 @@ func (api *Api) TrunkRecorderCallUploadHandler(w http.ResponseWriter, r *http.Re
 				return
 			}
 
-			// Log raw multipart part
-			for hk, hv := range p.Header {
-				log.Printf("api: [TR-UPLOAD RAW]   header: %q = %v", hk, hv)
-			}
 			if p.FileName() != "" {
-				log.Printf("api: [TR-UPLOAD RAW]   field=%q filename=%q mime=%q size=%d bytes", p.FormName(), p.FileName(), p.Header.Get("Content-Type"), len(b))
+				trRawParts.WriteString(fmt.Sprintf(" %s=%q(%d bytes)", p.FormName(), p.FileName(), len(b)))
 			} else {
-				log.Printf("api: [TR-UPLOAD RAW]   field=%q value=%q", p.FormName(), string(b))
+				trRawParts.WriteString(fmt.Sprintf(" %s=%q", p.FormName(), string(b)))
 			}
 
 			switch p.FormName() {
@@ -399,22 +387,19 @@ func (api *Api) TrunkRecorderCallUploadHandler(w http.ResponseWriter, r *http.Re
 			}
 		}
 
+		log.Print(trRawParts.String())
+
 		for p, b := range parts {
 			ParseMultipartContent(call, p, b)
 		}
 
-		// Log the full parsed call metadata for every upload
-		log.Printf("api: [TR-UPLOAD PARSED] SystemId=%d TalkgroupId=%d Timestamp=%q Frequency=%d SiteRef=%q AudioLen=%d AudioFilename=%q AudioMime=%q",
-			call.SystemId, call.TalkgroupId, call.Timestamp.String(), call.Frequency, call.SiteRef, len(call.Audio), call.AudioFilename, call.AudioMime)
-		log.Printf("api: [TR-UPLOAD PARSED] Meta.SystemRef=%d Meta.SystemLabel=%q Meta.SystemId=%d",
-			call.Meta.SystemRef, call.Meta.SystemLabel, call.Meta.SystemId)
-		log.Printf("api: [TR-UPLOAD PARSED] Meta.TalkgroupRef=%d Meta.TalkgroupLabel=%q Meta.TalkgroupName=%q Meta.TalkgroupTag=%q Meta.TalkgroupGroups=%v",
-			call.Meta.TalkgroupRef, call.Meta.TalkgroupLabel, call.Meta.TalkgroupName, call.Meta.TalkgroupTag, call.Meta.TalkgroupGroups)
-		log.Printf("api: [TR-UPLOAD PARSED] Meta.SiteRef=%q Meta.SiteId=%d Meta.SiteLabel=%q",
-			call.Meta.SiteRef, call.Meta.SiteId, call.Meta.SiteLabel)
-		log.Printf("api: [TR-UPLOAD PARSED] Units=%v Meta.UnitRefs=%v Meta.UnitLabels=%v Patches=%v",
-			call.Units, call.Meta.UnitRefs, call.Meta.UnitLabels, call.Patches)
-		log.Printf("api: [TR-UPLOAD PARSED] TransmissionId=%q RequestId=%q SignalJobId=%q",
+		// Log the full parsed call metadata as a single line
+		log.Printf("api: [TR-UPLOAD PARSED] sys=%d tg=%d ts=%q freq=%d site=%q audio=%q(%d bytes) mime=%q | sysRef=%d sysLabel=%q | tgRef=%d tgLabel=%q tgName=%q tgTag=%q tgGroups=%v | siteRef=%q siteId=%d siteLabel=%q | units=%v unitRefs=%v unitLabels=%v patches=%v | txId=%q reqId=%q sigJobId=%q",
+			call.SystemId, call.TalkgroupId, call.Timestamp.String(), call.Frequency, call.SiteRef, call.AudioFilename, len(call.Audio), call.AudioMime,
+			call.Meta.SystemRef, call.Meta.SystemLabel,
+			call.Meta.TalkgroupRef, call.Meta.TalkgroupLabel, call.Meta.TalkgroupName, call.Meta.TalkgroupTag, call.Meta.TalkgroupGroups,
+			call.Meta.SiteRef, call.Meta.SiteId, call.Meta.SiteLabel,
+			call.Units, call.Meta.UnitRefs, call.Meta.UnitLabels, call.Patches,
 			call.TransmissionId, call.RequestId, call.SignalJobId)
 
 		if ok, err := call.IsValid(); ok {

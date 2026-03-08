@@ -524,7 +524,7 @@ func ParseMultipartContent(call *Call, p *multipart.Part, b []byte) {
 	case "request_id":
 		// RDIO upstream request correlation ID - paired with transmission_id.
 		call.RequestId = string(b)
-	case "signal_jobID":
+	case "signal_jobID", "signal_jobid":
 		// RDIO/Signal upstream job ID (e.g. 1772856910589-fd88c97f).
 		call.SignalJobId = string(b)
 
