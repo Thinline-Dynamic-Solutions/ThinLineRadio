@@ -3017,6 +3017,12 @@ func (controller *Controller) Start() error {
 		return err
 	}
 
+	// Re-initialize fingerprint caches now that options are loaded, so TTLs use
+	// the admin-configured audioFingerprintTimeFrame instead of the hardcoded default.
+	fpTTL := time.Duration(controller.Options.AudioFingerprintTimeFrame) * time.Millisecond
+	controller.FingerprintCache = NewFingerprintCache(fpTTL)
+	controller.EmitFingerprintCache = NewEmitFingerprintCache(fpTTL)
+
 	// Fetch Radio Reference API key from relay server if not already stored
 	if controller.Options.RadioReferenceAPIKey == "" {
 		controller.fetchRadioReferenceAPIKey()

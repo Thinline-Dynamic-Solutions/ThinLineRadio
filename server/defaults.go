@@ -174,9 +174,9 @@ var defaults = Defaults{
 		duplicateDetectionMode:      "legacy",
 		duplicateDetectionTimeFrame: 1000,
 		advancedDetectionTimeFrame:  1000,
-		audioFingerprintEnabled:     true,
+		audioFingerprintEnabled:     false,
 		audioFingerprintThreshold:   0.25, // Hamming distance ≤ 0.25 = duplicate (same transmission, different noise)
-		audioFingerprintTimeFrame:   30000, // 30 second window catches delayed/out-of-order uploads
+		audioFingerprintTimeFrame:   5000, // 5 second window for fingerprint duplicate detection
 		email:                       "",
 		keypadBeeps:                 "uniden",
 		maxClients:                  100,

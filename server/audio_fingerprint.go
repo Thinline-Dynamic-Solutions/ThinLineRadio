@@ -131,8 +131,9 @@ func (c *FingerprintCache) CheckAndAdd(
 			continue
 		}
 
-		// Check 2: fingerprint similarity (adaptive threshold for short clips)
-		if len(fp) > 0 && len(entry.fingerprint) > 0 {
+		// Check 2: fingerprint similarity (adaptive threshold for short clips).
+		// Skip if either fingerprint is too short to compare reliably (< 3 integers = < 96 bits).
+		if len(fp) >= 3 && len(entry.fingerprint) >= 3 {
 			minLen := len(fp)
 			if len(entry.fingerprint) < minLen {
 				minLen = len(entry.fingerprint)
@@ -251,7 +252,11 @@ func (c *EmitFingerprintCache) CheckAndRegister(
 		if diff > metadataWindowMs {
 			continue
 		}
-		// Fingerprint similarity check with adaptive threshold
+		// Fingerprint similarity check with adaptive threshold.
+		// Skip if either fingerprint is too short to compare reliably (< 3 integers = < 96 bits).
+		if len(fp) < 3 || len(entry.fingerprint) < 3 {
+			continue
+		}
 		minLen := len(fp)
 		if len(entry.fingerprint) < minLen {
 			minLen = len(entry.fingerprint)
@@ -476,15 +481,18 @@ func hammingDist(a, b []int32) float64 {
 // causing same-transmission calls to be missed. Longer fingerprints are more
 // statistically stable so the configured threshold applies as-is.
 //
-//   < 5 integers  → threshold + 0.15  (very short clip, noisy)
-//   5–9 integers  → threshold + 0.08  (short clip, moderately noisy)
+//   < 3 integers  → 0.0 (skip: not enough data for a reliable comparison)
+//   3–4 integers  → threshold + 0.05  (minimal boost, short clip)
+//   5–9 integers  → threshold + 0.03  (slight boost, moderately short)
 //   ≥ 10 integers → threshold as-is   (enough data to be reliable)
 func adaptiveThreshold(baseThreshold float64, minLen int) float64 {
 	switch {
+	case minLen < 3:
+		return 0.0 // not enough bits — caller must skip when dist > 0
 	case minLen < 5:
-		return baseThreshold + 0.15
+		return baseThreshold + 0.05
 	case minLen < 10:
-		return baseThreshold + 0.08
+		return baseThreshold + 0.03
 	default:
 		return baseThreshold
 	}
@@ -706,7 +714,8 @@ func (calls *Calls) CheckDuplicateByFingerprint(
 			continue
 		}
 		existing := DeserializeFingerprint(fpStr.String)
-		if len(existing) == 0 {
+		// Skip if either fingerprint is too short to compare reliably (< 3 integers = < 96 bits).
+		if len(existing) < 3 || len(call.AudioFingerprint) < 3 {
 			continue
 		}
 		minLen := len(call.AudioFingerprint)

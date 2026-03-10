@@ -1,5 +1,21 @@
 # Change log
 
+## Version 7.0 Beta 9.7.17 - Released Mar 10, 2026
+
+### Bug Fixes
+
+- **Duplicate detection: fingerprint cache causing false-positive call drops on single-feeder systems**
+  - The in-memory fingerprint cache TTL was hardcoded at 30 seconds in `NewController`, meaning it was always 30 seconds regardless of what the admin configured for `audioFingerprintTimeFrame`. The cache was initialized before `Options.Read()` ran, so the admin setting was never applied
+  - The 30-second window caused consecutive legitimate calls on the same talkgroup to be compared against each other. On busy channels with short transmissions (1–4 fingerprint integers), the adaptive threshold (+0.15 for <5 integers) was permissive enough to match different calls as duplicates, silently dropping real traffic
+  - Fixed: the fingerprint cache is now re-initialized in `Start()` after options load, using `AudioFingerprintTimeFrame` from the admin settings
+  - Fixed: `audioFingerprintTimeFrame` default reduced from 30,000ms to 5,000ms
+  - Fixed: fingerprint similarity comparison is now skipped when either fingerprint has fewer than 3 integers (< 96 bits) — not enough data for a reliable comparison. Previously these short fingerprints received a +0.15 threshold boost that made false positives near-certain on short radio transmissions
+  - Fixed: adaptive threshold boosts reduced — +0.05 for 3–4 integers (was +0.15), +0.03 for 5–9 integers (was +0.08)
+  - Fixed: `audioFingerprintEnabled` now defaults to `false`. Systems that already have it enabled in the database are unaffected
+  - Files modified: `server/controller.go`, `server/defaults.go`, `server/audio_fingerprint.go`
+
+---
+
 ## Version 7.0 Beta 9.7.16 - Released Mar 10, 2026
 
 ### New Features
