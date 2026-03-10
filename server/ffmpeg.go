@@ -63,7 +63,7 @@ func NewFFMpeg() *FFMpeg {
 	return ffmpeg
 }
 
-func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint, config *Config, options *Options) error {
+func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint) error {
 	var (
 		args = []string{"-i", "-"}
 		err  error
@@ -92,69 +92,29 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 		)
 	}
 
-	// Apply audio normalization if requested
-	if mode >= AUDIO_CONVERSION_CONSERVATIVE_NORM && mode <= AUDIO_CONVERSION_MAXIMUM_NORM {
-		if ffmpeg.version43 {
-			// FFmpeg 4.3+ with loudnorm filter
-			// Conservative filtering: gentle highpass/lowpass to remove extreme frequencies only
-			switch mode {
-			case AUDIO_CONVERSION_CONSERVATIVE_NORM:
-				// -16 LUFS: Broadcast standard with minimal filtering (80 Hz - 8000 Hz)
-				args = append(args, "-af", "highpass=f=80:p=1,lowpass=f=8000:p=1,loudnorm=I=-16:TP=-2.0:LRA=11")
-
-			case AUDIO_CONVERSION_STANDARD_NORM:
-				// -12 LUFS: Recommended with gentle filtering (100 Hz - 7000 Hz)
-				args = append(args, "-af", "highpass=f=100:p=1,lowpass=f=7000:p=1,loudnorm=I=-12:TP=-1.5:LRA=10")
-
-			case AUDIO_CONVERSION_AGGRESSIVE_NORM:
-				// -10 LUFS: Dispatcher optimized with moderate filtering (120 Hz - 6000 Hz)
-				args = append(args, "-af", "highpass=f=120:p=1,lowpass=f=6000:p=1,loudnorm=I=-10:TP=-1.5:LRA=9")
-
-			case AUDIO_CONVERSION_MAXIMUM_NORM:
-				// -8 LUFS: Very loud with tighter filtering (150 Hz - 5000 Hz)
-				args = append(args, "-af", "highpass=f=150:p=1,lowpass=f=5000:p=1,loudnorm=I=-8:TP=-1.0:LRA=8")
-			}
+	// Normalization — matches rdio-scanner's original logic exactly.
+	// apad pads short clips to 3s so loudnorm has enough data to analyse.
+	if ffmpeg.version43 {
+		if mode == AUDIO_CONVERSION_ENABLED_NORM {
+			args = append(args, "-af", "apad=whole_dur=3s,loudnorm")
+		} else if mode == AUDIO_CONVERSION_ENABLED_LOUD_NORM {
+			args = append(args, "-af", "apad=whole_dur=3s,loudnorm=I=-16:TP=-1.5:LRA=11")
 		} else {
-			// FFmpeg < 4.3: Fall back to dynamic audio normalization
-			if !ffmpeg.warned {
-				fmt.Println("Warning: FFmpeg 4.3+ required for loudnorm filter. Using fallback dynaudnorm filter.")
-				fmt.Println("For best results, please upgrade FFmpeg to version 4.3 or later.")
-				ffmpeg.warned = true
-			}
-			// dynaudnorm fallback with conservative filtering
-			args = append(args, "-af", "highpass=f=100:p=1,lowpass=f=7000:p=1,dynaudnorm=f=75:g=9:p=0.95:m=15:r=0.5:b=1")
+			// Mode 1 (enabled, no normalization): gentle highpass to remove sub-bass
+			// rumble below 80 Hz — inaudible on radio but emphasised by iPhone speakers.
+			args = append(args, "-af", "highpass=f=80")
+		}
+	} else if mode == AUDIO_CONVERSION_ENABLED_NORM || mode == AUDIO_CONVERSION_ENABLED_LOUD_NORM {
+		if !ffmpeg.warned {
+			fmt.Println("Warning: FFmpeg 4.3+ required for loudnorm. Skipping normalization.")
+			ffmpeg.warned = true
 		}
 	}
 
-	// Determine codec and encoding parameters from admin options
-	useOpus := false
-	if options != nil && options.AudioCodec == "opus" {
-		useOpus = true
-	}
-
-	// Get bitrate from admin options with codec-specific limits
-	bitrate := defaults.options.audioBitrate
-	if options != nil && options.AudioBitrate > 0 {
-		bitrate = options.AudioBitrate
-	}
-
-	// Enforce minimum and codec-specific maximums
-	if bitrate < 16 {
-		bitrate = 16
-	}
-	if useOpus && bitrate > 256 {
-		bitrate = 256 // FFmpeg libopus max is 256 kbps
-	} else if !useOpus && bitrate > 320 {
-		bitrate = 320 // AAC max is 320 kbps
-	}
-
-	if useOpus {
-		// Encode as Opus (max 256 kbps) - Stereo 48 kHz (Opus doesn't support 44.1 kHz)
-		args = append(args, "-ac", "2", "-ar", "48000", "-c:a", "libopus", "-b:a", fmt.Sprintf("%dk", bitrate), "-vbr", "on", "-compression_level", "10", "-application", "voip", "-f", "opus", "-")
-	} else {
-		// Encode as AAC/M4A (max 320 kbps) - Stereo 44.1 kHz
-		args = append(args, "-ac", "2", "-ar", "44100", "-c:a", "aac", "-profile:a", "aac_low", "-b:a", fmt.Sprintf("%dk", bitrate), "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
-	}
+	// Encode as mono AAC/M4A at 32k.
+	// -ac 1 ensures the full 32k bitrate goes to a single channel rather than being
+	// split across stereo (radio scanner audio is inherently mono voice).
+	args = append(args, "-ac", "1", "-c:a", "aac", "-b:a", "32k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
 
 	cmd := exec.Command("ffmpeg", args...)
 	cmd.Stdin = bytes.NewReader(call.Audio)
@@ -167,15 +127,50 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 
 	if err = cmd.Run(); err == nil {
 		call.Audio = stdout.Bytes()
-		if useOpus {
-			call.AudioFilename = fmt.Sprintf("%v.opus", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
-			call.AudioMime = "audio/opus"
-		} else {
-			call.AudioFilename = fmt.Sprintf("%v.m4a", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
-			call.AudioMime = "audio/mp4"
-		}
+		call.AudioFilename = fmt.Sprintf("%v.m4a", strings.TrimSuffix(call.AudioFilename, path.Ext((call.AudioFilename))))
+		call.AudioMime = "audio/mp4"
 	} else {
 		fmt.Println(stderr.String())
+	}
+
+	return nil
+}
+
+// Denoise applies FFT-based noise reduction (afftdn) to call.Audio and outputs a clean WAV.
+// This is run as a pre-processing step before Convert() and before snapshotting OriginalAudio,
+// so both transcription and storage benefit from the same cleaned signal.
+//
+//	nf=-25  noise floor in dB — steady-state energy below this is suppressed (radio hiss/static)
+//	nt=w    noise type: white — matches the broadband noise profile of SDR/radio receivers
+//
+// On failure the original audio is preserved unchanged (graceful no-op).
+func (ffmpeg *FFMpeg) Denoise(call *Call) error {
+	if !ffmpeg.available {
+		return nil
+	}
+
+	args := []string{
+		"-i", "-",
+		"-af", "afftdn=nf=-25:nt=w",
+		"-f", "wav",
+		"-",
+	}
+
+	cmd := exec.Command("ffmpeg", args...)
+	cmd.Stdin = bytes.NewReader(call.Audio)
+
+	stdout := bytes.NewBuffer([]byte(nil))
+	cmd.Stdout = stdout
+
+	stderr := bytes.NewBuffer([]byte(nil))
+	cmd.Stderr = stderr
+
+	if err := cmd.Run(); err == nil {
+		call.Audio = stdout.Bytes()
+		call.AudioMime = "audio/wav"
+	} else {
+		// Non-fatal: keep original audio if denoising fails
+		fmt.Printf("ffmpeg denoise warning: %s\n", stderr.String())
 	}
 
 	return nil

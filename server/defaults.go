@@ -47,8 +47,6 @@ type DefaultDownstream struct {
 type DefaultOptions struct {
 	autoPopulate                bool
 	audioConversion             uint
-	audioCodec                  string
-	audioBitrate                uint
 	branding                    string
 	defaultSystemDelay          uint
 	dimmerDelay                 uint
@@ -56,6 +54,9 @@ type DefaultOptions struct {
 	duplicateDetectionMode      string
 	duplicateDetectionTimeFrame uint
 	advancedDetectionTimeFrame  uint
+	audioFingerprintEnabled     bool
+	audioFingerprintThreshold   float64
+	audioFingerprintTimeFrame   uint
 	email                       string
 	keypadBeeps                 string
 	maxClients                  uint
@@ -165,9 +166,7 @@ var defaults = Defaults{
 	keypadBeeps: "uniden",
 	options: DefaultOptions{
 		autoPopulate:                true,
-		audioConversion:             0,
-		audioCodec:                  "opus",
-		audioBitrate:                24,
+		audioConversion:             AUDIO_CONVERSION_ENABLED, // match rdio-scanner: on by default
 		branding:                    "",
 		defaultSystemDelay:          0,
 		dimmerDelay:                 30000,
@@ -175,6 +174,9 @@ var defaults = Defaults{
 		duplicateDetectionMode:      "legacy",
 		duplicateDetectionTimeFrame: 1000,
 		advancedDetectionTimeFrame:  1000,
+		audioFingerprintEnabled:     true,
+		audioFingerprintThreshold:   0.25, // Hamming distance ≤ 0.25 = duplicate (same transmission, different noise)
+		audioFingerprintTimeFrame:   30000, // 30 second window catches delayed/out-of-order uploads
 		email:                       "",
 		keypadBeeps:                 "uniden",
 		maxClients:                  100,

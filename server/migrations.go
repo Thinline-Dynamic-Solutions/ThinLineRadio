@@ -2399,6 +2399,30 @@ func migrateCallUnitsLabel(db *Database) error {
 	return nil
 }
 
+// migrateAudioConversionModes clamps any audioConversion values of 4 or 5
+// (the old Aggressive/Maximum LUFS modes that no longer exist) down to 3
+// (loud normalization), which is the closest equivalent.
+func migrateAudioConversionModes(db *Database) error {
+	query := `UPDATE "options" SET "value" = '3' WHERE "key" = 'audioConversion' AND "value" IN ('4', '5')`
+	if _, err := db.Sql.Exec(query); err != nil {
+		log.Printf("migration note (audioConversionModes): %v", err)
+	}
+	return nil
+}
+
+// migrateRemoveAudioCodecBitrate removes the audioCodec and audioBitrate rows from
+// the options table. These settings were removed in favour of a fixed AAC/32k pipeline
+// that matches rdio-scanner's original behaviour.
+func migrateRemoveAudioCodecBitrate(db *Database) error {
+	for _, key := range []string{"audioCodec", "audioBitrate"} {
+		query := fmt.Sprintf(`DELETE FROM "options" WHERE "key" = '%s'`, key)
+		if _, err := db.Sql.Exec(query); err != nil {
+			log.Printf("migration note (removeAudioCodecBitrate %s): %v", key, err)
+		}
+	}
+	return nil
+}
+
 // migrateLinkedVoiceTalkgroup adds the three cross-talkgroup voice association columns to the
 // talkgroups table.  All default to 0, which disables the feature — existing behaviour is
 // completely unchanged for talkgroups that are not explicitly configured.
@@ -2467,5 +2491,20 @@ func migrateLogsIndex(db *Database) error {
 
 	log.Println("logs timestamp index migration completed successfully")
 
+	return nil
+}
+
+// migrateAudioFingerprinting adds the audioFingerprint column to the calls table.
+// The column stores a comma-separated list of int32 values representing the
+// spectral fingerprint used for content-based duplicate detection.
+func migrateAudioFingerprinting(db *Database) error {
+	log.Println("migrating audio fingerprint column...")
+
+	query := `ALTER TABLE "calls" ADD COLUMN IF NOT EXISTS "audioFingerprint" text NOT NULL DEFAULT ''`
+	if _, err := db.Sql.Exec(query); err != nil {
+		return fmt.Errorf("migrateAudioFingerprinting: %w", err)
+	}
+
+	log.Println("audio fingerprint migration completed successfully")
 	return nil
 }

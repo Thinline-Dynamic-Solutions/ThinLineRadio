@@ -325,6 +325,21 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Clamp removed audioConversion modes 4/5 to mode 3 (loud normalization)
+	if err := migrateAudioConversionModes(db); err != nil {
+		return formatError(err, "")
+	}
+
+	// Remove audioCodec and audioBitrate from options table (fixed to AAC/32k pipeline)
+	if err := migrateRemoveAudioCodecBitrate(db); err != nil {
+		return formatError(err, "")
+	}
+
+	// Add audioFingerprint column for content-based duplicate detection
+	if err := migrateAudioFingerprinting(db); err != nil {
+		return formatError(err, "")
+	}
+
 	return nil
 }
 

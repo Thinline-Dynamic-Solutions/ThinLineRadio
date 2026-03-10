@@ -29,16 +29,17 @@ import (
 
 type Options struct {
 	AudioConversion             uint   `json:"audioConversion"`
-	AudioCodec                  string `json:"audioCodec"`   // "m4a" or "opus"
-	AudioBitrate                uint   `json:"audioBitrate"` // Bitrate in kbps
 	AutoPopulate                bool   `json:"autoPopulate"`
 	Branding                    string `json:"branding"`
 	DefaultSystemDelay          uint   `json:"defaultSystemDelay"`
 	DimmerDelay                 uint   `json:"dimmerDelay"`
-	DisableDuplicateDetection      bool   `json:"disableDuplicateDetection"`
-	DuplicateDetectionMode         string `json:"duplicateDetectionMode"`         // "legacy" or "advanced"
-	DuplicateDetectionTimeFrame    uint   `json:"duplicateDetectionTimeFrame"`    // Legacy mode timeframe
-	AdvancedDetectionTimeFrame     uint   `json:"advancedDetectionTimeFrame"`     // Advanced mode timeframe
+	DisableDuplicateDetection          bool    `json:"disableDuplicateDetection"`
+	DuplicateDetectionMode             string  `json:"duplicateDetectionMode"`             // "legacy" or "advanced"
+	DuplicateDetectionTimeFrame        uint    `json:"duplicateDetectionTimeFrame"`        // Legacy mode timeframe
+	AdvancedDetectionTimeFrame         uint    `json:"advancedDetectionTimeFrame"`         // Advanced mode timeframe
+	AudioFingerprintEnabled            bool    `json:"audioFingerprintEnabled"`            // Enable content-based duplicate detection
+	AudioFingerprintThreshold          float64 `json:"audioFingerprintThreshold"`          // Hamming distance threshold (0.0–1.0); lower = stricter
+	AudioFingerprintTimeFrame          uint    `json:"audioFingerprintTimeFrame"`          // Time window (ms) for fingerprint DB lookup
 	Email                          string `json:"email"`
 	KeypadBeeps                 string `json:"keypadBeeps"`
 	MaxClients                  uint   `json:"maxClients"`
@@ -177,12 +178,10 @@ type TranscriptionConfig struct {
 }
 
 const (
-	AUDIO_CONVERSION_DISABLED              = 0
-	AUDIO_CONVERSION_ENABLED               = 1
-	AUDIO_CONVERSION_CONSERVATIVE_NORM     = 2 // -16 LUFS (Broadcast standard)
-	AUDIO_CONVERSION_STANDARD_NORM         = 3 // -12 LUFS (Modern streaming, recommended)
-	AUDIO_CONVERSION_AGGRESSIVE_NORM       = 4 // -10 LUFS (Dispatcher/public safety optimized)
-	AUDIO_CONVERSION_MAXIMUM_NORM          = 5 // -8 LUFS (Very loud, heavily compressed)
+	AUDIO_CONVERSION_DISABLED          = 0
+	AUDIO_CONVERSION_ENABLED           = 1
+	AUDIO_CONVERSION_ENABLED_NORM      = 2 // loudnorm (auto target)
+	AUDIO_CONVERSION_ENABLED_LOUD_NORM = 3 // loudnorm I=-16 (louder target)
 )
 
 // getRelayServerAuthKey returns the authorization key for relay server API requests
@@ -211,24 +210,6 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.AudioConversion = uint(v)
 	default:
 		options.AudioConversion = defaults.options.audioConversion
-	}
-
-	switch v := m["audioCodec"].(type) {
-	case string:
-		options.AudioCodec = v
-	default:
-		options.AudioCodec = defaults.options.audioCodec
-	}
-
-	switch v := m["audioBitrate"].(type) {
-	case float64:
-		options.AudioBitrate = uint(v)
-	case int:
-		options.AudioBitrate = uint(v)
-	case int64:
-		options.AudioBitrate = uint(v)
-	default:
-		options.AudioBitrate = defaults.options.audioBitrate
 	}
 
 	switch v := m["autoPopulate"].(type) {
@@ -292,6 +273,27 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.AdvancedDetectionTimeFrame = uint(v)
 	default:
 		options.AdvancedDetectionTimeFrame = defaults.options.advancedDetectionTimeFrame
+	}
+
+	switch v := m["audioFingerprintEnabled"].(type) {
+	case bool:
+		options.AudioFingerprintEnabled = v
+	default:
+		options.AudioFingerprintEnabled = defaults.options.audioFingerprintEnabled
+	}
+
+	switch v := m["audioFingerprintThreshold"].(type) {
+	case float64:
+		options.AudioFingerprintThreshold = v
+	default:
+		options.AudioFingerprintThreshold = defaults.options.audioFingerprintThreshold
+	}
+
+	switch v := m["audioFingerprintTimeFrame"].(type) {
+	case float64:
+		options.AudioFingerprintTimeFrame = uint(v)
+	default:
+		options.AudioFingerprintTimeFrame = defaults.options.audioFingerprintTimeFrame
 	}
 
 	switch v := m["email"].(type) {
@@ -927,7 +929,6 @@ func (options *Options) Read(db *Database) error {
 	options.adminPassword = string(defaultPassword)
 	options.adminPasswordNeedChange = defaults.adminPasswordNeedChange
 	options.AudioConversion = defaults.options.audioConversion
-	options.AudioBitrate = defaults.options.audioBitrate
 	options.AutoPopulate = defaults.options.autoPopulate
 	options.Branding = defaults.options.branding
 	options.DefaultSystemDelay = defaults.options.defaultSystemDelay
@@ -936,6 +937,9 @@ func (options *Options) Read(db *Database) error {
 	options.DuplicateDetectionMode = defaults.options.duplicateDetectionMode
 	options.DuplicateDetectionTimeFrame = defaults.options.duplicateDetectionTimeFrame
 	options.AdvancedDetectionTimeFrame = defaults.options.advancedDetectionTimeFrame
+	options.AudioFingerprintEnabled = defaults.options.audioFingerprintEnabled
+	options.AudioFingerprintThreshold = defaults.options.audioFingerprintThreshold
+	options.AudioFingerprintTimeFrame = defaults.options.audioFingerprintTimeFrame
 	options.Email = defaults.options.email
 	options.KeypadBeeps = defaults.options.keypadBeeps
 	options.MaxClients = defaults.options.maxClients
@@ -1010,20 +1014,6 @@ func (options *Options) Read(db *Database) error {
 					options.AudioConversion = uint(v)
 				}
 			}
-		case "audioBitrate":
-			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-				switch v := f.(type) {
-				case float64:
-					options.AudioBitrate = uint(v)
-				}
-			}
-		case "audioCodec":
-			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-				switch v := f.(type) {
-				case string:
-					options.AudioCodec = v
-				}
-			}
 		case "autoPopulate":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -1083,6 +1073,27 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case float64:
 					options.AdvancedDetectionTimeFrame = uint(v)
+				}
+			}
+		case "audioFingerprintEnabled":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.AudioFingerprintEnabled = v
+				}
+			}
+		case "audioFingerprintThreshold":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.AudioFingerprintThreshold = v
+				}
+			}
+		case "audioFingerprintTimeFrame":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.AudioFingerprintTimeFrame = uint(v)
 				}
 			}
 		case "email":
@@ -1677,8 +1688,6 @@ func (options *Options) Write(db *Database) error {
 	set("adminPassword", options.adminPassword)
 	set("adminPasswordNeedChange", options.adminPasswordNeedChange)
 	set("audioConversion", options.AudioConversion)
-	set("audioCodec", options.AudioCodec)
-	set("audioBitrate", options.AudioBitrate)
 	set("autoPopulate", options.AutoPopulate)
 	set("branding", options.Branding)
 	set("defaultSystemDelay", options.DefaultSystemDelay)
@@ -1687,6 +1696,9 @@ func (options *Options) Write(db *Database) error {
 	set("duplicateDetectionMode", options.DuplicateDetectionMode)
 	set("duplicateDetectionTimeFrame", options.DuplicateDetectionTimeFrame)
 	set("advancedDetectionTimeFrame", options.AdvancedDetectionTimeFrame)
+	set("audioFingerprintEnabled", options.AudioFingerprintEnabled)
+	set("audioFingerprintThreshold", options.AudioFingerprintThreshold)
+	set("audioFingerprintTimeFrame", options.AudioFingerprintTimeFrame)
 	set("email", options.Email)
 	set("keypadBeeps", options.KeypadBeeps)
 	set("maxClients", options.MaxClients)

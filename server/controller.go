@@ -39,45 +39,48 @@ import (
 )
 
 type Controller struct {
-	Admin                  *Admin
-	Api                    *Api
-	Apikeys                *Apikeys
-	Calls                  *Calls
-	CallQueue              *CallQueue
-	Clients                *Clients
-	Config                 *Config
-	Database               *Database
-	Delayer                *Delayer
-	Dirwatches             *Dirwatches
-	Downstreams            *Downstreams
-	FFMpeg                 *FFMpeg
-	Groups                 *Groups
-	Logs                   *Logs
-	Options                *Options
-	ReconnectionMgr        *ReconnectionManager
-	Scheduler              *Scheduler
-	Systems                *Systems
-	Tags                   *Tags
-	Users                  *Users
-	UserGroups             *UserGroups
-	RegistrationCodes      *RegistrationCodes
-	TransferRequests       *TransferRequests
-	DeviceTokens           *DeviceTokens
-	EmailService           *EmailService
-	ToneDetector                  *ToneDetector
-	TranscriptionQueue            *TranscriptionQueue
+	Admin                            *Admin
+	Api                              *Api
+	Apikeys                          *Apikeys
+	Calls                            *Calls
+	CallQueue                        *CallQueue
+	Clients                          *Clients
+	Config                           *Config
+	Database                         *Database
+	Delayer                          *Delayer
+	Dirwatches                       *Dirwatches
+	Downstreams                      *Downstreams
+	FFMpeg                           *FFMpeg
+	Groups                           *Groups
+	Logs                             *Logs
+	Options                          *Options
+	ReconnectionMgr                  *ReconnectionManager
+	Scheduler                        *Scheduler
+	Systems                          *Systems
+	Tags                             *Tags
+	Users                            *Users
+	UserGroups                       *UserGroups
+	RegistrationCodes                *RegistrationCodes
+	TransferRequests                 *TransferRequests
+	DeviceTokens                     *DeviceTokens
+	EmailService                     *EmailService
+	AudioFingerprinter               *AudioFingerprinter
+	FingerprintCache                 *FingerprintCache
+	EmitFingerprintCache             *EmitFingerprintCache
+	ToneDetector                     *ToneDetector
+	TranscriptionQueue               *TranscriptionQueue
 	HydraTranscriptionRetrievalQueue *HydraTranscriptionRetrievalQueue
-	KeywordMatcher                *KeywordMatcher
-	AlertEngine                   *AlertEngine
-	HallucinationDetector         *HallucinationDetector
-	CentralManagement             *CentralManagementService
-	Register              chan *Client
-	Unregister            chan *Client
-	Ingest                chan *Call
-	running               bool
-	workerCancel          context.CancelFunc // Function to cancel worker context
-	workersWg             sync.WaitGroup     // WaitGroup to track worker goroutines
-	workerStats           struct {
+	KeywordMatcher                   *KeywordMatcher
+	AlertEngine                      *AlertEngine
+	HallucinationDetector            *HallucinationDetector
+	CentralManagement                *CentralManagementService
+	Register                         chan *Client
+	Unregister                       chan *Client
+	Ingest                           chan *Call
+	running                          bool
+	workerCancel                     context.CancelFunc // Function to cancel worker context
+	workersWg                        sync.WaitGroup     // WaitGroup to track worker goroutines
+	workerStats                      struct {
 		sync.Mutex
 		activeWorkers  int
 		totalCalls     int64
@@ -185,6 +188,11 @@ func NewController(config *Config) *Controller {
 			log.Println("Transcription tone removal debug logging enabled - writing to transcription-tone-debug.log")
 		}
 	}
+
+	// Initialize audio fingerprinter for content-based duplicate detection
+	controller.AudioFingerprinter = NewAudioFingerprinter()
+	controller.FingerprintCache = NewFingerprintCache(30 * time.Second)
+	controller.EmitFingerprintCache = NewEmitFingerprintCache(10 * time.Second)
 
 	// Initialize tone detection and transcription components
 	controller.ToneDetector = NewToneDetector()
@@ -695,6 +703,16 @@ func (controller *Controller) IngestCall(call *Call) {
 		var err error
 		var useAdvanced bool
 
+		// Generate audio fingerprint early so it is available for both duplicate checking
+		// and storage. Runs only when fingerprinting is enabled and FFmpeg is available.
+		if controller.Options.AudioFingerprintEnabled && controller.AudioFingerprinter.Available() {
+			if fp, fpErr := controller.AudioFingerprinter.Generate(call.Audio, call.AudioMime); fpErr == nil {
+				call.AudioFingerprint = fp
+			} else {
+				logCall(call, LogLevelWarn, fmt.Sprintf("fingerprint generation skipped: %v", fpErr))
+			}
+		}
+
 		// Determine if we can use Advanced mode
 		// Requires: Advanced mode enabled AND system has proper site configuration
 		if controller.Options.DuplicateDetectionMode == "advanced" {
@@ -816,6 +834,43 @@ func (controller *Controller) IngestCall(call *Call) {
 			logError(err)
 			return
 		}
+
+		// Fingerprint check: content-based duplicate detection using spectral similarity.
+		// Two-layer check:
+		//   1. In-memory cache  — catches simultaneous uploads that haven't hit the DB yet
+		//   2. Database query   — catches delayed/out-of-order uploads within the time window
+		if controller.Options.AudioFingerprintEnabled && len(call.AudioFingerprint) > 0 {
+			// Layer 1: cache check+register (atomic — no race condition)
+			if call.System != nil && call.Talkgroup != nil {
+				if controller.FingerprintCache.CheckAndAdd(
+					call.System.Id,
+					call.Talkgroup.Id,
+					call.AudioFingerprint,
+					call.Timestamp.UnixMilli(),
+					controller.AudioFingerprinter,
+					controller.Options.AudioFingerprintThreshold,
+					int64(controller.Options.DuplicateDetectionTimeFrame),
+				) {
+					logCall(call, LogLevelWarn, "duplicate (fingerprint-cache): same audio content detected")
+					return
+				}
+			}
+
+			// Layer 2: DB check for delayed uploads outside the cache window
+			isFpDuplicate, fpErr := controller.Calls.CheckDuplicateByFingerprint(
+				call,
+				controller.Options.AudioFingerprintTimeFrame,
+				controller.Options.AudioFingerprintThreshold,
+				controller.AudioFingerprinter,
+				controller.Database,
+			)
+			if fpErr != nil {
+				logCall(call, LogLevelWarn, fmt.Sprintf("fingerprint duplicate check error (skipping): %v", fpErr))
+			} else if isFpDuplicate {
+				logCall(call, LogLevelWarn, "duplicate (fingerprint): same audio content detected")
+				return
+			}
+		}
 	}
 
 	// Continue processing after duplicate detection
@@ -841,30 +896,39 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 		system = call.System
 	}
 
-	// Store original audio before encoding - tone detection and transcription need raw/uncompressed audio
-	// This avoids double lossy conversion (e.g., MP3 -> Opus -> WAV) which degrades quality
-	originalAudio := make([]byte, len(call.Audio))
-	copy(originalAudio, call.Audio)
-	originalAudioMime := call.AudioMime
+	// Stage 1: Snapshot RAW audio for tone detection.
+	// Tone detection must use the unprocessed signal — tones are strong narrowband signals
+	// that survive noise well, and we don't want any filtering to alter their frequency profile.
+	rawAudio := make([]byte, len(call.Audio))
+	copy(rawAudio, call.Audio)
+	rawAudioMime := call.AudioMime
 
-	// Store original audio in call struct for transcription to use later
-	call.OriginalAudio = originalAudio
-	call.OriginalAudioMime = originalAudioMime
-
-	// Run tone detection BEFORE encoding to avoid Opus compression affecting tone detection
+	// Stage 2: Kick off tone detection on raw audio asynchronously (doesn't block call processing).
 	shouldDetectTones := call.Talkgroup != nil && call.Talkgroup.ToneDetectionEnabled && len(call.Talkgroup.ToneSets) > 0
 	if shouldDetectTones {
-		// Create temporary call with original audio for tone detection
 		toneDetectionCall := *call
-		toneDetectionCall.Audio = originalAudio
-		toneDetectionCall.AudioMime = originalAudioMime
-		// Run tone detection asynchronously so it doesn't block call processing if it hangs
-		// Pass pointer to original call so results can be updated in memory after detection completes
+		toneDetectionCall.Audio = rawAudio
+		toneDetectionCall.AudioMime = rawAudioMime
 		go controller.processToneDetectionAsync(&toneDetectionCall, call)
 	}
 
-	// Now encode audio to Opus/AAC for storage
-	if convertErr := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion, controller.Config, controller.Options); convertErr != nil {
+	// Stage 3: Denoise call.Audio in place (afftdn removes hiss/static).
+	// Tone detection already has its raw snapshot so this is safe.
+	// The denoised audio becomes both the stored/streamed audio AND transcription input.
+	if controller.Options.AudioConversion != AUDIO_CONVERSION_DISABLED {
+		if denoiseErr := controller.FFMpeg.Denoise(call); denoiseErr != nil {
+			controller.Logs.LogEvent(LogLevelWarn, denoiseErr.Error())
+		}
+	}
+
+	// Stage 4: Snapshot denoised audio for transcription.
+	denoisedAudio := make([]byte, len(call.Audio))
+	copy(denoisedAudio, call.Audio)
+	call.OriginalAudio = denoisedAudio
+	call.OriginalAudioMime = call.AudioMime
+
+	// Stage 5: Encode denoised audio to AAC/M4A for storage and streaming.
+	if convertErr := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion); convertErr != nil {
 		controller.Logs.LogEvent(LogLevelWarn, convertErr.Error())
 	}
 
@@ -897,6 +961,28 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 					UnitRef: unitRef,
 					Offset:  0,
 				})
+			}
+		}
+
+		// Cross-talkgroup patch dedup: suppress emit if same audio was already
+		// streamed on a different talkgroup (e.g. FINDLAY + POST41 patch).
+		// The call is already saved to DB so history is preserved on both talkgroups.
+		if controller.Options.AudioFingerprintEnabled &&
+			len(call.AudioFingerprint) > 0 &&
+			call.System != nil && call.Talkgroup != nil {
+			if controller.EmitFingerprintCache.CheckAndRegister(
+				call.System.Id,
+				call.Talkgroup.Id,
+				call.AudioFingerprint,
+				call.Timestamp.UnixMilli(),
+				controller.AudioFingerprinter,
+				controller.Options.AudioFingerprintThreshold,
+				int64(controller.Options.DuplicateDetectionTimeFrame),
+			) {
+				logCall(call, LogLevelInfo, "patch duplicate suppressed at emit (same audio already streamed on another talkgroup)")
+				// Skip emit — call is saved to DB, just not streamed twice
+				go controller.queueTranscriptionIfNeeded(call)
+				return
 			}
 		}
 
@@ -1357,14 +1443,14 @@ func (controller *Controller) storePendingTones(call *Call, toneSequence *ToneSe
 				}
 				crossKey := fmt.Sprintf("%d:%d", call.System.Id, linkedTalkgroupId)
 				controller.pendingTones[crossKey] = &PendingToneSequence{
-					ToneSequence:             toneSequence,
-					CallId:                   call.Id,
-					Timestamp:                call.Timestamp.UnixMilli(),
-					SystemId:                 call.System.Id,
-					TalkgroupId:              linkedTalkgroupId,
-					WindowSeconds:            windowSecs,
-					MinVoiceDurationSeconds:  call.Talkgroup.LinkedVoiceMinDurationSeconds,
-					CrossTalkgroupSourceKey:  key,
+					ToneSequence:            toneSequence,
+					CallId:                  call.Id,
+					Timestamp:               call.Timestamp.UnixMilli(),
+					SystemId:                call.System.Id,
+					TalkgroupId:             linkedTalkgroupId,
+					WindowSeconds:           windowSecs,
+					MinVoiceDurationSeconds: call.Talkgroup.LinkedVoiceMinDurationSeconds,
+					CrossTalkgroupSourceKey: key,
 				}
 				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
 					"cross-talkgroup watch registered: tones from talkgroup %d will attach to voice on talkgroup ref %d (id=%d) within %ds (min duration: %ds)",
@@ -2251,18 +2337,18 @@ func (controller *Controller) queueTranscriptionIfNeeded(call *Call) {
 			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to verify transmission_id for call %d: %v, using in-memory value", call.Id, err))
 			dbTransmissionId = call.TransmissionId // Fallback to in-memory value
 		}
-		
+
 		// Use database value if available, otherwise fall back to in-memory value
 		transmissionIdToUse := dbTransmissionId
 		if transmissionIdToUse == "" {
 			transmissionIdToUse = call.TransmissionId
 		}
-		
+
 		if transmissionIdToUse == "" {
 			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("skipping Hydra transcription for call %d: no transmission_id found", call.Id))
 			return
 		}
-		
+
 		if controller.HydraTranscriptionRetrievalQueue == nil {
 			log.Printf("queueTranscriptionIfNeeded: initializing Hydra retrieval queue for call %d", call.Id)
 			controller.HydraTranscriptionRetrievalQueue = NewHydraTranscriptionRetrievalQueue(controller)
@@ -2935,7 +3021,6 @@ func (controller *Controller) Start() error {
 	if controller.Options.RadioReferenceAPIKey == "" {
 		controller.fetchRadioReferenceAPIKey()
 	}
-
 
 	// Initialize transcription queue after options are loaded
 	if controller.Options.TranscriptionConfig.Enabled {

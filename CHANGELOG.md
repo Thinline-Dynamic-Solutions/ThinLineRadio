@@ -1,5 +1,25 @@
 # Change log
 
+## Version 7.0 Beta 9.7.16 - Released Mar 10, 2026
+
+### New Features
+
+- **Duplicate Detection: audio fingerprinting for content-based duplicate suppression**
+  - The existing duplicate detection relied purely on metadata (system, talkgroup, and timestamp window). Calls arriving outside the timestamp window, from recorders with slightly mismatched clocks, or with different audio durations could slip through and play for listeners twice
+  - Added a spectral audio fingerprinting engine (`server/audio_fingerprint.go`) that generates a compact `[]int32` fingerprint from each call's audio content. The algorithm normalises audio to 11025 Hz mono via FFmpeg (`dynaudnorm`), divides it into overlapping ~0.37 s frames, computes FFT band energies across 8 logarithmically-spaced frequency bands (200–3500 Hz), and encodes temporal spectral changes as bits packed into int32 values. Two recordings of the same transmission — regardless of noise floor, signal strength, or codec differences — produce fingerprints with low Hamming distance; unrelated audio produces ~50% bit difference
+  - Duplicate detection now runs in two layers after the existing metadata checks pass:
+    - **In-memory cache (race condition layer):** catches simultaneous uploads that arrive before either call is committed to the database. The cache check is atomic under a mutex. Each entry stores both the radio call timestamp and the fingerprint. Two checks are applied: (1) if the incoming call's radio timestamp is within the metadata window of any cached entry on the same system/talkgroup → duplicate, regardless of fingerprint (handles P25 digital audio where different decoders produce spectrally different but identical-content audio); (2) if Hamming distance is below threshold → fingerprint duplicate
+    - **Database query (delayed upload layer):** queries stored fingerprints over a wider 30-second window to catch out-of-order or delayed uploads that arrived after the cache TTL expired
+  - Fingerprint comparison uses a **bidirectional sliding window** (±5 integer positions ≈ ±4 seconds) so recordings of the same transmission where one recorder started a few seconds earlier or later are correctly identified as duplicates even when both fingerprints are the same length
+  - **Adaptive threshold** for short clips: calls under 5 seconds produce only 3–4 fingerprint integers, making raw Hamming distance unreliable. The threshold is automatically relaxed (+0.15 for <5 integers, +0.08 for 5–9 integers) so very short transmissions from different receivers are still correctly matched
+  - **Patch talkgroup emit suppression:** when the same transmission arrives on two patched talkgroups (e.g. FINDLAY and POST41), both calls are saved to the database (history preserved on both talkgroups) but only the first is streamed to connected clients. A secondary `EmitFingerprintCache` keyed by system ID compares fingerprints cross-talkgroup at emit time and suppresses the duplicate stream. Logged as `patch duplicate suppressed at emit`
+  - Three new admin options (all on by default): **Audio Fingerprint Enabled** (toggle), **Fingerprint Threshold** (Hamming distance 0.0–1.0, default 0.25), **Fingerprint Time Frame** (ms window for DB query, default 30000)
+  - The `audioFingerprint` column is added to the `calls` table automatically on startup via the standard migration path
+  - Log messages distinguish detection layer: `duplicate (fingerprint-cache)` for the in-memory hit, `duplicate (fingerprint)` for the DB hit, `patch duplicate suppressed at emit` for cross-talkgroup patch suppression
+  - Files modified: `server/audio_fingerprint.go` (new), `server/call.go`, `server/controller.go`, `server/options.go`, `server/defaults.go`, `server/migrations.go`, `server/database.go`
+
+---
+
 ## Version 7.0 Beta 9.7.15 - Released Mar 8, 2026
 
 ### Bug Fixes

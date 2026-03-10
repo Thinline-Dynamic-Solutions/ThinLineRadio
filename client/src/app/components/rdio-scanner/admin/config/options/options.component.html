@@ -17,41 +17,12 @@
       <mat-select formControlName="audioConversion" placeholder="Audio Conversion">
         <mat-option [value]="0">Disabled</mat-option>
         <mat-option [value]="1">Enabled without normalization</mat-option>
-        <mat-option [value]="2">Conservative normalization (-16 LUFS) - Broadcast standard</mat-option>
-        <mat-option [value]="3">Standard normalization (-12 LUFS) - Recommended</mat-option>
-        <mat-option [value]="4">Aggressive normalization (-10 LUFS) - Dispatcher optimized</mat-option>
-        <mat-option [value]="5">Maximum normalization (-8 LUFS) - Very loud</mat-option>
+        <mat-option [value]="2">Enabled with normalization</mat-option>
+        <mat-option [value]="3">Enabled with loud normalization</mat-option>
       </mat-select>
       <mat-hint *ngIf="form?.get('audioConversion')?.value >= 2" style="color: #aaa; font-size: 0.85em; margin-top: 8px;">
-        Normalization equalizes volume across all channels. Louder settings (-12 to -8 LUFS) boost quiet channels more and reduce loud channels more to maintain consistency.
+        Normalization equalizes volume across all channels so quiet and loud transmissions play at a consistent level.
       </mat-hint>
-    </mat-form-field>
-  </div>
-
-  <!-- Audio Codec -->
-  <div class="row">
-    <p>
-      <span class="mat-body">Audio Codec</span><br>
-      <span class="mat-caption">Choose encoding format for new calls. Legacy calls will play in their original format.</span>
-    </p>
-    <mat-form-field floatLabel="auto">
-      <mat-select formControlName="audioCodec" placeholder="Audio Codec">
-        <mat-option value="m4a">M4A/AAC (Recommended)</mat-option>
-        <mat-option value="opus">Opus</mat-option>
-      </mat-select>
-      <mat-hint>M4A: Universal compatibility. Opus: Better quality at lower bitrates.</mat-hint>
-    </mat-form-field>
-  </div>
-
-  <!-- Audio Bitrate -->
-  <div class="row">
-    <p>
-      <span class="mat-body">Audio Bitrate (kbps)</span><br>
-      <span class="mat-caption">Higher bitrate = better quality but larger files. Recommended: 24 kbps (low), 48 kbps (good), 96 kbps (high). Max: 256 kbps (Opus), 320 kbps (AAC).</span>
-    </p>
-    <mat-form-field floatLabel="auto">
-      <input type="number" min="16" max="320" step="8" matInput formControlName="audioBitrate" placeholder="24">
-      <mat-hint>Applies to selected codec format</mat-hint>
     </mat-form-field>
   </div>
 

@@ -232,8 +232,6 @@ export interface CallsQueryOptions {
 
 export interface Options {
 	audioConversion?: 0 | 1 | 2 | 3;
-	audioCodec?: string;
-	audioBitrate?: number;
 	autoPopulate?: boolean;
 	branding?: string;
 	defaultSystemDelay?: number;
@@ -1208,8 +1206,6 @@ export class RdioScannerAdminService implements OnDestroy {
         
 		return this.ngFormBuilder.group({
 		audioConversion: this.ngFormBuilder.control(options?.audioConversion),
-		audioCodec: this.ngFormBuilder.control(options?.audioCodec || 'm4a'),
-		audioBitrate: this.ngFormBuilder.control(options?.audioBitrate || 24, [Validators.min(16), Validators.max(320)]),
 		autoPopulate: this.ngFormBuilder.control(options?.autoPopulate),
 		branding: this.ngFormBuilder.control(options?.branding),
 			defaultSystemDelay: this.ngFormBuilder.control(options?.defaultSystemDelay, [Validators.required, Validators.min(0)]),
