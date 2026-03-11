@@ -92,29 +92,15 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 		)
 	}
 
-	// Normalization — matches rdio-scanner's original logic exactly.
-	// apad pads short clips to 3s so loudnorm has enough data to analyse.
 	if ffmpeg.version43 {
 		if mode == AUDIO_CONVERSION_ENABLED_NORM {
 			args = append(args, "-af", "apad=whole_dur=3s,loudnorm")
 		} else if mode == AUDIO_CONVERSION_ENABLED_LOUD_NORM {
 			args = append(args, "-af", "apad=whole_dur=3s,loudnorm=I=-16:TP=-1.5:LRA=11")
-		} else {
-			// Mode 1 (enabled, no normalization): gentle highpass to remove sub-bass
-			// rumble below 80 Hz — inaudible on radio but emphasised by iPhone speakers.
-			args = append(args, "-af", "highpass=f=80")
-		}
-	} else if mode == AUDIO_CONVERSION_ENABLED_NORM || mode == AUDIO_CONVERSION_ENABLED_LOUD_NORM {
-		if !ffmpeg.warned {
-			fmt.Println("Warning: FFmpeg 4.3+ required for loudnorm. Skipping normalization.")
-			ffmpeg.warned = true
 		}
 	}
 
-	// Encode as mono AAC/M4A at 32k.
-	// -ac 1 ensures the full 32k bitrate goes to a single channel rather than being
-	// split across stereo (radio scanner audio is inherently mono voice).
-	args = append(args, "-ac", "1", "-c:a", "aac", "-b:a", "32k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
+	args = append(args, "-c:a", "aac", "-b:a", "32k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
 
 	cmd := exec.Command("ffmpeg", args...)
 	cmd.Stdin = bytes.NewReader(call.Audio)
@@ -131,46 +117,6 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 		call.AudioMime = "audio/mp4"
 	} else {
 		fmt.Println(stderr.String())
-	}
-
-	return nil
-}
-
-// Denoise applies FFT-based noise reduction (afftdn) to call.Audio and outputs a clean WAV.
-// This is run as a pre-processing step before Convert() and before snapshotting OriginalAudio,
-// so both transcription and storage benefit from the same cleaned signal.
-//
-//	nf=-25  noise floor in dB — steady-state energy below this is suppressed (radio hiss/static)
-//	nt=w    noise type: white — matches the broadband noise profile of SDR/radio receivers
-//
-// On failure the original audio is preserved unchanged (graceful no-op).
-func (ffmpeg *FFMpeg) Denoise(call *Call) error {
-	if !ffmpeg.available {
-		return nil
-	}
-
-	args := []string{
-		"-i", "-",
-		"-af", "afftdn=nf=-25:nt=w",
-		"-f", "wav",
-		"-",
-	}
-
-	cmd := exec.Command("ffmpeg", args...)
-	cmd.Stdin = bytes.NewReader(call.Audio)
-
-	stdout := bytes.NewBuffer([]byte(nil))
-	cmd.Stdout = stdout
-
-	stderr := bytes.NewBuffer([]byte(nil))
-	cmd.Stderr = stderr
-
-	if err := cmd.Run(); err == nil {
-		call.Audio = stdout.Bytes()
-		call.AudioMime = "audio/wav"
-	} else {
-		// Non-fatal: keep original audio if denoising fails
-		fmt.Printf("ffmpeg denoise warning: %s\n", stderr.String())
 	}
 
 	return nil

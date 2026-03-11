@@ -26,9 +26,9 @@ import (
 // TranscriptionJob represents a job in the transcription queue
 type TranscriptionJob struct {
 	CallId        uint64
-	Audio         []byte // Converted audio (Opus/AAC) - kept for backward compatibility
+	Audio         []byte // Converted audio (AAC) - kept for backward compatibility
 	AudioMime     string // Converted audio mime type
-	OriginalAudio []byte // Original raw audio before Opus/AAC conversion (preferred for transcription)
+	OriginalAudio []byte // Original raw audio before AAC conversion (preferred for transcription)
 	OriginalMime  string // Original audio mime type
 	SystemId      uint64
 	TalkgroupId   uint64
@@ -162,7 +162,7 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 		// Get the call to check if it has detected tones
 		call, err := queue.controller.Calls.GetCall(job.CallId)
 
-		// Use original audio for transcription (avoids double lossy conversion MP3->Opus->WAV)
+		// Use original audio for transcription (avoids double lossy conversion MP3->AAC->WAV)
 		// Falls back to converted audio if original is not available
 		audioToTranscribe := job.OriginalAudio
 		audioMimeType := job.OriginalMime

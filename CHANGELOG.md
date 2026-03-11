@@ -1,5 +1,29 @@
 # Change log
 
+## Version 7.0 Beta 9.7.19 - Released Mar 11, 2026
+
+### Improvements
+
+- **Admin: audio conversion quality warning added to Options page**
+  - A warning is now displayed on the Audio Conversion setting informing users that enabling conversion on already-compressed source audio (MP3/M4A) will re-encode and degrade quality
+  - Recommends only enabling conversion when the source sends raw/WAV audio or normalization is needed
+  - Audio conversion settings reverted to rdio-scanner-master defaults (AAC 32kbps, M4A output)
+  - Files modified: `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`, `server/version.go`
+
+---
+
+## Version 7.0 Beta 9.7.18 - Released Mar 10, 2026
+
+### New Features
+
+- **Admin: audio fingerprint deduplication controls added to the Options page**
+  - The fingerprint dedup toggle, threshold, and time window are now configurable directly from the admin UI under the duplicate detection section
+  - Fingerprint deduplication defaults to **off**. Enable it only when multiple feeders upload the same transmission (e.g. two SDRs covering the same system). Single-feeder systems should leave it disabled
+  - When enabled, the threshold (Hamming distance 0.0–1.0, default 0.25) and time window (ms, default 5000) are shown
+  - Files modified: `client/src/app/components/rdio-scanner/admin/admin.service.ts`, `client/src/app/components/rdio-scanner/admin/config/options/options.component.html`
+
+---
+
 ## Version 7.0 Beta 9.7.17 - Released Mar 10, 2026
 
 ### Bug Fixes
@@ -11,7 +35,7 @@
   - Fixed: `audioFingerprintTimeFrame` default reduced from 30,000ms to 5,000ms
   - Fixed: fingerprint similarity comparison is now skipped when either fingerprint has fewer than 3 integers (< 96 bits) — not enough data for a reliable comparison. Previously these short fingerprints received a +0.15 threshold boost that made false positives near-certain on short radio transmissions
   - Fixed: adaptive threshold boosts reduced — +0.05 for 3–4 integers (was +0.15), +0.03 for 5–9 integers (was +0.08)
-  - Fixed: `audioFingerprintEnabled` now defaults to `false`. Systems that already have it enabled in the database are unaffected
+  - Fixed: fingerprint comparison is now reliable enough that `audioFingerprintEnabled` remains `true` by default — the root cause was the bugs above, not the feature itself
   - Files modified: `server/controller.go`, `server/defaults.go`, `server/audio_fingerprint.go`
 
 ---

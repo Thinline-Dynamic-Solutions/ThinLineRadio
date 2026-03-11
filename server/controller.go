@@ -912,22 +912,12 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 		go controller.processToneDetectionAsync(&toneDetectionCall, call)
 	}
 
-	// Stage 3: Denoise call.Audio in place (afftdn removes hiss/static).
-	// Tone detection already has its raw snapshot so this is safe.
-	// The denoised audio becomes both the stored/streamed audio AND transcription input.
-	if controller.Options.AudioConversion != AUDIO_CONVERSION_DISABLED {
-		if denoiseErr := controller.FFMpeg.Denoise(call); denoiseErr != nil {
-			controller.Logs.LogEvent(LogLevelWarn, denoiseErr.Error())
-		}
-	}
-
-	// Stage 4: Snapshot denoised audio for transcription.
-	denoisedAudio := make([]byte, len(call.Audio))
-	copy(denoisedAudio, call.Audio)
-	call.OriginalAudio = denoisedAudio
+	// Stage 3: Snapshot audio for transcription (before AAC conversion).
+	call.OriginalAudio = make([]byte, len(call.Audio))
+	copy(call.OriginalAudio, call.Audio)
 	call.OriginalAudioMime = call.AudioMime
 
-	// Stage 5: Encode denoised audio to AAC/M4A for storage and streaming.
+	// Stage 4: Encode audio to AAC/M4A for storage and streaming.
 	if convertErr := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion); convertErr != nil {
 		controller.Logs.LogEvent(LogLevelWarn, convertErr.Error())
 	}
@@ -1244,6 +1234,8 @@ func (controller *Controller) getAudioDuration(audio []byte, audioMime string) (
 		ext = ".wav"
 	} else if strings.Contains(audioMime, "ogg") {
 		ext = ".ogg"
+	} else if strings.Contains(audioMime, "flac") {
+		ext = ".flac"
 	}
 
 	tempFile := filepath.Join(tempDir, fmt.Sprintf("duration_%d%s", time.Now().UnixNano(), ext))

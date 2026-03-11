@@ -118,58 +118,6 @@ func main() {
 
 	controller := NewController(config)
 
-	// Handle opus_migration flag from INI file
-	if config.OpusMigration {
-		fmt.Printf("\nThinLine Radio v%s - Opus Migration (Background Mode)\n", Version)
-		fmt.Printf("--------------------------------------------------\n\n")
-		fmt.Println("⚠️  opus_migration = true detected in configuration")
-		fmt.Println("Starting background migration while server runs...")
-		fmt.Println("Migration will use reduced resources to avoid impacting server.")
-		fmt.Println("")
-
-		// Run migration in background goroutine
-		go func() {
-			// Use smaller batch (100 instead of 5000) and fewer workers (10 instead of 200)
-			if err := controller.Database.MigrateToOpus(100, false, true); err != nil {
-				log.Printf("❌ Background migration error: %v", err)
-				log.Printf("Migration will continue running. Check logs for details.")
-			} else {
-				fmt.Println("")
-				fmt.Println("✅ Background migration complete! Setting opus_migration = false in INI file...")
-
-				// Automatically set opus_migration = false in the INI file
-				if err := config.SetOpusMigration(false); err != nil {
-					log.Printf("⚠️  Warning: Could not update INI file: %v", err)
-					log.Printf("Please manually set opus_migration = false in %s", config.ConfigFile)
-				} else {
-					fmt.Println("✅ Configuration updated successfully")
-					fmt.Println("Migration is complete. Restart server to apply final changes.")
-				}
-			}
-		}()
-
-		// Give migration a moment to start
-		time.Sleep(1 * time.Second)
-		fmt.Println("🚀 Server starting while migration runs in background...")
-		fmt.Println("")
-
-		// Continue to start the server normally
-		config.OpusMigration = false // Ensure we don't try to migrate again on next iteration
-	}
-
-	// Handle migrate-to-opus command line flag
-	if config.migrateToOpus {
-		fmt.Printf("\nThinLine Radio v%s - Opus Migration\n", Version)
-		fmt.Printf("----------------------------------\n\n")
-
-		if err := controller.Database.MigrateToOpus(config.migrateOpusBatch, config.migrateOpusDryRun, false); err != nil {
-			log.Fatalf("Migration failed: %v", err)
-		}
-
-		// Command-line migration still exits (user explicitly ran migration tool)
-		os.Exit(0)
-	}
-
 	if config.newAdminPassword != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(config.newAdminPassword), bcrypt.DefaultCost)
 		if err != nil {

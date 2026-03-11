@@ -296,7 +296,7 @@ Standard TLR call upload. Multipart form or JSON depending on recorder.
 | `system` | integer | System reference (decimal radio system ID) |
 | `talkgroup` | integer | Talkgroup reference |
 | `dateTime` | string | ISO-8601 UTC timestamp |
-| `audio` | file | Audio file (MP3, M4A, WAV, or Opus) |
+| `audio` | file | Audio file (MP3, M4A, or WAV) |
 | `frequencies` | JSON array | List of frequencies used |
 | `sources` | JSON array | List of source unit IDs |
 

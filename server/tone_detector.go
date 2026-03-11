@@ -1094,9 +1094,9 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 		return audio, nil // No tones to remove
 	}
 
-	// STEP 1: Convert input audio to WAV format first (regardless of input format: MP3, M4A, Opus, etc.)
+	// STEP 1: Convert input audio to WAV format first (regardless of input format: MP3, M4A, etc.)
 	// This ensures we have a consistent format with reliable duration metadata in the header
-	// WAV duration is always in the header, unlike streaming formats (Opus/MP3) which may return "N/A"
+	// WAV duration is always in the header, unlike streaming formats (MP3) which may return "N/A"
 	ffConvertArgs := []string{
 		"-y", "-loglevel", "error",
 		"-i", "pipe:0", // Read from stdin
@@ -1255,7 +1255,7 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 		concatInputs, len(keepSegments))
 
 	// STEP 3: Run ffmpeg with filter using stdin/stdout pipes on the WAV data
-	// Output WAV for transcription (Opus should NEVER be transcribed)
+	// Output WAV for transcription
 	ffArgs := []string{
 		"-y", "-loglevel", "error",
 		"-i", "pipe:0", // Read WAV from stdin

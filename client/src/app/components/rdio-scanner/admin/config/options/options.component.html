@@ -11,7 +11,8 @@
   <div class="row">
     <p>
       <span class="mat-body">Audio Conversion</span><br>
-      <span class="mat-caption">Convert incoming audio files with ffmpeg. Loudness normalization makes all channels sound equally loud (both boosts quiet channels and reduces loud ones to target level).</span>
+      <span class="mat-caption">Convert incoming audio files with ffmpeg. Loudness normalization makes all channels sound equally loud (both boosts quiet channels and reduces loud ones to target level).</span><br>
+      <span class="mat-caption" style="color: #e6a23c;">⚠ Warning: If your source already sends compressed audio (MP3/M4A), enabling conversion will re-encode it, which degrades audio quality. Only enable if your source sends raw/WAV audio or you need normalization.</span>
     </p>
     <mat-form-field floatLabel="auto">
       <mat-select formControlName="audioConversion" placeholder="Audio Conversion">
@@ -173,6 +174,53 @@
       </mat-error>
     </mat-form-field>
   </div>
+  <!-- Audio Fingerprint Duplicate Detection -->
+  <div class="row">
+    <p>
+      <span class="mat-body">Audio Fingerprint Deduplication</span><br>
+      <span class="mat-caption">
+        Detects and suppresses duplicate calls using spectral audio fingerprinting.
+        Enable when multiple feeders upload the same transmission.
+        Leave off for single-feeder systems.
+      </span>
+    </p>
+    <mat-slide-toggle formControlName="audioFingerprintEnabled"></mat-slide-toggle>
+  </div>
+
+  <div class="row" *ngIf="form?.get('audioFingerprintEnabled')?.value">
+    <p>
+      <span class="mat-body">Fingerprint Match Threshold</span><br>
+      <span class="mat-caption">
+        Hamming distance threshold (0.0–1.0). Lower = stricter matching.
+        Default: 0.25 (25% of bits can differ and still be considered the same transmission).
+      </span>
+    </p>
+    <mat-form-field>
+      <input type="number" min="0" max="1" step="0.01" matInput
+             formControlName="audioFingerprintThreshold"
+             placeholder="0.25">
+      <mat-error *ngIf="form?.get('audioFingerprintThreshold')?.hasError('required')">Threshold is required</mat-error>
+      <mat-error *ngIf="form?.get('audioFingerprintThreshold')?.hasError('min') || form?.get('audioFingerprintThreshold')?.hasError('max')">Must be between 0 and 1</mat-error>
+    </mat-form-field>
+  </div>
+
+  <div class="row" *ngIf="form?.get('audioFingerprintEnabled')?.value">
+    <p>
+      <span class="mat-body">Fingerprint Time Window</span><br>
+      <span class="mat-caption">
+        Time window in milliseconds to check for fingerprint duplicates.
+        Default: 5000ms (5 seconds). Increase if feeders upload with a larger delay between them.
+      </span>
+    </p>
+    <mat-form-field>
+      <input type="number" min="0" step="500" matInput
+             formControlName="audioFingerprintTimeFrame"
+             placeholder="Milliseconds">
+      <mat-error *ngIf="form?.get('audioFingerprintTimeFrame')?.hasError('required')">Time window is required</mat-error>
+      <mat-error *ngIf="form?.get('audioFingerprintTimeFrame')?.hasError('min')">Must be 0 or greater</mat-error>
+    </mat-form-field>
+  </div>
+
   <div class="row">
     <p>
       <span class="mat-body">Email Support</span><br>

@@ -69,7 +69,7 @@ type Call struct {
 	AudioFilename        string
 	AudioMime            string
 	AudioFingerprint     []int32 // Spectral fingerprint for content-based duplicate detection
-	OriginalAudio        []byte  // Original audio before Opus/AAC conversion (used for transcription)
+	OriginalAudio        []byte  // Original audio before AAC conversion (used for transcription)
 	OriginalAudioMime    string  // Original audio MIME type
 	Delayed              bool
 	Frequencies          []CallFrequency

@@ -4,6 +4,7 @@ dist-*/
 *.tar.gz
 releases/
 icad_tone_detection-main/
+rdio-scanner-master/
 
 # Debug files and data
 server/debug-audio/

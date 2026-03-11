@@ -19,5 +19,5 @@ auto_update = false
 
 # Audio Encoding: AAC/M4A format only
 # All new calls are encoded as AAC/M4A for universal compatibility
-# Legacy Opus files (if any) can still be played but new encoding is AAC only
+# All audio is encoded as AAC/M4A
 # Configure bitrate in Admin UI → Options (recommended: 48-64 kbps)

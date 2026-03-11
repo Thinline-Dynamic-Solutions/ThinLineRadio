@@ -50,14 +50,9 @@ type Config struct {
 	SslKeyFile           string
 	SslListen            string
 	EnableDebugLog       bool
-	UseOpus              bool   // Enable Opus encoding for new calls
-	OpusMigration        bool   // Migrate existing calls to Opus on startup
 	AutoUpdate           bool   // Automatically check and apply updates from GitHub
 	daemon               *Daemon
 	newAdminPassword     string
-	migrateToOpus        bool
-	migrateOpusBatch     int
-	migrateOpusDryRun    bool
 }
 
 func NewConfig() *Config {
@@ -76,9 +71,6 @@ func NewConfig() *Config {
 		configSave    = flag.Bool("config_save", false, fmt.Sprintf("save configuration to %s", defaultConfigFile))
 		serviceAction = flag.String("service", "", "service command, one of start, stop, restart, install, uninstall")
 		version       = flag.Bool("version", false, "show application version")
-	migrateOpus   = flag.Bool("migrate_to_opus", false, "convert all M4A/AAC audio to Opus format (50% storage savings)")
-	migrateBatch  = flag.Int("migrate_batch_size", 100, "number of calls to process per batch during migration")
-	migrateDryRun = flag.Bool("migrate_dry_run", false, "preview migration without making changes")
 	)
 
 	if exe, err := os.Executable(); err == nil {
@@ -185,17 +177,6 @@ func NewConfig() *Config {
 		if v, err := cfg.Section("").Key("enable_debug_log").Bool(); err == nil {
 			config.EnableDebugLog = v
 		}
-		
-		// Read opus settings (defaults to true as of Beta 8)
-		config.UseOpus = true // Default to Opus
-		if v, err := cfg.Section("").Key("opus").Bool(); err == nil {
-			config.UseOpus = v
-		}
-		
-		// Read opus_migration setting (defaults to false)
-		if v, err := cfg.Section("").Key("opus_migration").Bool(); err == nil {
-			config.OpusMigration = v
-		}
 
 		// Read auto_update setting (defaults to false)
 		if v, err := cfg.Section("").Key("auto_update").Bool(); err == nil {
@@ -212,10 +193,6 @@ func NewConfig() *Config {
 	if *command != "" {
 		NewCommand(config.BaseDir).Do(*command)
 	}
-	
-	config.migrateToOpus = *migrateOpus
-	config.migrateOpusBatch = *migrateBatch
-	config.migrateOpusDryRun = *migrateDryRun
 
 	if *serviceAction != "" {
 		daemon, err := NewDaemon()
@@ -239,27 +216,6 @@ func (config *Config) GetPath(p string) string {
 		return p
 	}
 	return filepath.Join(config.BaseDir, p)
-}
-
-// SetOpusMigration updates the opus_migration setting in the INI file
-func (config *Config) SetOpusMigration(enabled bool) error {
-	configPath := config.GetConfigFilePath()
-	
-	// Load the INI file
-	cfg, err := ini.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config file: %v", err)
-	}
-	
-	// Set the opus_migration value
-	cfg.Section("").Key("opus_migration").SetValue(strconv.FormatBool(enabled))
-	
-	// Save the INI file
-	if err := cfg.SaveTo(configPath); err != nil {
-		return fmt.Errorf("failed to save config file: %v", err)
-	}
-	
-	return nil
 }
 
 func (config *Config) GetSslCaCertFilePath() string {
