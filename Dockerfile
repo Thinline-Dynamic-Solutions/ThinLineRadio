@@ -5,7 +5,7 @@
 # =============================================================================
 # Stage 1: Build Angular Client
 # =============================================================================
-FROM node:16-alpine AS client-builder
+FROM node:18-alpine AS client-builder
 
 WORKDIR /build
 

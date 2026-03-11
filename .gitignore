@@ -54,6 +54,6 @@ whisper/
 central-management/
 TonesToActive/
 
-#Package Lock for Node.js
-client/package-lock.json
+# Config files
+
 ThinLineRadioV7-config.json

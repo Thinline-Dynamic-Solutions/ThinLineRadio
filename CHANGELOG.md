@@ -1,5 +1,18 @@
 # Change log
 
+## Version 7.0 Beta 9.7.20 - Released Mar 11, 2026
+
+### Bug Fixes
+
+- **Docker build: fix `selfsigned@2.4.1` 400 Bad Request from npm registry**
+  - The `selfsigned@2.4.1` tarball returns HTTP 400 from the npm registry, breaking `npm install` during Docker builds
+  - Added `overrides` in `client/package.json` to pin `selfsigned` to `2.4.0`
+  - Updated Dockerfile from `node:16-alpine` (EOL) to `node:18-alpine`
+  - Committed `client/package-lock.json` (was previously gitignored) for reproducible Docker builds
+  - Files modified: `Dockerfile`, `client/package.json`, `client/package-lock.json`, `.gitignore`
+
+---
+
 ## Version 7.0 Beta 9.7.19 - Released Mar 11, 2026
 
 ### Improvements

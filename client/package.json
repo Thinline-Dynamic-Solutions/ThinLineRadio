@@ -31,7 +31,10 @@
     "typescript": "~4.8.4"
   },
   "engines": {
-    "node": ">=16.0"
+    "node": ">=18.0"
+  },
+  "overrides": {
+    "selfsigned": "2.4.0"
   },
   "license": "LICENSE",
   "name": "rdio-scanner",
