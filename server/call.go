@@ -279,8 +279,8 @@ func (calls *Calls) CheckDuplicate(call *Call, msTimeFrame uint, db *Database) (
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM "calls" WHERE ("timestamp" BETWEEN %d and %d) AND "systemId" = %d AND "talkgroupId" = %d`, from.UnixMilli(), to.UnixMilli(), call.System.Id, call.Talkgroup.Id)
-	if err := db.Sql.QueryRowContext(ctx, query).Scan(&count); err != nil {
+	query := `SELECT COUNT(*) FROM "calls" WHERE ("timestamp" BETWEEN $1 and $2) AND "systemId" = $3 AND "talkgroupId" = $4`
+	if err := db.Sql.QueryRowContext(ctx, query, from.UnixMilli(), to.UnixMilli(), call.System.Id, call.Talkgroup.Id).Scan(&count); err != nil {
 		return false, formatError(err, query)
 	}
 
@@ -314,10 +314,9 @@ func (calls *Calls) CheckDuplicateBySiteAndFrequency(call *Call, msTimeFrame uin
 	defer cancel()
 
 	// Get existing calls with site information
-	query := fmt.Sprintf(`SELECT "callId", "siteRef" FROM "calls" WHERE ("timestamp" BETWEEN %d and %d) AND "systemId" = %d AND "talkgroupId" = %d`,
-		from.UnixMilli(), to.UnixMilli(), call.System.Id, call.Talkgroup.Id)
+	query := `SELECT "callId", "siteRef" FROM "calls" WHERE ("timestamp" BETWEEN $1 and $2) AND "systemId" = $3 AND "talkgroupId" = $4`
 
-	rows, err := db.Sql.QueryContext(ctx, query)
+	rows, err := db.Sql.QueryContext(ctx, query, from.UnixMilli(), to.UnixMilli(), call.System.Id, call.Talkgroup.Id)
 	if err != nil {
 		return false, "", formatError(err, query)
 	}
@@ -400,7 +399,7 @@ func (calls *Calls) GetCall(id uint64) (*Call, error) {
 	call := Call{Id: id}
 
 	if calls.controller.Database.Config.DbType == DbTypePostgresql {
-		query = fmt.Sprintf(`SELECT c."audio", c."audioFilename", c."audioMime", c."siteRef", c."timestamp", STRING_AGG(CAST(COALESCE(cpt."talkgroupRef", 0) AS text), ','), sy."systemId", t."talkgroupId", c."frequency", c."toneSequence", c."hasTones", c."transcript", c."transcriptConfidence", c."transcriptionStatus" FROM "calls" AS c LEFT JOIN "callPatches" AS cp on cp."callId" = c."callId" LEFT JOIN "talkgroups" AS cpt ON cpt."talkgroupId" = cp."talkgroupId" LEFT JOIN "systems" AS sy ON sy."systemId" = c."systemId" LEFT JOIN "talkgroups" AS t ON t."talkgroupId" = c."talkgroupId" WHERE c."callId" = %d GROUP BY c."callId", c."audio", c."audioFilename", c."audioMime", c."siteRef", c."timestamp", sy."systemId", t."talkgroupId", c."frequency", c."toneSequence", c."hasTones", c."transcript", c."transcriptConfidence", c."transcriptionStatus"`, id)
+		query = `SELECT c."audio", c."audioFilename", c."audioMime", c."siteRef", c."timestamp", STRING_AGG(CAST(COALESCE(cpt."talkgroupRef", 0) AS text), ','), sy."systemId", t."talkgroupId", c."frequency", c."toneSequence", c."hasTones", c."transcript", c."transcriptConfidence", c."transcriptionStatus" FROM "calls" AS c LEFT JOIN "callPatches" AS cp on cp."callId" = c."callId" LEFT JOIN "talkgroups" AS cpt ON cpt."talkgroupId" = cp."talkgroupId" LEFT JOIN "systems" AS sy ON sy."systemId" = c."systemId" LEFT JOIN "talkgroups" AS t ON t."talkgroupId" = c."talkgroupId" WHERE c."callId" = $1 GROUP BY c."callId", c."audio", c."audioFilename", c."audioMime", c."siteRef", c."timestamp", sy."systemId", t."talkgroupId", c."frequency", c."toneSequence", c."hasTones", c."transcript", c."transcriptConfidence", c."transcriptionStatus"`
 
 	} else {
 		query = fmt.Sprintf(`SELECT c."audio", c."audioFilename", c."audioMime", c."siteRef", c."timestamp", GROUP_CONCAT(COALESCE(cpt."talkgroupRef", 0)), sy."systemId", t."talkgroupId", c."frequency", c."toneSequence", c."hasTones", c."transcript", c."transcriptConfidence", c."transcriptionStatus" FROM "calls" AS c LEFT JOIN "callPatches" AS cp on cp."callId" = c."callId" LEFT JOIN "talkgroups" AS cpt ON cpt."talkgroupId" = cp."talkgroupId" LEFT JOIN "systems" AS sy ON sy."systemId" = c."systemId" LEFT JOIN "talkgroups" AS t ON t."talkgroupId" = c."talkgroupId" WHERE c."callId" = %d GROUP BY c."callId", c."audio", c."audioFilename", c."audioMime", c."siteRef", c."timestamp", sy."systemId", t."talkgroupId", c."frequency", c."toneSequence", c."hasTones", c."transcript", c."transcriptConfidence", c."transcriptionStatus"`, id)
@@ -411,7 +410,12 @@ func (calls *Calls) GetCall(id uint64) (*Call, error) {
 	var transcriptConfidence sql.NullFloat64
 	var transcriptionStatus sql.NullString
 
-	if err = tx.QueryRow(query).Scan(&call.Audio, &call.AudioFilename, &call.AudioMime, &call.SiteRef, &timestamp, &patch, &systemId, &talkgroupId, &frequency, &toneSequenceJson, &call.HasTones, &transcript, &transcriptConfidence, &transcriptionStatus); err != nil && err != sql.ErrNoRows {
+	var queryArgs []interface{}
+	if calls.controller.Database.Config.DbType == DbTypePostgresql {
+		queryArgs = []interface{}{id}
+	}
+
+	if err = tx.QueryRow(query, queryArgs...).Scan(&call.Audio, &call.AudioFilename, &call.AudioMime, &call.SiteRef, &timestamp, &patch, &systemId, &talkgroupId, &frequency, &toneSequenceJson, &call.HasTones, &transcript, &transcriptConfidence, &transcriptionStatus); err != nil && err != sql.ErrNoRows {
 		tx.Rollback()
 		return nil, formatError(err, query)
 	}
@@ -471,8 +475,8 @@ func (calls *Calls) GetCall(id uint64) (*Call, error) {
 		return nil, formatError(fmt.Errorf("cannot retrieve talkgroup id %d for call id %d", talkgroupId, call.Id), "")
 	}
 
-	query = fmt.Sprintf(`SELECT "offset", "unitRef", COALESCE("label", '') FROM "callUnits" WHERE "callId" = %d ORDER BY "offset" ASC`, id)
-	if rows, err = tx.Query(query); err != nil {
+	query = `SELECT "offset", "unitRef", COALESCE("label", '') FROM "callUnits" WHERE "callId" = $1 ORDER BY "offset" ASC`
+	if rows, err = tx.Query(query, id); err != nil {
 		tx.Rollback()
 		return nil, formatError(err, query)
 	}
@@ -504,9 +508,9 @@ func (calls *Calls) GetCall(id uint64) (*Call, error) {
 
 func (calls *Calls) Prune(db *Database, pruneDays uint) error {
 	timestamp := time.Now().Add(-24 * time.Hour * time.Duration(pruneDays)).UnixMilli()
-	query := fmt.Sprintf(`DELETE FROM "calls" WHERE "timestamp" < %d`, timestamp)
+	query := `DELETE FROM "calls" WHERE "timestamp" < $1`
 
-	if _, err := db.Sql.Exec(query); err != nil {
+	if _, err := db.Sql.Exec(query, timestamp); err != nil {
 		return fmt.Errorf("%s in %s", err, query)
 	}
 
@@ -590,6 +594,10 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	}
 
 	// Build WHERE conditions using slice-based approach (like v6)
+	// Use parameterized queries to prevent SQL injection
+	args := []interface{}{}
+	argIdx := 0
+
 	where := []string{
 		`c."systemId" > 0`,
 		`c."talkgroupId" > 0`,
@@ -601,12 +609,16 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	// System/Talkgroup filters (added first for optimal index usage)
 	switch v := searchOptions.System.(type) {
 	case uint:
+		argIdx++
+		args = append(args, v)
 		conditions := []string{
-			fmt.Sprintf(`c."systemRef" = %d`, v),
+			fmt.Sprintf(`c."systemRef" = $%d`, argIdx),
 		}
 		switch v := searchOptions.Talkgroup.(type) {
 		case uint:
-			conditions = append(conditions, fmt.Sprintf(`c."talkgroupRef" = %d`, v))
+			argIdx++
+			args = append(args, v)
+			conditions = append(conditions, fmt.Sprintf(`c."talkgroupRef" = $%d`, argIdx))
 		}
 		if len(conditions) > 0 {
 			where = append(where, fmt.Sprintf("(%s)", strings.Join(conditions, " AND ")))
@@ -617,8 +629,17 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	case string:
 		groupConditions := []string{}
 		for id, m := range client.GroupsMap[v] {
-			in := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(fmt.Sprintf("%v", m), " ", ", "), "[", "("), "]", ")")
-			groupConditions = append(groupConditions, fmt.Sprintf(`(c."systemRef" = %d AND c."talkgroupRef" IN %s)`, id, in))
+			argIdx++
+			args = append(args, id)
+			sysPlaceholder := fmt.Sprintf("$%d", argIdx)
+
+			placeholders := []string{}
+			for _, tgRef := range m {
+				argIdx++
+				args = append(args, tgRef)
+				placeholders = append(placeholders, fmt.Sprintf("$%d", argIdx))
+			}
+			groupConditions = append(groupConditions, fmt.Sprintf(`(c."systemRef" = %s AND c."talkgroupRef" IN (%s))`, sysPlaceholder, strings.Join(placeholders, ", ")))
 		}
 		if len(groupConditions) > 0 {
 			where = append(where, fmt.Sprintf("(%s)", strings.Join(groupConditions, " OR ")))
@@ -629,8 +650,17 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	case string:
 		tagConditions := []string{}
 		for id, m := range client.TagsMap[v] {
-			in := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(fmt.Sprintf("%v", m), " ", ", "), "[", "("), "]", ")")
-			tagConditions = append(tagConditions, fmt.Sprintf(`(c."systemRef" = %d AND c."talkgroupRef" IN %s)`, id, in))
+			argIdx++
+			args = append(args, id)
+			sysPlaceholder := fmt.Sprintf("$%d", argIdx)
+
+			placeholders := []string{}
+			for _, tgRef := range m {
+				argIdx++
+				args = append(args, tgRef)
+				placeholders = append(placeholders, fmt.Sprintf("$%d", argIdx))
+			}
+			tagConditions = append(tagConditions, fmt.Sprintf(`(c."systemRef" = %s AND c."talkgroupRef" IN (%s))`, sysPlaceholder, strings.Join(placeholders, ", ")))
 		}
 		if len(tagConditions) > 0 {
 			where = append(where, fmt.Sprintf("(%s)", strings.Join(tagConditions, " OR ")))
@@ -673,17 +703,21 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 		cutoffTime := now.Add(-delayDuration)
 		cutoffTimeMs := cutoffTime.UnixMilli()
 
+		argIdx++
+		args = append(args, cutoffTimeMs)
 		// Add delay condition: only include calls older than the delay period
-		where = append(where, fmt.Sprintf(`c."timestamp" <= %d`, cutoffTimeMs))
+		where = append(where, fmt.Sprintf(`c."timestamp" <= $%d`, argIdx))
 	}
 
 	// Date filter - use simple comparisons instead of BETWEEN (like v6/Python)
 	switch v := searchOptions.Date.(type) {
 	case time.Time:
 		selectedDateMs := v.UnixMilli()
+		argIdx++
+		args = append(args, selectedDateMs)
 		// When a date is selected, always show calls from that date forward (>=)
 		// The sort order (ASC/DESC) controls whether oldest or newest are shown first
-		where = append(where, fmt.Sprintf(`c."timestamp" >= %d`, selectedDateMs))
+		where = append(where, fmt.Sprintf(`c."timestamp" >= $%d`, argIdx))
 	default:
 		// No date selected - for large databases, limit scan range when sorting DESC (newest first)
 		// This prevents full table scans on 50M+ record databases
@@ -694,7 +728,9 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 			// Default to 24 hours back for newest-first searches without a date
 			defaultLookback := now.Add(-24 * time.Hour)
 			defaultLookbackMs := defaultLookback.UnixMilli()
-			where = append(where, fmt.Sprintf(`c."timestamp" >= %d`, defaultLookbackMs))
+			argIdx++
+			args = append(args, defaultLookbackMs)
+			where = append(where, fmt.Sprintf(`c."timestamp" >= $%d`, argIdx))
 			calls.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("Search: No date selected, applying default 24-hour lookback for DESC order (from %s)", defaultLookback.Format("2006-01-02 15:04:05")))
 		}
 	}
@@ -733,7 +769,14 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	// Use subquery approach for PostgreSQL
 	// Query for limit+1 to determine if there are more results
 	queryLimit := limit + 1
-	query = fmt.Sprintf(`SELECT c."callId", c."timestamp", c."systemRef", c."talkgroupRef", c."frequency", c."siteRef", (SELECT cu."unitRef" FROM "callUnits" cu WHERE cu."callId" = c."callId" ORDER BY cu."offset" LIMIT 1) as "source" FROM "calls" AS c LEFT JOIN "delayed" AS d ON d."callId" = c."callId" %s ORDER BY c."timestamp" %s LIMIT %d OFFSET %d`, delayWhere, order, queryLimit, offset)
+	argIdx++
+	args = append(args, queryLimit)
+	limitPlaceholder := fmt.Sprintf("$%d", argIdx)
+	argIdx++
+	args = append(args, offset)
+	offsetPlaceholder := fmt.Sprintf("$%d", argIdx)
+
+	query = fmt.Sprintf(`SELECT c."callId", c."timestamp", c."systemRef", c."talkgroupRef", c."frequency", c."siteRef", (SELECT cu."unitRef" FROM "callUnits" cu WHERE cu."callId" = c."callId" ORDER BY cu."offset" LIMIT 1) as "source" FROM "calls" AS c LEFT JOIN "delayed" AS d ON d."callId" = c."callId" %s ORDER BY c."timestamp" %s LIMIT %s OFFSET %s`, delayWhere, order, limitPlaceholder, offsetPlaceholder)
 
 	calls.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("Search RESULTS query: %s", query))
 
@@ -741,7 +784,7 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if rows, err = db.Sql.QueryContext(ctx, query); err != nil && err != sql.ErrNoRows {
+	if rows, err = db.Sql.QueryContext(ctx, query, args...); err != nil && err != sql.ErrNoRows {
 		return nil, formatError(err, query)
 	}
 

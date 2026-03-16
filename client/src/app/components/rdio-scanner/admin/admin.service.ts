@@ -1031,9 +1031,15 @@ export class RdioScannerAdminService implements OnDestroy {
 
             return res.config;
 
-        } catch (error) {
-            this.errorHandler(error);
-
+        } catch (error: any) {
+            const httpErr = error instanceof HttpErrorResponse ? error : null;
+            const status = httpErr ? httpErr.status : 'unknown';
+            const body = httpErr?.error?.message || httpErr?.error || httpErr?.statusText || 'Unknown error';
+            this.matSnackBar.open(
+                `Config save failed (HTTP ${status}): ${body}`,
+                'Dismiss',
+                { duration: 10000 },
+            );
             return config;
         }
     }
@@ -1499,7 +1505,10 @@ export class RdioScannerAdminService implements OnDestroy {
             this.configWebSocketClose();
 
         } else {
-            this.matSnackBar.open(error.message, '', { duration: 5000 });
+            const detail = typeof error.error === 'string'
+                ? error.error
+                : error.error?.message || error.error?.error || error.statusText || error.message;
+            this.matSnackBar.open(`Error ${error.status}: ${detail}`, 'Dismiss', { duration: 8000 });
         }
     }
 
@@ -1536,12 +1545,6 @@ export class RdioScannerAdminService implements OnDestroy {
         } else {
             finalUrl = `${baseUrl}/api/admin/${path}`;
         }
-        
-        // Add timestamp to force cache refresh
-        const timestamp = Date.now();
-        // Check if the URL already has query parameters
-        const separator = finalUrl.includes('?') ? '&' : '?';
-        finalUrl = `${finalUrl}${separator}_t=${timestamp}`;
         
         return finalUrl;
     }

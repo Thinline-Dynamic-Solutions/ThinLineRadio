@@ -81,7 +81,7 @@
                                 </span>
                                 <span class="color-label">{{ getColorLabel(tag.value.color) }}</span>
                             </mat-select-trigger>
-                            <mat-option *ngFor="let opt of colorOptions" [value]="opt.value">
+                            <mat-option *ngFor="let opt of colorOptions; trackBy: trackByIndex" [value]="opt.value">
                                 <span class="color-swatch"
                                       [style.background-color]="opt.hex"
                                       [class.swatch-bordered]="opt.value === '' || opt.value === '#ffffff'">

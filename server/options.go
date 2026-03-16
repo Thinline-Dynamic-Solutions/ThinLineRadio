@@ -237,6 +237,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 	switch v := m["dimmerDelay"].(type) {
 	case float64:
 		options.DimmerDelay = uint(v)
+		if options.DimmerDelay > 3600 {
+			options.DimmerDelay = 3600
+		}
 	default:
 		options.DimmerDelay = defaults.options.dimmerDelay
 	}
@@ -310,6 +313,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 	switch v := m["maxClients"].(type) {
 	case float64:
 		options.MaxClients = uint(v)
+		if options.MaxClients > 10000 {
+			options.MaxClients = 10000
+		}
 	default:
 		options.MaxClients = defaults.options.maxClients
 	}
@@ -322,6 +328,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 	switch v := m["pruneDays"].(type) {
 	case float64:
 		options.PruneDays = uint(v)
+		if options.PruneDays > 3650 {
+			options.PruneDays = 3650
+		}
 	default:
 		options.PruneDays = defaults.options.pruneDays
 	}

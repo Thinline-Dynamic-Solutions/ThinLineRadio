@@ -94,9 +94,9 @@ func (logs *Logs) Prune(db *Database, pruneDays uint) error {
 	defer logs.mutex.Unlock()
 
 	timestamp := time.Now().Add(-24 * time.Hour * time.Duration(pruneDays)).UnixMilli()
-	query := fmt.Sprintf(`DELETE FROM "logs" WHERE "timestamp" < %d`, timestamp)
+	query := `DELETE FROM "logs" WHERE "timestamp" < $1`
 
-	if _, err := db.Sql.Exec(query); err != nil {
+	if _, err := db.Sql.Exec(query, timestamp); err != nil {
 		return fmt.Errorf("%s in %s", err, query)
 	}
 
@@ -154,6 +154,9 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		err  error
 		rows *sql.Rows
 
+		args   []interface{}
+		argIdx int
+
 		limit  uint
 		offset uint
 		order  string
@@ -166,6 +169,14 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		message   sql.NullString
 		timestamp sql.NullInt64
 	)
+
+	// addArg appends a value to the args slice and returns the PostgreSQL
+	// positional placeholder ($1, $2, ...) for it.
+	addArg := func(val interface{}) string {
+		argIdx++
+		args = append(args, val)
+		return fmt.Sprintf("$%d", argIdx)
+	}
 
 	logs.mutex.Lock()
 	defer logs.mutex.Unlock()
@@ -182,7 +193,7 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 	// Level filter
 	switch v := searchOptions.Level.(type) {
 	case string:
-		whereConditions = append(whereConditions, fmt.Sprintf(`"level" = '%s'`, v))
+		whereConditions = append(whereConditions, fmt.Sprintf(`"level" = %s`, addArg(v)))
 	}
 
 	// Keyword / text search filter — case-insensitive substring match on the message.
@@ -195,7 +206,7 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 			escaped := strings.ReplaceAll(v, `\`, `\\`)
 			escaped = strings.ReplaceAll(escaped, `%`, `\%`)
 			escaped = strings.ReplaceAll(escaped, `_`, `\_`)
-			whereConditions = append(whereConditions, fmt.Sprintf(`"message" ILIKE '%%%s%%' ESCAPE '\'`, escaped))
+			whereConditions = append(whereConditions, fmt.Sprintf(`"message" ILIKE %s ESCAPE '\'`, addArg("%"+escaped+"%")))
 		}
 	}
 
@@ -215,21 +226,21 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 	// Rows outside this range have corrupt/wrong-unit timestamps and cannot be serialised;
 	// filtering them in SQL avoids a json.Marshal failure that causes HTTP 417.
 	const maxSafeTimestampMs = int64(253402300800000) // 9999-12-31 23:59:59 UTC in ms
-	whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" > 0 AND "timestamp" < %d`, maxSafeTimestampMs))
+	whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" > 0 AND "timestamp" < %s`, addArg(maxSafeTimestampMs)))
 
 	// Date filter
 	switch v := searchOptions.Date.(type) {
 	case time.Time:
 		// When the user picks a specific date, show logs from that point forward (>=).
 		// Sort order (ASC/DESC) controls oldest-first vs newest-first within the window.
-		whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %d`, v.UnixMilli()))
+		whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %s`, addArg(v.UnixMilli())))
 	default:
 		// No date selected — apply a 24-hour lookback for DESC (newest-first) searches
 		// to avoid a full table scan on tables with millions of rows.
 		// ASC (oldest-first) has no default restriction so the user can still browse history.
 		if order == descOrder {
 			defaultLookback := time.Now().Add(-24 * time.Hour)
-			whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %d`, defaultLookback.UnixMilli()))
+			whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %s`, addArg(defaultLookback.UnixMilli())))
 		}
 	}
 
@@ -255,13 +266,16 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 	// Fetch limit+1 rows so we can detect whether there are more pages without COUNT(*)
 	queryLimit := limit + 1
 
-	query = fmt.Sprintf(`SELECT "logId", "level", "message", "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" %s LIMIT %d OFFSET %d`, where, order, queryLimit, offset)
+	limitPlaceholder := addArg(queryLimit)
+	offsetPlaceholder := addArg(offset)
+
+	query = fmt.Sprintf(`SELECT "logId", "level", "message", "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" %s LIMIT %s OFFSET %s`, where, order, limitPlaceholder, offsetPlaceholder)
 
 	// 30-second timeout matches the calls search timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if rows, err = db.Sql.QueryContext(ctx, query); err != nil && err != sql.ErrNoRows {
+	if rows, err = db.Sql.QueryContext(ctx, query, args...); err != nil && err != sql.ErrNoRows {
 		return nil, formatError(err, query)
 	}
 

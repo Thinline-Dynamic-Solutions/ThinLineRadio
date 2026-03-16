@@ -18,7 +18,7 @@
  * ****************************************************************************
  */
 
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { FormArray, FormGroup } from '@angular/forms';
 
@@ -40,6 +40,8 @@ export class RdioScannerAdminSystemsComponent {
 
     // Search
     systemsSearchTerm: string = '';
+
+    constructor(private cdr: ChangeDetectorRef) {}
 
     get systems(): FormGroup[] {
         if (!this.form) return [];
@@ -83,6 +85,7 @@ export class RdioScannerAdminSystemsComponent {
             this.form.removeAt(0);
         }
         this.form.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     onSystemsSearchChange(searchTerm: string): void {
@@ -98,5 +101,6 @@ export class RdioScannerAdminSystemsComponent {
             sys.get('order')?.setValue(idx + 1, { emitEvent: false })
         );
         this.form.markAsDirty();
+        this.cdr.markForCheck();
     }
 }

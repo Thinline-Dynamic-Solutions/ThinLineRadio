@@ -19,7 +19,7 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input } from '@angular/core';
+import { ChangeDetectorRef, Component, Input } from '@angular/core';
 import { FormArray, FormGroup } from '@angular/forms';
 import { RdioScannerAdminService } from '../../admin.service';
 
@@ -38,7 +38,7 @@ export class RdioScannerAdminGroupsComponent {
             .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
     }
 
-    constructor(private adminService: RdioScannerAdminService) { }
+    constructor(private adminService: RdioScannerAdminService, private cdr: ChangeDetectorRef) { }
 
     isGroupUnused(groupId: number): boolean {
         if (!this.form) return false;
@@ -69,6 +69,7 @@ export class RdioScannerAdminGroupsComponent {
         this.form?.insert(0, group);
 
         this.form?.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
@@ -78,6 +79,7 @@ export class RdioScannerAdminGroupsComponent {
             event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
 
             this.form?.markAsDirty();
+            this.cdr.markForCheck();
         }
     }
 
@@ -85,6 +87,7 @@ export class RdioScannerAdminGroupsComponent {
         this.form?.removeAt(index);
 
         this.form?.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     cleanupUnused(): void {
@@ -116,5 +119,6 @@ export class RdioScannerAdminGroupsComponent {
         if (this.form.dirty) {
             this.form.markAsDirty();
         }
+        this.cdr.markForCheck();
     }
 }

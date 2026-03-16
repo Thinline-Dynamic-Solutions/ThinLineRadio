@@ -81,6 +81,7 @@ export class RdioScannerAdminApikeysComponent {
         this.keyVisible.splice(index, 1);
 
         this.form?.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
@@ -94,6 +95,7 @@ export class RdioScannerAdminApikeysComponent {
             this.keyVisible.splice(event.currentIndex, 0, ...vis);
 
             this.form?.markAsDirty();
+            this.cdr.markForCheck();
         }
     }
 

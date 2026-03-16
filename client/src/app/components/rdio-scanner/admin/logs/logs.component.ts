@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MatPaginator } from '@angular/material/paginator';
 import { BehaviorSubject } from 'rxjs';
@@ -43,7 +43,7 @@ export class RdioScannerAdminLogsComponent {
 
     @ViewChild(MatPaginator) private paginator: MatPaginator | undefined;
 
-    constructor(private adminService: RdioScannerAdminService, private ngFormBuilder: FormBuilder) {
+    constructor(private adminService: RdioScannerAdminService, private ngFormBuilder: FormBuilder, private cdr: ChangeDetectorRef) {
         this.form = this.ngFormBuilder.group({
             date: [null],
             level: [null],
@@ -87,6 +87,7 @@ export class RdioScannerAdminLogsComponent {
             }
 
             this.logs.next(logs);
+            this.cdr.markForCheck();
         }
     }
 
@@ -122,5 +123,6 @@ export class RdioScannerAdminLogsComponent {
         this.logsQueryPending = false;
 
         this.refresh();
+        this.cdr.markForCheck();
     }
 }

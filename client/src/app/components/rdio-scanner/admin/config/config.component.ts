@@ -152,13 +152,15 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                     this.reset();
                 } else if (this.form.pristine) {
                     // Only rebuild from a WS push if enough time has passed since
-                    // the last reset. If the WS push arrives within 5 s of the
-                    // HTTP-triggered build it carries the same data — skip it.
+                    // the last reset to avoid duplicate rebuilds from the same save.
                     const msSinceLastReset = Date.now() - this._lastResetTime;
                     if (msSinceLastReset > 5000) {
                         this.reset();
                     }
                 }
+                // If form is dirty (user is editing), do NOT overwrite — the user
+                // would lose unsaved changes. They will get the latest config on
+                // their next save or manual refresh.
             }
 
             if ('docker' in event) {
@@ -458,9 +460,10 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         }
 
         const updatedConfig = await this.adminService.saveConfig(formValue, isFullImport);
-        
+
         if (updatedConfig) {
-            window.location.reload();
+            this.config = updatedConfig;
+            this.reset();
         }
     }
 }

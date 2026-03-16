@@ -132,6 +132,12 @@ var PostgresqlSchema = []string{
 	`CREATE INDEX IF NOT EXISTS "calls_transcript_idx" ON "calls" ("transcriptionStatus","timestamp");`,
 	// Standalone timestamp index for sorting/filtering without system/talkgroup filters
 	`CREATE INDEX IF NOT EXISTS "calls_timestamp_idx" ON "calls" ("timestamp" DESC);`,
+	// Index on talkgroupId for faster FK lookups and CASCADE operations
+	`CREATE INDEX IF NOT EXISTS "calls_talkgroupid_idx" ON "calls" ("talkgroupId");`,
+	// Partial index for non-empty transcripts — avoids full table scan on transcript queries
+	`CREATE INDEX IF NOT EXISTS "calls_transcript_nonempty_idx" ON "calls" ("callId" DESC) WHERE "transcript" IS NOT NULL AND "transcript" <> '';`,
+	// Composite index for system+talkgroup+timestamp admin queries
+	`CREATE INDEX IF NOT EXISTS "calls_system_talkgroup_timestamp_idx" ON "calls" ("systemId","talkgroupId","timestamp");`,
 	`DROP TABLE IF EXISTS "callFrequencies";`,
 
 	`CREATE TABLE IF NOT EXISTS "callPatches" (

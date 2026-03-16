@@ -108,7 +108,7 @@
             <mat-form-field appearance="outline" class="compact-field">
                 <mat-select formControlName="preferredApiKeyId" placeholder="Any API Key">
                     <mat-option [value]="null">Any API Key (No Restriction)</mat-option>
-                    <mat-option *ngFor="let apikey of apikeys" [value]="apikey.id">
+                    <mat-option *ngFor="let apikey of apikeys; trackBy: trackById" [value]="apikey.id">
                         {{ apikey.ident || 'API Key ' + apikey.id }}
                     </mat-option>
                 </mat-select>
@@ -170,7 +170,7 @@
                 <mat-label>Group</mat-label>
                 <mat-select [(value)]="bulkAssignGroupId">
                     <mat-option [value]="null">— Select Group —</mat-option>
-                    <mat-option *ngFor="let group of groups" [value]="group.id">{{ group.label }}</mat-option>
+                    <mat-option *ngFor="let group of groups; trackBy: trackById" [value]="group.id">{{ group.label }}</mat-option>
                 </mat-select>
             </mat-form-field>
             <button type="button" mat-raised-button color="primary" (click)="bulkAssignGroup()" [disabled]="bulkAssignGroupId === null">Add Group</button>
@@ -180,7 +180,7 @@
                 <mat-label>Tag</mat-label>
                 <mat-select [(value)]="bulkAssignTagId">
                     <mat-option [value]="null">— Select Tag —</mat-option>
-                    <mat-option *ngFor="let tag of tags" [value]="tag.id">{{ tag.label }}</mat-option>
+                    <mat-option *ngFor="let tag of tags; trackBy: trackById" [value]="tag.id">{{ tag.label }}</mat-option>
                 </mat-select>
             </mat-form-field>
             <button type="button" mat-raised-button color="primary" (click)="bulkAssignTag()" [disabled]="bulkAssignTagId === null">Assign Tag</button>
@@ -260,7 +260,7 @@
                 <th mat-header-cell *matHeaderCellDef>Groups</th>
                 <td mat-cell *matCellDef="let tg">
                     <div class="chip-list">
-                        <span class="mini-chip" *ngFor="let label of getGroupLabels(tg.value.groupIds)">{{ label }}</span>
+                        <span class="mini-chip" *ngFor="let label of getGroupLabels(tg.value.groupIds); trackBy: trackByIndex">{{ label }}</span>
                         <span class="no-value" *ngIf="!tg.value.groupIds?.length">—</span>
                     </div>
                 </td>
