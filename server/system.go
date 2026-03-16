@@ -675,6 +675,43 @@ func (systems *Systems) Write(db *Database) error {
 		if b, err := json.Marshal(systemIds); err == nil {
 			in := strings.ReplaceAll(strings.ReplaceAll(string(b), "[", "("), "]", ")")
 
+			// Only delete systems that have no calls referencing them.
+			// Systems with active calls are skipped to prevent CASCADE
+			// deletion of all associated calls and their audio data.
+			var inUseCount int
+			query = fmt.Sprintf(`SELECT COUNT(*) FROM "calls" WHERE "systemId" IN %s`, in)
+			if err = tx.QueryRow(query).Scan(&inUseCount); err != nil {
+				tx.Rollback()
+				return formatError(err, query)
+			}
+
+			if inUseCount > 0 {
+				safeSystemIds := []uint64{}
+				for _, sid := range systemIds {
+					var refCount int
+					query = fmt.Sprintf(`SELECT COUNT(*) FROM "calls" WHERE "systemId" = %d`, sid)
+					if err = tx.QueryRow(query).Scan(&refCount); err != nil {
+						tx.Rollback()
+						return formatError(err, query)
+					}
+					if refCount == 0 {
+						safeSystemIds = append(safeSystemIds, sid)
+					} else {
+						log.Printf("systems.write: skipping deletion of systemId %d — still has %d call(s) with audio data\n", sid, refCount)
+					}
+				}
+				systemIds = safeSystemIds
+			}
+
+			if len(systemIds) == 0 {
+				// All systems had calls — skip deletion entirely
+				goto skipSystemDelete
+			}
+
+			if b, err = json.Marshal(systemIds); err == nil {
+				in = strings.ReplaceAll(strings.ReplaceAll(string(b), "[", "("), "]", ")")
+			}
+
 			query = fmt.Sprintf(`DELETE FROM "systems" WHERE "systemId" IN %s`, in)
 			if res, err = tx.Exec(query); err != nil {
 				tx.Rollback()
@@ -702,6 +739,7 @@ func (systems *Systems) Write(db *Database) error {
 			}
 		}
 	}
+skipSystemDelete:
 
 	for _, system := range systems.List {
 		var count uint

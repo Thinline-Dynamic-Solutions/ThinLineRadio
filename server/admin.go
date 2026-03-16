@@ -98,6 +98,7 @@ type Admin struct {
 	Controller       *Controller
 	Register         chan *websocket.Conn
 	Tokens           []string
+	TokenExpiry      map[string]time.Time
 	Unregister       chan *websocket.Conn
 	mutex            sync.Mutex
 	running          bool
@@ -179,6 +180,7 @@ func NewAdmin(controller *Controller) *Admin {
 		Controller:       controller,
 		Register:         make(chan *websocket.Conn),
 		Tokens:           []string{},
+		TokenExpiry:      make(map[string]time.Time),
 		Unregister:       make(chan *websocket.Conn),
 		mutex:            sync.Mutex{},
 	}
@@ -1251,9 +1253,11 @@ func (admin *Admin) SyncToneSetsHandler(w http.ResponseWriter, r *http.Request) 
 
 func (admin *Admin) BroadcastConfig() {
 	if b, err := json.Marshal(admin.GetConfig()); err == nil {
+		admin.mutex.Lock()
 		for conn := range admin.Conns {
 			conn.WriteMessage(websocket.TextMessage, b)
 		}
+		admin.mutex.Unlock()
 	}
 }
 
@@ -2725,6 +2729,7 @@ func (admin *Admin) SSOLoginHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		admin.Tokens = append(admin.Tokens[1:], sToken)
 	}
+	admin.TokenExpiry[sToken] = time.Now().Add(24 * time.Hour)
 	admin.mutex.Unlock()
 
 	admin.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("admin: SSO login granted for system admin %s from %s", user.Email, clientIP))
@@ -2771,6 +2776,7 @@ func (admin *Admin) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 		remoteAddr := GetRemoteAddr(r)
 
+		admin.mutex.Lock()
 		attempt := admin.Attempts[remoteAddr]
 
 		if attempt == nil {
@@ -2784,8 +2790,12 @@ func (admin *Admin) LoginHandler(w http.ResponseWriter, r *http.Request) {
 			attempt.Date = time.Now()
 		}
 
-		if attempt.Count > admin.AttemptsMax || time.Since(attempt.Date) < admin.AttemptsMaxDelay {
-			if attempt.Count == admin.AttemptsMax+1 {
+		tooMany := attempt.Count > admin.AttemptsMax || time.Since(attempt.Date) < admin.AttemptsMaxDelay
+		logThreshold := attempt.Count == admin.AttemptsMax+1
+		admin.mutex.Unlock()
+
+		if tooMany {
+			if logThreshold {
 				// Enhanced logging with request context
 				userAgent := r.Header.Get("User-Agent")
 				if userAgent == "" {
@@ -2842,11 +2852,20 @@ func (admin *Admin) LoginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		admin.mutex.Lock()
 		if len(admin.Tokens) < 5 {
 			admin.Tokens = append(admin.Tokens, sToken)
 		} else {
 			admin.Tokens = append(admin.Tokens[1:], sToken)
 		}
+		admin.TokenExpiry[sToken] = time.Now().Add(24 * time.Hour)
+
+		for k, v := range admin.Attempts {
+			if time.Since(v.Date) > admin.AttemptsMaxDelay {
+				delete(admin.Attempts, k)
+			}
+		}
+		admin.mutex.Unlock()
 
 		b, err := json.Marshal(map[string]any{
 			"passwordNeedChange": true,
@@ -2855,12 +2874,6 @@ func (admin *Admin) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			w.WriteHeader(http.StatusExpectationFailed)
 			return
-		}
-
-		for k, v := range admin.Attempts {
-			if time.Since(v.Date) > admin.AttemptsMaxDelay {
-				delete(admin.Attempts, k)
-			}
 		}
 
 		w.Write(b)
@@ -2878,11 +2891,15 @@ func (admin *Admin) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+		admin.mutex.Lock()
 		for k, v := range admin.Tokens {
 			if v == t {
 				admin.Tokens = append(admin.Tokens[:k], admin.Tokens[k+1:]...)
+				delete(admin.TokenExpiry, t)
+				break
 			}
 		}
+		admin.mutex.Unlock()
 		w.WriteHeader(http.StatusOK)
 
 	default:
@@ -3018,6 +3035,7 @@ func (admin *Admin) UserEditHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (admin *Admin) ValidateToken(sToken string) bool {
+	admin.mutex.Lock()
 	found := false
 	for _, t := range admin.Tokens {
 		if t == sToken {
@@ -3026,9 +3044,26 @@ func (admin *Admin) ValidateToken(sToken string) bool {
 		}
 	}
 	if !found {
+		admin.mutex.Unlock()
 		return false
 	}
 
+	// Check token expiry
+	if expiry, ok := admin.TokenExpiry[sToken]; ok && time.Now().After(expiry) {
+		// Token expired — remove it
+		for k, t := range admin.Tokens {
+			if t == sToken {
+				admin.Tokens = append(admin.Tokens[:k], admin.Tokens[k+1:]...)
+				break
+			}
+		}
+		delete(admin.TokenExpiry, sToken)
+		admin.mutex.Unlock()
+		return false
+	}
+	admin.mutex.Unlock()
+
+	// JWT parsing does not need the lock
 	token, err := jwt.Parse(sToken, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
