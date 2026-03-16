@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -323,10 +324,45 @@ func (tags *Tags) Write(db *Database) error {
 	if len(tagIds) > 0 {
 		if b, err := json.Marshal(tagIds); err == nil {
 			in := strings.ReplaceAll(strings.ReplaceAll(string(b), "[", "("), "]", ")")
-			query = fmt.Sprintf(`DELETE FROM "tags" WHERE "tagId" IN %s`, in)
-			if _, err = tx.Exec(query); err != nil {
+
+			// Only delete tags that have no talkgroups referencing them.
+			// Tags with active talkgroups are skipped to prevent CASCADE
+			// deletion of all associated calls and their audio data.
+			var inUseCount int
+			query = fmt.Sprintf(`SELECT COUNT(*) FROM "talkgroups" WHERE "tagId" IN %s`, in)
+			if err = tx.QueryRow(query).Scan(&inUseCount); err != nil {
 				tx.Rollback()
 				return formatError(err, query)
+			}
+
+			if inUseCount > 0 {
+				// Filter to only unused tags
+				safeTagIds := []uint64{}
+				for _, tid := range tagIds {
+					var refCount int
+					query = fmt.Sprintf(`SELECT COUNT(*) FROM "talkgroups" WHERE "tagId" = %d`, tid)
+					if err = tx.QueryRow(query).Scan(&refCount); err != nil {
+						tx.Rollback()
+						return formatError(err, query)
+					}
+					if refCount == 0 {
+						safeTagIds = append(safeTagIds, tid)
+					} else {
+						log.Printf("tags.write: skipping deletion of tagId %d — still referenced by %d talkgroup(s)\n", tid, refCount)
+					}
+				}
+				tagIds = safeTagIds
+			}
+
+			if len(tagIds) > 0 {
+				if b, err = json.Marshal(tagIds); err == nil {
+					in = strings.ReplaceAll(strings.ReplaceAll(string(b), "[", "("), "]", ")")
+					query = fmt.Sprintf(`DELETE FROM "tags" WHERE "tagId" IN %s`, in)
+					if _, err = tx.Exec(query); err != nil {
+						tx.Rollback()
+						return formatError(err, query)
+					}
+				}
 			}
 		}
 	}

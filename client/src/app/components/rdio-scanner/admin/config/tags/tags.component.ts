@@ -83,8 +83,24 @@ export class RdioScannerAdminTagsComponent {
     }
 
     remove(index: number): void {
-        this.form?.removeAt(index);
-        this.form?.markAsDirty();
+        if (!this.form) return;
+        const tag = this.form.at(index);
+        const tagId = tag?.get('id')?.value;
+        const label = tag?.get('label')?.value || 'this tag';
+
+        if (tagId && !this.isTagUnused(tagId)) {
+            const confirmed = confirm(
+                `"${label}" is currently assigned to talkgroups.\n\n` +
+                `Removing it from the config and saving will CASCADE DELETE ` +
+                `all talkgroups using this tag AND all their associated call ` +
+                `recordings from the database.\n\n` +
+                `This action is irreversible. Continue?`
+            );
+            if (!confirmed) return;
+        }
+
+        this.form.removeAt(index);
+        this.form.markAsDirty();
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
@@ -108,6 +124,13 @@ export class RdioScannerAdminTagsComponent {
                 });
             }
         });
+        let unusedCount = 0;
+        for (let i = this.form.controls.length - 1; i >= 0; i--) {
+            const id = this.form.at(i).get('id')?.value;
+            if (id && !usedTagIds.has(id)) unusedCount++;
+        }
+        if (unusedCount === 0) return;
+        if (!confirm(`Remove ${unusedCount} unused tag(s)?`)) return;
         for (let i = this.form.controls.length - 1; i >= 0; i--) {
             const id = this.form.at(i).get('id')?.value;
             if (id && !usedTagIds.has(id)) this.form.removeAt(i);
