@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, OnDestroy } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../admin.service';
 
@@ -48,6 +48,7 @@ export interface FailedCall {
     selector: 'rdio-scanner-admin-system-health',
     styleUrls: ['./system-health.component.scss'],
     templateUrl: './system-health.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy {
     alerts: SystemAlert[] = [];
@@ -110,6 +111,9 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
         private snackBar: MatSnackBar
     ) {}
 
+    trackByIndex(index: number): number { return index; }
+    trackById(index: number, item: any): any { return item?.value?.id ?? item?.id ?? item?.callId ?? index; }
+
     ngOnInit(): void {
         this.loadAlerts();
         this.loadSystemHealthAlertsEnabled();
@@ -152,6 +156,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
             this.alerts = [];
         } finally {
             this.loading = false;
+            this.cdr.markForCheck();
         }
     }
 
@@ -165,6 +170,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
             this.failedCalls = [];
         } finally {
             this.loadingFailedCalls = false;
+            this.cdr.markForCheck();
         }
     }
 
@@ -175,6 +181,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
         } catch (error: any) {
             console.error('Failed to load system health alerts enabled status:', error);
         }
+        this.cdr.markForCheck();
     }
 
     async toggleSystemHealthAlertsEnabled(): Promise<void> {
@@ -187,6 +194,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
             // Revert the toggle on error
             this.systemHealthAlertsEnabled = !newValue;
             alert('Failed to update setting: ' + (error.message || 'Unknown error'));
+            this.cdr.markForCheck();
         }
     }
 
@@ -213,6 +221,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
         } catch (error: any) {
             console.error('Failed to load system health alert settings:', error);
         }
+        this.cdr.markForCheck();
     }
 
     async saveSetting(field: string, value: any): Promise<void> {
@@ -523,6 +532,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
             });
         } finally {
             this.loadingSystems = false;
+            this.cdr.markForCheck();
         }
     }
 

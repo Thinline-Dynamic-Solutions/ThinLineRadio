@@ -19,7 +19,7 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormArray, FormControl, FormGroup } from '@angular/forms';
 import { RdioScannerAdminService, Group, Tag } from '../../../admin.service';
 
@@ -27,6 +27,7 @@ import { RdioScannerAdminService, Group, Tag } from '../../../admin.service';
     selector: 'rdio-scanner-admin-system',
     templateUrl: './system.component.html',
     styleUrls: ['./system.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RdioScannerAdminSystemComponent {
     @Input() form = new FormGroup({});
@@ -64,7 +65,10 @@ export class RdioScannerAdminSystemComponent {
     private _lastTalkgroupsVersion: number = 0;
     private _lastUnitsVersion:      number = 0;
 
-    constructor(private adminService: RdioScannerAdminService) { }
+    constructor(private adminService: RdioScannerAdminService, private cdr: ChangeDetectorRef) { }
+
+    trackByIndex(index: number): number { return index; }
+    trackById(index: number, item: any): any { return item?.value?.id ?? item?.id ?? index; }
 
     // ─── Sub-array getters ─────────────────────────────────────────────────────
 
@@ -227,6 +231,7 @@ export class RdioScannerAdminSystemComponent {
         this.form.markAsDirty();
         this.unselectAllTalkgroups();
         this.bulkAssignGroupId = null;
+        this.cdr.markForCheck();
     }
 
     bulkRemoveGroup(): void {
@@ -240,6 +245,7 @@ export class RdioScannerAdminSystemComponent {
         this.form.markAsDirty();
         this.unselectAllTalkgroups();
         this.bulkAssignGroupId = null;
+        this.cdr.markForCheck();
     }
 
     bulkAssignTag(): void {
@@ -252,6 +258,7 @@ export class RdioScannerAdminSystemComponent {
         this.form.markAsDirty();
         this.unselectAllTalkgroups();
         this.bulkAssignTagId = null;
+        this.cdr.markForCheck();
     }
 
     // ─── CRUD ──────────────────────────────────────────────────────────────────
@@ -261,6 +268,7 @@ export class RdioScannerAdminSystemComponent {
         arr?.insert(0, this.adminService.newTalkgroupForm());
         this.form.markAsDirty();
         this._lastTalkgroupsVersion++;
+        this.cdr.markForCheck();
     }
 
     addSite(): void {
@@ -268,6 +276,7 @@ export class RdioScannerAdminSystemComponent {
         arr?.insert(0, this.adminService.newSiteForm());
         this.form.markAsDirty();
         this._lastSitesVersion++;
+        this.cdr.markForCheck();
     }
 
     addUnit(): void {
@@ -275,6 +284,7 @@ export class RdioScannerAdminSystemComponent {
         arr?.insert(0, this.adminService.newUnitForm());
         this.form.markAsDirty();
         this._lastUnitsVersion++;
+        this.cdr.markForCheck();
     }
 
     /** Remove a talkgroup by FormGroup reference — immune to filtered-index drift. */
@@ -290,6 +300,7 @@ export class RdioScannerAdminSystemComponent {
         if (arrIdx !== -1) arr.removeAt(arrIdx);
         arr.markAsDirty();
         this._lastTalkgroupsVersion++;
+        this.cdr.markForCheck();
     }
 
     removeSite(index: number): void {
@@ -298,6 +309,7 @@ export class RdioScannerAdminSystemComponent {
         arr?.removeAt(index);
         arr?.markAsDirty();
         this._lastSitesVersion++;
+        this.cdr.markForCheck();
     }
 
     removeUnit(index: number): void {
@@ -306,6 +318,7 @@ export class RdioScannerAdminSystemComponent {
         arr?.removeAt(index);
         arr?.markAsDirty();
         this._lastUnitsVersion++;
+        this.cdr.markForCheck();
     }
 
     blacklistTalkgroup(tg: FormGroup): void {
@@ -331,6 +344,7 @@ export class RdioScannerAdminSystemComponent {
         reordered.forEach(c => arr.push(c, { emitEvent: false }));
         this.form.markAsDirty();
         this._lastTalkgroupsVersion++;
+        this.cdr.markForCheck();
     }
 
     dropSite(event: CdkDragDrop<FormGroup[]>): void {
@@ -339,6 +353,7 @@ export class RdioScannerAdminSystemComponent {
         event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
         this.form.markAsDirty();
         this._lastSitesVersion++;
+        this.cdr.markForCheck();
     }
 
     dropUnit(event: CdkDragDrop<FormGroup[]>): void {
@@ -347,6 +362,7 @@ export class RdioScannerAdminSystemComponent {
         event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
         this.form.markAsDirty();
         this._lastUnitsVersion++;
+        this.cdr.markForCheck();
     }
 
     // ─── Sort ──────────────────────────────────────────────────────────────────
@@ -365,6 +381,7 @@ export class RdioScannerAdminSystemComponent {
         this.form.markAsDirty();
         this.unselectAllTalkgroups();
         this._lastTalkgroupsVersion++;
+        this.cdr.markForCheck();
     }
 
     // ─── Error summary helpers ─────────────────────────────────────────────────

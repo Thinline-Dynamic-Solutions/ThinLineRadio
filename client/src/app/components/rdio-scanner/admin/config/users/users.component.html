@@ -223,7 +223,7 @@
                                 Device Tokens ({{ user.fcmTokens.length }})
                             </h5>
                             <div class="fcm-list">
-                                <div *ngFor="let token of user.fcmTokens" class="fcm-item">
+                                <div *ngFor="let token of user.fcmTokens; trackBy: trackById" class="fcm-item">
                                     <div class="fcm-meta">
                                         <mat-icon [color]="token.platform === 'ios' ? 'primary' : 'accent'">
                                             {{ token.platform === 'ios' ? 'phone_iphone' : 'phone_android' }}
@@ -289,7 +289,7 @@
                                     <mat-label>User Group</mat-label>
                                     <mat-select formControlName="userGroupId">
                                         <mat-option [value]="0">No Group (Unassigned)</mat-option>
-                                        <mat-option *ngFor="let group of availableGroups" [value]="group.id">
+                                        <mat-option *ngFor="let group of availableGroups; trackBy: trackById" [value]="group.id">
                                             {{ group.name }}
                                         </mat-option>
                                     </mat-select>
@@ -343,11 +343,11 @@
 
                             <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
                                 <h6 class="form-section-title">System-Specific Delays</h6>
-                                <div *ngFor="let entry of systemDelayEntries; let i = index" class="delay-entry">
+                                <div *ngFor="let entry of systemDelayEntries; let i = index; trackBy: trackByIndex" class="delay-entry">
                                     <mat-form-field appearance="outline" class="system-select">
                                         <mat-label>System</mat-label>
                                         <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}">
-                                            <mat-option *ngFor="let system of systems" [value]="system.id">
+                                            <mat-option *ngFor="let system of systems; trackBy: trackById" [value]="system.id">
                                                 {{ system.label || ('System ' + system.id) }}
                                             </mat-option>
                                         </mat-select>
@@ -367,11 +367,11 @@
 
                             <div class="form-section" *ngIf="!editingUser || !editingUser.userGroupId">
                                 <h6 class="form-section-title">Talkgroup-Specific Delays</h6>
-                                <div *ngFor="let entry of talkgroupDelayEntries; let i = index" class="delay-entry">
+                                <div *ngFor="let entry of talkgroupDelayEntries; let i = index; trackBy: trackByIndex" class="delay-entry">
                                     <mat-form-field appearance="outline" class="system-select">
                                         <mat-label>System</mat-label>
                                         <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}" (selectionChange)="entry.talkgroupId = 0">
-                                            <mat-option *ngFor="let system of systems" [value]="system.id">
+                                            <mat-option *ngFor="let system of systems; trackBy: trackById" [value]="system.id">
                                                 {{ system.label || ('System ' + system.id) }}
                                             </mat-option>
                                         </mat-select>
@@ -379,7 +379,7 @@
                                     <mat-form-field appearance="outline" class="talkgroup-select" *ngIf="entry.systemId > 0">
                                         <mat-label>Talkgroup</mat-label>
                                         <mat-select [(ngModel)]="entry.talkgroupId" [ngModelOptions]="{standalone: true}">
-                                            <mat-option *ngFor="let tg of getTalkgroupsForSystem(entry.systemId)" [value]="tg.id">
+                                            <mat-option *ngFor="let tg of getTalkgroupsForSystem(entry.systemId); trackBy: trackById" [value]="tg.id">
                                                 {{ tg.label || ('Talkgroup ' + tg.id) }}
                                             </mat-option>
                                         </mat-select>

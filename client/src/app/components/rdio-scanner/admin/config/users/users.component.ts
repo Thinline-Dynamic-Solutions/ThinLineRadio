@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
@@ -68,7 +68,8 @@ export interface User {
 @Component({
     selector: 'rdio-scanner-admin-users',
     templateUrl: './users.component.html',
-    styleUrls: ['./users.component.scss']
+    styleUrls: ['./users.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChanges {
     @Input() userRegistrationEnabled = false;
@@ -134,6 +135,9 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             subscriptionStatus: ['']
         });
     }
+
+    trackByIndex(index: number): number { return index; }
+    trackById(index: number, item: any): any { return item?.value?.id ?? item?.id ?? index; }
 
     ngOnInit(): void {
         // Always load fresh from the API so dates and other server-side fields

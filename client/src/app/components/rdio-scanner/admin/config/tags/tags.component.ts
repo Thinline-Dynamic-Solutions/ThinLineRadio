@@ -19,7 +19,7 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input } from '@angular/core';
 import { FormArray, FormGroup } from '@angular/forms';
 import { RdioScannerAdminService } from '../../admin.service';
 
@@ -27,6 +27,7 @@ import { RdioScannerAdminService } from '../../admin.service';
     selector: 'rdio-scanner-admin-tags',
     templateUrl: './tags.component.html',
     styleUrls: ['./tags.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RdioScannerAdminTagsComponent {
     @Input() form: FormArray | undefined;
@@ -46,7 +47,10 @@ export class RdioScannerAdminTagsComponent {
         { value: '#ffffff', label: 'White',         hex: '#ffffff' },
     ];
 
-    constructor(private adminService: RdioScannerAdminService) {}
+    constructor(private adminService: RdioScannerAdminService, private cdr: ChangeDetectorRef) {}
+
+    trackByIndex(index: number): number { return index; }
+    trackById(index: number, item: any): any { return item?.value?.id ?? item?.id ?? index; }
 
     get tags(): FormGroup[] {
         if (!this.form) return [];
@@ -80,6 +84,7 @@ export class RdioScannerAdminTagsComponent {
         tag.markAsDirty();
         this.form?.insert(0, tag);
         this.form?.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     remove(index: number): void {
@@ -101,6 +106,7 @@ export class RdioScannerAdminTagsComponent {
 
         this.form.removeAt(index);
         this.form.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
@@ -108,6 +114,7 @@ export class RdioScannerAdminTagsComponent {
         moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
         event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
         this.form?.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     cleanupUnused(): void {
@@ -136,5 +143,6 @@ export class RdioScannerAdminTagsComponent {
             if (id && !usedTagIds.has(id)) this.form.removeAt(i);
         }
         this.form.markAsDirty();
+        this.cdr.markForCheck();
     }
 }
