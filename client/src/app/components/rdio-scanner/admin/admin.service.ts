@@ -446,6 +446,8 @@ export class RdioScannerAdminService implements OnDestroy {
 
     private configWebSocket: WebSocket | undefined;
 
+    private _unitCrossValidating = false;
+
     private _docker = false;
     private _passwordNeedChange = false;
 
@@ -1686,11 +1688,18 @@ export class RdioScannerAdminService implements OnDestroy {
                 return null;
             }
 
-            const systems: System[] = control.parent?.parent?.getRawValue() || [];
+            const siblings = control.parent?.parent as FormArray | undefined;
+            if (!siblings) return null;
 
-            const count = systems.reduce((c, s) => c += control.value !== null && control.value > 0 && s.systemRef === control.value ? 1 : 0, 0);
+            let count = 0;
+            for (const sibling of siblings.controls) {
+                if (sibling.get('systemRef')?.value === control.value) {
+                    count++;
+                    if (count > 1) return { duplicate: true };
+                }
+            }
 
-            return count > 1 ? { duplicate: true } : null;
+            return null;
         };
     }
 
@@ -1732,11 +1741,18 @@ export class RdioScannerAdminService implements OnDestroy {
                 return null;
             }
 
-            const talkgroups: Talkgroup[] = control.parent?.parent?.getRawValue() || [];
+            const siblings = control.parent?.parent as FormArray | undefined;
+            if (!siblings) return null;
 
-            const count = talkgroups.reduce((c, t) => c += t.talkgroupRef === control.value ? 1 : 0, 0);
+            let count = 0;
+            for (const sibling of siblings.controls) {
+                if (sibling.get('talkgroupRef')?.value === control.value) {
+                    count++;
+                    if (count > 1) return { duplicate: true };
+                }
+            }
 
-            return count > 1 ? { duplicate: true } : null;
+            return null;
         };
     }
 
@@ -1748,15 +1764,22 @@ export class RdioScannerAdminService implements OnDestroy {
 
             const unitTo = control.parent?.get('unitTo')?.value;
 
-            const units: Unit[] = control.parent?.parent?.getRawValue() || [];
+            if (unitRef === null && (unitFrom === null || unitTo === null)) {
+                return { required: true };
+            }
 
-            const count = units.reduce((c, u) => c += u.unitRef === unitRef ? 1 : 0, 0);
+            const siblings = control.parent?.parent as FormArray | undefined;
+            if (!siblings || unitRef === null) return null;
 
-            return unitRef === null && (unitFrom === null || unitTo === null)
-                ? { required: true }
-                : count > 1
-                    ? { duplicate: true }
-                    : null;
+            let count = 0;
+            for (const sibling of siblings.controls) {
+                if (sibling.get('unitRef')?.value === unitRef) {
+                    count++;
+                    if (count > 1) return { duplicate: true };
+                }
+            }
+
+            return null;
         };
     }
 
@@ -1770,10 +1793,14 @@ export class RdioScannerAdminService implements OnDestroy {
                 return { range: true };
             }
 
-            setTimeout(() => {
-                control.parent?.get('unitRef')?.updateValueAndValidity();
-                control.parent?.get('unitTo')?.updateValueAndValidity();
-            });
+            if (!this._unitCrossValidating) {
+                this._unitCrossValidating = true;
+                setTimeout(() => {
+                    control.parent?.get('unitRef')?.updateValueAndValidity();
+                    control.parent?.get('unitTo')?.updateValueAndValidity();
+                    this._unitCrossValidating = false;
+                });
+            }
 
             return null;
         }
@@ -1789,10 +1816,14 @@ export class RdioScannerAdminService implements OnDestroy {
                 return { range: true };
             }
 
-            setTimeout(() => {
-                control.parent?.get('unitRef')?.updateValueAndValidity();
-                control.parent?.get('unitFrom')?.updateValueAndValidity();
-            });
+            if (!this._unitCrossValidating) {
+                this._unitCrossValidating = true;
+                setTimeout(() => {
+                    control.parent?.get('unitRef')?.updateValueAndValidity();
+                    control.parent?.get('unitFrom')?.updateValueAndValidity();
+                    this._unitCrossValidating = false;
+                });
+            }
 
             return null;
         }
