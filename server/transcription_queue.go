@@ -234,11 +234,12 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 		// Clean the transcript of hallucinations before storing and processing
 		cleanedTranscript, hadHallucinations := queue.controller.cleanTranscript(result.Transcript, job.CallId)
 
-		// Store cleaned transcription result
+		// Store cleaned transcription result (include optional summary from Whisper server when present)
 		cleanedResult := &TranscriptionResult{
-			Transcript: cleanedTranscript,
-			Confidence: result.Confidence,
-			Language:   result.Language,
+			Transcript:   cleanedTranscript,
+			Confidence:   result.Confidence,
+			Language:     result.Language,
+			AlertSummary: strings.TrimSpace(result.AlertSummary),
 		}
 		go queue.storeTranscription(job.CallId, cleanedResult)
 
@@ -393,26 +394,19 @@ func (queue *TranscriptionQueue) storeTranscription(callId uint64, result *Trans
 		return
 	}
 
-	// Update call table
+	// Update call table (and optional alert summary when provided by Whisper server)
 	transcript := strings.ToUpper(result.Transcript) // Ensure ALL CAPS
 	if queue.controller.Database.Config.DbType == DbTypePostgresql {
-		query := `UPDATE "calls" SET "transcript" = $1, "transcriptConfidence" = $2, "transcriptionStatus" = 'completed' WHERE "callId" = $3`
-		if _, err := queue.controller.Database.Sql.Exec(query, transcript, result.Confidence, callId); err != nil {
+		query := `UPDATE "calls" SET "transcript" = $1, "transcriptConfidence" = $2, "transcriptionStatus" = 'completed', "alertSummary" = $4 WHERE "callId" = $3`
+		if _, err := queue.controller.Database.Sql.Exec(query, transcript, result.Confidence, callId, result.AlertSummary); err != nil {
 			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to update call transcript: %v", err))
 		}
 	}
 
 	// Store detailed transcription (optional, for history)
-	if queue.controller.Database.Config.DbType == DbTypePostgresql {
-		insertQuery := `INSERT INTO "transcriptions" ("callId", "transcript", "confidence", "language", "createdAt") VALUES ($1, $2, $3, $4, $5)`
-		if _, err := queue.controller.Database.Sql.Exec(insertQuery, callId, transcript, result.Confidence, result.Language, time.Now().UnixMilli()); err != nil {
-			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to insert transcription record: %v", err))
-		}
-	} else {
-		insertQuery := `INSERT INTO "transcriptions" ("callId", "transcript", "confidence", "language", "createdAt") VALUES (?, ?, ?, ?, ?)`
-		if _, err := queue.controller.Database.Sql.Exec(insertQuery, callId, transcript, result.Confidence, result.Language, time.Now().UnixMilli()); err != nil {
-			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to insert transcription record: %v", err))
-		}
+	insertQuery := `INSERT INTO "transcriptions" ("callId", "transcript", "confidence", "language", "createdAt") VALUES ($1, $2, $3, $4, $5)`
+	if _, err := queue.controller.Database.Sql.Exec(insertQuery, callId, transcript, result.Confidence, result.Language, time.Now().UnixMilli()); err != nil {
+		queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to insert transcription record: %v", err))
 	}
 }
 

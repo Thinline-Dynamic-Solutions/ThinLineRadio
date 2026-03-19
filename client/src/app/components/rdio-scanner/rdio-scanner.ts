@@ -110,6 +110,7 @@ export interface RdioScannerAlert {
     keywordsMatched?: string; // JSON array
     transcriptSnippet?: string;
     transcript?: string;
+    alertSummary?: string;
     transcriptionStatus?: string;
     createdAt: number;
     systemLabel?: string;
@@ -126,6 +127,7 @@ export interface RdioScannerTranscript {
     transcript: string;
     transcriptionStatus?: string;
     timestamp?: number;
+    alertSummary?: string;
     systemLabel?: string;
     talkgroupLabel?: string;
     talkgroupName?: string;

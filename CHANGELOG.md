@@ -1,5 +1,29 @@
 # Change log
 
+## Version 7.0 Beta 9.7.22 - Released Mar 19, 2026
+
+### Improvements
+
+- **Client — Channels tab**
+  - Master–detail layout: searchable system sidebar, single-system detail with tags and talkgroups, full-width dark board styling aligned with other tabs
+  - **All systems** / **Favorites** segment for the sidebar list
+  - Replaced separate **Fav on** / **Fav off** with one compact **Favs on** / **Favs off** control (toggles all favorited talkgroups; respects partial state)
+
+- **Client — Alert preferences**
+  - Same master–detail pattern (sidebar + detail) with search
+  - Tag rows: stable `trackBy`, immutable expand-state map updates, and header clicks that ignore All/Some/None and Enable/Disable so expand/collapse works on first try
+
+- **Client — Board tabs & alerts**
+  - Main tabs: **Alerts**, **Transcripts**, and **Stats** are top-level tabs after **Channels** (before **Settings**); inner Alerts panel is **Alerts** + **Preferences** only
+  - Realtime alert fetch / notification / sound limited to embed and main Alerts+Preferences instances (avoids duplicate toasts when Transcripts/Stats panels are mounted)
+
+- **Client — Transport & status UI**
+  - **ThinLine** `logo-banner.png` centered in the flexible area of the transport bar (opaque PNG on dark toolbar)
+  - **Replay last** transport button removed
+  - **Full screen** remains next to **Hold talkgroup**; **output volume** control moved into the status row (LINK / time / listeners / queue)
+
+---
+
 ## Version 7.0 Beta 9.7.21 - Released Mar 14, 2026
 
 ### Bug Fixes

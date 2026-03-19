@@ -1,5 +1,4 @@
 <div class="main-container" [class.subscription-locked]="!subscriptionActive && subscriptionChecked">
-    <!-- Subscription Lock Overlay (only show if checkout is not showing) -->
     <div class="subscription-lock-overlay" *ngIf="!subscriptionActive && subscriptionChecked && !showCheckout">
         <div class="lock-message">
             <mat-icon class="lock-icon">lock</mat-icon>
@@ -7,8 +6,6 @@
             <h2 *ngIf="isGroupAdminManaged">Account Expired</h2>
             <p *ngIf="!isGroupAdminManaged">An active subscription is required to access the scanner.</p>
             <p *ngIf="isGroupAdminManaged">Your account has expired. Please contact your group administrator.</p>
-            
-            <!-- Action buttons for admin-managed users -->
             <div *ngIf="isGroupAdminManaged" class="lock-actions">
                 <button mat-raised-button color="primary" (click)="transferToPersonalSubscription()" [disabled]="transferring">
                     <mat-spinner *ngIf="transferring" diameter="20" class="inline-spinner"></mat-spinner>
@@ -22,426 +19,327 @@
         </div>
     </div>
 
-    <div class="signout-container" *ngIf="isUserAuthenticated" style="display:flex;gap:12px;align-items:center;">
+    <div class="signout-container" *ngIf="isUserAuthenticated">
         <button *ngIf="isSystemAdmin"
-                mat-raised-button
+                mat-stroked-button
                 class="admin-panel-button"
                 (click)="openAdminPanel()"
                 title="Open Admin Panel">
             <mat-icon>admin_panel_settings</mat-icon>
             Admin
         </button>
-        <button mat-raised-button class="signout-button" (click)="onSignOut()" title="Sign Out">
+        <button mat-stroked-button class="signout-button" (click)="onSignOut()" title="Sign Out">
             Sign Out
         </button>
     </div>
-    
-    <div class="scanner-layout" 
-         [class.disabled]="!subscriptionActive && subscriptionChecked" 
-         [class.edit-mode]="editMode"
-         [class.preview-active]="previewMode"
-         [class.vertical-layout]="layoutPreferences.layoutMode === 'vertical'">
-        
-        <!-- Edit Mode Overlay (Top Controls) -->
-        <div class="edit-mode-overlay" *ngIf="editMode" [class.preview-mode]="previewMode">
-            <div class="edit-mode-top-bar">
-                <div class="edit-mode-title">
-                    <mat-icon>dashboard_customize</mat-icon>
-                    <span>Customize Layout</span>
-                </div>
-                <div class="edit-mode-actions">
-                    <button mat-stroked-button 
-                            [color]="previewMode ? 'primary' : ''"
-                            (click)="togglePreviewMode()"
-                            title="Hold to preview your changes">
-                        <mat-icon>{{ previewMode ? 'visibility' : 'visibility_off' }}</mat-icon>
-                        {{ previewMode ? 'Previewing' : 'Preview' }}
-                    </button>
-                    <button mat-stroked-button (click)="resetButtonPreferences()">
-                        <mat-icon>restart_alt</mat-icon>
-                        Reset
-                    </button>
-                    <button mat-raised-button color="primary" (click)="toggleEditMode()">
-                        <mat-icon>check</mat-icon>
-                        Done
-                    </button>
-                </div>
+
+    <div class="dispatch-board"
+         [class.disabled]="!subscriptionActive && subscriptionChecked">
+
+        <mat-toolbar class="transport-toolbar">
+            <div class="transport-branding">
+                <img *ngIf="!toolbarLogoError && toolbarLogoUrl"
+                     [src]="toolbarLogoUrl"
+                     [style.border-radius]="getToolbarLogoBorderRadius()"
+                     class="toolbar-brand-logo"
+                     alt=""
+                     (error)="onToolbarLogoError($event)"
+                     (load)="toolbarLogoError = false">
+                <span class="branding-inline">{{ branding || 'ThinLine Radio' }}</span>
             </div>
-            
-            <!-- Layout Controls -->
-            <div class="layout-controls-panel">
-                <div class="layout-section">
-                    <h4><mat-icon>view_week</mat-icon> Layout Mode</h4>
-                    <div class="layout-buttons">
-                        <button mat-raised-button 
-                                [color]="layoutPreferences.layoutMode === 'horizontal' ? 'primary' : ''"
-                                (click)="layoutPreferences.layoutMode = 'horizontal'">
-                            <mat-icon>view_column</mat-icon>
-                            Side by Side
-                        </button>
-                        <button mat-raised-button 
-                                [color]="layoutPreferences.layoutMode === 'vertical' ? 'primary' : ''"
-                                (click)="layoutPreferences.layoutMode = 'vertical'">
-                            <mat-icon>view_stream</mat-icon>
-                            Stacked
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="layout-section" *ngIf="isTranscriptionEnabled && layoutPreferences.layoutMode === 'horizontal'">
-                    <h4><mat-icon>swap_horiz</mat-icon> Panel Position</h4>
-                    <button mat-raised-button color="accent" (click)="swapPanels()">
-                        <mat-icon>swap_horiz</mat-icon>
-                        Swap Panels
-                    </button>
-                </div>
-                
-                <div class="layout-section">
-                    <h4><mat-icon>straighten</mat-icon> Panel Widths</h4>
-                    <div class="slider-control">
-                        <label>Scanner Width:</label>
-                        <mat-slider 
-                            [min]="400" 
-                            [max]="800" 
-                            [step]="20"
-                            [discrete]="true">
-                            <input matSliderThumb [(ngModel)]="layoutPreferences.scannerWidth">
-                        </mat-slider>
-                        <span class="width-value">{{layoutPreferences.scannerWidth}}px</span>
-                    </div>
-                    <div class="slider-control" *ngIf="isTranscriptionEnabled">
-                        <label>Alerts Width:</label>
-                        <mat-slider 
-                            [min]="300" 
-                            [max]="600" 
-                            [step]="20"
-                            [discrete]="true">
-                            <input matSliderThumb [(ngModel)]="layoutPreferences.alertsWidth">
-                        </mat-slider>
-                        <span class="width-value">{{layoutPreferences.alertsWidth}}px</span>
-                    </div>
-                </div>
-                
-                <div class="layout-section">
-                    <h4><mat-icon>visibility</mat-icon> Button Visibility</h4>
-                    <p class="instruction-text">
-                        <mat-icon>touch_app</mat-icon>
-                        Click the control buttons below to show or hide them.
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Scanner Column -->
-        <div class="scanner-column" 
-             [style.max-width]="getScannerMaxWidth()"
-             [style.width]="layoutPreferences.layoutMode === 'vertical' ? '100%' : 'auto'"
-             [style.order]="getScannerOrder()">
-<div class="rdio-status">
-    <div class="left-led-container">
-        <div class="led" [ngClass]="getLeftLedStyle()"></div>
-        <span class="led-text" [style.color]="getLeftLedTextColor()">{{ getLeftLedText() }}</span>
-    </div>
-    <div class="branding">{{ branding || 'ThinLine Radio' }}</div>
-    <div class="right-status-container">
-        <div class="led right-led" [ngClass]="getRightLedStyle()" [style.background-color]="getRightLedColor()" [style.box-shadow]="getRightLedBoxShadow()"></div>
-    </div>
-</div>
-<div class="rdio-display" [ngClass]="{ idle: !dimmer }" (dblclick)="toggleFullscreen.emit()">
-    <!-- Stats Row -->
-    <div class="row three">
-        <div>
-            <span [attr.style]="getTextGlowStyle()">Time {{ clock | date:timeFormat }}</span>
-        </div>
-        <div>
-            <span *ngIf="!linked" [attr.style]="getTextGlowStyle()">NO LINK</span>
-            <span *ngIf="linked && showListenersCount" [attr.style]="getTextGlowStyle()">Listeners {{ listeners }}</span>
-            <span *ngIf="linked && !showListenersCount" [attr.style]="getTextGlowStyle()">Listeners --</span>
-        </div>
-        <div>
-            <span [attr.style]="getTextGlowStyle()">Queue {{ callQueue }}</span>
-        </div>
-    </div>
-    <div class="row small"></div>
-
-    <!-- System/Talkgroup Row (Left) and TGID (Right) -->
-    <div class="row tgid-row">
-        <div>
-            <span [attr.style]="getTextGlowStyle()">{{ callSystem }}</span>
-        </div>
-        <div></div>
-        <div>
-            <span [attr.style]="getTextGlowStyle()">TGID {{ callTalkgroupId || 0 }}</span>
-        </div>
-    </div>
-    
-    <div class="row small"></div>
-
-    <!-- Talkgroup Container - Flutter Style -->
-    <div class="talkgroup-container" *ngIf="!showScanningAnimation">
-        <div class="talkgroup-box" 
-             [ngClass]="getTalkgroupBoxColor()" 
-             [style.box-shadow]="callPrevious && dimmer ? '0 0 15px ' + getTalkgroupTextColor() + ', 0 0 25px ' + getTalkgroupTextColor() + '80' : '0 2px 4px rgba(0, 0, 0, 0.2)'">
-            <div class="talkgroup-name" 
-                 [style.color]="getTalkgroupTextColor()"
-                 [style.text-shadow]="callPrevious && dimmer ? '0 0 10px ' + getTalkgroupTextColor() + ', 0 0 15px ' + getTalkgroupTextColor() + '80, 0 0 20px ' + getTalkgroupTextColor() + '60' : 'none'">
-                {{ callTalkgroup || callTalkgroupName }}
-            </div>
-            <div class="favorite-star" *ngIf="callSystem && callTalkgroup">
-                <mat-icon [style.color]="getTalkgroupTextColor()">{{ isFavorite ? 'star' : 'star_border' }}</mat-icon>
-            </div>
-        </div>
-    </div>
-    
-    <div class="row small"></div>
-
-    <!-- Tag/ID Row -->
-    <div class="row">
-        <div>
-            <span [attr.style]="getTextGlowStyle()">{{ callTag }}</span>
-        </div>
-        <div></div>
-        <div>
-            <span [attr.style]="getTextGlowStyle()">ID {{ callUnit || '0' }}</span>
-        </div>
-    </div>
-
-    <!-- Scanning Animation (shown when live feed is on and nothing is playing) -->
-    <div class="scanning-container" *ngIf="showScanningAnimation">
-        <div class="scanning-animation">
-            <div class="scanning-text">
-                <span class="scanning-label">SCANNING</span>
-                <div class="scanning-dots">
-                    <span class="dot dot1">.</span>
-                    <span class="dot dot2">.</span>
-                    <span class="dot dot3">.</span>
-                </div>
-            </div>
-            <div class="current-system" *ngIf="getCurrentScanningSystem()">
-                <div class="system-name">
-                    {{ getCurrentScanningSystem() }}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Frequency/Time Row -->
-    <div class="row">
-        <div>
-            <span [attr.style]="getTextGlowStyle()">F {{ formatFrequencyMHz(call?.frequency) }}</span>
-        </div>
-        <div></div>
-        <div>
-            <span [attr.style]="getTextGlowStyle()">{{ call?.dateTime | date:timeFormat }}</span>
-        </div>
-    </div>
-
-    <div class="wrapper">
-        <!-- Authentication Dialog -->
-        <div class="auth" [ngClass]="{ visible: auth }">
-            <div class="auth-container">
-                <div class="auth-form">
-                    <form class="mat-elevation-z8" autocomplete="off" [formGroup]="authForm" (ngSubmit)="authenticate()">
-                        <mat-form-field>
-                            <input #password matInput type="password" autocomplete="off" formControlName="password"
-                                placeholder="Unlock code" (blur)="authFocus()">
-                            <mat-error *ngIf="authForm.get('password')?.hasError('expired')">
-                                This unlock code has expired
-                            </mat-error>
-                            <mat-error *ngIf="authForm.get('password')?.hasError('tooMany')">
-                                Too many connections
-                            </mat-error>
-                        </mat-form-field>
-                    </form>
-                </div>
-            </div>
-        </div>
-        <!-- Transmission History -->
-        <div class="transmission-history">
-            <div class="history-header">Last 10 Transmissions</div>
-            <table class="history">
-                <thead>
-                    <tr>
-                        <th><span>TOC</span></th>
-                        <th><span>System</span></th>
-                        <th><span>Talkgroup</span></th>
-                        <th><span>TGID</span></th>
-                        <th><span>Frequency</span></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr *ngFor="let previousCall of callHistory"
-                        [ngClass]="{ 'replaying': previousCall?.id !== null && previousCall?.id === call?.id} "
-                        [style.background-color]="getTransmissionHistoryBackgroundColor(previousCall)"
-                        [style.border]="previousCall?.id !== null && previousCall?.id === call?.id ? '2px solid ' + getTransmissionHistoryTagColor(previousCall) : 'none'"
-                        [style.border-radius]="previousCall?.id !== null && previousCall?.id === call?.id ? '4px' : '0'"
-                        [style.box-shadow]="previousCall?.id !== null && previousCall?.id === call?.id ? '0 0 8px 1px ' + getTransmissionHistoryTagColor(previousCall) + '60' : 'none'">
-                        <td>
-                            <span>{{ previousCall?.dateTime | date:timeFormat }}</span>
-                        </td>
-                        <td>
-                            <span>{{ previousCall?.systemData?.label || previousCall?.system}}</span>
-                        </td>
-                        <td>
-                            <span>{{ previousCall?.talkgroupData?.label || previousCall?.talkgroup || '0' }}</span>
-                        </td>
-                        <td>
-                            <span>{{ previousCall?.talkgroup || '0' }}</span>
-                        </td>
-                        <td>
-                            <span>{{ formatFrequencyMHz(previousCall?.frequency) }}</span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- Control Panel - Grid Layout like Flutter -->
-<div class="rdio-control" [ngClass]="{ 'edit-mode': editMode }">
-    <!-- Edit Mode Instructions -->
-    <div class="edit-mode-instructions" *ngIf="editMode">
-        <mat-icon>touch_app</mat-icon>
-        <span>Click buttons to show/hide them</span>
-    </div>
-
-    <div class="control-grid" [class.edit-mode-grid]="editMode">
-        
-        <ng-container *ngFor="let buttonKey of buttonOrder; let i = index">
-            <button *ngIf="shouldShowButton(buttonKey)"
-                    class="rdio-button"
-                    [ngClass]="getButtonClasses(buttonKey)"
-                    [attr.data-button-key]="buttonKey"
-                    (click)="onButtonClick(buttonKey)">
-                
-                <!-- Button content -->
-                <mat-icon *ngIf="!editMode">{{ getButtonIcon(buttonKey) }}</mat-icon>
-                <mat-icon *ngIf="editMode" class="edit-icon">{{ getButtonVisibility(buttonKey) ? 'visibility' : 'visibility_off' }}</mat-icon>
-                <span [innerHTML]="getButtonText(buttonKey)"></span>
+            <span class="toolbar-divider"></span>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    [class.active]="toolbarActionClass('liveFeed').active"
+                    [class.warn]="toolbarActionClass('liveFeed').inactive"
+                    [matTooltip]="toolbarTooltip('liveFeed')"
+                    (click)="executeButtonAction('liveFeed')">
+                <span class="transport-action-stack">
+                    <mat-icon>{{ toolbarIcon('liveFeed') }}</mat-icon>
+                    <span class="transport-action-label">Live<br>feed</span>
+                </span>
             </button>
-        </ng-container>
-    </div>
-    
-    <!-- Volume Control -->
-    <div class="volume-control">
-        <mat-icon class="volume-icon">volume_up</mat-icon>
-        <mat-slider 
-            class="volume-slider"
-            [min]="0" 
-            [max]="100" 
-            [step]="1"
-            [discrete]="true"
-            [showTickMarks]="false">
-            <input matSliderThumb [(ngModel)]="volume" (ngModelChange)="onVolumeChange($event)">
-        </mat-slider>
-        <span class="volume-value">{{ volume }}%</span>
-    </div>
-</div>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    [class.active]="toolbarActionClass('pause').active"
+                    [matTooltip]="toolbarTooltip('pause')"
+                    (click)="executeButtonAction('pause')">
+                <span class="transport-action-stack">
+                    <mat-icon>{{ toolbarIcon('pause') }}</mat-icon>
+                    <span class="transport-action-label">{{ livefeedPaused ? 'Resume' : 'Pause' }}</span>
+                </span>
+            </button>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    [matTooltip]="toolbarTooltip('skipNext')"
+                    (click)="executeButtonAction('skipNext')">
+                <span class="transport-action-stack">
+                    <mat-icon>{{ toolbarIcon('skipNext') }}</mat-icon>
+                    <span class="transport-action-label">Skip<br>next</span>
+                </span>
+            </button>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    [matTooltip]="toolbarTooltip('avoid')"
+                    (click)="executeButtonAction('avoid')">
+                <span class="transport-action-stack">
+                    <mat-icon>{{ toolbarIcon('avoid') }}</mat-icon>
+                    <span class="transport-action-label">Avoid<br>talkgroup</span>
+                </span>
+            </button>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    [class.active]="toolbarActionClass('favorite').active"
+                    [matTooltip]="toolbarTooltip('favorite')"
+                    (click)="executeButtonAction('favorite')">
+                <span class="transport-action-stack">
+                    <mat-icon>{{ toolbarIcon('favorite') }}</mat-icon>
+                    <span class="transport-action-label">Favorite</span>
+                </span>
+            </button>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    [class.active]="toolbarActionClass('holdSystem').active"
+                    [matTooltip]="toolbarTooltip('holdSystem')"
+                    (click)="executeButtonAction('holdSystem')">
+                <span class="transport-action-stack">
+                    <mat-icon>{{ toolbarIcon('holdSystem') }}</mat-icon>
+                    <span class="transport-action-label">Hold<br>system</span>
+                </span>
+            </button>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    [class.active]="toolbarActionClass('holdTalkgroup').active"
+                    [matTooltip]="toolbarTooltip('holdTalkgroup')"
+                    (click)="executeButtonAction('holdTalkgroup')">
+                <span class="transport-action-stack">
+                    <mat-icon>{{ toolbarIcon('holdTalkgroup') }}</mat-icon>
+                    <span class="transport-action-label">Hold<br>talkgroup</span>
+                </span>
+            </button>
+            <button mat-stroked-button type="button" class="transport-action-btn"
+                    matTooltip="Toggle fullscreen — scanner fills the screen"
+                    (click)="toggleFullscreen.emit()">
+                <span class="transport-action-stack">
+                    <mat-icon>fullscreen</mat-icon>
+                    <span class="transport-action-label">Full<br>screen</span>
+                </span>
+            </button>
+            <div class="toolbar-center-zone" aria-hidden="true">
+                <img src="assets/icons/logo-banner.png" class="toolbar-banner-logo" alt="">
+            </div>
+        </mat-toolbar>
 
-<div class="rdio-help" *ngIf="email">
-    <button mat-icon-button (click)="showHelp()">
-        <mat-icon>help_center</mat-icon>
-    </button>
-</div>
-
-<!-- Customize Layout Button -->
-<div class="customize-button" *ngIf="!editMode">
-    <button mat-mini-fab color="accent" (click)="toggleEditMode()" title="Customize layout">
-        <mat-icon>dashboard_customize</mat-icon>
-    </button>
-</div>
-
-<!-- Show Alerts Button (floating) - only when transcription is enabled and panel is hidden -->
-<div class="show-alerts-button" *ngIf="isTranscriptionEnabled && !showRecentAlertsPanel">
-    <button mat-mini-fab color="primary" (click)="toggleRecentAlertsPanel()" title="Show alerts panel">
-        <mat-icon>notifications</mat-icon>
-    </button>
-</div>
-        </div>
-        
-        <!-- Right Column: Recent Alerts (only show if transcription is enabled) -->
-        <div class="alerts-column" 
-             *ngIf="isTranscriptionEnabled && showRecentAlertsPanel"
-             [style.width]="getAlertsWidth()"
-             [style.max-width]="getAlertsMaxWidth()"
-             [style.min-width]="layoutPreferences.layoutMode === 'vertical' ? '100%' : '300px'"
-             [style.order]="getAlertsOrder()">
-            <div class="recent-alerts-panel">
-                <div class="alerts-header">
-                    <h3>Recent Alerts</h3>
-                    <div class="alerts-actions">
-                        <button mat-icon-button (click)="loadRecentAlerts()" [disabled]="loadingAlerts" title="Refresh">
-                            <mat-icon>refresh</mat-icon>
-                        </button>
-                        <button mat-icon-button (click)="toggleRecentAlertsPanel()" title="Hide alerts panel">
-                            <mat-icon>visibility_off</mat-icon>
-                        </button>
-                    </div>
+        <!-- Stays visible on every tab (live state not destroyed when leaving Board). -->
+        <div class="board-live-strip">
+            <div class="status-strip">
+                <div class="status-strip-meta">
+                    <span class="led-pill" [class.on]="linked" [class.off]="!linked">{{ linked ? 'LINK' : 'NO LINK' }}</span>
+                    <span class="meta">Time {{ clock | date:timeFormat }}</span>
+                    <span class="meta" *ngIf="showListenersCount">Listeners {{ listeners }}</span>
+                    <span class="meta" *ngIf="!showListenersCount">Listeners —</span>
+                    <span class="meta">Queue {{ callQueue }}</span>
+                    <span class="meta live-indicator" *ngIf="call" [matTooltip]="getDelayedTooltip()">{{ getDelayedText() }}</span>
                 </div>
-                
-                <div class="alerts-content">
-                    <div *ngIf="loadingAlerts" class="loading-alerts">
-                        <p>Loading alerts...</p>
-                    </div>
-                    
-                    <div *ngIf="!loadingAlerts && recentAlerts.length === 0" class="no-alerts">
-                        <p>No recent alerts</p>
-                    </div>
-                    
-                    <div *ngIf="!loadingAlerts && recentAlerts.length > 0" class="alerts-list">
-                        <div *ngFor="let alert of recentAlerts" class="alert-item">
-                            <div class="alert-header">
-                                <span class="alert-type-badge">{{ getAlertTypeLabel(alert) }}</span>
-                                <span class="alert-time">{{ formatTimestamp(alert.createdAt) }}</span>
-                            </div>
-
-                            <!-- System label -->
-                            <div class="alert-system">
-                                <mat-icon class="channel-icon">radio</mat-icon>
-                                <span>{{ alert.systemLabel || 'System ' + alert.systemId }}</span>
-                            </div>
-
-                            <!-- All talkgroups that matched (merged into one card) -->
-                            <div class="alert-channels">
-                                <span *ngFor="let tg of alert.talkgroupLabels" class="alert-channel-tag">
-                                    {{ tg }}
-                                </span>
-                            </div>
-
-                            <!-- Transcript -->
-                            <div *ngIf="alert.transcript" class="alert-transcript">
-                                <p class="transcript-text">{{ alert.transcript }}</p>
-                            </div>
-
-                            <!-- All matched tones (merged) -->
-                            <div *ngIf="alert.toneDetected && alert.matchedToneSetNames.length > 0" class="alert-tone">
-                                <mat-icon class="tone-icon">notifications_active</mat-icon>
-                                <span>{{ alert.matchedToneSetNames.join(', ') }}</span>
-                            </div>
-
-                            <!-- All matched keywords (merged) -->
-                            <div *ngIf="getKeywordsMatched(alert).length > 0" class="alert-keywords">
-                                <span class="keyword-label">Keywords:</span>
-                                <span *ngFor="let keyword of getKeywordsMatched(alert)" class="keyword-tag">
-                                    {{ keyword }}
-                                </span>
-                            </div>
-
-                            <div class="alert-actions">
-                                <button mat-stroked-button class="play-button" (click)="playCall(alert.callId)">
-                                    <mat-icon>play_arrow</mat-icon>
-                                    Play
-                                </button>
-                            </div>
+                <div class="transport-volume transport-volume--status" matTooltip="Output volume">
+                    <div class="transport-volume-inner">
+                        <mat-icon class="vol-ic-top" aria-hidden="true">volume_up</mat-icon>
+                        <div class="transport-volume-right">
+                            <span class="transport-volume-title">Volume</span>
+                            <mat-slider class="volume-slider-compact"
+                                [min]="0" [max]="100" [step]="1" [discrete]="true" [showTickMarks]="false">
+                                <input matSliderThumb [(ngModel)]="volume" (ngModelChange)="onVolumeChange($event)">
+                            </mat-slider>
+                            <span class="vol-val">{{ volume }}%</span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <div class="scanning-banner" *ngIf="showScanningAnimation">
+                <span class="scan-label">SCANNING</span>
+                <span class="scan-sys" *ngIf="getCurrentScanningSystem()">{{ getCurrentScanningSystem() }}</span>
+            </div>
+
+            <div class="now-playing-block board-live-now-playing">
+                <div class="panel-title">Now playing</div>
+                <div class="history-table-wrap now-playing-table-wrap">
+                    <table class="history dispatch-table now-playing-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>System</th>
+                                <th>Talkgroup</th>
+                                <th>TGID</th>
+                                <th>Source</th>
+                                <th>MHz</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr *ngIf="call as np"
+                                class="now-playing-row"
+                                [style.background-color]="getTransmissionHistoryBackgroundColor(np)"
+                                [style.box-shadow]="nowPlayingRowAccent(np)">
+                                <td>{{ np.dateTime | date:timeFormat }}</td>
+                                <td>{{ np.systemData?.label || np.system }}</td>
+                                <td>{{ np.talkgroupData?.label || np.talkgroup || '0' }}</td>
+                                <td>{{ displayTgidForCall(np) }}</td>
+                                <td class="now-playing-source">{{ displaySourceForNowPlaying(np) }}</td>
+                                <td>{{ formatFrequencyMHz(np.frequency) || '—' }}</td>
+                            </tr>
+                            <tr *ngIf="!call" class="now-playing-idle">
+                                <td colspan="6">No active transmission</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="now-playing-transcript" *ngIf="call && isTranscriptionEnabled && call.transcript">
+                        <span class="now-playing-transcript-label">Transcript</span>
+                        <p class="now-playing-transcript-text">{{ call.transcript }}</p>
+                    </div>
+                </div>
+            </div>
         </div>
+
+        <mat-tab-group class="board-tabs" animationDuration="0ms"
+            [selectedIndex]="boardTabIndex"
+            (selectedIndexChange)="onBoardIndexChange($event)">
+            <mat-tab>
+                <ng-template mat-tab-label>
+                    <span class="tab-label-current" title="Live activity & recent calls">
+                        <span class="tab-label-current-glow" aria-hidden="true"></span>
+                        <span class="tab-label-current-text">Current</span>
+                    </span>
+                </ng-template>
+                <div class="tab-panel board-panel">
+                    <div class="panel-title board-history-title">Call history (last hour)</div>
+                    <div class="board-split">
+                        <div class="board-main">
+                            <div class="history-table-wrap">
+                                <table class="history dispatch-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>System</th>
+                                            <th>Talkgroup</th>
+                                            <th>TGID</th>
+                                            <th>Source</th>
+                                            <th>MHz</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr *ngFor="let c of callsLastHour"
+                                            (click)="onHistoryRowClick(c)"
+                                            [class.row-playing]="isRowPlaying(c)"
+                                            [class.row-selected]="selectedHistoryCall?.id === c?.id"
+                                            [style.background-color]="getTransmissionHistoryBackgroundColor(c)">
+                                            <td>{{ c?.dateTime | date:timeFormat }}</td>
+                                            <td>{{ c?.systemData?.label || c?.system }}</td>
+                                            <td>{{ c?.talkgroupData?.label || c?.talkgroup || '0' }}</td>
+                                            <td>{{ displayTgidForCall(c) }}</td>
+                                            <td class="history-source-cell"
+                                                [matTooltip]="displayUnitForCall(c)"
+                                                [matTooltipDisabled]="displayUnitForCall(c) === '—'">{{ displayUnitForCall(c) }}</td>
+                                            <td>{{ formatFrequencyMHz(c?.frequency) || '—' }}</td>
+                                        </tr>
+                                        <tr *ngIf="callsLastHour.length === 0" class="empty-row">
+                                            <td colspan="6">No calls in the last hour</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <ng-container *ngIf="detailCall as dc">
+                            <div class="call-detail-panel" *ngIf="showDetailFieldGrid(dc)">
+                                <div class="detail-header">Transmission detail</div>
+                                <div class="detail-grid">
+                                    <div class="detail-k">System</div>
+                                    <div class="detail-v">{{ dc.systemData?.label || dc.system }}</div>
+                                    <div class="detail-k">Talkgroup</div>
+                                    <div class="detail-v">{{ dc.talkgroupData?.label || dc.talkgroup }}</div>
+                                    <div class="detail-k">TGID</div>
+                                    <div class="detail-v">{{ displayTgidForCall(dc) }}</div>
+                                    <div class="detail-k">Tag</div>
+                                    <div class="detail-v">{{ dc.talkgroupData?.tag || dc.tagData?.label || '—' }}</div>
+                                    <div class="detail-k">Unit</div>
+                                    <div class="detail-v">{{ displayUnitForCall(dc) }}</div>
+                                    <div class="detail-k">Frequency</div>
+                                    <div class="detail-v">{{ formatFrequencyMHz(dc.frequency) || '—' }}</div>
+                                    <div class="detail-k">Site</div>
+                                    <div class="detail-v">{{ dc.siteData?.label || (dc.site ? 'Site ' + dc.site : '—') }}</div>
+                                    <div class="detail-k">Time (start)</div>
+                                    <div class="detail-v">{{ dc.dateTime | date:timeFormat }}</div>
+                                    <div class="detail-k">Call ID</div>
+                                    <div class="detail-v">{{ dc.id }}</div>
+                                </div>
+                                <div class="transcript-block" *ngIf="isTranscriptionEnabled && dc.transcript">
+                                    <div class="detail-k">Transcript</div>
+                                    <p class="transcript-body">{{ dc.transcript }}</p>
+                                </div>
+                            </div>
+                            </ng-container>
+                        </div>
+                        <aside class="board-alerts-rail" *ngIf="isTranscriptionEnabled">
+                            <rdio-scanner-alerts
+                                [boardEmbed]="true"
+                                [boardEmbedMax]="12"
+                                (openFullAlerts)="showAlertsPanel()">
+                            </rdio-scanner-alerts>
+                        </aside>
+                    </div>
+
+                    <div class="auth" [ngClass]="{ visible: auth }">
+                        <div class="auth-container">
+                            <div class="auth-form">
+                                <form class="mat-elevation-z8" autocomplete="off" [formGroup]="authForm" (ngSubmit)="authenticate()">
+                                    <mat-form-field>
+                                        <input #password matInput type="password" autocomplete="off" formControlName="password"
+                                            placeholder="Unlock code" (blur)="authFocus()">
+                                        <mat-error *ngIf="authForm.get('password')?.hasError('expired')">
+                                            This unlock code has expired
+                                        </mat-error>
+                                        <mat-error *ngIf="authForm.get('password')?.hasError('tooMany')">
+                                            Too many connections
+                                        </mat-error>
+                                    </mat-form-field>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </mat-tab>
+
+            <mat-tab label="Archive">
+                <div class="tab-panel archive-panel tab-embed">
+                    <p class="archive-hint">Recent calls are on <strong>Current</strong>. Use <strong>Search filters</strong> at the top, then scroll the <strong>Results</strong> table to play or download archive audio.</p>
+                    <rdio-scanner-search #archiveSearch></rdio-scanner-search>
+                </div>
+            </mat-tab>
+
+            <mat-tab label="Channels">
+                <div class="tab-panel channels-panel tab-embed">
+                    <rdio-scanner-select></rdio-scanner-select>
+                </div>
+            </mat-tab>
+
+            <mat-tab label="Alerts" *ngIf="isTranscriptionEnabled">
+                <div class="tab-panel alerts-tab-panel tab-embed">
+                    <rdio-scanner-alerts panelMode="alertsAndPreferences"></rdio-scanner-alerts>
+                </div>
+            </mat-tab>
+
+            <mat-tab label="Transcripts" *ngIf="isTranscriptionEnabled">
+                <div class="tab-panel transcripts-tab-panel tab-embed">
+                    <rdio-scanner-alerts panelMode="transcripts"></rdio-scanner-alerts>
+                </div>
+            </mat-tab>
+
+            <mat-tab label="Stats" *ngIf="isTranscriptionEnabled">
+                <div class="tab-panel stats-tab-panel tab-embed">
+                    <rdio-scanner-alerts panelMode="stats"></rdio-scanner-alerts>
+                </div>
+            </mat-tab>
+
+            <mat-tab label="Settings">
+                <div class="tab-panel settings-tab-panel tab-embed">
+                    <rdio-scanner-settings></rdio-scanner-settings>
+                </div>
+            </mat-tab>
+        </mat-tab-group>
     </div>
 
-    <!-- Stripe Checkout Modal -->
     <div class="checkout-overlay" *ngIf="showCheckout">
         <div class="checkout-backdrop" (click)="onCheckoutCancel()"></div>
         <div class="checkout-modal">

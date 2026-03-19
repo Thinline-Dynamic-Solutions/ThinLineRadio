@@ -1,89 +1,19 @@
-<mat-sidenav-container [hasBackdrop]="false">
-    <mat-sidenav #searchPanel [autoFocus]="false" [disableClose]="true" position="start" (closedStart)="onSearchPanelClosed()">
-        <div class="panel search">
-            <mat-toolbar>
-                <div>
-                    <button mat-icon-button (click)="searchPanel.close()">
-                        <mat-icon>arrow_forward</mat-icon>
-                    </button>
-                </div>
-            </mat-toolbar>
-            <div #scrollableSearch>
-                <div>
-                    <rdio-scanner-search #searchComponent></rdio-scanner-search>
-                </div>
-            </div>
-        </div>
-    </mat-sidenav>
-    <mat-sidenav #selectPanel [autoFocus]="false" [disableClose]="true" position="end">
-        <div class="panel select">
-            <mat-toolbar>
-                <div>
-                    <button mat-icon-button (click)="selectPanel.close()">
-                        <mat-icon>arrow_back</mat-icon>
-                    </button>
-                </div>
-            </mat-toolbar>
-            <div #scrollableSelect>
-                <div>
-                    <rdio-scanner-select></rdio-scanner-select>
-                </div>
-            </div>
-        </div>
-    </mat-sidenav>
-    <mat-sidenav #settingsPanel [autoFocus]="false" [disableClose]="true" position="end">
-        <div class="panel settings">
-            <mat-toolbar>
-                <div>
-                    <button mat-icon-button (click)="settingsPanel.close()">
-                        <mat-icon>arrow_back</mat-icon>
-                    </button>
-                </div>
-            </mat-toolbar>
-            <div #scrollableSettings>
-                <div>
-                    <rdio-scanner-settings #settingsComponent></rdio-scanner-settings>
-                </div>
-            </div>
-        </div>
-    </mat-sidenav>
-    <mat-sidenav #alertsPanel [autoFocus]="false" [disableClose]="true" position="end">
-        <div class="panel alerts">
-            <mat-toolbar>
-                <div>
-                    <button mat-icon-button (click)="alertsPanel.close()">
-                        <mat-icon>arrow_back</mat-icon>
-                    </button>
-                </div>
-            </mat-toolbar>
-            <div #scrollableAlerts>
-                <div>
-                    <rdio-scanner-alerts #alertsComponent></rdio-scanner-alerts>
-                </div>
-            </div>
-        </div>
-    </mat-sidenav>
-    <mat-sidenav-content>
-        <!-- Email Verification (shown when there's a verification token) -->
-        <rdio-scanner-email-verification 
-            *ngIf="hasVerificationToken()">
-        </rdio-scanner-email-verification>
+<div class="scanner-shell">
+    <!-- Email Verification (shown when there's a verification token) -->
+    <rdio-scanner-email-verification 
+        *ngIf="hasVerificationToken()">
+    </rdio-scanner-email-verification>
 
-        <!-- Auth Screen (shown when authentication is required and user is not authenticated) -->
-        <rdio-scanner-auth-screen 
-            *ngIf="!hasVerificationToken() && authRequired && !userAuthenticated"
-            (authenticated)="onUserAuthenticated()">
-        </rdio-scanner-auth-screen>
+    <!-- Auth Screen (shown when authentication is required and user is not authenticated) -->
+    <rdio-scanner-auth-screen 
+        *ngIf="!hasVerificationToken() && authRequired && !userAuthenticated"
+        (authenticated)="onUserAuthenticated()">
+    </rdio-scanner-auth-screen>
 
-        <!-- Main Component (shown when authentication is not required or user is authenticated) -->
-        <rdio-scanner-main
-            *ngIf="!hasVerificationToken() && (!authRequired || userAuthenticated)"
-            (openSearchPanel)="scrollTop(scrollableSearch); searchPanel.open(); searchComponent.searchCalls()"
-            (openSelectPanel)="scrollTop(scrollableSelect); selectPanel.open();"
-            (openSettingsPanel)="scrollTop(scrollableSettings); settingsPanel.open();"
-            (openAlertsPanel)="scrollTop(scrollableAlerts); alertsPanel.open();"
-            (toggleFullscreen)="toggleFullscreen()"
-            (signOut)="onSignOut()">
-        </rdio-scanner-main>
-    </mat-sidenav-content>
-</mat-sidenav-container>
+    <!-- Main Component (shown when authentication is not required or user is authenticated) -->
+    <rdio-scanner-main
+        *ngIf="!hasVerificationToken() && (!authRequired || userAuthenticated)"
+        (toggleFullscreen)="toggleFullscreen()"
+        (signOut)="onSignOut()">
+    </rdio-scanner-main>
+</div>

@@ -2528,7 +2528,7 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Query all alerts (no userId filter) with system, talkgroup labels, call transcripts, and tone sequence
-		query := fmt.Sprintf(`SELECT a."alertId", a."callId", a."systemId", a."talkgroupId", a."alertType", a."toneDetected", a."toneSetId", a."keywordsMatched", a."transcriptSnippet", a."createdAt", s."label" as "systemLabel", s."systemRef" as "systemRef", t."label" as "talkgroupLabel", t."name" as "talkgroupName", c."transcript" as "callTranscript", c."transcriptionStatus" as "callTranscriptionStatus", c."toneSequence" as "callToneSequence", c."timestamp" as "callTimestamp" FROM "alerts" a LEFT JOIN "systems" s ON s."systemId" = a."systemId" LEFT JOIN "talkgroups" t ON t."talkgroupId" = a."talkgroupId" LEFT JOIN "calls" c ON c."callId" = a."callId" %s ORDER BY a."createdAt" DESC LIMIT %d`, whereClause, maxAlerts)
+		query := fmt.Sprintf(`SELECT a."alertId", a."callId", a."systemId", a."talkgroupId", a."alertType", a."toneDetected", a."toneSetId", a."keywordsMatched", a."transcriptSnippet", a."createdAt", s."label" as "systemLabel", s."systemRef" as "systemRef", t."label" as "talkgroupLabel", t."name" as "talkgroupName", c."transcript" as "callTranscript", c."transcriptionStatus" as "callTranscriptionStatus", c."toneSequence" as "callToneSequence", c."timestamp" as "callTimestamp", c."alertSummary" as "callAlertSummary" FROM "alerts" a LEFT JOIN "systems" s ON s."systemId" = a."systemId" LEFT JOIN "talkgroups" t ON t."talkgroupId" = a."talkgroupId" LEFT JOIN "calls" c ON c."callId" = a."callId" %s ORDER BY a."createdAt" DESC LIMIT %d`, whereClause, maxAlerts)
 		rows, err := api.Controller.Database.Sql.Query(query)
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to query alerts: %v", err))
@@ -2558,9 +2558,10 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 				callTranscriptionStatus sql.NullString
 				callToneSequence        sql.NullString
 				callTimestamp           sql.NullInt64
+				callAlertSummary        sql.NullString
 			)
 
-			if err := rows.Scan(&alertId, &callId, &systemId, &talkgroupId, &alertType, &toneDetected, &toneSetId, &keywordsMatched, &transcriptSnippet, &createdAt, &systemLabel, &systemRef, &talkgroupLabel, &talkgroupName, &callTranscript, &callTranscriptionStatus, &callToneSequence, &callTimestamp); err != nil {
+			if err := rows.Scan(&alertId, &callId, &systemId, &talkgroupId, &alertType, &toneDetected, &toneSetId, &keywordsMatched, &transcriptSnippet, &createdAt, &systemLabel, &systemRef, &talkgroupLabel, &talkgroupName, &callTranscript, &callTranscriptionStatus, &callToneSequence, &callTimestamp, &callAlertSummary); err != nil {
 				continue
 			}
 
@@ -2656,6 +2657,9 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if callTranscriptionStatus.Valid {
 				alertMap["transcriptionStatus"] = callTranscriptionStatus.String
+			}
+			if callAlertSummary.Valid && callAlertSummary.String != "" {
+				alertMap["alertSummary"] = callAlertSummary.String
 			}
 			if toneSetId != "" {
 				alertMap["toneSetId"] = toneSetId
@@ -3093,7 +3097,7 @@ func (api *Api) TranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	whereClause := strings.Join(where, " AND ")
 
-	query := fmt.Sprintf(`SELECT c."callId", c."systemId", c."talkgroupId", c."transcriptionStatus", c."transcript", c."timestamp", s."label" as "systemLabel", t."label" as "talkgroupLabel", t."name" as "talkgroupName" FROM "calls" c LEFT JOIN "systems" s ON s."systemId" = c."systemId" LEFT JOIN "talkgroups" t ON t."talkgroupId" = c."talkgroupId" WHERE %s ORDER BY c."callId" DESC LIMIT %d OFFSET %d`, whereClause, limit, offset)
+	query := fmt.Sprintf(`SELECT c."callId", c."systemId", c."talkgroupId", c."transcriptionStatus", c."transcript", c."timestamp", c."alertSummary", s."label" as "systemLabel", t."label" as "talkgroupLabel", t."name" as "talkgroupName" FROM "calls" c LEFT JOIN "systems" s ON s."systemId" = c."systemId" LEFT JOIN "talkgroups" t ON t."talkgroupId" = c."talkgroupId" WHERE %s ORDER BY c."callId" DESC LIMIT %d OFFSET %d`, whereClause, limit, offset)
 
 	rows, err := api.Controller.Database.Sql.Query(query)
 	if err != nil {
@@ -3112,12 +3116,13 @@ func (api *Api) TranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 			transcriptionStatus sql.NullString
 			transcript          sql.NullString
 			callTimestamp       sql.NullInt64
+			alertSummary        sql.NullString
 			systemLabel         sql.NullString
 			talkgroupLabel      sql.NullString
 			talkgroupName       sql.NullString
 		)
 
-		if err := rows.Scan(&callId, &sysId, &tgId, &transcriptionStatus, &transcript, &callTimestamp, &systemLabel, &talkgroupLabel, &talkgroupName); err != nil {
+		if err := rows.Scan(&callId, &sysId, &tgId, &transcriptionStatus, &transcript, &callTimestamp, &alertSummary, &systemLabel, &talkgroupLabel, &talkgroupName); err != nil {
 			continue
 		}
 
@@ -3132,6 +3137,9 @@ func (api *Api) TranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 			entry["timestamp"] = callTimestamp.Int64
 		} else {
 			entry["timestamp"] = nil
+		}
+		if alertSummary.Valid && alertSummary.String != "" {
+			entry["alertSummary"] = alertSummary.String
 		}
 		if systemLabel.Valid {
 			entry["systemLabel"] = systemLabel.String

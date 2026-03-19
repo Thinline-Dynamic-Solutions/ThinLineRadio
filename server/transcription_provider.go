@@ -37,10 +37,11 @@ type TranscriptionOptions struct {
 
 // TranscriptionResult contains the transcription result
 type TranscriptionResult struct {
-	Transcript   string             `json:"transcript"`    // The transcribed text (in ALL CAPS)
-	Confidence   float64            `json:"confidence"`    // Confidence score (0.0-1.0)
-	Language     string             `json:"language"`      // Detected language code
-	Segments     []TranscriptSegment `json:"segments"`     // Timestamped segments (optional)
+	Transcript   string              `json:"transcript"`    // The transcribed text (in ALL CAPS)
+	Confidence   float64             `json:"confidence"`    // Confidence score (0.0-1.0)
+	Language     string              `json:"language"`     // Detected language code
+	Segments     []TranscriptSegment `json:"segments"`      // Timestamped segments (optional)
+	AlertSummary string             `json:"alert_summary"` // Optional short summary from Whisper server (e.g. from integrated Ollama); used for alerts when present
 }
 
 // TranscriptSegment represents a timestamped segment of the transcript

@@ -344,10 +344,14 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 	var responseLanguage string
 	var segments []TranscriptSegment
 
+	var alertSummary string
+
 	if gptTranscribe {
-		// json format: only {"text": "..."}
+		// json format: {"text": "..."}, optional "summary" or "alert_summary" from integrated Whisper server
 		var apiResponse struct {
-			Text string `json:"text"`
+			Text         string `json:"text"`
+			Summary      string `json:"summary"`
+			AlertSummary string `json:"alert_summary"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
 			return nil, fmt.Errorf("failed to parse API response: %v", err)
@@ -361,13 +365,19 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 				Confidence: 0.95,
 			}}
 		}
+		alertSummary = apiResponse.Summary
+		if alertSummary == "" {
+			alertSummary = apiResponse.AlertSummary
+		}
 	} else {
-		// verbose_json format: full structure with segments, language, duration
+		// verbose_json format: full structure with segments, language, duration; optional "summary" or "alert_summary"
 		var apiResponse struct {
-			Text     string  `json:"text"`
-			Language string  `json:"language"`
-			Duration float64 `json:"duration"`
-			Segments []struct {
+			Text         string  `json:"text"`
+			Language     string  `json:"language"`
+			Duration     float64 `json:"duration"`
+			Summary      string  `json:"summary"`
+			AlertSummary string  `json:"alert_summary"`
+			Segments     []struct {
 				Id    int     `json:"id"`
 				Start float64 `json:"start"`
 				End   float64 `json:"end"`
@@ -379,6 +389,10 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 		}
 		transcript = strings.ToUpper(strings.TrimSpace(apiResponse.Text))
 		responseLanguage = apiResponse.Language
+		alertSummary = apiResponse.Summary
+		if alertSummary == "" {
+			alertSummary = apiResponse.AlertSummary
+		}
 
 		for _, seg := range apiResponse.Segments {
 			segText := strings.TrimSpace(seg.Text)
@@ -404,10 +418,11 @@ func (api *WhisperAPITranscription) attemptTranscribe(audio []byte, options Tran
 	}
 
 	return &TranscriptionResult{
-		Transcript: transcript,
-		Confidence: 0.95,
-		Language:   responseLanguage,
-		Segments:   segments,
+		Transcript:   transcript,
+		Confidence:   0.95,
+		Language:     responseLanguage,
+		Segments:     segments,
+		AlertSummary: strings.TrimSpace(alertSummary),
 	}, nil
 }
 

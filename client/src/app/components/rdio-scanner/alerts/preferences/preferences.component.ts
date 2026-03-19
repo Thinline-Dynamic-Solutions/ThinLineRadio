@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { RdioScannerAlertPreference, RdioScannerConfig, RdioScannerKeywordList, RdioScannerService, RdioScannerSystem, RdioScannerTalkgroup, RdioScannerToneSet } from '../../rdio-scanner';
 import { AlertsService } from '../alerts.service';
 import { Subscription } from 'rxjs';
@@ -43,7 +43,9 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     systems: RdioScannerSystem[] = [];
     loading = false;
     saving = false;
-    expandedSystems: Map<number, boolean> = new Map();
+    searchQuery = '';
+    isSearchFocused = false;
+    detailSystemId: number | null = null;
     expandedTags: Map<string, boolean> = new Map();
     
     private pin?: string;
@@ -59,6 +61,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         private rdioScannerService: RdioScannerService,
         private alertsService: AlertsService,
         private tagColorService: TagColorService,
+        private cdRef: ChangeDetectorRef,
     ) {
         this.config = this.rdioScannerService.getConfig();
         if (this.config?.systems?.length) {
@@ -78,6 +81,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         if (this.config?.systems?.length) {
             this.systems = this.config.systems || [];
             this.rebuildSystemIndexes();
+            this.syncDetailSystemSelection();
         }
 
         if (this.pin && this.systems.length > 0) {
@@ -96,6 +100,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
                 this.config = event.config;
                 this.systems = this.config?.systems || [];
                 this.rebuildSystemIndexes();
+                this.syncDetailSystemSelection();
                 this.pin = this.rdioScannerService.readPin();
                 if (this.pin) {
                     this.loadPreferences(true);
@@ -157,6 +162,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
                 (preferences || []).forEach(pref => this.storePreference(pref));
                 this.preferencesLoaded = true;
                 this.loading = false;
+                this.syncDetailSystemSelection();
             },
             error: (error) => {
                 console.error('Error loading preferences:', error);
@@ -185,10 +191,68 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         });
     }
 
+    getFilteredTalkgroups(system: RdioScannerSystem): RdioScannerTalkgroup[] {
+        if (!this.searchQuery.trim()) return system.talkgroups || [];
+        const q = this.searchQuery.toLowerCase();
+        return (system.talkgroups || []).filter(tg => {
+            const label = (tg.label || '').toLowerCase();
+            const name = (tg.name || '').toLowerCase();
+            const id = tg.id.toString();
+            return label.includes(q) || name.includes(q) || id.includes(q);
+        });
+    }
+
+    getSystemsForSidebar(): RdioScannerSystem[] {
+        if (!this.systems?.length) return [];
+        const q = this.searchQuery.trim().toLowerCase();
+        if (!q) return this.systems;
+        return this.systems.filter(system => {
+            if ((system.label || '').toLowerCase().includes(q)) return true;
+            return (system.talkgroups || []).some(tg => {
+                const label = (tg.label || '').toLowerCase();
+                const name = (tg.name || '').toLowerCase();
+                const id = tg.id.toString();
+                return label.includes(q) || name.includes(q) || id.includes(q);
+            });
+        });
+    }
+
+    selectDetailSystem(systemId: number): void {
+        this.detailSystemId = systemId;
+        this.cdRef.markForCheck();
+    }
+
+    getDetailSystem(): RdioScannerSystem | undefined {
+        if (this.detailSystemId == null) return undefined;
+        return this.systems.find(s => s.id === this.detailSystemId);
+    }
+
+    onSearchChange(): void {
+        this.syncDetailSystemSelection();
+        this.cdRef.markForCheck();
+    }
+
+    clearSearch(): void {
+        this.searchQuery = '';
+        this.syncDetailSystemSelection();
+        this.cdRef.markForCheck();
+    }
+
+    private syncDetailSystemSelection(): void {
+        const list = this.getSystemsForSidebar();
+        if (list.length === 0) {
+            this.detailSystemId = null;
+            return;
+        }
+        if (this.detailSystemId == null || !list.some(s => s.id === this.detailSystemId)) {
+            this.detailSystemId = list[0].id;
+        }
+    }
+
     groupTalkgroupsByTag(system: RdioScannerSystem): Array<{tag: string, talkgroups: RdioScannerTalkgroup[]}> {
         const groups: Map<string, RdioScannerTalkgroup[]> = new Map();
-        
-        (system.talkgroups || []).forEach(tg => {
+
+        this.getFilteredTalkgroups(system).forEach(tg => {
             const tag = tg.tag || 'Untagged';
             if (!groups.has(tag)) {
                 groups.set(tag, []);
@@ -196,7 +260,6 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
             groups.get(tag)!.push(tg);
         });
 
-        // Sort tags alphabetically, keeping 'Untagged' last
         const sorted = Array.from(groups.entries()).sort((a, b) => {
             if (a[0] === 'Untagged') return 1;
             if (b[0] === 'Untagged') return -1;
@@ -206,30 +269,34 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         return sorted.map(([tag, talkgroups]) => ({ tag, talkgroups }));
     }
 
-    isSystemExpanded(systemId: number): boolean {
-        return this.expandedSystems.get(systemId) || false;
-    }
-
-    toggleSystem(systemId: number, event?: Event): void {
-        if (event) {
-            event.stopPropagation();
-        }
-        const current = this.expandedSystems.get(systemId) || false;
-        this.expandedSystems.set(systemId, !current);
-    }
-
     isTagExpanded(systemId: number, tag: string): boolean {
         const key = `${systemId}-${tag}`;
         return this.expandedTags.get(key) || false;
     }
 
-    toggleTag(systemId: number, tag: string, event?: Event): void {
-        if (event) {
-            event.stopPropagation();
+    /** Ignore clicks on alert toggle / enable buttons so expand/collapse stays predictable. */
+    onTagHeaderClick(event: Event, systemId: number, tag: string): void {
+        const t = event.target as HTMLElement | null;
+        if (t?.closest?.('.tag-toggle') || t?.closest?.('.tag-actions')) {
+            return;
         }
+        this.toggleTag(systemId, tag, event);
+    }
+
+    toggleTag(systemId: number, tag: string, event?: Event): void {
+        event?.stopPropagation();
         const key = `${systemId}-${tag}`;
         const current = this.expandedTags.get(key) || false;
-        this.expandedTags.set(key, !current);
+        this.expandedTags = new Map(this.expandedTags).set(key, !current);
+        this.cdRef.markForCheck();
+    }
+
+    trackTagGroup(_index: number, item: { tag: string }): string {
+        return item.tag;
+    }
+
+    trackTalkgroup(_index: number, tg: RdioScannerTalkgroup): number {
+        return tg.id;
     }
 
     getPreference(systemId: number, talkgroupId: number): RdioScannerAlertPreference {
@@ -489,20 +556,20 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     }
 
     getEnabledCountInSystem(system: RdioScannerSystem): number {
-        return (system.talkgroups || []).filter(tg => {
+        return this.getFilteredTalkgroups(system).filter(tg => {
             const pref = this.getPreference(system.id, tg.id);
             return pref.alertEnabled;
         }).length;
     }
 
     isAllEnabledInSystem(system: RdioScannerSystem): boolean {
-        const talkgroups = system.talkgroups || [];
+        const talkgroups = this.getFilteredTalkgroups(system);
         if (talkgroups.length === 0) return false;
         return talkgroups.every(tg => this.getPreference(system.id, tg.id).alertEnabled);
     }
 
     isSomeEnabledInSystem(system: RdioScannerSystem): boolean {
-        const talkgroups = system.talkgroups || [];
+        const talkgroups = this.getFilteredTalkgroups(system);
         if (talkgroups.length === 0) return false;
         const enabled = talkgroups.filter(tg => this.getPreference(system.id, tg.id).alertEnabled).length;
         return enabled > 0 && enabled < talkgroups.length;
@@ -511,7 +578,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     toggleSystemAlerts(system: RdioScannerSystem, event: Event): void {
         event.stopPropagation();
         const allEnabled = this.isAllEnabledInSystem(system);
-        (system.talkgroups || []).forEach(tg => {
+        this.getFilteredTalkgroups(system).forEach(tg => {
             const pref = this.getPreference(system.id, tg.id);
             pref.alertEnabled = !allEnabled;
             if (!pref.alertEnabled) {
@@ -527,7 +594,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     isAllEnabledInTag(systemId: number, tag: string): boolean {
         const system = this.systems.find(s => s.id === systemId);
         if (!system) return false;
-        const talkgroups = (system.talkgroups || []).filter(tg => (tg.tag || 'Untagged') === tag);
+        const talkgroups = this.getFilteredTalkgroups(system).filter(tg => (tg.tag || 'Untagged') === tag);
         if (talkgroups.length === 0) return false;
         return talkgroups.every(tg => this.getPreference(systemId, tg.id).alertEnabled);
     }
@@ -535,7 +602,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     isSomeEnabledInTag(systemId: number, tag: string): boolean {
         const system = this.systems.find(s => s.id === systemId);
         if (!system) return false;
-        const talkgroups = (system.talkgroups || []).filter(tg => (tg.tag || 'Untagged') === tag);
+        const talkgroups = this.getFilteredTalkgroups(system).filter(tg => (tg.tag || 'Untagged') === tag);
         if (talkgroups.length === 0) return false;
         const enabled = talkgroups.filter(tg => this.getPreference(systemId, tg.id).alertEnabled).length;
         return enabled > 0 && enabled < talkgroups.length;
@@ -560,7 +627,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     isKeywordListSelectedForTag(systemId: number, tag: string, listId: number): boolean {
         const system = this.systems.find(s => s.id === systemId);
         if (!system) return false;
-        const talkgroups = (system.talkgroups || []).filter(tg => (tg.tag || 'Untagged') === tag);
+        const talkgroups = this.getFilteredTalkgroups(system).filter(tg => (tg.tag || 'Untagged') === tag);
         if (talkgroups.length === 0) return false;
         
         // Check if ALL talkgroups in this tag have this keyword list selected

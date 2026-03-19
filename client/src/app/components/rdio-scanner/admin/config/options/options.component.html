@@ -386,11 +386,11 @@
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value" formGroupName="transcriptionConfig">
     <p>
       <span class="mat-body">Transcription Provider</span><br>
-      <span class="mat-caption">Select the transcription provider to use. OpenAI-compatible API supports Whisper, Qwen3-ASR, or official OpenAI servers.</span>
+      <span class="mat-caption">Select the transcription provider to use. OpenAI-compatible API supports Whisper or official OpenAI servers.</span>
     </p>
     <mat-form-field floatLabel="auto">
       <mat-select formControlName="provider" placeholder="Provider">
-        <mat-option value="whisper-api">OpenAI-Compatible API (Whisper / Qwen3-ASR / OpenAI)</mat-option>
+        <mat-option value="whisper-api">OpenAI-Compatible API (Whisper / OpenAI)</mat-option>
         <mat-option value="azure">Azure Speech Services</mat-option>
         <mat-option value="google">Google Cloud Speech-to-Text</mat-option>
         <mat-option value="assemblyai">AssemblyAI</mat-option>
@@ -402,25 +402,11 @@
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" formGroupName="transcriptionConfig">
     <p>
       <span class="mat-body">API Server URL</span><br>
-      <span class="mat-caption">Base URL of OpenAI-compatible server. Supports local Whisper (http://localhost:8000), local Qwen3-ASR (http://localhost:8000), or official OpenAI API (https://api.openai.com). Server must provide /v1/audio/transcriptions endpoint.</span>
+      <span class="mat-caption">Base URL of OpenAI-compatible server. Supports local Whisper (http://localhost:8000) or official OpenAI API (https://api.openai.com). Server must provide /v1/audio/transcriptions endpoint.</span>
     </p>
     <mat-form-field floatLabel="auto">
       <input type="text" matInput formControlName="whisperAPIURL" placeholder="http://localhost:8000">
     </mat-form-field>
-  </div>
-
-  <!-- Info box about Whisper vs Qwen -->
-  <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" style="margin: 8px 0;">
-    <div style="background-color: rgba(33, 150, 243, 0.08); border-left: 4px solid #2196f3; padding: 12px 16px; border-radius: 4px; width: 100%;">
-      <p style="margin: 0 0 8px 0; font-weight: 600; color: #64B5F6;">
-        <mat-icon style="vertical-align: middle; font-size: 18px; width: 18px; height: 18px; margin-right: 4px;">info</mat-icon>
-        Local ASR Servers - Whisper vs Qwen3-ASR
-      </p>
-      <p style="margin: 0; font-size: 13px; line-height: 1.5;">
-        <strong>Whisper:</strong> Excellent general accuracy, widely tested, best for English-primary dispatch.<br>
-        <strong>Qwen3-ASR:</strong> State-of-the-art multilingual support (30 languages + 22 Chinese dialects), excellent for singing/music, competitive accuracy. Both support prompting and automatic tone removal.
-      </p>
-    </div>
   </div>
 
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api'" formGroupName="transcriptionConfig">
@@ -551,14 +537,13 @@
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value)" formGroupName="transcriptionConfig">
     <p>
       <span class="mat-body">Custom Prompt / Context</span><br>
-      <span class="mat-caption">Optional prompt to guide transcription with custom terminology, unit names, formatting preferences, etc. Works with Whisper (as "prompt") and Qwen3-ASR (as "context"). Example: "Fire/EMS dispatch radio. Units: ENGINE, TRUCK, LADDER, QUINT, RESCUE, SQUAD, MEDIC AMBULANCE. Radio channels: VECC FIRE #, CITY FIRE #."</span>
+      <span class="mat-caption">Optional prompt to guide transcription with custom terminology, unit names, formatting preferences, etc. Example: "Fire/EMS dispatch radio. Units: ENGINE, TRUCK, LADDER, QUINT, RESCUE, SQUAD, MEDIC AMBULANCE. Radio channels: VECC FIRE #, CITY FIRE #."</span>
     </p>
     <mat-form-field floatLabel="auto" style="width: 100%;">
       <textarea matInput formControlName="prompt" placeholder="Enter custom prompt to guide transcription..." rows="4"></textarea>
-      <mat-hint>Leave empty for default behavior. Compatible with both Whisper and Qwen3-ASR.</mat-hint>
+      <mat-hint>Leave empty for default behavior.</mat-hint>
     </mat-form-field>
   </div>
-
 
   <div class="row" *ngIf="form?.get('transcriptionEnabled')?.value && (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value)" formGroupName="transcriptionConfig">
     <p>

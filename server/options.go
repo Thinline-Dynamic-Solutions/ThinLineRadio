@@ -174,6 +174,7 @@ type TranscriptionConfig struct {
 	// until transcription is complete).  Default: 300 seconds (5 minutes).  Set higher for very
 	// slow CPUs.  0 = use default.
 	TimeoutSeconds int `json:"timeoutSeconds"`
+
 }
 
 const (

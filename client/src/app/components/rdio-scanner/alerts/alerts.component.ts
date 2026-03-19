@@ -17,12 +17,15 @@
  * ****************************************************************************
  */
 
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { RdioScannerAlert, RdioScannerCall, RdioScannerService, RdioScannerTranscript } from '../rdio-scanner';
 import { AlertsService } from './alerts.service';
 import { AlertSoundService } from '../alert-sound.service';
 import { SettingsService } from '../settings/settings.service';
+
+/** Main board hosts separate tabs; each instance uses one mode. */
+export type RdioScannerAlertsPanelMode = 'alertsAndPreferences' | 'transcripts' | 'stats';
 
 interface IncidentSubcategory {
     label: string;
@@ -54,13 +57,24 @@ interface StatsData {
     templateUrl: './alerts.component.html',
 })
 export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
+    /** Compact “recent alerts” rail for the Current tab (no tabs / transcript UI). */
+    @Input() boardEmbed = false;
+    @Input() boardEmbedMax = 12;
+    @Output() openFullAlerts = new EventEmitter<void>();
+
+    /**
+     * `alertsAndPreferences` — inner tabs Alerts + Preferences only (main Board “Alerts” tab).
+     * `transcripts` / `stats` — single full-page panel (separate main Board tabs).
+     */
+    @Input() panelMode: RdioScannerAlertsPanelMode = 'alertsAndPreferences';
+
     alerts: RdioScannerAlert[] = [];
     transcripts: RdioScannerTranscript[] = [];
     loading = false;
     loadingTranscripts = false;
     limit = 50;
     transcriptOffset = 0;
-    activeTab: 'alerts' | 'preferences' | 'transcripts' | 'stats' = 'alerts';
+    activeTab: 'alerts' | 'preferences' = 'alerts';
 
     // Stats
     stats: StatsData | null = null;
@@ -97,35 +111,57 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     ngOnInit(): void {
         // Refresh PIN from localStorage
         this.pin = this.rdioScannerService.readPin();
-        
-        // Load systems and talkgroups from config
-        this.loadSystemsAndTalkgroups();
-        
-        // Initial full load
-        this.loadAlerts(true);
-        this.loadTranscripts();
+
+        if (!this.boardEmbed && (this.panelMode === 'alertsAndPreferences' || this.panelMode === 'transcripts')) {
+            this.loadSystemsAndTalkgroups();
+        }
+
+        if (this.boardEmbed || this.panelMode !== 'stats') {
+            this.loadAlerts(true);
+        }
+        if (!this.boardEmbed && this.panelMode === 'transcripts') {
+            this.loadTranscripts();
+        }
+        if (!this.boardEmbed && this.panelMode === 'stats') {
+            this.loadStats();
+            this.startStatsRefreshInterval();
+        }
         this.requestNotificationPermission();
-        
+
         // Subscribe to shared alerts service for updates
         this.alertsService.alerts$.subscribe(alerts => {
             this.alerts = alerts;
             this.updateGroupedAlerts();
         });
-        
+
         // Listen for real-time alerts via WebSocket
         this.rdioScannerService.event.subscribe((event: any) => {
             if (event.alert) {
-                // Fetch only new alerts (incremental)
-                this.loadAlerts(false);
-                this.loadTranscripts();
-                this.showNotification(event.alert);
-                this.playAlertSound();
+                if (this.boardEmbed || this.panelMode !== 'stats') {
+                    this.loadAlerts(false);
+                }
+                if (!this.boardEmbed && this.panelMode === 'transcripts') {
+                    this.loadTranscripts();
+                }
+                if (this.boardEmbed || this.panelMode === 'alertsAndPreferences') {
+                    this.showNotification(event.alert);
+                    this.playAlertSound();
+                }
             }
-            if (event.config) {
-                // Config updated, reload systems/talkgroups
+            if (event.config && !this.boardEmbed && (this.panelMode === 'alertsAndPreferences' || this.panelMode === 'transcripts')) {
                 this.loadSystemsAndTalkgroups();
             }
         });
+    }
+
+    get recentAlertsFlat(): RdioScannerAlert[] {
+        if (!this.boardEmbed || !this.alerts?.length) {
+            return [];
+        }
+        return [...this.alerts]
+            .filter((a) => a?.createdAt != null)
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+            .slice(0, this.boardEmbedMax);
     }
     
     loadSystemsAndTalkgroups(): void {
@@ -212,21 +248,25 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         }
     }
 
-    setTab(tab: 'alerts' | 'preferences' | 'transcripts' | 'stats'): void {
+    setTab(tab: 'alerts' | 'preferences'): void {
+        if (this.panelMode !== 'alertsAndPreferences') {
+            return;
+        }
         this.activeTab = tab;
         if (tab === 'alerts') {
             this.loadAlerts(false);
-        } else if (tab === 'transcripts') {
-            this.loadTranscripts();
-        } else if (tab === 'stats') {
-            this.loadStats();
-            // Auto-refresh every 30 seconds while on stats tab
-            if (this.statsRefreshInterval) clearInterval(this.statsRefreshInterval);
-            this.statsRefreshInterval = setInterval(() => {
-                if (this.activeTab === 'stats') this.loadStats();
-                else clearInterval(this.statsRefreshInterval);
-            }, 30000);
         }
+    }
+
+    private startStatsRefreshInterval(): void {
+        if (this.statsRefreshInterval) {
+            clearInterval(this.statsRefreshInterval);
+        }
+        this.statsRefreshInterval = setInterval(() => {
+            if (this.panelMode === 'stats') {
+                this.loadStats();
+            }
+        }, 30000);
     }
 
     loadStats(): void {
