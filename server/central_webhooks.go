@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -475,14 +476,39 @@ func (api *Api) CentralWebhookUsersListHandler(w http.ResponseWriter, r *http.Re
 	})
 }
 
+// parseJSONStringOrNumberID decodes a JSON value that may be a string or number (e.g. Hydra rr_system_id).
+func parseJSONStringOrNumberID(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.TrimSpace(s)
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return strings.TrimSpace(string(n))
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err == nil {
+		return strconv.FormatInt(int64(f), 10)
+	}
+	return ""
+}
+
 // CentralManagementPairRequest is the payload sent by Central Management to pair this server.
+// During provisioning, rr_system_id (Hydra / Radio Reference system id from api/systems/get) is the
+// canonical identifier stored as centralManagementServerID and sent on TLR register/heartbeat.
+// server_id is still accepted when rr_system_id is omitted (backward compatibility).
 type CentralManagementPairRequest struct {
-	AdminPassword         string `json:"admin_password"`
-	CentralManagementURL  string `json:"central_management_url"`
-	APIKey                string `json:"api_key"`
-	ServerName            string `json:"server_name"`
-	ServerID              string `json:"server_id"`
-	ServerURL             string `json:"server_url"` // the TLR server's own public URL, so it can register back correctly
+	AdminPassword         string          `json:"admin_password"`
+	NewAdminPassword      string          `json:"new_admin_password,omitempty"` // if set, scanner admin password is changed to this after a successful pair
+	CentralManagementURL  string          `json:"central_management_url"`
+	APIKey                string          `json:"api_key"`
+	ServerName            string          `json:"server_name"`
+	ServerID              string          `json:"server_id"`
+	RrSystemID            json.RawMessage `json:"rr_system_id,omitempty"`
+	ServerURL             string          `json:"server_url"` // the TLR server's own public URL, so it can register back correctly
 }
 
 // PairWithCentralManagementHandler is called by the Central Management backend to authenticate
@@ -527,9 +553,15 @@ func (api *Api) PairWithCentralManagementHandler(w http.ResponseWriter, r *http.
 	api.Controller.Options.CentralManagementAPIKey = req.APIKey
 	if req.ServerName != "" {
 		api.Controller.Options.CentralManagementServerName = req.ServerName
+		// Match scanner UI / emails / client branding to the name used in Central Management.
+		api.Controller.Options.Branding = req.ServerName
 	}
-	if req.ServerID != "" {
-		api.Controller.Options.CentralManagementServerID = req.ServerID
+	effectiveServerID := strings.TrimSpace(req.ServerID)
+	if rr := parseJSONStringOrNumberID(req.RrSystemID); rr != "" {
+		effectiveServerID = rr
+	}
+	if effectiveServerID != "" {
+		api.Controller.Options.CentralManagementServerID = effectiveServerID
 	}
 	// Store the server's own public URL so heartbeats register correctly instead of falling back to localhost.
 	if req.ServerURL != "" {
@@ -543,6 +575,22 @@ func (api *Api) PairWithCentralManagementHandler(w http.ResponseWriter, r *http.
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "failed to save configuration"})
 		return
+	}
+
+	newPass := strings.TrimSpace(req.NewAdminPassword)
+	if newPass != "" {
+		if api.Controller.Admin == nil {
+			log.Printf("Central Management pairing: Admin is nil, cannot apply new_admin_password")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "cannot apply new admin password"})
+			return
+		}
+		if err := api.Controller.Admin.ChangePassword(req.AdminPassword, newPass); err != nil {
+			log.Printf("Central Management pairing: failed to set new admin password: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "paired but failed to set new admin password"})
+			return
+		}
 	}
 
 	// Start (or restart) the central management service so it registers immediately.

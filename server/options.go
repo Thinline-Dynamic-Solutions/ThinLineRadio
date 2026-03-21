@@ -137,7 +137,7 @@ type Options struct {
 	CentralManagementURL        string            `json:"centralManagementURL"`
 	CentralManagementAPIKey     string            `json:"centralManagementAPIKey"`
 	CentralManagementServerName string            `json:"centralManagementServerName"` // Optional friendly name for this server
-	CentralManagementServerID   string            `json:"centralManagementServerID"`   // Identifier used to correlate users/CSV imports
+	CentralManagementServerID   string            `json:"centralManagementServerID"`   // CM correlation id; when provisioned from CM with Hydra, equals rr_system_id (Radio Reference system id)
 	// Hydra transcription integration (provisioned from Central Management)
 	HydraAPIKey                 string            `json:"hydraAPIKey"`                 // Hydra API key for transcription retrieval
 	HydraTranscriptionEnabled   bool              `json:"hydraTranscriptionEnabled"`   // Per-server toggle for Hydra transcription
