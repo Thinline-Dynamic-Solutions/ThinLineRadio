@@ -34,6 +34,7 @@ const (
 type RegistrationCode struct {
 	Id          uint64
 	Code        string
+	Label       string
 	UserGroupId uint64
 	CreatedBy   uint64
 	ExpiresAt   int64
@@ -110,22 +111,33 @@ func generateRegistrationCode() (string, error) {
 	return code, nil
 }
 
-func (rcs *RegistrationCodes) GenerateCode(groupId, createdBy uint64, expiresAt int64, maxUses int, isOneTime bool) (*RegistrationCode, error) {
-	code, err := generateRegistrationCode()
-	if err != nil {
-		return nil, err
-	}
-	
-	// Ensure uniqueness
-	for rcs.GetByCode(code) != nil {
+func (rcs *RegistrationCodes) GenerateCode(groupId, createdBy uint64, label, customCode string, expiresAt int64, maxUses int, isOneTime bool) (*RegistrationCode, error) {
+	var code string
+
+	if customCode != "" {
+		// Use the admin-supplied code after normalising and checking uniqueness
+		code = strings.ToUpper(strings.TrimSpace(customCode))
+		if rcs.GetByCode(code) != nil {
+			return nil, fmt.Errorf("registration code already exists")
+		}
+	} else {
+		// Auto-generate a random code
+		var err error
 		code, err = generateRegistrationCode()
 		if err != nil {
 			return nil, err
 		}
+		for rcs.GetByCode(code) != nil {
+			code, err = generateRegistrationCode()
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
-	
+
 	regCode := &RegistrationCode{
 		Code:        code,
+		Label:       label,
 		UserGroupId: groupId,
 		CreatedBy:   createdBy,
 		ExpiresAt:   expiresAt,
@@ -135,7 +147,7 @@ func (rcs *RegistrationCodes) GenerateCode(groupId, createdBy uint64, expiresAt 
 		IsActive:    true,
 		CreatedAt:   time.Now().Unix(),
 	}
-	
+
 	return regCode, nil
 }
 
@@ -143,7 +155,7 @@ func (rcs *RegistrationCodes) Load(db *Database) error {
 	rcs.mutex.Lock()
 	defer rcs.mutex.Unlock()
 
-	rows, err := db.Sql.Query(`SELECT "registrationCodeId", "code", "userGroupId", "createdBy", "expiresAt", "maxUses", "currentUses", "isOneTime", "isActive", "createdAt" FROM "registrationCodes"`)
+	rows, err := db.Sql.Query(`SELECT "registrationCodeId", "code", "label", "userGroupId", "createdBy", "expiresAt", "maxUses", "currentUses", "isOneTime", "isActive", "createdAt" FROM "registrationCodes"`)
 	if err != nil {
 		return err
 	}
@@ -160,6 +172,7 @@ func (rcs *RegistrationCodes) Load(db *Database) error {
 		err := rows.Scan(
 			&code.Id,
 			&code.Code,
+			&code.Label,
 			&code.UserGroupId,
 			&createdBy,
 			&expiresAt,
@@ -262,9 +275,9 @@ func (rcs *RegistrationCodes) Add(code *RegistrationCode, db *Database) error {
 	}
 	
 	err := db.Sql.QueryRow(
-		`INSERT INTO "registrationCodes" ("code", "userGroupId", "createdBy", "expiresAt", "maxUses", "currentUses", "isOneTime", "isActive", "createdAt") 
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING "registrationCodeId"`,
-		code.Code, code.UserGroupId, createdBy, code.ExpiresAt, code.MaxUses, code.CurrentUses, code.IsOneTime, code.IsActive, code.CreatedAt,
+		`INSERT INTO "registrationCodes" ("code", "label", "userGroupId", "createdBy", "expiresAt", "maxUses", "currentUses", "isOneTime", "isActive", "createdAt") 
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "registrationCodeId"`,
+		code.Code, code.Label, code.UserGroupId, createdBy, code.ExpiresAt, code.MaxUses, code.CurrentUses, code.IsOneTime, code.IsActive, code.CreatedAt,
 	).Scan(&id)
 
 	if err != nil {

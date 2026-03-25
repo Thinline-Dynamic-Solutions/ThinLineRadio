@@ -36,9 +36,6 @@ type Options struct {
 	DuplicateDetectionMode             string  `json:"duplicateDetectionMode"`             // "legacy" or "advanced"
 	DuplicateDetectionTimeFrame        uint    `json:"duplicateDetectionTimeFrame"`        // Legacy mode timeframe
 	AdvancedDetectionTimeFrame         uint    `json:"advancedDetectionTimeFrame"`         // Advanced mode timeframe
-	AudioFingerprintEnabled            bool    `json:"audioFingerprintEnabled"`            // Enable content-based duplicate detection
-	AudioFingerprintThreshold          float64 `json:"audioFingerprintThreshold"`          // Hamming distance threshold (0.0–1.0); lower = stricter
-	AudioFingerprintTimeFrame          uint    `json:"audioFingerprintTimeFrame"`          // Time window (ms) for fingerprint DB lookup
 	Email                          string `json:"email"`
 	KeypadBeeps                 string `json:"keypadBeeps"`
 	MaxClients                  uint   `json:"maxClients"`
@@ -89,6 +86,7 @@ type Options struct {
 	StripePriceId               string            `json:"stripePriceId"`
 	BaseUrl                     string            `json:"baseUrl"`
 	TranscriptionConfig         TranscriptionConfig `json:"transcriptionConfig"`
+	TranscriptionEnhancement    bool                `json:"transcriptionEnhancement"`
 	TranscriptionFailureThreshold uint            `json:"transcriptionFailureThreshold"`
 	ToneDetectionIssueThreshold uint            `json:"toneDetectionIssueThreshold"`
 	AlertRetentionDays          uint              `json:"alertRetentionDays"`
@@ -137,7 +135,7 @@ type Options struct {
 	CentralManagementURL        string            `json:"centralManagementURL"`
 	CentralManagementAPIKey     string            `json:"centralManagementAPIKey"`
 	CentralManagementServerName string            `json:"centralManagementServerName"` // Optional friendly name for this server
-	CentralManagementServerID   string            `json:"centralManagementServerID"`   // Identifier used to correlate users/CSV imports
+	CentralManagementServerID   string            `json:"centralManagementServerID"`   // CM correlation id; when provisioned from CM with Hydra, equals rr_system_id (Radio Reference system id)
 	// Hydra transcription integration (provisioned from Central Management)
 	HydraAPIKey                 string            `json:"hydraAPIKey"`                 // Hydra API key for transcription retrieval
 	HydraTranscriptionEnabled   bool              `json:"hydraTranscriptionEnabled"`   // Per-server toggle for Hydra transcription
@@ -174,6 +172,7 @@ type TranscriptionConfig struct {
 	// until transcription is complete).  Default: 300 seconds (5 minutes).  Set higher for very
 	// slow CPUs.  0 = use default.
 	TimeoutSeconds int `json:"timeoutSeconds"`
+
 }
 
 const (
@@ -272,27 +271,6 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.AdvancedDetectionTimeFrame = uint(v)
 	default:
 		options.AdvancedDetectionTimeFrame = defaults.options.advancedDetectionTimeFrame
-	}
-
-	switch v := m["audioFingerprintEnabled"].(type) {
-	case bool:
-		options.AudioFingerprintEnabled = v
-	default:
-		options.AudioFingerprintEnabled = defaults.options.audioFingerprintEnabled
-	}
-
-	switch v := m["audioFingerprintThreshold"].(type) {
-	case float64:
-		options.AudioFingerprintThreshold = v
-	default:
-		options.AudioFingerprintThreshold = defaults.options.audioFingerprintThreshold
-	}
-
-	switch v := m["audioFingerprintTimeFrame"].(type) {
-	case float64:
-		options.AudioFingerprintTimeFrame = uint(v)
-	default:
-		options.AudioFingerprintTimeFrame = defaults.options.audioFingerprintTimeFrame
 	}
 
 	switch v := m["email"].(type) {
@@ -826,6 +804,10 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.ReconnectionMaxBufferSize = defaults.options.reconnectionMaxBufferSize
 	}
 
+	if v, ok := m["transcriptionEnhancement"].(bool); ok {
+		options.TranscriptionEnhancement = v
+	}
+
 	// Transcription: allow flat toggle and nested config from admin UI
 	if v, ok := m["transcriptionEnabled"].(bool); ok {
 		options.TranscriptionConfig.Enabled = v
@@ -936,9 +918,6 @@ func (options *Options) Read(db *Database) error {
 	options.DuplicateDetectionMode = defaults.options.duplicateDetectionMode
 	options.DuplicateDetectionTimeFrame = defaults.options.duplicateDetectionTimeFrame
 	options.AdvancedDetectionTimeFrame = defaults.options.advancedDetectionTimeFrame
-	options.AudioFingerprintEnabled = defaults.options.audioFingerprintEnabled
-	options.AudioFingerprintThreshold = defaults.options.audioFingerprintThreshold
-	options.AudioFingerprintTimeFrame = defaults.options.audioFingerprintTimeFrame
 	options.Email = defaults.options.email
 	options.KeypadBeeps = defaults.options.keypadBeeps
 	options.MaxClients = defaults.options.maxClients
@@ -1074,28 +1053,7 @@ func (options *Options) Read(db *Database) error {
 					options.AdvancedDetectionTimeFrame = uint(v)
 				}
 			}
-		case "audioFingerprintEnabled":
-			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-				switch v := f.(type) {
-				case bool:
-					options.AudioFingerprintEnabled = v
-				}
-			}
-		case "audioFingerprintThreshold":
-			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-				switch v := f.(type) {
-				case float64:
-					options.AudioFingerprintThreshold = v
-				}
-			}
-		case "audioFingerprintTimeFrame":
-			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-				switch v := f.(type) {
-				case float64:
-					options.AudioFingerprintTimeFrame = uint(v)
-				}
-			}
-		case "email":
+	case "email":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
 				case string:
@@ -1417,6 +1375,13 @@ func (options *Options) Read(db *Database) error {
 			if err := json.Unmarshal([]byte(value.String), &cfg); err == nil {
 				options.TranscriptionConfig = cfg
 			}
+		case "transcriptionEnhancement":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.TranscriptionEnhancement = v
+				}
+			}
 		case "alertRetentionDays":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -1700,9 +1665,6 @@ func (options *Options) Write(db *Database) error {
 	set("duplicateDetectionMode", options.DuplicateDetectionMode)
 	set("duplicateDetectionTimeFrame", options.DuplicateDetectionTimeFrame)
 	set("advancedDetectionTimeFrame", options.AdvancedDetectionTimeFrame)
-	set("audioFingerprintEnabled", options.AudioFingerprintEnabled)
-	set("audioFingerprintThreshold", options.AudioFingerprintThreshold)
-	set("audioFingerprintTimeFrame", options.AudioFingerprintTimeFrame)
 	set("email", options.Email)
 	set("keypadBeeps", options.KeypadBeeps)
 	set("maxClients", options.MaxClients)
@@ -1784,6 +1746,7 @@ func (options *Options) Write(db *Database) error {
 	set("reconnectionMaxBufferSize", options.ReconnectionMaxBufferSize)
 	// Persist entire transcription config as a single JSON blob
 	set("transcriptionConfig", options.TranscriptionConfig)
+	set("transcriptionEnhancement", options.TranscriptionEnhancement)
 
 	if setErr != nil {
 		tx.Rollback()

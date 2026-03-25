@@ -124,10 +124,12 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 		title = baseTitle
 	}
 
-	// Message: Full transcript if available, otherwise fallback to alert type info
+	// Message: use summary if available and not generic "RADIO TRAFFIC", otherwise use transcript
+	summaryIsUseful := call != nil && call.AlertSummary != "" && strings.ToUpper(strings.TrimSpace(call.AlertSummary)) != "RADIO TRAFFIC"
 	message := ""
-	if call != nil && call.Transcript != "" && len(call.Transcript) > 0 {
-		// Use full transcript
+	if summaryIsUseful {
+		message = strings.ToUpper(call.AlertSummary)
+	} else if call != nil && call.Transcript != "" {
 		message = strings.ToUpper(call.Transcript)
 	} else {
 		// Fallback to alert type info if no transcript
@@ -399,10 +401,12 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 		title = baseTitle
 	}
 
-	// Message: Full transcript if available, otherwise fallback to alert type info
+	// Message: use summary if available and not generic "RADIO TRAFFIC", otherwise use transcript
+	summaryIsUseful := call != nil && call.AlertSummary != "" && strings.ToUpper(strings.TrimSpace(call.AlertSummary)) != "RADIO TRAFFIC"
 	message := ""
-	if call != nil && call.Transcript != "" && len(call.Transcript) > 0 {
-		// Use full transcript
+	if summaryIsUseful {
+		message = strings.ToUpper(call.AlertSummary)
+	} else if call != nil && call.Transcript != "" {
 		message = strings.ToUpper(call.Transcript)
 	} else {
 		// Fallback to alert type info if no transcript

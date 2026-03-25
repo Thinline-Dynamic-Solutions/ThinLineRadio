@@ -2508,3 +2508,13 @@ func migrateAudioFingerprinting(db *Database) error {
 	log.Println("audio fingerprint migration completed successfully")
 	return nil
 }
+
+// migrateRegistrationCodesLabel adds the optional label column to registrationCodes
+// so admins can give each code a human-readable name for easy tracking.
+func migrateRegistrationCodesLabel(db *Database) error {
+	query := `ALTER TABLE "registrationCodes" ADD COLUMN IF NOT EXISTS "label" text NOT NULL DEFAULT ''`
+	if _, err := db.Sql.Exec(query); err != nil {
+		return fmt.Errorf("migrateRegistrationCodesLabel: %w", err)
+	}
+	return nil
+}

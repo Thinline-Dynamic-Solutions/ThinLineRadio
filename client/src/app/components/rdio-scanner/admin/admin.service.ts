@@ -283,6 +283,7 @@ export interface Options {
     stripePriceId?: string;
     baseUrl?: string;
     transcriptionEnabled?: boolean;
+    transcriptionEnhancement?: boolean;
     transcriptionConfig?: {
         enabled?: boolean;
         provider?: string;
@@ -1266,6 +1267,7 @@ export class RdioScannerAdminService implements OnDestroy {
             adminLocalhostOnly: this.ngFormBuilder.control(options?.adminLocalhostOnly ?? false),
             adminPasswordLoginDisabled: this.ngFormBuilder.control(options?.adminPasswordLoginDisabled ?? false),
             transcriptionEnabled: this.ngFormBuilder.control(transcriptionConfig?.enabled || false),
+            transcriptionEnhancement: this.ngFormBuilder.control(options?.transcriptionEnhancement ?? false),
             transcriptionConfig: this.ngFormBuilder.group({
                 enabled: this.ngFormBuilder.control(transcriptionConfig?.enabled || false),
                 provider: this.ngFormBuilder.control(transcriptionConfig?.provider || 'whisper-api'),

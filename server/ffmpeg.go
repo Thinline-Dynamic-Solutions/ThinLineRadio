@@ -44,9 +44,7 @@ func NewFFMpeg() *FFMpeg {
 		ffmpeg.available = true
 
 		if l, err := stdout.ReadString('\n'); err == nil {
-			// Updated regex to support multi-digit version numbers (e.g. FFmpeg 8.0, 8.0.1, 10.2.1, etc.)
-			// Patch version is optional to handle both "8.0" and "8.0.1" formats
-			s := regexp.MustCompile(`.*ffmpeg version .{0,1}([0-9]+)\.([0-9]+)(?:\.[0-9]+)?.*`).ReplaceAllString(strings.TrimSuffix(l, "\n"), "$1.$2")
+			s := regexp.MustCompile(`.*ffmpeg version .{0,1}([0-9])\.([0-9])\.[0-9].*`).ReplaceAllString(strings.TrimSuffix(l, "\n"), "$1.$2")
 			v := strings.Split(s, ".")
 			if len(v) > 1 {
 				if major, err := strconv.Atoi(v[0]); err == nil {
@@ -61,6 +59,37 @@ func NewFFMpeg() *FFMpeg {
 	}
 
 	return ffmpeg
+}
+
+func (ffmpeg *FFMpeg) ProcessForTranscription(audio []byte) []byte {
+	if !ffmpeg.available {
+		return audio
+	}
+
+	args := []string{
+		"-i", "-",
+		"-af", "highpass=f=120,acompressor=threshold=-20dB:ratio=4:attack=8:release=80:makeup=6dB,afftdn=nf=-20",
+		"-ar", "16000",
+		"-ac", "1",
+		"-c:a", "pcm_s16le",
+		"-f", "wav",
+		"-",
+	}
+
+	cmd := exec.Command("ffmpeg", args...)
+	cmd.Stdin = bytes.NewReader(audio)
+
+	stdout := bytes.NewBuffer([]byte(nil))
+	cmd.Stdout = stdout
+
+	stderr := bytes.NewBuffer([]byte(nil))
+	cmd.Stderr = stderr
+
+	if err := cmd.Run(); err == nil {
+		return stdout.Bytes()
+	}
+
+	return audio
 }
 
 func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint) error {
@@ -94,13 +123,13 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 
 	if ffmpeg.version43 {
 		if mode == AUDIO_CONVERSION_ENABLED_NORM {
-			args = append(args, "-af", "apad=whole_dur=3s,loudnorm")
+			args = append(args, "-af", "apad=whole_dur=3s,highpass=f=120,acompressor=threshold=-20dB:ratio=4:attack=8:release=80:makeup=6dB,afftdn=nf=-20,equalizer=f=250:width_type=q:width=2:g=-3,equalizer=f=3000:width_type=q:width=2:g=5,lowpass=f=3200,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.891:attack=5:release=50")
 		} else if mode == AUDIO_CONVERSION_ENABLED_LOUD_NORM {
-			args = append(args, "-af", "apad=whole_dur=3s,loudnorm=I=-16:TP=-1.5:LRA=11")
+			args = append(args, "-af", "apad=whole_dur=3s,highpass=f=120,acompressor=threshold=-20dB:ratio=4:attack=8:release=80:makeup=6dB,afftdn=nf=-20,equalizer=f=250:width_type=q:width=2:g=-3,equalizer=f=3000:width_type=q:width=2:g=5,lowpass=f=3200,loudnorm=I=-14:TP=-1.5:LRA=3,alimiter=limit=0.891:attack=5:release=50")
 		}
 	}
 
-	args = append(args, "-c:a", "aac", "-b:a", "32k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
+	args = append(args, "-c:a", "aac", "-b:a", "48k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")
 
 	cmd := exec.Command("ffmpeg", args...)
 	cmd.Stdin = bytes.NewReader(call.Audio)

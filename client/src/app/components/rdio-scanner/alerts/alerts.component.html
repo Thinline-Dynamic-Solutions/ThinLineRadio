@@ -1,37 +1,101 @@
-<div class="alerts-container">
-    <div class="alerts-header">
+<div class="alerts-container" [class.board-embed]="boardEmbed">
+    <div class="alerts-header-embed" *ngIf="boardEmbed">
+        <span class="embed-title">Recent alerts</span>
+        <div class="embed-actions">
+            <button type="button" class="btn-embed-refresh" (click)="loadAlerts(true)" [disabled]="loading" title="Refresh">
+                <mat-icon>refresh</mat-icon>
+            </button>
+            <button type="button" class="btn-embed-open-all" (click)="openFullAlerts.emit()">
+                All alerts
+            </button>
+        </div>
+    </div>
+
+    <div class="alerts-header" *ngIf="!boardEmbed && panelMode === 'alertsAndPreferences'">
         <div class="header-tabs">
-            <button class="tab-button" [class.active]="activeTab === 'alerts'" (click)="setTab('alerts')">
+            <button type="button" class="tab-button" [class.active]="activeTab === 'alerts'" (click)="setTab('alerts')">
                 <mat-icon>notifications</mat-icon>
                 Alerts
             </button>
-            <button class="tab-button" [class.active]="activeTab === 'transcripts'" (click)="setTab('transcripts')">
-                <mat-icon>forum</mat-icon>
-                Transcripts
-            </button>
-            <button class="tab-button" [class.active]="activeTab === 'preferences'" (click)="setTab('preferences')">
-                <mat-icon>settings</mat-icon>
+            <button type="button" class="tab-button" [class.active]="activeTab === 'preferences'" (click)="setTab('preferences')">
+                <mat-icon>tune</mat-icon>
                 Preferences
-            </button>
-            <button class="tab-button" [class.active]="activeTab === 'stats'" (click)="setTab('stats')">
-                <mat-icon>bar_chart</mat-icon>
-                Stats
             </button>
         </div>
         <div class="header-actions">
-            <button *ngIf="activeTab === 'alerts'" class="btn-refresh" (click)="loadAlerts()" [disabled]="loading">
+            <button *ngIf="activeTab === 'alerts'" type="button" class="btn-refresh" (click)="loadAlerts()" [disabled]="loading">
                 {{ loading ? 'Loading...' : 'Refresh Alerts' }}
             </button>
-            <button *ngIf="activeTab === 'transcripts'" class="btn-refresh" (click)="loadTranscripts()" [disabled]="loadingTranscripts">
+        </div>
+    </div>
+
+    <div class="alerts-header alerts-header-aux" *ngIf="!boardEmbed && panelMode === 'transcripts'">
+        <span class="aux-heading"><mat-icon>forum</mat-icon> Transcripts</span>
+        <div class="header-actions">
+            <button type="button" class="btn-refresh" (click)="loadTranscripts()" [disabled]="loadingTranscripts">
                 {{ loadingTranscripts ? 'Loading...' : 'Refresh Transcripts' }}
             </button>
-            <button *ngIf="activeTab === 'stats'" class="btn-refresh" (click)="loadStats()" [disabled]="loadingStats">
+        </div>
+    </div>
+
+    <div class="alerts-header alerts-header-aux" *ngIf="!boardEmbed && panelMode === 'stats'">
+        <span class="aux-heading"><mat-icon>bar_chart</mat-icon> Stats</span>
+        <div class="header-actions">
+            <button type="button" class="btn-refresh" (click)="loadStats()" [disabled]="loadingStats">
                 {{ loadingStats ? 'Loading...' : 'Refresh Stats' }}
             </button>
         </div>
     </div>
+
+    <div class="alerts-content board-embed-content" *ngIf="boardEmbed">
+        <div *ngIf="recentAlertsFlat.length === 0 && !loading" class="no-alerts no-alerts-embed">
+            <p>No recent alerts</p>
+        </div>
+        <div *ngIf="loading && recentAlertsFlat.length === 0" class="loading loading-embed">
+            <p>Loading…</p>
+        </div>
+        <div *ngIf="recentAlertsFlat.length > 0" class="alerts-list alerts-list-embed">
+            <div *ngFor="let alert of recentAlertsFlat; trackBy: trackByAlertId"
+                 class="alert-item alert-item-embed"
+                 [class.tone]="alert.alertType === 'tone'"
+                 [class.keyword]="alert.alertType === 'keyword'"
+                 [class.tone-keyword]="alert.alertType === 'tone+keyword'">
+                <div class="alert-header">
+                    <div class="alert-type">
+                        <span class="alert-type-badge">{{ getAlertTypeLabel(alert) }}</span>
+                        <span *ngIf="alert.toneDetected" class="tone-indicator">🔔</span>
+                    </div>
+                    <div class="alert-timestamp">{{ formatTimestamp(alert.createdAt) }}</div>
+                </div>
+                <div class="alert-body">
+                    <div class="alert-channel embed-channel">
+                        <span *ngIf="alert.systemLabel">{{ alert.systemLabel }}</span>
+                        <span *ngIf="!alert.systemLabel">System {{ alert.systemId }}</span>
+                        <span> · </span>
+                        <span *ngIf="alert.talkgroupLabel">{{ alert.talkgroupLabel }}</span>
+                        <span *ngIf="!alert.talkgroupLabel && alert.talkgroupName">{{ alert.talkgroupName }}</span>
+                        <span *ngIf="!alert.talkgroupLabel && !alert.talkgroupName">TG {{ alert.talkgroupId }}</span>
+                    </div>
+                    <div *ngIf="getKeywordsMatched(alert).length > 0" class="alert-keywords">
+                        <span class="keyword-tags">
+                            <span *ngFor="let keyword of getKeywordsMatched(alert)" class="keyword-tag">{{ keyword }}</span>
+                        </span>
+                    </div>
+                    <div *ngIf="alert.alertSummary" class="alert-summary">
+                        <p class="summary-text">{{ alert.alertSummary }}</p>
+                    </div>
+                    <div *ngIf="alert.transcript || alert.transcriptSnippet" class="alert-transcript">
+                        <p class="transcript-text">{{ alert.transcript || alert.transcriptSnippet }}</p>
+                    </div>
+                </div>
+                <div class="alert-actions">
+                    <button type="button" class="btn-play" (click)="playCall(alert.callId)">Play</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
-    <div class="alerts-content" *ngIf="activeTab === 'alerts'">
+    <div class="alerts-content" *ngIf="!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'alerts'">
         <div *ngIf="alerts.length === 0 && !loading" class="no-alerts">
             <p>No alerts</p>
         </div>
@@ -106,6 +170,10 @@
                                     </span>
                                 </div>
                                 
+                                <div *ngIf="alert.alertSummary" class="alert-summary">
+                                    <strong>Summary:</strong>
+                                    <p class="summary-text">{{ alert.alertSummary }}</p>
+                                </div>
                                 <div *ngIf="alert.transcript || alert.transcriptSnippet" class="alert-transcript">
                                     <strong>Transcript:</strong>
                                     <p class="transcript-text">{{ alert.transcript || alert.transcriptSnippet }}</p>
@@ -125,7 +193,7 @@
         </div>
     </div>
     
-    <div class="transcripts-content" *ngIf="activeTab === 'transcripts'">
+    <div class="transcripts-content" *ngIf="!boardEmbed && panelMode === 'transcripts'">
         <!-- Filter Controls -->
         <div class="transcript-filters">
             <div class="filter-row">
@@ -188,6 +256,10 @@
                     </div>
                 </div>
                 <div class="transcript-body">
+                    <div *ngIf="transcript.alertSummary" class="alert-summary">
+                        <strong>Summary:</strong>
+                        <p class="summary-text">{{ transcript.alertSummary }}</p>
+                    </div>
                     <p [innerHTML]="highlightSearchText(transcript.transcript, filterSearch)"></p>
                 </div>
                 <div class="transcript-footer">
@@ -210,12 +282,12 @@
         </div>
     </div>
     
-    <div class="preferences-content" *ngIf="activeTab === 'preferences'">
+    <div class="preferences-content" *ngIf="!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'preferences'">
         <rdio-scanner-alert-preferences></rdio-scanner-alert-preferences>
     </div>
 
     <!-- ── Stats Dashboard ── -->
-    <div class="stats-content" *ngIf="activeTab === 'stats'">
+    <div class="stats-content" *ngIf="!boardEmbed && panelMode === 'stats'">
 
         <div *ngIf="loadingStats && !stats" class="stats-loading">
             <mat-icon>bar_chart</mat-icon>

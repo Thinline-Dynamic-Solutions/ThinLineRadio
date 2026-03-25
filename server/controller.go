@@ -64,9 +64,6 @@ type Controller struct {
 	TransferRequests                 *TransferRequests
 	DeviceTokens                     *DeviceTokens
 	EmailService                     *EmailService
-	AudioFingerprinter               *AudioFingerprinter
-	FingerprintCache                 *FingerprintCache
-	EmitFingerprintCache             *EmitFingerprintCache
 	ToneDetector                     *ToneDetector
 	TranscriptionQueue               *TranscriptionQueue
 	HydraTranscriptionRetrievalQueue *HydraTranscriptionRetrievalQueue
@@ -188,11 +185,6 @@ func NewController(config *Config) *Controller {
 			log.Println("Transcription tone removal debug logging enabled - writing to transcription-tone-debug.log")
 		}
 	}
-
-	// Initialize audio fingerprinter for content-based duplicate detection
-	controller.AudioFingerprinter = NewAudioFingerprinter()
-	controller.FingerprintCache = NewFingerprintCache(30 * time.Second)
-	controller.EmitFingerprintCache = NewEmitFingerprintCache(10 * time.Second)
 
 	// Initialize tone detection and transcription components
 	controller.ToneDetector = NewToneDetector()
@@ -703,16 +695,6 @@ func (controller *Controller) IngestCall(call *Call) {
 		var err error
 		var useAdvanced bool
 
-		// Generate audio fingerprint early so it is available for both duplicate checking
-		// and storage. Runs only when fingerprinting is enabled and FFmpeg is available.
-		if controller.Options.AudioFingerprintEnabled && controller.AudioFingerprinter.Available() {
-			if fp, fpErr := controller.AudioFingerprinter.Generate(call.Audio, call.AudioMime); fpErr == nil {
-				call.AudioFingerprint = fp
-			} else {
-				logCall(call, LogLevelWarn, fmt.Sprintf("fingerprint generation skipped: %v", fpErr))
-			}
-		}
-
 		// Determine if we can use Advanced mode
 		// Requires: Advanced mode enabled AND system has proper site configuration
 		if controller.Options.DuplicateDetectionMode == "advanced" {
@@ -835,42 +817,6 @@ func (controller *Controller) IngestCall(call *Call) {
 			return
 		}
 
-		// Fingerprint check: content-based duplicate detection using spectral similarity.
-		// Two-layer check:
-		//   1. In-memory cache  — catches simultaneous uploads that haven't hit the DB yet
-		//   2. Database query   — catches delayed/out-of-order uploads within the time window
-		if controller.Options.AudioFingerprintEnabled && len(call.AudioFingerprint) > 0 {
-			// Layer 1: cache check+register (atomic — no race condition)
-			if call.System != nil && call.Talkgroup != nil {
-				if controller.FingerprintCache.CheckAndAdd(
-					call.System.Id,
-					call.Talkgroup.Id,
-					call.AudioFingerprint,
-					call.Timestamp.UnixMilli(),
-					controller.AudioFingerprinter,
-					controller.Options.AudioFingerprintThreshold,
-					int64(controller.Options.DuplicateDetectionTimeFrame),
-				) {
-					logCall(call, LogLevelWarn, "duplicate (fingerprint-cache): same audio content detected")
-					return
-				}
-			}
-
-			// Layer 2: DB check for delayed uploads outside the cache window
-			isFpDuplicate, fpErr := controller.Calls.CheckDuplicateByFingerprint(
-				call,
-				controller.Options.AudioFingerprintTimeFrame,
-				controller.Options.AudioFingerprintThreshold,
-				controller.AudioFingerprinter,
-				controller.Database,
-			)
-			if fpErr != nil {
-				logCall(call, LogLevelWarn, fmt.Sprintf("fingerprint duplicate check error (skipping): %v", fpErr))
-			} else if isFpDuplicate {
-				logCall(call, LogLevelWarn, "duplicate (fingerprint): same audio content detected")
-				return
-			}
-		}
 	}
 
 	// Continue processing after duplicate detection
@@ -917,6 +863,14 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 	copy(call.OriginalAudio, call.Audio)
 	call.OriginalAudioMime = call.AudioMime
 
+	// Stage 3.5: Optionally enhance transcription audio with denoising and compression.
+	if controller.Options.TranscriptionEnhancement {
+		if enhanced := controller.FFMpeg.ProcessForTranscription(call.OriginalAudio); len(enhanced) > 0 {
+			call.OriginalAudio = enhanced
+			call.OriginalAudioMime = "audio/wav"
+		}
+	}
+
 	// Stage 4: Encode audio to AAC/M4A for storage and streaming.
 	if convertErr := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion); convertErr != nil {
 		controller.Logs.LogEvent(LogLevelWarn, convertErr.Error())
@@ -954,27 +908,6 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 			}
 		}
 
-		// Cross-talkgroup patch dedup: suppress emit if same audio was already
-		// streamed on a different talkgroup (e.g. FINDLAY + POST41 patch).
-		// The call is already saved to DB so history is preserved on both talkgroups.
-		if controller.Options.AudioFingerprintEnabled &&
-			len(call.AudioFingerprint) > 0 &&
-			call.System != nil && call.Talkgroup != nil {
-			if controller.EmitFingerprintCache.CheckAndRegister(
-				call.System.Id,
-				call.Talkgroup.Id,
-				call.AudioFingerprint,
-				call.Timestamp.UnixMilli(),
-				controller.AudioFingerprinter,
-				controller.Options.AudioFingerprintThreshold,
-				int64(controller.Options.DuplicateDetectionTimeFrame),
-			) {
-				logCall(call, LogLevelInfo, "patch duplicate suppressed at emit (same audio already streamed on another talkgroup)")
-				// Skip emit — call is saved to DB, just not streamed twice
-				go controller.queueTranscriptionIfNeeded(call)
-				return
-			}
-		}
 
 		// IMMEDIATE: Emit call to clients (users can play NOW - zero delay)
 		controller.EmitCall(call)
@@ -3014,12 +2947,6 @@ func (controller *Controller) Start() error {
 	if err = controller.readAllData(); err != nil {
 		return err
 	}
-
-	// Re-initialize fingerprint caches now that options are loaded, so TTLs use
-	// the admin-configured audioFingerprintTimeFrame instead of the hardcoded default.
-	fpTTL := time.Duration(controller.Options.AudioFingerprintTimeFrame) * time.Millisecond
-	controller.FingerprintCache = NewFingerprintCache(fpTTL)
-	controller.EmitFingerprintCache = NewEmitFingerprintCache(fpTTL)
 
 	// Fetch Radio Reference API key from relay server if not already stored
 	if controller.Options.RadioReferenceAPIKey == "" {

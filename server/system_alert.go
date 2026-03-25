@@ -260,6 +260,15 @@ func (controller *Controller) DismissSystemAlert(alertId uint64) error {
 	return nil
 }
 
+// DismissAlertsByType bulk-dismisses all undismissed alerts of a given type.
+// Called when an alert-type toggle is turned off so existing alerts clear immediately.
+func (controller *Controller) DismissAlertsByType(alertType string) {
+	query := fmt.Sprintf(`UPDATE "systemAlerts" SET "dismissed" = true WHERE "alertType" = '%s' AND "dismissed" = false`, alertType)
+	if _, err := controller.Database.Sql.Exec(query); err != nil {
+		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to bulk-dismiss %s alerts: %v", alertType, err))
+	}
+}
+
 // CleanupOldSystemAlerts removes system alerts older than retention days
 func (controller *Controller) CleanupOldSystemAlerts() {
 	retentionDays := controller.Options.AlertRetentionDays
@@ -398,8 +407,26 @@ func (controller *Controller) MonitorToneDetectionIssues() {
 	}
 	timeWindowAgo := time.Now().Add(-time.Duration(timeWindowHours) * time.Hour).UnixMilli()
 
-	// Get talkgroups with tone detection enabled
-	query := `SELECT "talkgroupId", "label", "systemId" FROM "talkgroups" WHERE "toneDetectionEnabled" = true`
+	// Only monitor talkgroups where:
+	//  1. Tone detection is enabled with actual patterns configured (toneSets not empty), AND
+	//  2. At least one user has tone alerts enabled for this talkgroup OR downstream
+	//     forwarding is active — if nobody is subscribed for tone alerts there is
+	//     nothing actionable to report.
+	query := `
+		SELECT t."talkgroupId", t."label", t."systemId"
+		FROM "talkgroups" t
+		WHERE t."toneDetectionEnabled" = true
+		  AND t."toneSets" != '[]'
+		  AND t."toneSets" != ''
+		  AND (
+		    t."toneDownstreamEnabled" = true
+		    OR EXISTS (
+		      SELECT 1 FROM "userAlertPreferences" uap
+		      WHERE uap."talkgroupId" = t."talkgroupId"
+		        AND uap."alertEnabled" = true
+		        AND uap."toneAlerts" = true
+		    )
+		  )`
 	rows, err := controller.Database.Sql.Query(query)
 	if err != nil {
 		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to check tone detection: %v", err))

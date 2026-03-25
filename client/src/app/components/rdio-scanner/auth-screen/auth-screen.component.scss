@@ -1,118 +1,172 @@
-// Ensure the component element itself starts from the top of the parent flex
-// container (mat-sidenav-content uses align-items: center for the main UI,
-// which would push the auth card to the middle and clip the logo at the top
-// on mobile where the visible area is smaller than 100vh).
+// ─── Design tokens ────────────────────────────────────────────────────────────
+$red:           #cc0000;
+$red-hover:     #e53935;
+$bg-screen:     #0f0f0f;
+$bg-card:       #1a1a1a;
+$bg-inner:      #242424;
+$bg-input:      #2a2a2a;
+$border:        #333;
+$border-focus:  #cc0000;
+$text:          #f0f0f0;
+$text-muted:    #999;
+$text-hint:     #777;
+// ──────────────────────────────────────────────────────────────────────────────
+
 :host {
   display: block;
   width: 100%;
-  align-self: flex-start; // Override parent align-items: center → start from top
+  align-self: flex-start;
 }
 
 .auth-screen {
-  display: block; // Block layout — centering is handled by margin: auto on .auth-container
+  display: block;
   min-height: 100vh;
-  min-height: 100dvh; // Use dynamic viewport height on modern browsers
-  background: #f5f5f5;
+  min-height: 100dvh;
+  background: $bg-screen;
   padding: 20px;
-  padding-top: calc(40px + env(safe-area-inset-top, 0px)); // Account for iOS notch / status bar
+  padding-top: calc(40px + env(safe-area-inset-top, 0px));
   box-sizing: border-box;
 }
-
 
 .auth-container {
-  background: white;
+  background: $bg-card;
   border-radius: 8px;
   padding: 40px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
   box-sizing: border-box;
-  border: 1px solid #e0e0e0;
-  margin: 0 auto; // Center horizontally — reliable regardless of flex parent behavior
+  border: 1px solid $border;
+  margin: 0 auto;
 }
 
+// ─── Header ───────────────────────────────────────────────────────────────────
 .auth-header {
   text-align: center;
   margin-bottom: 30px;
 
   .auth-logo {
-    max-width: 120px;
-    max-height: 120px;
+    max-width: 90px;
+    max-height: 90px;
     width: auto;
     height: auto;
-    margin-bottom: 20px;
+    margin: 0 auto 16px;
     display: block;
-    margin-left: auto;
-    margin-right: auto;
     object-fit: contain;
-    overflow: hidden;
-    // Border radius will be applied via inline style from getLogoBorderRadius()
-    // This ensures the rounded corners are visible
   }
 
   h1 {
-    color: #333;
-    margin: 0 0 10px 0;
+    color: $text;
+    margin: 0 0 10px;
     font-size: 28px;
     font-weight: 300;
   }
 
   p {
-    color: #666;
+    color: $text-muted;
     margin: 0;
     font-size: 14px;
   }
 }
 
+.brand-banner-footer {
+  display: block;
+  width: 60%;
+  max-width: 220px;
+  height: auto;
+  margin: 28px auto 0;
+  object-fit: contain;
+  opacity: 0.35;
+  pointer-events: none;
+  user-select: none;
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
 .auth-tabs {
   display: flex;
   margin-bottom: 30px;
   border-radius: 4px;
   overflow: hidden;
-  border: 1px solid #e0e0e0;
+  border: 1px solid $border;
 
   button {
     flex: 1;
     padding: 12px 20px;
     border: none;
-    background: #fafafa;
-    color: #666;
+    background: $bg-inner;
+    color: $text-muted;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: background 0.2s, color 0.2s;
     font-size: 14px;
     font-weight: 500;
 
     &:hover {
-      background: #f0f0f0;
+      background: #2e2e2e;
+      color: $text;
     }
 
     &.active {
-      background: #424242;
-      color: white;
+      background: $red;
+      color: #fff;
     }
 
-    &:first-child {
-      border-right: 1px solid #e0e0e0;
+    & + button {
+      border-left: 1px solid $border;
     }
   }
 }
 
+// ─── Form ─────────────────────────────────────────────────────────────────────
 .auth-form {
   .full-width {
     width: 100%;
     margin-bottom: 20px;
   }
 
-  // Login method toggle buttons
-  button[type="button"] {
-    &.active {
-      background: #424242 !important;
-      color: white !important;
+  // Angular Material outline field — dark overrides
+  ::ng-deep .mat-mdc-form-field {
+    // Input text
+    input.mat-mdc-input-element,
+    .mdc-text-field__input {
+      color: $text !important;
+      caret-color: $red;
+    }
+
+    // Floating label
+    .mat-mdc-floating-label,
+    .mdc-floating-label {
+      color: $text-muted !important;
+    }
+
+    // Outline border (idle)
+    .mdc-notched-outline__leading,
+    .mdc-notched-outline__notch,
+    .mdc-notched-outline__trailing {
+      border-color: $border !important;
+    }
+
+    // Outline border (focused)
+    &.mat-focused {
+      .mdc-notched-outline__leading,
+      .mdc-notched-outline__notch,
+      .mdc-notched-outline__trailing {
+        border-color: $red !important;
+      }
+
+      .mat-mdc-floating-label,
+      .mdc-floating-label {
+        color: $red !important;
+      }
+    }
+
+    // Hint text
+    .mat-mdc-form-field-hint {
+      color: $text-hint;
     }
   }
 
   .group-admin-description {
-    color: #666;
+    color: $text-muted;
     font-size: 14px;
     margin-bottom: 24px;
     text-align: center;
@@ -120,66 +174,56 @@
   }
 
   .error-message {
-    color: #f44336;
+    color: #ff8a80;
     font-size: 14px;
     margin-bottom: 16px;
     text-align: center;
-    padding: 8px;
-    background: #ffebee;
+    padding: 10px 12px;
+    background: rgba(204, 0, 0, 0.15);
     border-radius: 4px;
-    border: 1px solid #ffcdd2;
+    border: 1px solid rgba(204, 0, 0, 0.4);
   }
 
   .success-message {
     text-align: center;
-    margin-bottom: 20px;
-    padding: 16px;
-    background: #e8f5e8;
-    border-radius: 4px;
-    border: 1px solid #c8e6c9;
+    padding: 20px;
+    background: $bg-inner;
+    border-radius: 8px;
+    border: 1px solid $border;
 
     mat-icon {
-      font-size: 32px;
-      color: #4caf50;
-      margin-bottom: 8px;
-      width: 32px;
-      height: 32px;
+      font-size: 48px;
+      color: $red;
+      margin-bottom: 12px;
+      width: 48px;
+      height: 48px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      
-      // Force the icon to be perfectly circular
-      border-radius: 50%;
-      overflow: hidden;
-      background-color: transparent;
-      
-      // Ensure the icon content is centered and circular
-      &::before {
-        content: '';
-        border-radius: 50%;
-      }
-      
-      // Override any Material Design icon styling that might cause squared corners
-      .material-icons {
-        border-radius: 50%;
-      }
+    }
+
+    h3 {
+      color: $text;
+      margin: 0 0 12px;
+      font-size: 20px;
+      font-weight: 500;
     }
 
     p {
-      color: #2e7d32;
-      margin: 0 0 12px 0;
+      color: $text-muted;
+      margin: 0 0 12px;
       font-size: 14px;
+      line-height: 1.6;
     }
 
     button {
-      color: #424242;
-      font-size: 12px;
-      padding: 4px 8px;
-      min-width: auto;
+      color: $red;
+      font-size: 13px;
     }
   }
 
-  button[type="submit"] {
+  button[type="submit"],
+  button[type="button"].full-width {
     width: 100%;
     padding: 12px;
     font-size: 16px;
@@ -190,55 +234,99 @@
       margin-right: 8px;
     }
   }
+
+  // Login method toggle buttons
+  button[type="button"] {
+    &.active {
+      background: $red !important;
+      color: #fff !important;
+    }
+  }
+
+  // Paragraph links (e.g. "Already have an account?")
+  p {
+    color: $text-muted;
+    font-size: 14px;
+    text-align: center;
+    margin-top: 16px;
+
+    a {
+      color: $red;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+        color: $red-hover;
+      }
+    }
+  }
 }
 
+// ─── Support section ──────────────────────────────────────────────────────────
 .support-section {
   margin-top: 30px;
   padding-top: 20px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid $border;
   text-align: center;
 
   .support-text {
     margin: 0;
-    color: #666;
+    color: $text-muted;
     font-size: 14px;
   }
 
   .support-link {
-    color: #424242;
+    color: $red;
     text-decoration: none;
     font-weight: 500;
 
     &:hover {
       text-decoration: underline;
+      color: $red-hover;
     }
   }
 
   .no-support-text {
     margin: 0;
-    color: #999;
+    color: $text-hint;
     font-size: 14px;
     font-style: italic;
   }
 }
 
-// Responsive design
+// ─── Blocked state ────────────────────────────────────────────────────────────
+// Inline styles use #666 — override here for dark bg
+.auth-container p[style*="color: #666"] {
+  color: $text-muted !important;
+}
+
+// ─── Invite / code validation notices (inline-styled in HTML) ─────────────────
+// These use inline yellow/green backgrounds — keep them readable on dark card
+.invite-only-notice,
+.code-validation-step,
+.code-validated-notice {
+  p, strong {
+    // preserve their own inline colors; no override needed
+  }
+}
+
+// ─── Responsive ───────────────────────────────────────────────────────────────
 @media (max-width: 480px) {
   .auth-screen {
     padding: 10px;
-    padding-top: calc(20px + env(safe-area-inset-top, 0px)); // Keep safe-area clearance on mobile
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
   }
 
   .auth-container {
     padding: 30px 20px;
   }
 
-  .auth-header h1 {
-    font-size: 24px;
+  .auth-header .brand-banner {
+    max-width: 240px;
   }
 }
 
-// Checkout overlay styles
+// ─── Checkout overlay ─────────────────────────────────────────────────────────
 .checkout-overlay {
   position: fixed;
   top: 0;
@@ -253,11 +341,8 @@
 
   .checkout-backdrop {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(4px);
   }
 
@@ -267,86 +352,48 @@
     max-width: 90vw;
     max-height: 90vh;
     overflow: auto;
-    background: white;
+    background: $bg-card;
     border-radius: 12px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-    border: 1px solid white;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    border: 1px solid $border;
   }
 }
 
-// Checkout success and cancel modals
 .checkout-success, .checkout-cancel {
   text-align: center;
   padding: 2rem;
 
+  .success-icon mat-icon { color: #4caf50; }
+  .cancel-icon  mat-icon { color: $red; }
+
   .success-icon, .cancel-icon {
     margin-bottom: 1rem;
-
-    mat-icon {
-      font-size: 4rem;
-      width: 4rem;
-      height: 4rem;
-    }
+    mat-icon { font-size: 4rem; width: 4rem; height: 4rem; }
   }
 
-  .success-icon mat-icon {
-    color: #4caf50;
-  }
-
-  .cancel-icon mat-icon {
-    color: #f44336;
-  }
-
-  h2 {
-    margin: 0 0 1rem 0;
-    color: #333;
-    font-size: 1.5rem;
-  }
-
-  p {
-    margin: 0 0 2rem 0;
-    color: #666;
-    font-size: 1rem;
-    line-height: 1.5;
-  }
-
-  button {
-    min-width: 120px;
-  }
+  h2 { margin: 0 0 1rem; color: $text; font-size: 1.5rem; }
+  p  { margin: 0 0 2rem; color: $text-muted; font-size: 1rem; line-height: 1.5; }
+  button { min-width: 120px; }
 }
 
-// Public registration info styles (for auth-screen embedded registration)
+// ─── Public registration info ─────────────────────────────────────────────────
 .public-registration-info {
   width: 100%;
   margin-bottom: 24px;
   padding: 16px;
-  background: #f5f5f5;
+  background: $bg-inner;
   border-radius: 8px;
+  border: 1px solid $border;
 
   .info-section {
     margin-bottom: 16px;
-
-    h3 {
-      margin: 0 0 8px 0;
-      color: #333;
-      font-size: 20px;
-    }
-
-    p {
-      margin: 0;
-      color: #666;
-      font-size: 14px;
-    }
+    h3 { margin: 0 0 8px; color: $text; font-size: 20px; }
+    p  { margin: 0; color: $text-muted; font-size: 14px; }
   }
 
   .pricing-section {
     margin-bottom: 16px;
-
-    h4 {
-      margin: 0 0 12px 0;
-      color: #333;
-      font-size: 16px;
-    }
+    h4 { margin: 0 0 12px; color: $text; font-size: 16px; }
 
     .pricing-options {
       display: flex;
@@ -358,68 +405,50 @@
         justify-content: space-between;
         align-items: center;
         padding: 12px;
-        background: white;
+        background: $bg-input;
         border-radius: 4px;
-        border: 1px solid #e0e0e0;
+        border: 1px solid $border;
 
-        .pricing-label {
-          font-weight: 500;
-          color: #333;
-        }
-
-        .pricing-amount {
-          font-size: 18px;
-          font-weight: bold;
-          color: #1976d2;
-        }
+        .pricing-label  { font-weight: 500; color: $text; }
+        .pricing-amount { font-size: 18px; font-weight: bold; color: $red; }
       }
     }
   }
 
   .channels-section {
     margin-top: 16px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid $border;
     padding-top: 16px;
 
     .channels-toggle {
       width: 100%;
       display: flex;
       align-items: center;
-      justify-content: flex-start;
       padding: 12px;
       margin-bottom: 8px;
-      background: #f9f9f9;
+      background: $bg-input;
       border-radius: 4px;
       font-weight: 500;
-      color: #1976d2;
+      color: $red;
 
-      &:hover {
-        background: #f0f0f0;
-      }
-
-      mat-icon {
-        margin-right: 8px;
-      }
+      &:hover { background: #333; }
+      mat-icon { margin-right: 8px; }
     }
 
     .channels-list {
       max-height: 400px;
       overflow-y: auto;
-      border: 1px solid #e0e0e0;
+      border: 1px solid $border;
       border-radius: 4px;
       padding: 12px;
-      background: white;
+      background: $bg-input;
 
       .channel-item {
         margin-bottom: 16px;
         padding-bottom: 16px;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid $border;
 
-        &:last-child {
-          margin-bottom: 0;
-          padding-bottom: 0;
-          border-bottom: none;
-        }
+        &:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
 
         .system-header {
           display: flex;
@@ -427,15 +456,8 @@
           justify-content: space-between;
           margin-bottom: 8px;
 
-          strong {
-            color: #333;
-            font-size: 16px;
-          }
-
-          .talkgroup-count {
-            font-size: 12px;
-            color: #666;
-          }
+          strong         { color: $text; font-size: 16px; }
+          .talkgroup-count { font-size: 12px; color: $text-muted; }
         }
 
         .talkgroups-list {
@@ -447,12 +469,8 @@
             .tag-header {
               margin-bottom: 6px;
               padding-bottom: 4px;
-              border-bottom: 1px solid #e0e0e0;
-
-              strong {
-                color: #1976d2;
-                font-size: 13px;
-              }
+              border-bottom: 1px solid $border;
+              strong { color: $red; font-size: 13px; }
             }
 
             .talkgroup-items {
@@ -462,24 +480,16 @@
 
               .talkgroup-item {
                 padding: 4px 8px;
-                background: #f5f5f5;
+                background: $bg-card;
                 border-radius: 4px;
                 font-size: 12px;
-                color: #666;
+                color: $text-muted;
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
 
-                .talkgroup-label {
-                  font-weight: 500;
-                  color: #333;
-                }
-
-                .talkgroup-description {
-                  font-size: 11px;
-                  color: #888;
-                  font-style: italic;
-                }
+                .talkgroup-label       { font-weight: 500; color: $text; }
+                .talkgroup-description { font-size: 11px; color: $text-hint; font-style: italic; }
               }
             }
           }
@@ -493,136 +503,13 @@
       justify-content: center;
       padding: 16px;
       gap: 8px;
-      color: #666;
+      color: $text-muted;
     }
 
     .no-channels {
       padding: 16px;
       text-align: center;
-      color: #666;
-    }
-  }
-}
-
-// Dark theme support for checkout
-@media (prefers-color-scheme: dark) {
-  .checkout-overlay {
-    .checkout-modal {
-      background: #2a2a2a;
-      border: 1px solid #2a2a2a !important;
-    }
-  }
-
-  .checkout-success, .checkout-cancel {
-    h2 {
-      color: #fff;
-    }
-
-    p {
-      color: #ccc;
-    }
-  }
-
-  // Dark theme overrides for public registration info
-  .public-registration-info {
-    background: #2a2a2a;
-
-    .info-section {
-      h3 {
-        color: #fff;
-      }
-
-      p {
-        color: #ccc;
-      }
-    }
-
-    .pricing-section {
-      h4 {
-        color: #fff;
-      }
-
-      .pricing-options {
-        .pricing-option {
-          background: #333;
-          border-color: #444;
-
-          .pricing-label {
-            color: #fff;
-          }
-
-          .pricing-amount {
-            color: #64b5f6;
-          }
-        }
-      }
-    }
-
-    .channels-section {
-      border-top-color: #444;
-
-      .channels-toggle {
-        background: #333;
-        color: #64b5f6;
-
-        &:hover {
-          background: #3a3a3a;
-        }
-      }
-
-      .channels-list {
-        background: #333;
-        border-color: #444;
-
-        .channel-item {
-          border-bottom-color: #444;
-
-          .system-header {
-            strong {
-              color: #fff;
-            }
-
-            .talkgroup-count {
-              color: #ccc;
-            }
-          }
-
-          .talkgroups-list {
-            .talkgroup-group {
-              .tag-header {
-                border-bottom-color: #444;
-
-                strong {
-                  color: #64b5f6;
-                }
-              }
-
-              .talkgroup-items {
-                .talkgroup-item {
-                  background: #2a2a2a;
-                  color: #ccc;
-
-                  .talkgroup-label {
-                    color: #fff;
-                  }
-
-                  .talkgroup-description {
-                    color: #999;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      .loading-channels {
-        color: #ccc;
-      }
-
-      .no-channels {
-        color: #ccc;
-      }
+      color: $text-muted;
     }
   }
 }

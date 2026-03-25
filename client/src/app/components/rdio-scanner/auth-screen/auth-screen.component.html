@@ -3,12 +3,12 @@
     <!-- Blocked Message with Countdown -->
     <div *ngIf="isBlocked" style="text-align: center; padding: 40px 20px;">
       <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
-      <h2 style="color: #d32f2f; margin-bottom: 16px;">Too Many Failed Attempts</h2>
-      <p style="margin-bottom: 24px;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
-      <div style="font-size: 48px; font-weight: bold; color: #667eea; margin-bottom: 16px;">
+      <h2 style="color: #e53935; margin-bottom: 16px;">Too Many Failed Attempts</h2>
+      <p style="margin-bottom: 24px; color: #bbb;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
+      <div style="font-size: 48px; font-weight: bold; color: #cc0000; margin-bottom: 16px;">
         {{ getCountdownDisplay() }}
       </div>
-      <p style="color: #666;">Please wait before trying again.</p>
+      <p style="color: #999;">Please wait before trying again.</p>
     </div>
 
     <div *ngIf="!isBlocked">
@@ -382,32 +382,11 @@
         </div>
         
         <!-- Info message when Turnstile is skipped for invitations -->
-        <div *ngIf="turnstileEnabled && !shouldShowTurnstile()" style="margin: 20px 0; padding: 12px; background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 4px;">
-          <div style="display: flex; align-items: center; gap: 8px; color: #2e7d32;">
+        <div *ngIf="turnstileEnabled && !shouldShowTurnstile()" style="margin: 20px 0; padding: 12px; background: #1a2a1a; border-left: 4px solid #4caf50; border-radius: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px; color: #81c784;">
             <mat-icon style="font-size: 20px; width: 20px; height: 20px;">shield</mat-icon>
             <span style="font-size: 14px;">CAPTCHA verification skipped - using validated invitation code</span>
           </div>
-        </div>
-
-        <div class="success-message" *ngIf="success">
-          <mat-icon>check_circle</mat-icon>
-          <h3>Account Created Successfully!</h3>
-          
-          <!-- Prominent email verification notice -->
-          <div class="verification-notice" style="padding: 20px; background-color: #e3f2fd; border: 2px solid #2196f3; border-radius: 8px; margin: 20px 0;">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <mat-icon style="color: #1976d2; font-size: 32px; width: 32px; height: 32px;">mark_email_unread</mat-icon>
-              <h4 style="margin: 0; color: #1565c0; font-size: 18px;">Please Check Your Email</h4>
-            </div>
-            <p style="margin: 0; color: #0d47a1; font-size: 15px; line-height: 1.6;">
-              We've sent a verification link to <strong>{{ registerForm.get('email')?.value }}</strong>. 
-              Please check your inbox (and spam folder) and click the verification link to activate your account.
-            </p>
-          </div>
-          
-          <button mat-button type="button" (click)="resendVerification()" style="margin-top: 10px;">
-            Didn't receive the email? Resend verification email
-          </button>
         </div>
 
         <button mat-raised-button color="primary" type="submit" 
@@ -416,6 +395,46 @@
           <span *ngIf="!loading">Sign Up</span>
         </button>
       </form>
+
+      <!-- Success screen — lives outside the form so !success on the form doesn't hide it -->
+      <div class="success-message" *ngIf="success">
+        <mat-icon>check_circle</mat-icon>
+        <h3>Account Created Successfully!</h3>
+
+        <!-- Email verification notice — shown when enabled OR when config isn't loaded yet (safe default) -->
+        <div *ngIf="config?.options?.emailServiceEnabled !== false"
+             class="verification-notice"
+             style="padding: 20px; background-color: #1e2a35; border: 2px solid #cc0000; border-radius: 8px; margin: 20px 0;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+            <mat-icon style="color: #cc0000; font-size: 32px; width: 32px; height: 32px;">mark_email_unread</mat-icon>
+            <h4 style="margin: 0; color: #f0f0f0; font-size: 18px;">Check Your Email</h4>
+          </div>
+          <p style="margin: 0; color: #bbb; font-size: 15px; line-height: 1.6;">
+            We've sent a verification link to <strong style="color: #f0f0f0;">{{ registerForm.get('email')?.value }}</strong>.
+            Please check your inbox (and spam folder) and click the link to activate your account.
+          </p>
+          <button mat-button type="button" (click)="resendVerification()"
+                  style="margin-top: 12px; color: #cc0000;">
+            Didn't receive it? Resend verification email
+          </button>
+          <p *ngIf="successMessage && successMessage !== 'Registration successful! Please check your email to verify your account.'"
+             style="margin: 8px 0 0; color: #81c784; font-size: 13px;">
+            {{ successMessage }}
+          </p>
+        </div>
+
+        <!-- No-email fallback — only shown when email service is explicitly disabled -->
+        <div *ngIf="config?.options?.emailServiceEnabled === false"
+             style="padding: 16px; background-color: #1a2a1a; border: 2px solid #4caf50; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0; color: #a5d6a7; font-size: 15px; line-height: 1.6;">
+            Your account is ready. You can now sign in with your email and password.
+          </p>
+        </div>
+
+        <button mat-raised-button color="primary" type="button" (click)="setAuthMode('login')" class="full-width" style="margin-top: 8px;">
+          Continue to Sign In
+        </button>
+      </div>
     </div>
 
     <!-- Stripe Checkout -->
@@ -519,6 +538,6 @@
       <p class="no-support-text" *ngIf="!hasSupportEmail()">
         The owner of this server has not provided email support.
       </p>
-    </div>
+    <img src="assets/icons/logo-banner.png" class="brand-banner-footer" alt="ThinLine Radio">
   </div>
 </div>

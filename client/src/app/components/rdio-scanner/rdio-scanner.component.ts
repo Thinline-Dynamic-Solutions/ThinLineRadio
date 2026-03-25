@@ -17,14 +17,12 @@
  * ****************************************************************************
  */
 
-import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { MatSidenav } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { timer } from 'rxjs';
 import { RdioScannerEvent, RdioScannerLivefeedMode } from './rdio-scanner';
 import { RdioScannerService } from './rdio-scanner.service';
-import { AlertsService } from './alerts/alerts.service';
 import { SettingsService } from './settings/settings.service';
 import { RdioScannerNativeComponent } from './native/native.component';
 
@@ -42,14 +40,6 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
     userAuthenticated = false;
     private pinAuthRequired = false;
     private connectionLimitAlertShown = false;
-
-    @ViewChild('searchPanel') private searchPanel: MatSidenav | undefined;
-
-    @ViewChild('selectPanel') private selectPanel: MatSidenav | undefined;
-
-    @ViewChild('settingsPanel') private settingsPanel: MatSidenav | undefined;
-
-    @ViewChild('alertsPanel') private alertsPanel: MatSidenav | undefined;
 
     constructor(
         private matSnackBar: MatSnackBar,
@@ -167,26 +157,12 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
         });
     }
 
-    scrollTop(e: HTMLElement): void {
-        setTimeout(() => e.scrollTo(0, 0));
-    }
-
     start(): void {
         this.rdioScannerService.startLivefeed();
     }
 
     stop(): void {
         this.rdioScannerService.stopLivefeed();
-
-        this.searchPanel?.close();
-        this.selectPanel?.close();
-    }
-
-    onSearchPanelClosed(): void {
-        // Only stop playback mode if we're actually in playback mode
-        // This preserves live feed if it was running before entering search/playback
-        // stopPlaybackMode() will restore the previous livefeed mode if it was Online
-        this.rdioScannerService.stopPlaybackMode();
     }
 
     toggleFullscreen(): void {

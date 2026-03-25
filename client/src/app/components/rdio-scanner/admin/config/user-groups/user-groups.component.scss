@@ -229,7 +229,7 @@
 
         .form-row {
           display: grid;
-          grid-template-columns: 1fr 1fr auto auto;
+          grid-template-columns: 1fr 1fr 1fr 1fr;
           gap: 16px;
           align-items: start;
 
@@ -242,25 +242,16 @@
             width: 100%;
             min-width: 0;
           }
+        }
 
-          .checkbox-wrapper {
-            display: flex;
-            align-items: center;
-            padding-top: 8px;
-            flex-shrink: 0;
-            min-width: 140px;
-            white-space: nowrap;
-
-            mat-checkbox {
-              white-space: nowrap;
-            }
-          }
+        .form-row-actions {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          margin-top: 28px;
 
           button {
-            padding-top: 8px;
             flex-shrink: 0;
-            height: 56px;
-            white-space: nowrap;
           }
         }
       }

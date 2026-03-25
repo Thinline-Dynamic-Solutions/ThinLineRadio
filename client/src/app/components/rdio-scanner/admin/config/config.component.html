@@ -229,7 +229,7 @@
                     <mat-icon>tune</mat-icon>
                     <h3>Options</h3>
                 </div>
-                <rdio-scanner-admin-options [form]="options"></rdio-scanner-admin-options>
+                <rdio-scanner-admin-options [form]="options" (saveRequested)="save()"></rdio-scanner-admin-options>
             </ng-container>
 
             <!-- Systems overview (landing when none selected) -->

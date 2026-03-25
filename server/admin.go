@@ -922,6 +922,9 @@ func (admin *Admin) SystemHealthAlertSettingsHandler(w http.ResponseWriter, r *h
 				json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("failed to save transcriptionFailureAlertsEnabled: %v", err)})
 				return
 			}
+			if !v {
+				admin.Controller.DismissAlertsByType("transcription_failure")
+			}
 		}
 		if request.ToneDetectionAlertsEnabled != nil {
 			v := *request.ToneDetectionAlertsEnabled
@@ -935,6 +938,9 @@ func (admin *Admin) SystemHealthAlertSettingsHandler(w http.ResponseWriter, r *h
 				json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("failed to save toneDetectionAlertsEnabled: %v", err)})
 				return
 			}
+			if !v {
+				admin.Controller.DismissAlertsByType("tone_detection_issue")
+			}
 		}
 		if request.NoAudioAlertsEnabled != nil {
 			v := *request.NoAudioAlertsEnabled
@@ -947,6 +953,9 @@ func (admin *Admin) SystemHealthAlertSettingsHandler(w http.ResponseWriter, r *h
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("failed to save noAudioAlertsEnabled: %v", err)})
 				return
+			}
+			if !v {
+				admin.Controller.DismissAlertsByType("no_audio")
 			}
 		}
 		if request.TranscriptionFailureThreshold != nil && *request.TranscriptionFailureThreshold > 0 {

@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
 import { FormGroup, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -33,6 +33,7 @@ import { LocationDataService } from 'src/app/services/location-data.service';
 })
 export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnChanges {
     @Input() form: FormGroup | undefined;
+    @Output() saveRequested = new EventEmitter<void>();
     private radioReferenceSubscription?: Subscription;
     private initialLoadComplete = false;
     public isEditingRadioReference = false;
@@ -275,7 +276,8 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
 
         const dialogRef = this.dialog.open(RequestAPIKeyDialogComponent, {
             width: '600px',
-            data: { 
+            maxHeight: '90vh',
+            data: {
                 relayServerURL: relayServerURL,
                 existingAPIKey: existingAPIKey || null
             }
@@ -284,11 +286,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         dialogRef.afterClosed().subscribe((apiKey: string | null) => {
             if (apiKey && this.form) {
                 this.form.get('relayServerAPIKey')?.setValue(apiKey);
-                this.form.markAsDirty();
-                const message = existingAPIKey 
-                    ? 'API key details updated! Make sure to save your configuration.' 
-                    : 'API key received! Make sure to save your configuration.';
-                this.snackBar.open(message, 'Close', { duration: 5000 });
+                this.saveRequested.emit();
             }
         });
     }
@@ -296,7 +294,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
     recoverRelayAPIKey() {
         if (!this.form) return;
 
-        // Use hardcoded relay server URL
         const relayServerURL = 'https://tlradioserver.thinlineds.com';
 
         const dialogRef = this.dialog.open(RecoverAPIKeyDialogComponent, {
@@ -307,8 +304,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         dialogRef.afterClosed().subscribe((apiKey: string | null) => {
             if (apiKey && this.form) {
                 this.form.get('relayServerAPIKey')?.setValue(apiKey);
-                this.form.markAsDirty();
-                this.snackBar.open('API key recovered! Make sure to save your configuration.', 'Close', { duration: 5000 });
+                this.saveRequested.emit();
             }
         });
     }

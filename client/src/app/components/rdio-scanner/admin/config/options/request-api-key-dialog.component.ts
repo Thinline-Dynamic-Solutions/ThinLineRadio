@@ -67,19 +67,6 @@ interface SelectedStateData {
       
       <!-- API Key Request Form -->
       <div *ngIf="!requiresDomainVerification && !apiKeyReceived">
-        <!-- Localhost Access Notice -->
-        <div class="info-box" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-          <div style="display: flex; align-items: start; gap: 10px;">
-            <mat-icon style="color: #ffc107; font-size: 24px; width: 24px; height: 24px; flex-shrink: 0; margin-top: 2px;">info</mat-icon>
-            <div>
-              <strong style="color: #856404; display: block; margin-bottom: 6px;">Localhost Access Required</strong>
-              <p style="margin: 0; color: #856404; font-size: 14px; line-height: 1.5;">
-                API key requests can only be made when visiting the admin page from localhost. If you are accessing the admin page remotely, you will need to access it from the server itself (localhost) to request or update API keys.
-              </p>
-            </div>
-          </div>
-        </div>
-
         <form [formGroup]="apiKeyForm">
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Server Name *</mat-label>
@@ -290,7 +277,7 @@ interface SelectedStateData {
     mat-dialog-content {
       min-width: 500px;
       max-width: 600px;
-      max-height: 90vh;
+      max-height: calc(90vh - 130px);
       overflow-y: auto;
       padding: 24px !important;
     }
@@ -902,34 +889,41 @@ export class RequestAPIKeyDialogComponent implements OnInit {
         headers['X-API-Key'] = this.existingAPIKey;
       }
 
-      let response: any;
       if (this.isUpdateMode) {
-        response = await this.http.put(`${this.data.relayServerURL}/api/keys/update`, payload, { headers }).toPromise();
-      } else {
-        response = await this.http.post(`${this.data.relayServerURL}/api/keys/request`, payload, { headers }).toPromise();
-      }
+        // For updates, judge success purely on the HTTP status code.
+        // The relay server may return 200, 204, or a body without `success`.
+        // Using observe:'response' avoids body-parsing failures masking a real 2xx.
+        const httpResp = await this.http
+          .put(`${this.data.relayServerURL}/api/keys/update`, payload, { headers, observe: 'response' })
+          .toPromise();
 
-      // Check if domain verification is required
-      if (response && response.requires_verification) {
-        this.requiresDomainVerification = true;
-        this.verificationEmail = response.email;
-        this.pendingRequestData = payload;
-        this.loading = false;
-        return;
-      }
-
-      if (response && response.success) {
-        // API key created successfully - store it silently without displaying
-        this.apiKeyReceived = true;
-        const retrievedApiKey = response.api_key;
-        // Close dialog and return API key to parent (stored silently, not displayed)
-        setTimeout(() => {
-          this.dialogRef.close(retrievedApiKey);
-        }, 2000);
+        if (httpResp && httpResp.status >= 200 && httpResp.status < 300) {
+          this.dialogRef.close(this.existingAPIKey);
+        } else {
+          this.errorMessage = 'Update failed — please try again.';
+        }
       } else {
-        this.errorMessage = this.isUpdateMode 
-          ? 'Failed to update API key on relay server'
-          : 'Failed to create API key on relay server';
+        const response: any = await this.http
+          .post(`${this.data.relayServerURL}/api/keys/request`, payload, { headers })
+          .toPromise();
+
+        // Check if domain verification is required
+        if (response && response.requires_verification) {
+          this.requiresDomainVerification = true;
+          this.verificationEmail = response.email;
+          this.pendingRequestData = payload;
+          this.loading = false;
+          return;
+        }
+
+        if (response && response.success) {
+          this.apiKeyReceived = true;
+          setTimeout(() => {
+            this.dialogRef.close(response.api_key);
+          }, 2000);
+        } else {
+          this.errorMessage = 'Failed to create API key on relay server';
+        }
       }
     } catch (error: any) {
       console.error('Error requesting API key:', error);

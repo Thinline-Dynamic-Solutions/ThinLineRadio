@@ -55,6 +55,7 @@ interface UserGroup {
 interface RegistrationCode {
   id: number;
   code: string;
+  label: string;
   expiresAt: number;
   maxUses: number;
   currentUses: number;
@@ -95,6 +96,8 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   codes: RegistrationCode[] = [];
   loadingCodes = false;
   newCodeForm = {
+    label: '',
+    code: '',
     expiresAt: null as Date | null,
     maxUses: 0,
     isOneTime: false
@@ -1063,11 +1066,13 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       next: (response: any) => {
         this.loadingCodes = false;
         this.codes = response.codes || [];
+        this.cdr.detectChanges();
       },
       error: (error) => {
         this.loadingCodes = false;
         console.error('Failed to load codes:', error);
         this.snackBar.open('Failed to load registration codes', 'Close', { duration: 3000 });
+        this.cdr.detectChanges();
       }
     });
   }
@@ -1084,6 +1089,8 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     }
     
     const payload = {
+      label: this.newCodeForm.label.trim(),
+      code: this.newCodeForm.code.trim(),
       expiresAt: expiresAt,
       maxUses: this.newCodeForm.maxUses > 0 ? this.newCodeForm.maxUses : 0,
       isOneTime: this.newCodeForm.isOneTime
@@ -1093,7 +1100,7 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       next: (response: any) => {
         this.generatingCode = false;
         this.snackBar.open(`Code generated: ${response.code}`, 'Close', { duration: 5000 });
-        this.newCodeForm = { expiresAt: null, maxUses: 0, isOneTime: false };
+        this.newCodeForm = { label: '', code: '', expiresAt: null, maxUses: 0, isOneTime: false };
         this.loadCodes();
       },
       error: (error) => {

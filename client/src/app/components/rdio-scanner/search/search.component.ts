@@ -34,6 +34,7 @@ import {
 } from '../rdio-scanner';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { FavoritesService } from '../favorites.service';
+import { TagColorService } from '../tag-color.service';
 
 @Component({
     selector: 'rdio-scanner-search',
@@ -44,6 +45,18 @@ export class RdioScannerSearchComponent implements OnDestroy {
     call: RdioScannerCall | undefined;
     callPending: number | undefined;
 
+    /** Columns for archive results table (keep in sync with template). */
+    readonly archiveTableColumns = [
+        'control',
+        'date',
+        'time',
+        'system',
+        'alpha',
+        'tgid',
+        'source',
+        'name',
+    ] as const;
+
     form: any;
 
     constructor(
@@ -51,6 +64,7 @@ export class RdioScannerSearchComponent implements OnDestroy {
         private ngChangeDetectorRef: ChangeDetectorRef,
         private ngFormBuilder: FormBuilder,
         private favoritesService: FavoritesService,
+        private tagColorService: TagColorService,
     ) {
         this.form = this.ngFormBuilder.group({
             date: [null],
@@ -897,5 +911,93 @@ export class RdioScannerSearchComponent implements OnDestroy {
         const talkgroupIndex = this.form.value.talkgroup;
         if (talkgroupIndex == null || talkgroupIndex < 0) return undefined;
         return system.talkgroups.find((talkgroup) => talkgroup.label === this.optionsTalkgroup[talkgroupIndex]);
+    }
+
+    /** Same tag-tinted row background as Current call history. */
+    getTransmissionHistoryTagColor(call: RdioScannerCall | undefined | null): string {
+        if (!call) {
+            return 'transparent';
+        }
+        if (call.tagData?.led) {
+            return this.tagColorService.getTagColor(call.tagData.led);
+        }
+        if (call.talkgroupData?.tag) {
+            return this.tagColorService.getTagColor(call.talkgroupData.tag);
+        }
+        return 'transparent';
+    }
+
+    getTransmissionHistoryBackgroundColor(call: RdioScannerCall | undefined | null): string {
+        const color = this.getTransmissionHistoryTagColor(call);
+        if (color === 'transparent') {
+            return 'transparent';
+        }
+        const hex = color.replace('#', '');
+        const full =
+            hex.length === 3
+                ? hex
+                      .split('')
+                      .map((c) => c + c)
+                      .join('')
+                : hex;
+        if (full.length !== 6) {
+            return 'transparent';
+        }
+        const r = parseInt(full.slice(0, 2), 16);
+        const g = parseInt(full.slice(2, 4), 16);
+        const b = parseInt(full.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, 0.2)`;
+    }
+
+    displayTgidForCall(call: RdioScannerCall | undefined | null): string {
+        if (!call) return '—';
+        if (this.isAfsSystem(call)) {
+            return this.formatAfs(Number(call.talkgroup ?? 0));
+        }
+        return String(call.talkgroup ?? '0');
+    }
+
+    private formatAfs(n: number): string {
+        return `${((n >> 7) & 15).toString().padStart(2, '0')}-${((n >> 3) & 15).toString().padStart(2, '0')}${
+            n & 7
+        }`;
+    }
+
+    private isAfsSystem(call: RdioScannerCall): boolean {
+        return call.systemData?.type === 'provoice' || call.talkgroupData?.type === 'provoice';
+    }
+
+    private resolveUnitLabelForSrc(call: RdioScannerCall, src: number): string {
+        const units = call.systemData?.units;
+        if (Array.isArray(units)) {
+            const label = units.find((unit) => {
+                if (typeof unit.unitFrom === 'number' && typeof unit.unitTo === 'number') {
+                    if (unit.unitFrom <= src && unit.unitTo >= src) return true;
+                }
+                return unit.id === src;
+            })?.label;
+            if (label) return label;
+        }
+        return String(src);
+    }
+
+    displayUnitForCall(call: RdioScannerCall | undefined | null): string {
+        if (!call) return '—';
+        if (Array.isArray(call.sources) && call.sources.length) {
+            const ordered = [...call.sources].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+            for (const s of ordered) {
+                if (typeof s.tag === 'string' && s.tag.length > 0) {
+                    return s.tag;
+                }
+            }
+            const first = ordered[0];
+            if (typeof first?.src === 'number') {
+                return this.resolveUnitLabelForSrc(call, first.src);
+            }
+        }
+        if (typeof call.source === 'number') {
+            return this.resolveUnitLabelForSrc(call, call.source);
+        }
+        return '—';
     }
 }

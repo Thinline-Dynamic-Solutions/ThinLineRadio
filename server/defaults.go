@@ -54,9 +54,6 @@ type DefaultOptions struct {
 	duplicateDetectionMode      string
 	duplicateDetectionTimeFrame uint
 	advancedDetectionTimeFrame  uint
-	audioFingerprintEnabled     bool
-	audioFingerprintThreshold   float64
-	audioFingerprintTimeFrame   uint
 	email                       string
 	keypadBeeps                 string
 	maxClients                  uint
@@ -174,9 +171,6 @@ var defaults = Defaults{
 		duplicateDetectionMode:      "legacy",
 		duplicateDetectionTimeFrame: 1000,
 		advancedDetectionTimeFrame:  1000,
-		audioFingerprintEnabled:     false,
-		audioFingerprintThreshold:   0.25, // Hamming distance ≤ 0.25 = duplicate (same transmission, different noise)
-		audioFingerprintTimeFrame:   5000, // 5 second window for fingerprint duplicate detection
 		email:                       "",
 		keypadBeeps:                 "uniden",
 		maxClients:                  100,

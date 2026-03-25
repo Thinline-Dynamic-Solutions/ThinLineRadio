@@ -50,13 +50,13 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     systems: RdioScannerSystem[] | undefined;
 
-    // New properties for Flutter-style layout
+    // Layout: master–detail (sidebar systems + detail panel)
     searchQuery = '';
     isSearchFocused = false;
-    expandedSystems: Map<number, boolean> = new Map();
+    /** Sidebar list: all visible systems or only those with favorites */
+    navMode: 'all' | 'favorites' = 'all';
+    detailSystemId: number | null = null;
     expandedTags: Map<string, boolean> = new Map();
-    favoriteExpandedSystems: Map<number, boolean> = new Map();
-    favoriteExpandedTags: Map<string, boolean> = new Map();
     hiddenSystems: Set<number> = new Set();
     private eventSubscription?: Subscription;
     private favoritesSubscription?: Subscription;
@@ -75,6 +75,7 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
         this.favoritesSubscription = this.favoritesService.getFavorites().subscribe(() => {
             this.favoriteItems = this.favoritesService.getFavoriteItems();
+            this.syncDetailSystemSelection();
             this.cdRef.markForCheck();
         });
         this.favoriteItems = this.favoritesService.getFavoriteItems();
@@ -124,6 +125,61 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     clearSearch(): void {
         this.searchQuery = '';
+        this.syncDetailSystemSelection();
+        this.cdRef.markForCheck();
+    }
+
+    onSearchChange(): void {
+        this.syncDetailSystemSelection();
+        this.cdRef.markForCheck();
+    }
+
+    setNavMode(mode: 'all' | 'favorites'): void {
+        if (this.navMode === mode) return;
+        this.navMode = mode;
+        this.syncDetailSystemSelection();
+        this.cdRef.markForCheck();
+    }
+
+    selectDetailSystem(systemId: number): void {
+        this.detailSystemId = systemId;
+        this.cdRef.markForCheck();
+    }
+
+    getSystemsForSidebar(): RdioScannerSystem[] {
+        let list: RdioScannerSystem[];
+        if (this.navMode === 'favorites') {
+            list = this.getFavoriteSystemsWithFavorites().filter(s => !this.hiddenSystems.has(s.id));
+        } else {
+            list = this.getVisibleSystems();
+        }
+        const q = this.searchQuery.trim().toLowerCase();
+        if (!q) return list;
+        return list.filter(system => {
+            if ((system.label || '').toLowerCase().includes(q)) return true;
+            return (system.talkgroups || []).some(tg => {
+                const label = (tg.label || '').toLowerCase();
+                const name = (tg.name || '').toLowerCase();
+                const id = tg.id.toString();
+                return label.includes(q) || name.includes(q) || id.includes(q);
+            });
+        });
+    }
+
+    getDetailSystem(): RdioScannerSystem | undefined {
+        if (this.detailSystemId == null || !this.systems) return undefined;
+        return this.systems.find(s => s.id === this.detailSystemId);
+    }
+
+    private syncDetailSystemSelection(): void {
+        const list = this.getSystemsForSidebar();
+        if (list.length === 0) {
+            this.detailSystemId = null;
+            return;
+        }
+        if (this.detailSystemId == null || !list.some(s => s.id === this.detailSystemId)) {
+            this.detailSystemId = list[0].id;
+        }
     }
 
     getVisibleSystems(): RdioScannerSystem[] {
@@ -172,16 +228,6 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         return sorted.map(([tag, talkgroups]) => ({ tag, talkgroups }));
     }
 
-    isSystemExpanded(systemId: number): boolean {
-        return this.expandedSystems.get(systemId) || false;
-    }
-
-    toggleSystem(systemId: number, event?: Event): void {
-
-        const current = this.expandedSystems.get(systemId) || false;
-        this.expandedSystems.set(systemId, !current);
-    }
-
     isTagExpanded(systemId: number, tag: string): boolean {
         const key = `${systemId}-${tag}`;
         return this.expandedTags.get(key) || false;
@@ -192,26 +238,6 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
         const current = this.expandedTags.get(key) || false;
         this.expandedTags.set(key, !current);
-    }
-
-    isFavoriteSystemExpanded(systemId: number): boolean {
-        return this.favoriteExpandedSystems.get(systemId) || false;
-    }
-
-    toggleFavoriteSystemExpand(systemId: number): void {
-        const current = this.favoriteExpandedSystems.get(systemId) || false;
-        this.favoriteExpandedSystems.set(systemId, !current);
-    }
-
-    isFavoriteTagExpanded(systemId: number, tag: string): boolean {
-        const key = `${systemId}-${tag}`;
-        return this.favoriteExpandedTags.get(key) || false;
-    }
-
-    toggleFavoriteTagExpand(systemId: number, tag: string): void {
-        const key = `${systemId}-${tag}`;
-        const current = this.favoriteExpandedTags.get(key) || false;
-        this.favoriteExpandedTags.set(key, !current);
     }
 
     isTalkgroupEnabled(systemId: number, talkgroupId: number): boolean {
@@ -269,14 +295,44 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         this.applyTagStatus(systemId, tag, talkgroups, status);
     }
 
-    enableAllFavorites(event: Event): void {
-        event.stopPropagation();
-        this.applyFavoritesStatus(true);
+    /** Union of talkgroups covered by any system / tag / talkgroup favorite (for bulk on/off). */
+    private getFavoriteTalkgroupKeys(): Array<{ systemId: number; tgId: number }> {
+        const pairs = new Map<string, { systemId: number; tgId: number }>();
+        if (!this.systems?.length) return [];
+        for (const fav of this.favoriteItems) {
+            if (fav.systemId === undefined) continue;
+            const system = this.systems.find(s => s.id === fav.systemId);
+            if (!system) continue;
+            if (fav.type === 'system') {
+                (system.talkgroups || []).forEach(tg => {
+                    pairs.set(`${system.id}-${tg.id}`, { systemId: system.id, tgId: tg.id });
+                });
+            } else if (fav.type === 'tag' && fav.tag) {
+                (system.talkgroups || [])
+                    .filter(tg => (tg.tag || 'Untagged') === fav.tag)
+                    .forEach(tg => {
+                        pairs.set(`${system.id}-${tg.id}`, { systemId: system.id, tgId: tg.id });
+                    });
+            } else if (fav.type === 'talkgroup' && fav.talkgroupId !== undefined) {
+                pairs.set(`${system.id}-${fav.talkgroupId}`, { systemId: system.id, tgId: fav.talkgroupId });
+            }
+        }
+        return Array.from(pairs.values());
     }
 
-    disableAllFavorites(event: Event): void {
+    areAllFavoritesEnabled(): boolean {
+        const keys = this.getFavoriteTalkgroupKeys();
+        if (keys.length === 0) return false;
+        return keys.every(({ systemId, tgId }) => this.isTalkgroupEnabled(systemId, tgId));
+    }
+
+    toggleFavoritesBulk(event: Event): void {
         event.stopPropagation();
-        this.applyFavoritesStatus(false);
+        if (this.areAllFavoritesEnabled()) {
+            this.applyFavoritesStatus(false);
+        } else {
+            this.applyFavoritesStatus(true);
+        }
     }
 
     isAllEnabled(): boolean {
@@ -788,6 +844,7 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
                     }
                 });
                 this.saveHiddenSystems();
+                this.syncDetailSystemSelection();
                 this.cdRef.markForCheck();
             }
         });
@@ -876,7 +933,10 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     }
 
     private eventHandler(event: RdioScannerEvent): void {
-        if (event.config) this.systems = event.config.systems;
+        if (event.config) {
+            this.systems = event.config.systems;
+            this.syncDetailSystemSelection();
+        }
         if (event.categories) this.categories = event.categories;
         if (event.map) this.map = event.map;
     }

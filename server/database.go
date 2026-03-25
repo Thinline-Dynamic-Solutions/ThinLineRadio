@@ -336,8 +336,8 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
-	// Add audioFingerprint column for content-based duplicate detection
-	if err := migrateAudioFingerprinting(db); err != nil {
+	// Add label column to registrationCodes for human-readable code names
+	if err := migrateRegistrationCodesLabel(db); err != nil {
 		return formatError(err, "")
 	}
 

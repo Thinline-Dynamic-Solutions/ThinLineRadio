@@ -417,6 +417,38 @@ Returns real-time server performance metrics. No authentication required.
 
 ---
 
+## Central Management — Pairing
+
+### `POST /api/central-management/pair`
+
+Called by the **Central Management** backend to enable CM on this server and push the CM URL, API key, and scanner identity. Authenticated with the **local admin password** (bcrypt), not `X-API-Key`.
+
+**Body**
+```json
+{
+  "admin_password": "<local admin password>",
+  "new_admin_password": "<optional new admin after pair>",
+  "central_management_url": "https://cm.example.com",
+  "api_key": "<per-server CM API key>",
+  "server_name": "County Fire West",
+  "server_url": "https://scanner.example.com",
+  "rr_system_id": 350
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `admin_password` | string | **Required.** Must match this server's admin password (used only to authorize pairing). |
+| `new_admin_password` | string | Optional. If set, after CM options are saved the scanner admin password is rotated to this value (same flow as admin UI change-password). |
+| `central_management_url` | string | **Required.** Base URL of the CM service. |
+| `api_key` | string | **Required.** Secret this server will send as `X-API-Key` to CM. |
+| `server_name` | string | Optional. Stored as CM display name / branding. |
+| `server_url` | string | Optional. Public URL of this TLR server (`BaseUrl`). |
+| `rr_system_id` | string \| number | **Preferred when provisioning with Hydra.** Radio Reference system id from Hydra `api/systems/get`. Stored as `centralManagementServerID` and sent to CM on TLR register/heartbeat. |
+| `server_id` | string | Optional. Legacy alias for the same stored id when `rr_system_id` is omitted. If both are sent, **`rr_system_id` wins**. |
+
+---
+
 ## Management Integration — Inbound Webhooks
 
 The following endpoints allow an external billing or management system to control users on this TLR server. All require the `X-API-Key` header matching the server's configured management API key.
