@@ -106,7 +106,7 @@ func (access *Access) HasAccess(call *Call) bool {
 					switch id := v["id"].(type) {
 					case float64:
 						systemRef := uint(id)
-						
+
 						// Get system ref from call (check multiple sources)
 						var callSystemRef uint
 						if call.System != nil {
@@ -117,7 +117,7 @@ func (access *Access) HasAccess(call *Call) bool {
 							// SystemId might be the ref in v6 compatibility mode
 							callSystemRef = call.SystemId
 						}
-						
+
 						// Check if systemRef matches
 						if callSystemRef > 0 && callSystemRef == systemRef {
 							switch tg := v["talkgroups"].(type) {
@@ -136,7 +136,7 @@ func (access *Access) HasAccess(call *Call) bool {
 									// TalkgroupId might be the ref in v6 compatibility mode
 									callTalkgroupRef = call.TalkgroupId
 								}
-								
+
 								for _, f := range tg {
 									switch tg := f.(type) {
 									case float64:
@@ -273,7 +273,7 @@ func (accesses *Accesses) Read(db *Database) error {
 		if strings.Contains(errStr, "does not exist") || strings.Contains(errStr, "relation") || strings.Contains(errStr, "Unknown table") {
 			log.Printf("WARNING: accesses table does not exist in Read(), attempting to create it...")
 			log.Printf("WARNING: Database: %s, Host: %s, Port: %d", db.Config.DbName, db.Config.DbHost, db.Config.DbPort)
-			
+
 			// Try to create the table - explicitly in public schema
 			var createQuery string
 			if db.Config.DbType == DbTypePostgresql {
@@ -531,4 +531,3 @@ func (accesses *Accesses) Write(db *Database) error {
 	log.Printf("DEBUG: Accesses.Write() completed - wrote %d access codes", len(accesses.List))
 	return nil
 }
-

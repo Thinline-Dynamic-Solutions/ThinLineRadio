@@ -29,8 +29,8 @@ type Site struct {
 	Id          uint64
 	Label       string
 	Order       uint
-	SiteRef     string    // Site ID as string to preserve leading zeros (e.g., "001", "021")
-	RFSS        uint      // Radio Frequency Sub-System ID
+	SiteRef     string // Site ID as string to preserve leading zeros (e.g., "001", "021")
+	RFSS        uint   // Radio Frequency Sub-System ID
 	SystemId    uint64
 	Frequencies []float64 // MHz frequencies for this site
 	Preferred   bool      // Is this the preferred site for the system?
@@ -202,7 +202,7 @@ func (sites *Sites) GetSiteByFrequency(frequency uint) (site *Site, ok bool) {
 
 	// Convert frequency from Hz to MHz for comparison
 	freqMHz := float64(frequency) / 1e6
-	
+
 	// Use a tolerance of 0.01 MHz (10 kHz) for matching
 	tolerance := 0.01
 

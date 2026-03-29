@@ -911,7 +911,6 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 			}
 		}
 
-
 		// IMMEDIATE: Emit call to clients (users can play NOW - zero delay)
 		controller.EmitCall(call)
 

@@ -2325,7 +2325,7 @@ func (api *Api) CreateCheckoutSessionHandler(w http.ResponseWriter, r *http.Requ
 		PaymentMethodTypes: stripe.StringSlice([]string{
 			"card",
 		}),
-		LineItems: []*stripe.CheckoutSessionLineItemParams{lineItem},
+		LineItems:  []*stripe.CheckoutSessionLineItemParams{lineItem},
 		Mode:       stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		SuccessURL: stripe.String(request.SuccessUrl),
 		CancelURL:  stripe.String(request.CancelUrl),
@@ -5893,13 +5893,13 @@ func (api *Api) AdminGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			"stripePriceId":         group.StripePriceId,
 			"pricingOptions":        group.GetPricingOptions(),
 			"billingMode":           group.BillingMode,
-		"collectSalesTax":       group.CollectSalesTax,
-		"taxMode":               group.TaxMode,
-		"stripeTaxRateId":       group.StripeTaxRateId,
-		"isPublicRegistration":  group.IsPublicRegistration,
-		"allowAddExistingUsers": group.AllowAddExistingUsers,
-		"createdAt":             group.CreatedAt,
-	})
+			"collectSalesTax":       group.CollectSalesTax,
+			"taxMode":               group.TaxMode,
+			"stripeTaxRateId":       group.StripeTaxRateId,
+			"isPublicRegistration":  group.IsPublicRegistration,
+			"allowAddExistingUsers": group.AllowAddExistingUsers,
+			"createdAt":             group.CreatedAt,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -8524,7 +8524,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	cpmRows, err := db.Query(`
 		SELECT (c.timestamp / 60000) * 60000 AS minute, COUNT(*) AS count
 		FROM calls c
-		WHERE c.timestamp >= $1` + systemFilter + `
+		WHERE c.timestamp >= $1`+systemFilter+`
 		GROUP BY minute
 		ORDER BY minute ASC`, oneHourAgo)
 	if err == nil {
@@ -8551,7 +8551,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		SELECT COALESCE(t.label, CONCAT('TG ', t."talkgroupRef")), COUNT(*) AS count
 		FROM calls c
 		JOIN talkgroups t ON t."talkgroupId" = c."talkgroupId"
-		WHERE c.timestamp >= $1` + systemFilter + `
+		WHERE c.timestamp >= $1`+systemFilter+`
 		GROUP BY t."talkgroupId", t.label, t."talkgroupRef"
 		ORDER BY count DESC
 		LIMIT 10`, twentyFourHoursAgo)
@@ -8581,7 +8581,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	hourRows, err := db.Query(`
 		SELECT EXTRACT(HOUR FROM to_timestamp(c.timestamp / 1000)) AS hour, COUNT(*) AS count
 		FROM calls c
-		WHERE c.timestamp >= $1` + systemFilter + `
+		WHERE c.timestamp >= $1`+systemFilter+`
 		GROUP BY hour
 		ORDER BY hour ASC`, sevenDaysAgo)
 	if err == nil {
@@ -8700,8 +8700,8 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		Count int    `json:"count"`
 	}
 	type IncidentCat struct {
-		Category     string        `json:"category"`
-		Count        int           `json:"count"`
+		Category      string        `json:"category"`
+		Count         int           `json:"count"`
 		Subcategories []IncidentSub `json:"subcategories"`
 	}
 

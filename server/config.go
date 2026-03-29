@@ -34,25 +34,25 @@ const (
 )
 
 type Config struct {
-	BaseDir              string
-	ConfigFile           string
-	DbType               string
-	DbHost               string
-	DbPort               uint
-	DbName               string
-	DbUsername           string
-	DbPassword           string
-	Listen               string
-	SslAutoCert          string
-	SslCaCertFile        string
-	SslCaKeyFile         string
-	SslCertFile          string
-	SslKeyFile           string
-	SslListen            string
-	EnableDebugLog       bool
-	AutoUpdate           bool   // Automatically check and apply updates from GitHub
-	daemon               *Daemon
-	newAdminPassword     string
+	BaseDir          string
+	ConfigFile       string
+	DbType           string
+	DbHost           string
+	DbPort           uint
+	DbName           string
+	DbUsername       string
+	DbPassword       string
+	Listen           string
+	SslAutoCert      string
+	SslCaCertFile    string
+	SslCaKeyFile     string
+	SslCertFile      string
+	SslKeyFile       string
+	SslListen        string
+	EnableDebugLog   bool
+	AutoUpdate       bool // Automatically check and apply updates from GitHub
+	daemon           *Daemon
+	newAdminPassword string
 }
 
 func NewConfig() *Config {
@@ -173,16 +173,16 @@ func NewConfig() *Config {
 				config.SslListen = v
 			}
 
-		// Read enable_debug_log option (defaults to false)
-		if v, err := cfg.Section("").Key("enable_debug_log").Bool(); err == nil {
-			config.EnableDebugLog = v
-		}
+			// Read enable_debug_log option (defaults to false)
+			if v, err := cfg.Section("").Key("enable_debug_log").Bool(); err == nil {
+				config.EnableDebugLog = v
+			}
 
-		// Read auto_update setting (defaults to false)
-		if v, err := cfg.Section("").Key("auto_update").Bool(); err == nil {
-			config.AutoUpdate = v
+			// Read auto_update setting (defaults to false)
+			if v, err := cfg.Section("").Key("auto_update").Bool(); err == nil {
+				config.AutoUpdate = v
+			}
 		}
-	}
 
 		if config.DbType != DbTypePostgresql {
 			fmt.Printf("unknown database type %s (only postgresql is supported)\n", config.DbType)

@@ -68,7 +68,7 @@ func generateMessageID(domain string) string {
 	randomBytes := make([]byte, 16)
 	rand.Read(randomBytes)
 	randomHex := hex.EncodeToString(randomBytes)
-	
+
 	// Format: <timestamp.random@domain>
 	timestamp := time.Now().Unix()
 	return fmt.Sprintf("<%d.%s@%s>", timestamp, randomHex, domain)
@@ -99,13 +99,13 @@ func htmlToPlainText(htmlContent string) string {
 	// Remove HTML tags
 	re := regexp.MustCompile(`<[^>]*>`)
 	text := re.ReplaceAllString(htmlContent, "")
-	
+
 	// Decode HTML entities
 	text = html.UnescapeString(text)
-	
+
 	// Remove emojis
 	text = removeEmojis(text)
-	
+
 	// Clean up whitespace
 	text = strings.TrimSpace(text)
 	lines := strings.Split(text, "\n")
@@ -116,7 +116,7 @@ func htmlToPlainText(htmlContent string) string {
 			cleanedLines = append(cleanedLines, trimmed)
 		}
 	}
-	
+
 	return strings.Join(cleanedLines, "\n\n")
 }
 
@@ -127,19 +127,19 @@ func buildEmailMessage(fromName, fromEmail, toEmail, subject, htmlBody string) s
 	htmlBody = removeEmojisFromHTML(htmlBody)
 	// Extract domain for HELO and Message-ID
 	domain := extractDomainFromEmail(fromEmail)
-	
+
 	// Generate unique Message-ID
 	messageID := generateMessageID(domain)
-	
+
 	// Convert HTML to plain text
 	plainText := htmlToPlainText(htmlBody)
-	
+
 	// Create multipart boundary
 	boundary := fmt.Sprintf("----=_Part_%d_%s", time.Now().Unix(), strings.ReplaceAll(messageID, "@", "_at_"))
-	
+
 	// Build message with proper headers
 	var message strings.Builder
-	
+
 	// Standard headers
 	message.WriteString(fmt.Sprintf("From: %s <%s>\r\n", fromName, fromEmail))
 	message.WriteString(fmt.Sprintf("To: %s\r\n", toEmail))
@@ -151,7 +151,7 @@ func buildEmailMessage(fromName, fromEmail, toEmail, subject, htmlBody string) s
 	message.WriteString("MIME-Version: 1.0\r\n")
 	message.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary))
 	message.WriteString("\r\n")
-	
+
 	// Plain text part
 	message.WriteString(fmt.Sprintf("--%s\r\n", boundary))
 	message.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
@@ -159,7 +159,7 @@ func buildEmailMessage(fromName, fromEmail, toEmail, subject, htmlBody string) s
 	message.WriteString("\r\n")
 	message.WriteString(plainText)
 	message.WriteString("\r\n\r\n")
-	
+
 	// HTML part
 	message.WriteString(fmt.Sprintf("--%s\r\n", boundary))
 	message.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
@@ -167,10 +167,10 @@ func buildEmailMessage(fromName, fromEmail, toEmail, subject, htmlBody string) s
 	message.WriteString("\r\n")
 	message.WriteString(htmlBody)
 	message.WriteString("\r\n\r\n")
-	
+
 	// End boundary
 	message.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
-	
+
 	return message.String()
 }
 
@@ -179,7 +179,7 @@ func (es *EmailService) sendSendGridEmail(fromName, fromEmail, toEmail, subject,
 	// Remove emojis from subject and body (already done in sendEmail, but ensure it here too)
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	apiKey := es.Controller.Options.EmailSendGridAPIKey
 	if apiKey == "" {
 		return fmt.Errorf("SendGrid API key is not configured")
@@ -253,7 +253,7 @@ func (es *EmailService) sendMailgunEmail(fromName, fromEmail, toEmail, subject, 
 	// Remove emojis from subject and body (already done in sendEmail, but ensure it here too)
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	apiKey := es.Controller.Options.EmailMailgunAPIKey
 	domain := es.Controller.Options.EmailMailgunDomain
 	apiBase := es.Controller.Options.EmailMailgunAPIBase
@@ -342,7 +342,7 @@ func (es *EmailService) sendSMTPEmail(fromName, fromEmail, toEmail, subject, htm
 
 	// Attempt to send the email
 	var err error
-	
+
 	// If using TLS on port 465 (implicit TLS/SSL)
 	if useTLS && port == 465 {
 		// Use TLS connection from the start (implicit TLS)
@@ -464,7 +464,7 @@ func (es *EmailService) sendEmail(fromName, fromEmail, toEmail, subject, htmlBod
 	// Remove emojis from subject and body for all emails
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	provider := es.Controller.Options.EmailProvider
 	if provider == "" {
 		provider = "sendgrid" // Default to SendGrid
@@ -488,7 +488,7 @@ func getVerificationEmailHTML(userEmail, verificationURL, branding, logoURL, bor
 	if branding == "" {
 		branding = "ThinLine Radio"
 	}
-	
+
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
@@ -716,7 +716,7 @@ func getEmailChangeVerificationHTML(newEmail, verificationURL, branding, logoURL
 	if branding == "" {
 		branding = "ThinLine Radio"
 	}
-	
+
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
@@ -1060,7 +1060,7 @@ func (es *EmailService) SendVerificationEmail(user *User) error {
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -1075,7 +1075,7 @@ func getPasswordResetEmailHTML(resetCode, branding, logoURL, borderRadius string
 	if branding == "" {
 		branding = "ThinLine Radio"
 	}
-	
+
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
@@ -1341,7 +1341,7 @@ func (es *EmailService) SendPasswordResetEmail(user *User, resetCode string) err
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -1432,7 +1432,7 @@ func (es *EmailService) SendEmailChangeVerificationEmail(user *User, verificatio
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -1532,7 +1532,7 @@ func (es *EmailService) SendNewEmailVerificationEmail(newEmail, verificationToke
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -1547,7 +1547,7 @@ func getEmailChangeVerificationCodeHTML(verificationCode, branding, logoURL stri
 	if branding == "" {
 		branding = "ThinLine Radio"
 	}
-	
+
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
@@ -1745,7 +1745,7 @@ func getPasswordChangeVerificationEmailHTML(verificationCode, branding, logoURL 
 	if branding == "" {
 		branding = "ThinLine Radio"
 	}
-	
+
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
@@ -2014,7 +2014,7 @@ func (es *EmailService) SendPasswordChangeVerificationEmail(user *User, verifica
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -2098,7 +2098,7 @@ func (es *EmailService) SendInvitationEmail(email, code, invitationLink, groupNa
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -2113,7 +2113,7 @@ func getInvitationEmailHTML(email, code, invitationLink, groupName, branding, lo
 	if branding == "" {
 		branding = "ThinLine Radio"
 	}
-	
+
 	htmlTemplate := `<!DOCTYPE html>
 <html>
 <head>
@@ -2221,21 +2221,21 @@ func getInvitationEmailHTML(email, code, invitationLink, groupName, branding, lo
 
 	var buf bytes.Buffer
 	data := struct {
-		Email         string
-		Code          string
+		Email          string
+		Code           string
 		InvitationLink string
-		GroupName     string
-		Branding      string
-		LogoURL       string
-		BorderRadius  string
+		GroupName      string
+		Branding       string
+		LogoURL        string
+		BorderRadius   string
 	}{
-		Email:         email,
-		Code:          code,
+		Email:          email,
+		Code:           code,
 		InvitationLink: invitationLink,
-		GroupName:     groupName,
-		Branding:      branding,
-		LogoURL:       logoURL,
-		BorderRadius:  borderRadius,
+		GroupName:      groupName,
+		Branding:       branding,
+		LogoURL:        logoURL,
+		BorderRadius:   borderRadius,
 	}
 
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -2326,7 +2326,7 @@ func (es *EmailService) SendUserGroupChangeEmail(user *User, newGroup *UserGroup
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -2411,7 +2411,7 @@ func (es *EmailService) SendUserMovedFromGroupEmail(admin *User, movedUser *User
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -2566,22 +2566,22 @@ func getUserGroupChangeEmailHTML(user *User, newGroup *UserGroup, oldGroup *User
 		userName = extractNameFromEmail(user.Email)
 	}
 	data := struct {
-		Branding          string
-		LogoURL           string
-		BorderRadius      string
-		UserName          string
-		OldGroupName      string
-		NewGroupName      string
-		BillingRequired   bool
+		Branding           string
+		LogoURL            string
+		BorderRadius       string
+		UserName           string
+		OldGroupName       string
+		NewGroupName       string
+		BillingRequired    bool
 		GracePeriodApplied bool
 	}{
-		Branding:          branding,
-		LogoURL:           logoURL,
-		BorderRadius:      borderRadius,
-		UserName:          userName,
-		OldGroupName:      oldGroupName,
-		NewGroupName:      newGroupName,
-		BillingRequired:   billingRequired,
+		Branding:           branding,
+		LogoURL:            logoURL,
+		BorderRadius:       borderRadius,
+		UserName:           userName,
+		OldGroupName:       oldGroupName,
+		NewGroupName:       newGroupName,
+		BillingRequired:    billingRequired,
 		GracePeriodApplied: gracePeriodApplied,
 	}
 
@@ -2723,21 +2723,21 @@ func getUserMovedFromGroupEmailHTML(admin *User, movedUser *User, oldGroup *User
 		movedUserName = movedUser.Email
 	}
 	data := struct {
-		Branding      string
-		LogoURL       string
-		BorderRadius  string
+		Branding       string
+		LogoURL        string
+		BorderRadius   string
 		MovedUserEmail string
-		MovedUserName string
-		OldGroupName  string
-		NewGroupName  string
+		MovedUserName  string
+		OldGroupName   string
+		NewGroupName   string
 	}{
-		Branding:      branding,
-		LogoURL:       logoURL,
-		BorderRadius:  borderRadius,
+		Branding:       branding,
+		LogoURL:        logoURL,
+		BorderRadius:   borderRadius,
 		MovedUserEmail: movedUser.Email,
-		MovedUserName: movedUserName,
-		OldGroupName:  oldGroupName,
-		NewGroupName:  newGroupName,
+		MovedUserName:  movedUserName,
+		OldGroupName:   oldGroupName,
+		NewGroupName:   newGroupName,
 	}
 
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -2839,7 +2839,7 @@ func (es *EmailService) SendTransferRequestEmail(admin *User, transferReq *Trans
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err
@@ -3113,7 +3113,7 @@ func (es *EmailService) SendTestEmail(toEmail string) error {
 	// Remove emojis from subject and body
 	subject = removeEmojis(subject)
 	htmlBody = removeEmojisFromHTML(htmlBody)
-	
+
 	// Send email using provider routing
 	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
 		return err

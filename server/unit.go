@@ -271,6 +271,15 @@ func (units *Units) WriteTx(tx *sql.Tx, systemId uint64) error {
 			}
 		}
 
+		// Also check if a unit with the same unitRef already exists for this system
+		// This prevents duplicate inserts from concurrent calls
+		if count == 0 {
+			query = fmt.Sprintf(`SELECT COUNT(*) FROM "units" WHERE "systemId" = %d AND "unitRef" = %d`, systemId, unit.UnitRef)
+			if err = tx.QueryRow(query).Scan(&count); err != nil {
+				break
+			}
+		}
+
 		if count == 0 {
 			if unit.Id > 0 {
 				// Preserve the explicit ID when inserting

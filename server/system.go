@@ -440,21 +440,21 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 			}
 
 			talkgroupMap := TalkgroupMap{
-				"id":                      rawTalkgroup.TalkgroupRef,
-				"talkgroupId":             rawTalkgroup.Id,           // Database ID for admin/backend use
-				"talkgroupRef":            rawTalkgroup.TalkgroupRef, // Radio reference ID
-				"frequency":               rawTalkgroup.Frequency,
-				"group":                   groupLabel,
-				"groups":                  groupLabels,
-				"label":                   rawTalkgroup.Label,
-				"name":                    rawTalkgroup.Name,
-				"order":                   rawTalkgroup.Order,
-				"tag":                     tag.Label,
-				"type":                    rawTalkgroup.Kind,
-				"toneDetectionEnabled":    rawTalkgroup.ToneDetectionEnabled,
-				"toneDownstreamEnabled":   rawTalkgroup.ToneDownstreamEnabled,
-				"toneDownstreamURL":       rawTalkgroup.ToneDownstreamURL,
-				"toneDownstreamAPIKey":    rawTalkgroup.ToneDownstreamAPIKey,
+				"id":                    rawTalkgroup.TalkgroupRef,
+				"talkgroupId":           rawTalkgroup.Id,           // Database ID for admin/backend use
+				"talkgroupRef":          rawTalkgroup.TalkgroupRef, // Radio reference ID
+				"frequency":             rawTalkgroup.Frequency,
+				"group":                 groupLabel,
+				"groups":                groupLabels,
+				"label":                 rawTalkgroup.Label,
+				"name":                  rawTalkgroup.Name,
+				"order":                 rawTalkgroup.Order,
+				"tag":                   tag.Label,
+				"type":                  rawTalkgroup.Kind,
+				"toneDetectionEnabled":  rawTalkgroup.ToneDetectionEnabled,
+				"toneDownstreamEnabled": rawTalkgroup.ToneDownstreamEnabled,
+				"toneDownstreamURL":     rawTalkgroup.ToneDownstreamURL,
+				"toneDownstreamAPIKey":  rawTalkgroup.ToneDownstreamAPIKey,
 			}
 
 			if len(rawTalkgroup.ToneSets) > 0 {

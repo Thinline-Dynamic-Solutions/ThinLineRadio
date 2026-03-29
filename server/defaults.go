@@ -45,94 +45,94 @@ type DefaultDownstream struct {
 }
 
 type DefaultOptions struct {
-	autoPopulate                bool
-	audioConversion             uint
-	branding                    string
-	defaultSystemDelay          uint
-	dimmerDelay                 uint
-	disableDuplicateDetection   bool
-	duplicateDetectionMode      string
-	duplicateDetectionTimeFrame uint
-	advancedDetectionTimeFrame  uint
-	email                       string
-	keypadBeeps                 string
-	maxClients                  uint
-	playbackGoesLive            bool
-	pruneDays                   uint
-	showListenersCount          bool
-	sortTalkgroups              bool
-	time12hFormat               bool
-	radioReferenceEnabled       bool
-	radioReferenceUsername      string
-	radioReferencePassword      string
-	userRegistrationEnabled     bool
-	publicRegistrationEnabled   bool
-	publicRegistrationMode      string
-	stripePaywallEnabled        bool
-	emailServiceEnabled         bool
-	emailServiceApiKey          string
-	emailServiceDomain          string
-	emailServiceTemplateId      string
-	emailProvider               string
-	emailSendGridAPIKey         string
-	emailMailgunAPIKey          string
-	emailMailgunDomain          string
-	emailMailgunAPIBase         string
-	emailSmtpHost               string
-	emailSmtpPort               int
-	emailSmtpUsername           string
-	emailSmtpPassword           string
-	emailSmtpUseTLS             bool
-	emailSmtpSkipVerify         bool
-	emailSmtpFromEmail          string
-	emailSmtpFromName           string
-	emailLogoFilename           string
-	emailLogoBorderRadius       string
-	faviconFilename             string
-	stripePublishableKey        string
-	stripeSecretKey             string
-	stripeWebhookSecret         string
-	stripeGracePeriodDays        uint
-	stripePriceId               string
-	baseUrl                     string
-	transcriptionConfig         DefaultTranscriptionConfig
-	transcriptionFailureThreshold uint
-	toneDetectionIssueThreshold uint
-	alertRetentionDays          uint
-	noAudioThresholdMinutes     uint
-	noAudioMultiplier            float64
-	systemHealthAlertsEnabled   bool
+	autoPopulate                      bool
+	audioConversion                   uint
+	branding                          string
+	defaultSystemDelay                uint
+	dimmerDelay                       uint
+	disableDuplicateDetection         bool
+	duplicateDetectionMode            string
+	duplicateDetectionTimeFrame       uint
+	advancedDetectionTimeFrame        uint
+	email                             string
+	keypadBeeps                       string
+	maxClients                        uint
+	playbackGoesLive                  bool
+	pruneDays                         uint
+	showListenersCount                bool
+	sortTalkgroups                    bool
+	time12hFormat                     bool
+	radioReferenceEnabled             bool
+	radioReferenceUsername            string
+	radioReferencePassword            string
+	userRegistrationEnabled           bool
+	publicRegistrationEnabled         bool
+	publicRegistrationMode            string
+	stripePaywallEnabled              bool
+	emailServiceEnabled               bool
+	emailServiceApiKey                string
+	emailServiceDomain                string
+	emailServiceTemplateId            string
+	emailProvider                     string
+	emailSendGridAPIKey               string
+	emailMailgunAPIKey                string
+	emailMailgunDomain                string
+	emailMailgunAPIBase               string
+	emailSmtpHost                     string
+	emailSmtpPort                     int
+	emailSmtpUsername                 string
+	emailSmtpPassword                 string
+	emailSmtpUseTLS                   bool
+	emailSmtpSkipVerify               bool
+	emailSmtpFromEmail                string
+	emailSmtpFromName                 string
+	emailLogoFilename                 string
+	emailLogoBorderRadius             string
+	faviconFilename                   string
+	stripePublishableKey              string
+	stripeSecretKey                   string
+	stripeWebhookSecret               string
+	stripeGracePeriodDays             uint
+	stripePriceId                     string
+	baseUrl                           string
+	transcriptionConfig               DefaultTranscriptionConfig
+	transcriptionFailureThreshold     uint
+	toneDetectionIssueThreshold       uint
+	alertRetentionDays                uint
+	noAudioThresholdMinutes           uint
+	noAudioMultiplier                 float64
+	systemHealthAlertsEnabled         bool
 	transcriptionFailureAlertsEnabled bool
-	toneDetectionAlertsEnabled  bool
-	noAudioAlertsEnabled        bool
-	transcriptionFailureTimeWindow uint
-	toneDetectionTimeWindow     uint
-	noAudioTimeWindow           uint
-	noAudioHistoricalDataDays   uint
+	toneDetectionAlertsEnabled        bool
+	noAudioAlertsEnabled              bool
+	transcriptionFailureTimeWindow    uint
+	toneDetectionTimeWindow           uint
+	noAudioTimeWindow                 uint
+	noAudioHistoricalDataDays         uint
 	transcriptionFailureRepeatMinutes uint
 	toneDetectionRepeatMinutes        uint
 	noAudioRepeatMinutes              uint
-	adminLocalhostOnly          bool
-	configSyncEnabled           bool
-	configSyncPath              string
-	reconnectionEnabled         bool
-	reconnectionGracePeriod     uint
-	reconnectionMaxBufferSize   uint
+	adminLocalhostOnly                bool
+	configSyncEnabled                 bool
+	configSyncPath                    string
+	reconnectionEnabled               bool
+	reconnectionGracePeriod           uint
+	reconnectionMaxBufferSize         uint
 }
 
 type DefaultTranscriptionConfig struct {
-	enabled          bool
-	provider         string
-	whisperAPIURL    string
-	whisperAPIKey    string
-	azureKey         string
-	azureRegion      string
-	googleAPIKey     string
+	enabled           bool
+	provider          string
+	whisperAPIURL     string
+	whisperAPIKey     string
+	azureKey          string
+	azureRegion       string
+	googleAPIKey      string
 	googleCredentials string
-	assemblyAIKey    string
-	language         string
-	prompt           string
-	workerPoolSize   int
+	assemblyAIKey     string
+	language          string
+	prompt            string
+	workerPoolSize    int
 }
 
 var defaults = Defaults{
@@ -213,53 +213,53 @@ var defaults = Defaults{
 		stripePriceId:               "",
 		baseUrl:                     "",
 		transcriptionConfig: DefaultTranscriptionConfig{
-			enabled:        false,
-			provider:       "whisper-api", // Default to external Whisper API server
-			whisperAPIURL:  "http://localhost:8000",
-			whisperAPIKey:  "",
-			azureKey:       "",
-			azureRegion:    "eastus",
-			googleAPIKey:   "",
+			enabled:           false,
+			provider:          "whisper-api", // Default to external Whisper API server
+			whisperAPIURL:     "http://localhost:8000",
+			whisperAPIKey:     "",
+			azureKey:          "",
+			azureRegion:       "eastus",
+			googleAPIKey:      "",
 			googleCredentials: "",
-			assemblyAIKey:  "",
-			language:       "en",       // English by default
-			prompt:         "",         // No default prompt
-			workerPoolSize: 3,          // Conservative default
+			assemblyAIKey:     "",
+			language:          "en", // English by default
+			prompt:            "",   // No default prompt
+			workerPoolSize:    3,    // Conservative default
 		},
-		transcriptionFailureThreshold: 10,
-		toneDetectionIssueThreshold: 5,
-		alertRetentionDays: 5,
-	noAudioThresholdMinutes: 30,
-	noAudioMultiplier: 1.5,
-	systemHealthAlertsEnabled: true,
-	transcriptionFailureAlertsEnabled: true,
-	toneDetectionAlertsEnabled: true,
-	noAudioAlertsEnabled: true,
-	transcriptionFailureTimeWindow: 24,
-	toneDetectionTimeWindow: 24,
-		noAudioTimeWindow: 24,
-		noAudioHistoricalDataDays: 7,
+		transcriptionFailureThreshold:     10,
+		toneDetectionIssueThreshold:       5,
+		alertRetentionDays:                5,
+		noAudioThresholdMinutes:           30,
+		noAudioMultiplier:                 1.5,
+		systemHealthAlertsEnabled:         true,
+		transcriptionFailureAlertsEnabled: true,
+		toneDetectionAlertsEnabled:        true,
+		noAudioAlertsEnabled:              true,
+		transcriptionFailureTimeWindow:    24,
+		toneDetectionTimeWindow:           24,
+		noAudioTimeWindow:                 24,
+		noAudioHistoricalDataDays:         7,
 		transcriptionFailureRepeatMinutes: 60,
-		toneDetectionRepeatMinutes: 60,
-		noAudioRepeatMinutes: 30,
-		adminLocalhostOnly: false, // Default to false for backwards compatibility
-		configSyncEnabled:  false,
-		configSyncPath:     "",
-		reconnectionEnabled: true,       // Enable by default
-		reconnectionGracePeriod: 60,     // 60 seconds
-		reconnectionMaxBufferSize: 100,  // 100 calls max
+		toneDetectionRepeatMinutes:        60,
+		noAudioRepeatMinutes:              30,
+		adminLocalhostOnly:                false, // Default to false for backwards compatibility
+		configSyncEnabled:                 false,
+		configSyncPath:                    "",
+		reconnectionEnabled:               true, // Enable by default
+		reconnectionGracePeriod:           60,   // 60 seconds
+		reconnectionMaxBufferSize:         100,  // 100 calls max
 	},
 	systems: []System{
 		{
 			Id:           1,
 			Label:        "Default System",
-		SystemRef:    1,
-		AutoPopulate: true,
-		Blacklists:   "",
-		Delay:        0,
-		Order:        1,
-		Kind:         "",
-	},
+			SystemRef:    1,
+			AutoPopulate: true,
+			Blacklists:   "",
+			Delay:        0,
+			Order:        1,
+			Kind:         "",
+		},
 	},
 	tags: []string{
 		"Emergency",

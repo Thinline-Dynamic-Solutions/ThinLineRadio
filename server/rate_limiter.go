@@ -56,8 +56,8 @@ type LoginAttemptTracker struct {
 
 type loginAttemptEntry struct {
 	failedAttempts int
-	blockedUntil    *time.Time
-	lastAttempt     time.Time
+	blockedUntil   *time.Time
+	lastAttempt    time.Time
 }
 
 // NewRateLimiter creates a new rate limiter
@@ -160,7 +160,7 @@ func (lat *LoginAttemptTracker) RecordFailedAttempt(ip string) {
 	if !exists {
 		entry = &loginAttemptEntry{
 			failedAttempts: 0,
-			lastAttempt:     now,
+			lastAttempt:    now,
 		}
 		lat.attempts[ip] = entry
 	}
@@ -257,12 +257,12 @@ func getRemoteAddr(r *http.Request) string {
 		}
 		return strings.TrimSpace(forwarded)
 	}
-	
+
 	// Check X-Real-IP header (another common reverse proxy header)
 	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
 		return strings.TrimSpace(realIP)
 	}
-	
+
 	// Fall back to RemoteAddr
 	ip := r.RemoteAddr
 	if idx := strings.LastIndex(ip, ":"); idx != -1 {
@@ -302,16 +302,16 @@ func LoginAttemptMiddleware(tracker *LoginAttemptTracker) func(http.Handler) htt
 			if tracker.IsBlocked(ip) {
 				remaining := tracker.GetRemainingBlockTime(ip)
 				remainingSeconds := int(remaining.Seconds())
-				
+
 				// Return JSON error with redirect URL for client to handle
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", fmt.Sprintf("%.0f", remaining.Seconds()))
 				w.WriteHeader(http.StatusTooManyRequests)
 				json.NewEncoder(w).Encode(map[string]interface{}{
-					"error":       "Too many failed login attempts. IP address temporarily blocked.",
-					"blocked":     true,
-					"redirectTo":  fmt.Sprintf("/login-blocked?seconds=%d", remainingSeconds),
-					"retryAfter":  remainingSeconds,
+					"error":        "Too many failed login attempts. IP address temporarily blocked.",
+					"blocked":      true,
+					"redirectTo":   fmt.Sprintf("/login-blocked?seconds=%d", remainingSeconds),
+					"retryAfter":   remainingSeconds,
 					"blockedUntil": remaining.String(),
 				})
 				return
@@ -321,4 +321,3 @@ func LoginAttemptMiddleware(tracker *LoginAttemptTracker) func(http.Handler) htt
 		})
 	}
 }
-

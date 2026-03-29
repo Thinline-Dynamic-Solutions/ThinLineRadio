@@ -2336,22 +2336,22 @@ func migrateSystemHealthAlertOptions(db *Database) error {
 
 	// List of all system health alert options with their default values
 	options := map[string]string{
-		"systemHealthAlertsEnabled":           "true",
-		"transcriptionFailureAlertsEnabled":   "true",
-		"toneDetectionAlertsEnabled":          "true",
-		"noAudioAlertsEnabled":                "true",
-		"transcriptionFailureThreshold":       "10",
-		"transcriptionFailureTimeWindow":      "24",
-		"toneDetectionIssueThreshold":         "5",
-		"toneDetectionTimeWindow":             "24",
-		"noAudioThresholdMinutes":             "30",
-		"noAudioMultiplier":                   "1.5",
-		"noAudioTimeWindow":                   "24",
-		"noAudioHistoricalDataDays":           "7",
-		"transcriptionFailureRepeatMinutes":   "60",
-		"toneDetectionRepeatMinutes":          "60",
-		"noAudioRepeatMinutes":                "30",
-		"alertRetentionDays":                  "5",
+		"systemHealthAlertsEnabled":         "true",
+		"transcriptionFailureAlertsEnabled": "true",
+		"toneDetectionAlertsEnabled":        "true",
+		"noAudioAlertsEnabled":              "true",
+		"transcriptionFailureThreshold":     "10",
+		"transcriptionFailureTimeWindow":    "24",
+		"toneDetectionIssueThreshold":       "5",
+		"toneDetectionTimeWindow":           "24",
+		"noAudioThresholdMinutes":           "30",
+		"noAudioMultiplier":                 "1.5",
+		"noAudioTimeWindow":                 "24",
+		"noAudioHistoricalDataDays":         "7",
+		"transcriptionFailureRepeatMinutes": "60",
+		"toneDetectionRepeatMinutes":        "60",
+		"noAudioRepeatMinutes":              "30",
+		"alertRetentionDays":                "5",
 	}
 
 	// Insert each option if it doesn't already exist

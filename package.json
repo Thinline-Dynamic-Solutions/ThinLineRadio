@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "concurrently --names \"SERVER,CLIENT\" --prefix-colors \"cyan,magenta\" \"npm run server\" \"npm run client\"",
     "server": "cd server && go run . -config $(pwd)/thinline-radio.ini",
-    "client": "cd client && npm start"
+    "client": "cd client && npm start",
+    "format": "cd server && go fmt"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

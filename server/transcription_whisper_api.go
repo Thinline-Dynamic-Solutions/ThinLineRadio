@@ -407,4 +407,3 @@ func (api *WhisperAPITranscription) GetSupportedLanguages() []string {
 		"hu", "id", "ms", "no", "ro", "sk", "sv", "uk", "vi",
 	}
 }
-

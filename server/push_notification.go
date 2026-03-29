@@ -489,12 +489,12 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 			if group != nil && group.BillingEnabled {
 				var subscriptionStatus string
 
-			if group.BillingMode == "group_admin" {
-				// O(1) lookup via pre-built index instead of scanning all users.
-				if admin := controller.Users.GetGroupAdmin(group.Id); admin != nil {
-					subscriptionStatus = admin.SubscriptionStatus
-				}
-				// If no admin found, leave empty → grace period (allow notification)
+				if group.BillingMode == "group_admin" {
+					// O(1) lookup via pre-built index instead of scanning all users.
+					if admin := controller.Users.GetGroupAdmin(group.Id); admin != nil {
+						subscriptionStatus = admin.SubscriptionStatus
+					}
+					// If no admin found, leave empty → grace period (allow notification)
 				} else {
 					// For all_users mode, check the user's own subscription status
 					subscriptionStatus = user.SubscriptionStatus

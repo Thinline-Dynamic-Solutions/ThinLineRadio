@@ -245,7 +245,7 @@ func (hd *HallucinationDetector) autoAddPattern(sh *SuspectedHallucination) {
 		return
 	}
 
-	hd.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("auto-added hallucination pattern: %q (rejected: %d, systems: %d, score: %.1f)", 
+	hd.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("auto-added hallucination pattern: %q (rejected: %d, systems: %d, score: %.1f)",
 		sh.Phrase, sh.RejectedCount, len(sh.SystemIds), sh.ConfidenceScore))
 }
 
@@ -289,7 +289,6 @@ func (hd *HallucinationDetector) getOrCreatePhrase(phrase string, systemId uint6
 // getPhrase retrieves a phrase from the database
 func (hd *HallucinationDetector) getPhrase(phrase string) (*SuspectedHallucination, error) {
 	query := `SELECT "id", "phrase", "rejectedCount", "acceptedCount", "firstSeenAt", "lastSeenAt", "systemIds", "status", "autoAdded", "createdAt", "updatedAt" FROM "suspectedHallucinations" WHERE "phrase" = $1`
-
 
 	var sh SuspectedHallucination
 	var systemIdsJson string
@@ -392,14 +391,14 @@ func (hd *HallucinationDetector) ApproveHallucination(id uint64) error {
 
 	// Add to hallucination patterns
 	patterns := hd.controller.Options.TranscriptionConfig.HallucinationPatterns
-	
+
 	// Check if already exists
 	for _, p := range patterns {
 		if strings.EqualFold(p, sh.Phrase) {
 			return fmt.Errorf("pattern already exists")
 		}
 	}
-	
+
 	patterns = append(patterns, sh.Phrase)
 	hd.controller.Options.TranscriptionConfig.HallucinationPatterns = patterns
 
@@ -432,4 +431,3 @@ func (hd *HallucinationDetector) RejectHallucination(id uint64) error {
 	_, err := hd.controller.Database.Sql.Exec(query)
 	return err
 }
-

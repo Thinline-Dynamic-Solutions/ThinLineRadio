@@ -1486,45 +1486,45 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-		switch v := m["systems"].(type) {
-		case []any:
-			// Preserve per-system noAudioAlertsEnabled / noAudioThresholdMinutes values
-			// when the incoming config payload omits them (e.g. a normal talkgroup save from
-			// the admin UI that is unaware of the System Health tab settings).
-			// Without this, Systems.FromMap defaults noAudioAlertsEnabled to true, silently
-			// overwriting a user's "disabled" setting and causing it to reappear after restart.
-			for _, r := range v {
-				m, ok := r.(map[string]any)
-				if !ok {
-					continue
-				}
-				// Only patch fields that are completely absent from the payload
-				_, hasEnabled := m["noAudioAlertsEnabled"]
-				_, hasThreshold := m["noAudioThresholdMinutes"]
-				if hasEnabled && hasThreshold {
-					continue
-				}
-				// Try to find the matching existing system by id, then by systemRef
-				var existing *System
-				if idVal, ok := m["id"].(float64); ok {
-					existing, _ = admin.Controller.Systems.GetSystemById(uint64(idVal))
-				}
-				if existing == nil {
-					if refVal, ok := m["systemRef"].(float64); ok {
-						existing, _ = admin.Controller.Systems.GetSystemByRef(uint(refVal))
+			switch v := m["systems"].(type) {
+			case []any:
+				// Preserve per-system noAudioAlertsEnabled / noAudioThresholdMinutes values
+				// when the incoming config payload omits them (e.g. a normal talkgroup save from
+				// the admin UI that is unaware of the System Health tab settings).
+				// Without this, Systems.FromMap defaults noAudioAlertsEnabled to true, silently
+				// overwriting a user's "disabled" setting and causing it to reappear after restart.
+				for _, r := range v {
+					m, ok := r.(map[string]any)
+					if !ok {
+						continue
+					}
+					// Only patch fields that are completely absent from the payload
+					_, hasEnabled := m["noAudioAlertsEnabled"]
+					_, hasThreshold := m["noAudioThresholdMinutes"]
+					if hasEnabled && hasThreshold {
+						continue
+					}
+					// Try to find the matching existing system by id, then by systemRef
+					var existing *System
+					if idVal, ok := m["id"].(float64); ok {
+						existing, _ = admin.Controller.Systems.GetSystemById(uint64(idVal))
+					}
+					if existing == nil {
+						if refVal, ok := m["systemRef"].(float64); ok {
+							existing, _ = admin.Controller.Systems.GetSystemByRef(uint(refVal))
+						}
+					}
+					if existing != nil {
+						if !hasEnabled {
+							m["noAudioAlertsEnabled"] = existing.NoAudioAlertsEnabled
+						}
+						if !hasThreshold {
+							m["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
+						}
 					}
 				}
-				if existing != nil {
-					if !hasEnabled {
-						m["noAudioAlertsEnabled"] = existing.NoAudioAlertsEnabled
-					}
-					if !hasThreshold {
-						m["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
-					}
-				}
-			}
-			admin.Controller.Systems.FromMap(v)
-			err = admin.Controller.Systems.Write(admin.Controller.Database)
+				admin.Controller.Systems.FromMap(v)
+				err = admin.Controller.Systems.Write(admin.Controller.Database)
 				if err != nil {
 					logError(err)
 					// The write transaction was rolled back, but any INSERT…RETURNING
@@ -1612,10 +1612,10 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						existingGroup.StripePriceId = getStringFromMap(groupMap, "stripePriceId")
 						existingGroup.PricingOptions = getStringFromMap(groupMap, "pricingOptions")
 						existingGroup.BillingMode = getStringFromMap(groupMap, "billingMode")
-					existingGroup.CollectSalesTax = getBoolFromMap(groupMap, "collectSalesTax", false)
-					existingGroup.TaxMode = getStringFromMap(groupMap, "taxMode")
-					existingGroup.StripeTaxRateId = getStringFromMap(groupMap, "stripeTaxRateId")
-					existingGroup.IsPublicRegistration = getBoolFromMap(groupMap, "isPublicRegistration", false)
+						existingGroup.CollectSalesTax = getBoolFromMap(groupMap, "collectSalesTax", false)
+						existingGroup.TaxMode = getStringFromMap(groupMap, "taxMode")
+						existingGroup.StripeTaxRateId = getStringFromMap(groupMap, "stripeTaxRateId")
+						existingGroup.IsPublicRegistration = getBoolFromMap(groupMap, "isPublicRegistration", false)
 						existingGroup.AllowAddExistingUsers = getBoolFromMap(groupMap, "allowAddExistingUsers", false)
 						if createdAt, ok := groupMap["createdAt"].(float64); ok {
 							existingGroup.CreatedAt = int64(createdAt)
@@ -1644,10 +1644,10 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 							StripePriceId:         getStringFromMap(groupMap, "stripePriceId"),
 							PricingOptions:        getStringFromMap(groupMap, "pricingOptions"),
 							BillingMode:           getStringFromMap(groupMap, "billingMode"),
-						CollectSalesTax:       getBoolFromMap(groupMap, "collectSalesTax", false),
-						TaxMode:               getStringFromMap(groupMap, "taxMode"),
-						StripeTaxRateId:       getStringFromMap(groupMap, "stripeTaxRateId"),
-						IsPublicRegistration:  getBoolFromMap(groupMap, "isPublicRegistration", false),
+							CollectSalesTax:       getBoolFromMap(groupMap, "collectSalesTax", false),
+							TaxMode:               getStringFromMap(groupMap, "taxMode"),
+							StripeTaxRateId:       getStringFromMap(groupMap, "stripeTaxRateId"),
+							IsPublicRegistration:  getBoolFromMap(groupMap, "isPublicRegistration", false),
 							AllowAddExistingUsers: getBoolFromMap(groupMap, "allowAddExistingUsers", false),
 						}
 						if createdAt, ok := groupMap["createdAt"].(float64); ok {

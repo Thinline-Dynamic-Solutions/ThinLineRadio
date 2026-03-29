@@ -29,11 +29,11 @@ import (
 
 // GoogleTranscription implements TranscriptionProvider for Google Cloud Speech-to-Text
 type GoogleTranscription struct {
-	available     bool
-	apiKey        string
-	credentials   string // Service account JSON (alternative to API key)
-	httpClient    *http.Client
-	warned        bool
+	available   bool
+	apiKey      string
+	credentials string // Service account JSON (alternative to API key)
+	httpClient  *http.Client
+	warned      bool
 }
 
 // GoogleConfig contains configuration for Google Cloud Speech-to-Text
@@ -84,9 +84,9 @@ func (google *GoogleTranscription) Transcribe(audio []byte, options Transcriptio
 	// Build request body
 	requestBody := map[string]interface{}{
 		"config": map[string]interface{}{
-			"encoding":        google.getAudioEncoding(options.AudioMime),
-			"sampleRateHertz": 16000, // Default, may need adjustment based on actual audio
-			"languageCode":    language,
+			"encoding":                   google.getAudioEncoding(options.AudioMime),
+			"sampleRateHertz":            16000, // Default, may need adjustment based on actual audio
+			"languageCode":               language,
 			"enableAutomaticPunctuation": true,
 			"enableWordTimeOffsets":      true,
 		},
@@ -113,7 +113,7 @@ func (google *GoogleTranscription) Transcribe(audio []byte, options Transcriptio
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// If using service account credentials, we'd need OAuth2 token
 	// For now, API key is simpler
 	if google.credentials != "" && google.apiKey == "" {
@@ -136,12 +136,12 @@ func (google *GoogleTranscription) Transcribe(audio []byte, options Transcriptio
 	var googleResponse struct {
 		Results []struct {
 			Alternatives []struct {
-				Transcript string `json:"transcript"`
+				Transcript string  `json:"transcript"`
 				Confidence float64 `json:"confidence"`
 				Words      []struct {
-					StartTime  string `json:"startTime"`
-					EndTime    string `json:"endTime"`
-					Word       string `json:"word"`
+					StartTime string `json:"startTime"`
+					EndTime   string `json:"endTime"`
+					Word      string `json:"word"`
 				} `json:"words"`
 			} `json:"alternatives"`
 		} `json:"results"`
@@ -170,7 +170,7 @@ func (google *GoogleTranscription) Transcribe(audio []byte, options Transcriptio
 		// In a more sophisticated implementation, you could group by time gaps
 		startTime := google.parseTime(bestAlternative.Words[0].StartTime)
 		endTime := google.parseTime(bestAlternative.Words[len(bestAlternative.Words)-1].EndTime)
-		
+
 		segments = append(segments, TranscriptSegment{
 			Text:       transcript,
 			StartTime:  startTime,
@@ -243,4 +243,3 @@ func (google *GoogleTranscription) GetSupportedLanguages() []string {
 		"hu-HU", "id-ID", "ms-MY", "no-NO", "ro-RO", "sk-SK", "sv-SE", "uk-UA", "vi-VN",
 	}
 }
-

@@ -36,7 +36,7 @@ type KeywordMatcher struct {
 
 	// Compiled regex cache: keyed by the uppercased keyword so the same
 	// pattern is only compiled once for the lifetime of the process.
-	mu      sync.RWMutex
+	mu       sync.RWMutex
 	compiled map[string]*regexp.Regexp
 }
 
@@ -74,22 +74,22 @@ func (matcher *KeywordMatcher) getCompiledPattern(keywordUpper string) (*regexp.
 // Transcript should already be in ALL CAPS
 func (matcher *KeywordMatcher) MatchKeywords(transcript string, keywords []string) []KeywordMatch {
 	matches := []KeywordMatch{}
-	
+
 	if transcript == "" || len(keywords) == 0 {
 		return matches
 	}
-	
+
 	// Ensure transcript is uppercase
 	transcriptUpper := strings.ToUpper(transcript)
-	
+
 	for _, keyword := range keywords {
 		if keyword == "" {
 			continue
 		}
-		
+
 		// Convert keyword to uppercase for case-insensitive matching
 		keywordUpper := strings.ToUpper(strings.TrimSpace(keyword))
-		
+
 		// Look up (or compile) the cached regex for this keyword.
 		re, err := matcher.getCompiledPattern(keywordUpper)
 		if err != nil {
@@ -101,34 +101,34 @@ func (matcher *KeywordMatcher) MatchKeywords(transcript string, keywords []strin
 				if index == -1 {
 					break
 				}
-				
+
 				actualPos := pos + index
-				
+
 				// Check if it's a whole word match
 				if matcher.isWholeWord(transcriptUpper, actualPos, len(keywordUpper)) {
 					// Extract context (surrounding text)
 					context := matcher.extractContext(transcript, actualPos, len(keywordUpper))
-					
+
 					matches = append(matches, KeywordMatch{
 						Keyword:  keyword, // Store original keyword (not uppercase)
 						Context:  context,
 						Position: actualPos,
 					})
 				}
-				
+
 				pos = actualPos + 1
 			}
 			continue
 		}
-		
+
 		// Find all whole-word matches using regex
 		allMatches := re.FindAllStringIndex(transcriptUpper, -1)
 		for _, match := range allMatches {
 			actualPos := match[0]
-			
+
 			// Extract context (surrounding text)
 			context := matcher.extractContext(transcript, actualPos, len(keywordUpper))
-			
+
 			matches = append(matches, KeywordMatch{
 				Keyword:  keyword, // Store original keyword (not uppercase)
 				Context:  context,
@@ -136,7 +136,7 @@ func (matcher *KeywordMatcher) MatchKeywords(transcript string, keywords []strin
 			})
 		}
 	}
-	
+
 	return matches
 }
 
@@ -150,7 +150,7 @@ func (matcher *KeywordMatcher) isWholeWord(text string, pos int, length int) boo
 			return false
 		}
 	}
-	
+
 	// Check character after the match
 	if pos+length < len(text) {
 		charAfter := text[pos+length]
@@ -158,7 +158,7 @@ func (matcher *KeywordMatcher) isWholeWord(text string, pos int, length int) boo
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -168,14 +168,14 @@ func (matcher *KeywordMatcher) extractContext(transcript string, position int, k
 	if start < 0 {
 		start = 0
 	}
-	
+
 	end := position + keywordLength + matcher.contextChars
 	if end > len(transcript) {
 		end = len(transcript)
 	}
-	
+
 	context := transcript[start:end]
-	
+
 	// Add ellipsis if we truncated
 	if start > 0 {
 		context = "..." + context
@@ -183,7 +183,6 @@ func (matcher *KeywordMatcher) extractContext(transcript string, position int, k
 	if end < len(transcript) {
 		context = context + "..."
 	}
-	
+
 	return context
 }
-

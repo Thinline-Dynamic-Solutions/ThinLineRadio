@@ -41,16 +41,16 @@ type HydraTranscriptionRetrievalJob struct {
 
 // HydraTranscriptionRetrievalQueue manages retrieval of transcriptions from Hydra API
 type HydraTranscriptionRetrievalQueue struct {
-	jobs       chan HydraTranscriptionRetrievalJob
-	controller *Controller
-	mutex      sync.Mutex
-	running    bool
-	stopChan   chan struct{}
-	apiSecret  string // Node secret for authentication
-	jwtToken   string // JWT token obtained from /auth/node
-	tokenExpiry time.Time // When the JWT expires
+	jobs              chan HydraTranscriptionRetrievalJob
+	controller        *Controller
+	mutex             sync.Mutex
+	running           bool
+	stopChan          chan struct{}
+	apiSecret         string    // Node secret for authentication
+	jwtToken          string    // JWT token obtained from /auth/node
+	tokenExpiry       time.Time // When the JWT expires
 	lastNoJobsLogTime time.Time // Last time we logged "no jobs ready" message
-	pollCount int // Counter for debugging polling
+	pollCount         int       // Counter for debugging polling
 }
 
 // NewHydraTranscriptionRetrievalQueue creates a new Hydra transcription retrieval queue
@@ -233,7 +233,7 @@ func (queue *HydraTranscriptionRetrievalQueue) processBatch() {
 
 	// Collect up to 15 jobs from the queue, but only process those that have waited at least 15 seconds
 	now := time.Now()
-	
+
 	// Log when we start checking for jobs (first few times to confirm polling is working)
 	queue.mutex.Lock()
 	pollCount := queue.pollCount
@@ -244,7 +244,7 @@ func (queue *HydraTranscriptionRetrievalQueue) processBatch() {
 	}
 	readyJobs := make([]HydraTranscriptionRetrievalJob, 0, 15)
 	pendingJobs := make([]HydraTranscriptionRetrievalJob, 0)
-	
+
 	// Drain all available jobs from the channel
 	draining := true
 	for draining && len(readyJobs) < 15 && len(pendingJobs) < 100 {
@@ -329,33 +329,33 @@ func (queue *HydraTranscriptionRetrievalQueue) retrieveTranscription(job HydraTr
 		queue.mutex.Lock()
 		queue.jwtToken = "" // Clear invalid token
 		queue.mutex.Unlock()
-		
+
 		if err := queue.authenticate(); err != nil {
 			log.Printf("Hydra retrieval: re-authentication failed: %v", err)
 			return
 		}
-		
+
 		// Retry the request with new token
 		queue.mutex.Lock()
 		jwtToken = queue.jwtToken
 		queue.mutex.Unlock()
-		
+
 		req2, _ := http.NewRequest("GET", url, nil)
 		req2.Header.Set("Authorization", fmt.Sprintf("Bearer %s", jwtToken))
 		req2.Header.Set("Content-Type", "application/json")
-		
+
 		resp2, err := client.Do(req2)
 		if err != nil {
 			log.Printf("Hydra retrieval: retry failed for call %d: %v", job.CallId, err)
 			return
 		}
 		defer resp2.Body.Close()
-		
+
 		if resp2.StatusCode != http.StatusOK {
 			log.Printf("Hydra retrieval: Hydra returned %d for call %d (transmission_id=%s) after re-auth", resp2.StatusCode, job.CallId, job.TransmissionId)
 			return
 		}
-		
+
 		// Use resp2 for decoding
 		resp = resp2
 	} else if resp.StatusCode != http.StatusOK {
@@ -378,7 +378,7 @@ func (queue *HydraTranscriptionRetrievalQueue) retrieveTranscription(job HydraTr
 		log.Printf("Hydra retrieval: failed to read Hydra response for call %d: %v", job.CallId, err)
 		return
 	}
-	
+
 	// Log raw Hydra response for debugging transcript mismatches
 	bodyStr := string(bodyBytes)
 	if len(bodyStr) > 500 {
@@ -432,7 +432,7 @@ func (queue *HydraTranscriptionRetrievalQueue) retrieveTranscription(job HydraTr
 		log.Printf("Hydra retrieval: failed to verify call %d exists: %v", job.CallId, err)
 		return
 	}
-	
+
 	// Verify transmission_id matches
 	if dbTransmissionId != job.TransmissionId {
 		log.Printf("Hydra retrieval: WARNING - transmission_id mismatch for call %d: stored=%q, expected=%q, skipping transcript storage", job.CallId, dbTransmissionId, job.TransmissionId)
@@ -452,7 +452,7 @@ func (queue *HydraTranscriptionRetrievalQueue) retrieveTranscription(job HydraTr
 		log.Printf("Hydra retrieval: failed to update call transcript for call %d: %v", job.CallId, err)
 		return
 	}
-	
+
 	// Verify the update actually affected a row
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -488,7 +488,7 @@ func (queue *HydraTranscriptionRetrievalQueue) UpdateAPIKey(apiSecret string) {
 	defer queue.mutex.Unlock()
 	oldSecret := queue.apiSecret
 	queue.apiSecret = apiSecret
-	
+
 	// If secret changed, invalidate token to force re-auth
 	if oldSecret != apiSecret {
 		queue.jwtToken = ""
