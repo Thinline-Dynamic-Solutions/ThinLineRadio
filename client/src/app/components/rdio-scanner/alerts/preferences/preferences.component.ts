@@ -192,9 +192,10 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     }
 
     getFilteredTalkgroups(system: RdioScannerSystem): RdioScannerTalkgroup[] {
-        if (!this.searchQuery.trim()) return system.talkgroups || [];
+        const alertable = (system.talkgroups || []).filter(tg => tg.alertsEnabled !== false);
+        if (!this.searchQuery.trim()) return alertable;
         const q = this.searchQuery.toLowerCase();
-        return (system.talkgroups || []).filter(tg => {
+        return alertable.filter(tg => {
             const label = (tg.label || '').toLowerCase();
             const name = (tg.name || '').toLowerCase();
             const id = tg.id.toString();
@@ -204,11 +205,13 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
 
     getSystemsForSidebar(): RdioScannerSystem[] {
         if (!this.systems?.length) return [];
+        // Exclude systems where admin has disabled alerts
+        const alertable = this.systems.filter(s => s.alertsEnabled !== false);
         const q = this.searchQuery.trim().toLowerCase();
-        if (!q) return this.systems;
-        return this.systems.filter(system => {
+        if (!q) return alertable;
+        return alertable.filter(system => {
             if ((system.label || '').toLowerCase().includes(q)) return true;
-            return (system.talkgroups || []).some(tg => {
+            return (system.talkgroups || []).filter(tg => tg.alertsEnabled !== false).some(tg => {
                 const label = (tg.label || '').toLowerCase();
                 const name = (tg.name || '').toLowerCase();
                 const id = tg.id.toString();

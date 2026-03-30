@@ -252,6 +252,259 @@
       }
     }
 
+    .per-channel-sounds-setting {
+      margin-top: 24px;
+      padding: 16px;
+      background: var(--scaffold-background, #1e1e1e);
+      border-radius: 8px;
+      border: 1px solid var(--divider-color, rgba(255, 255, 255, 0.12));
+
+      h4 {
+        color: var(--primary-color, #00e676);
+        margin-bottom: 8px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .setting-description {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 13px;
+        margin-bottom: 16px;
+        line-height: 1.5;
+      }
+
+      .channel-sounds-loading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 13px;
+        padding: 8px 0;
+      }
+
+      .channel-sounds-empty {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 13px;
+        font-style: italic;
+        padding: 8px 0;
+      }
+
+      // ── System card ──────────────────────────────────────────────────────────
+      .cs-system-card {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        margin-bottom: 8px;
+        overflow: hidden;
+      }
+
+      .cs-system-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.04);
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s ease;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .cs-system-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: rgba(255, 255, 255, 0.5);
+          flex-shrink: 0;
+        }
+
+        .cs-system-name {
+          flex: 1;
+          font-size: 14px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .cs-chevron {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+          color: rgba(255, 255, 255, 0.5);
+          flex-shrink: 0;
+        }
+      }
+
+      .cs-system-body {
+        padding: 8px 10px 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      // ── Tag card ─────────────────────────────────────────────────────────────
+      .cs-tag-card {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .cs-tag-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        background: rgba(255, 255, 255, 0.02);
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s ease;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .cs-tag-icon {
+          font-size: 15px;
+          width: 15px;
+          height: 15px;
+          color: var(--primary-color, #00e676);
+          flex-shrink: 0;
+        }
+
+        .cs-tag-name {
+          flex: 1;
+          font-size: 13px;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.75);
+        }
+
+        .cs-chevron-sm {
+          font-size: 17px;
+          width: 17px;
+          height: 17px;
+        }
+      }
+
+      // ── Count badge ──────────────────────────────────────────────────────────
+      .cs-count-badge {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 1px 7px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.6);
+        flex-shrink: 0;
+
+        &.cs-count-sm {
+          font-size: 10px;
+          padding: 1px 6px;
+        }
+      }
+
+      // ── Channels list ────────────────────────────────────────────────────────
+      .cs-channels {
+        padding: 4px 0 2px;
+      }
+
+      .cs-channel-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 5px 14px 5px 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+
+        .cs-channel-name {
+          flex: 1;
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.85);
+          font-weight: 500;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .cs-channel-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+
+          .cs-saving-spinner {
+            flex-shrink: 0;
+          }
+        }
+      }
+
+      // ── Tone-set rows ────────────────────────────────────────────────────────
+      .cs-tone-sets {
+        padding: 2px 14px 4px 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .cs-tone-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .cs-ts-icon {
+          font-size: 14px;
+          width: 14px;
+          height: 14px;
+          color: rgba(255, 255, 255, 0.35);
+          flex-shrink: 0;
+        }
+
+        .cs-ts-name {
+          flex: 1;
+          font-size: 12px;
+          color: rgba(255, 255, 255, 0.55);
+          min-width: 80px;
+        }
+      }
+
+      // ── Sound select field (shared by channel + tone-set rows) ───────────────
+      .cs-sound-field {
+        width: 180px;
+        flex-shrink: 0;
+
+        // Suppress the extra subscript space below the field
+        ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+          display: none;
+        }
+
+        ::ng-deep .mat-mdc-text-field-wrapper {
+          background: var(--surface-color, #2e2e2e);
+          padding-bottom: 0;
+        }
+
+        // Fix: selected value text must be white, not the browser default black
+        ::ng-deep .mat-mdc-select-value,
+        ::ng-deep .mat-mdc-select-value-text,
+        ::ng-deep .mat-mdc-select-placeholder {
+          color: rgba(255, 255, 255, 0.87) !important;
+        }
+
+        ::ng-deep .mat-mdc-select-arrow {
+          color: rgba(255, 255, 255, 0.6) !important;
+        }
+
+        ::ng-deep .mdc-text-field--outlined .mdc-notched-outline__leading,
+        ::ng-deep .mdc-text-field--outlined .mdc-notched-outline__notch,
+        ::ng-deep .mdc-text-field--outlined .mdc-notched-outline__trailing {
+          border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+
+        ::ng-deep .mdc-text-field--focused .mdc-notched-outline__leading,
+        ::ng-deep .mdc-text-field--focused .mdc-notched-outline__notch,
+        ::ng-deep .mdc-text-field--focused .mdc-notched-outline__trailing {
+          border-color: var(--primary-color, #00e676) !important;
+        }
+      }
+    }
+
     .alert-sound-setting {
       margin-top: 24px;
       padding: 16px;

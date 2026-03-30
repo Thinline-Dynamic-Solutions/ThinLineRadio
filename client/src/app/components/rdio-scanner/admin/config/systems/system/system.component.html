@@ -95,6 +95,21 @@
             <span class="mat-caption toggle-hint">Auto-create unconfigured talkgroups</span>
         </div>
 
+        <div class="settings-field settings-field--toggle">
+            <label class="field-label">Alerts Enabled</label>
+            <mat-slide-toggle color="primary" formControlName="alertsEnabled"></mat-slide-toggle>
+            <span class="mat-caption toggle-hint">Allow alerts &amp; transcription for this system</span>
+        </div>
+
+        <div *ngIf="!form.get('alertsEnabled')?.value" class="settings-field settings-field--wide">
+            <mat-card class="warn-card">
+                <mat-card-content>
+                    <mat-icon color="warn" style="vertical-align:middle;margin-right:6px">warning</mat-icon>
+                    <span>Alerts are disabled for this system. All existing user alert preferences for this system will be deleted when you save.</span>
+                </mat-card-content>
+            </mat-card>
+        </div>
+
         <div class="settings-field settings-field--wide">
             <label class="field-label">Blacklists</label>
             <mat-form-field appearance="outline" class="compact-field">
@@ -112,6 +127,16 @@
                         {{ apikey.ident || 'API Key ' + apikey.id }}
                     </mat-option>
                 </mat-select>
+            </mat-form-field>
+        </div>
+
+        <div class="settings-field settings-field--wide">
+            <label class="field-label">Transcription Prompt</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <textarea matInput formControlName="transcriptionPrompt"
+                          placeholder="e.g. Engine 4 Ladder 2 Station 12 Code 3 dispatch"
+                          rows="2"></textarea>
+                <mat-hint>Overrides the global prompt for all talkgroups in this system. Leave blank to use the global prompt. Individual talkgroups can further override this.</mat-hint>
             </mat-form-field>
         </div>
 
@@ -272,6 +297,18 @@
                 <td mat-cell *matCellDef="let tg">
                     <span class="tag-chip" *ngIf="getTagLabel(tg.value.tagId)">{{ getTagLabel(tg.value.tagId) }}</span>
                     <span class="no-value" *ngIf="!getTagLabel(tg.value.tagId)">—</span>
+                </td>
+            </ng-container>
+
+            <!-- Alerts Enabled Column -->
+            <ng-container matColumnDef="alertsEnabled">
+                <th mat-header-cell *matHeaderCellDef class="alerts-col" matTooltip="Allow alerts & transcription">Alerts</th>
+                <td mat-cell *matCellDef="let tg" class="alerts-col" (click)="$event.stopPropagation()">
+                    <ng-container [formGroup]="tg">
+                        <mat-slide-toggle color="primary" formControlName="alertsEnabled"
+                                         matTooltip="{{ tg.value.alertsEnabled ? 'Alerts enabled' : 'Alerts disabled' }}">
+                        </mat-slide-toggle>
+                    </ng-container>
                 </td>
             </ng-container>
 

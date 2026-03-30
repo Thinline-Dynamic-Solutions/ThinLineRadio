@@ -344,6 +344,7 @@ func main() {
 	http.HandleFunc("/api/admin/radioreference/talkgroup-categories", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceTalkgroupCategoriesHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/radioreference/talkgroups-by-category", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceTalkgroupsByCategoryHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/radioreference/sites", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceSitesHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/radioreference/import-to-system", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceImportToSystemHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/config/reload", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ConfigReloadHandler)).ServeHTTP)
 
@@ -369,6 +370,7 @@ func main() {
 	http.HandleFunc("/api/user/transfer-to-public", wrapHandler(http.HandlerFunc(controller.Api.UserTransferToPublicHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/forgot-password", wrapHandler(http.HandlerFunc(controller.Api.RequestPasswordResetHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/reset-password", wrapHandler(http.HandlerFunc(controller.Api.ResetPasswordHandler)).ServeHTTP)
+	http.HandleFunc("/api/user/force-password-reset", wrapHandler(http.HandlerFunc(controller.Api.UserForcePasswordResetHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/device-token", wrapHandler(http.HandlerFunc(controller.Api.UserDeviceTokenHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/relay-server-auth-key", wrapHandler(http.HandlerFunc(controller.Api.RelayServerAuthKeyHandler)).ServeHTTP)
 

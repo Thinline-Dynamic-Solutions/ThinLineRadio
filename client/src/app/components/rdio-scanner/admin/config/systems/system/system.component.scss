@@ -326,6 +326,10 @@
 // ─── Table: special columns ───────────────────────────────────────────────────
 .drag-col  { width: 32px; padding: 0 4px !important; }
 .select-col { width: 40px; padding: 0 4px !important; }
+.alerts-col {
+    width: 72px;
+    text-align: center;
+}
 .actions-col {
     width: 88px;
     text-align: right;
@@ -451,6 +455,22 @@
     background: #1a1a1a;
     border-top: 1px solid #2a2a2a;
     color: #888;
+}
+
+// ─── Warning card ─────────────────────────────────────────────────────────────
+.warn-card {
+    background: rgba(255, 87, 34, 0.08);
+    border: 1px solid rgba(255, 87, 34, 0.35);
+    border-radius: 6px;
+    padding: 4px 8px;
+
+    mat-card-content {
+        display: flex;
+        align-items: center;
+        padding: 8px 0;
+        font-size: 0.85rem;
+        color: #ccc;
+    }
 }
 
 // ─── Responsive ───────────────────────────────────────────────────────────────

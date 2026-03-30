@@ -36,7 +36,7 @@ export class RdioScannerAdminSystemsComponent {
     /** Emitted when the user clicks Add System */
     @Output() addSystem = new EventEmitter<void>();
 
-    displayedColumns: string[] = ['drag', 'systemRef', 'label', 'type', 'talkgroups', 'sites', 'actions'];
+    displayedColumns: string[] = ['drag', 'systemRef', 'label', 'type', 'talkgroups', 'sites', 'alertsEnabled', 'actions'];
 
     // Search
     systemsSearchTerm: string = '';

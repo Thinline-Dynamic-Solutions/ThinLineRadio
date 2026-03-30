@@ -264,6 +264,105 @@ func (call *Call) ToJson() (string, error) {
 	}
 }
 
+// MarshalJSONWithEncryption serialises the call like MarshalJSON but replaces
+// the raw audio bytes with AES-256-GCM ciphertext (nonce prepended, base64-
+// encoded) and sets audioType to AudioEncryptedType so clients know to decrypt.
+// If encryption fails the call is marshalled without encryption as a fallback
+// so playback is never silently broken.
+func (call *Call) MarshalJSONWithEncryption(key []byte) ([]byte, error) {
+	if len(key) != 32 {
+		return json.Marshal(call)
+	}
+
+	encryptedAudio, err := EncryptAudio(key, call.Audio)
+	if err != nil {
+		// Fallback to unencrypted on error — callers log this upstream.
+		return json.Marshal(call)
+	}
+
+	callMap := map[string]any{
+		"id": call.Id,
+		"audio": map[string]any{
+			"data": encryptedAudio,
+			"type": "EncryptedBuffer",
+		},
+		"audioName": call.AudioFilename,
+		"audioType": AudioEncryptedType,
+		"dateTime":  call.Timestamp.Format(time.RFC3339),
+		"delayed":   call.Delayed,
+		"patches":   call.Patches,
+		"hasTones":  call.HasTones,
+	}
+
+	if call.ToneSequence != nil {
+		callMap["toneSequence"] = call.ToneSequence
+	}
+	if call.Transcript != "" {
+		callMap["transcript"] = call.Transcript
+		callMap["transcriptConfidence"] = call.TranscriptConfidence
+		callMap["transcriptionStatus"] = call.TranscriptionStatus
+	}
+	if call.AlertSummary != "" {
+		callMap["alertSummary"] = call.AlertSummary
+	}
+	if len(call.Frequencies) > 0 {
+		freqs := []map[string]any{}
+		for _, f := range call.Frequencies {
+			freq := map[string]any{
+				"errorCount": f.Errors,
+				"freq":       f.Frequency,
+				"pos":        f.Offset,
+				"spikeCount": f.Spikes,
+			}
+			if f.Dbm > 0 {
+				freq["dbm"] = f.Dbm
+			}
+			freqs = append(freqs, freq)
+		}
+		callMap["frequencies"] = freqs
+	}
+	if call.SiteRef != "" {
+		callMap["site"] = call.SiteRef
+	}
+	if call.System != nil {
+		callMap["system"] = call.System.SystemRef
+	} else if call.SystemId > 0 {
+		callMap["system"] = call.SystemId
+	}
+	if call.Talkgroup != nil {
+		callMap["talkgroup"] = call.Talkgroup.TalkgroupRef
+	} else if call.TalkgroupId > 0 {
+		callMap["talkgroup"] = call.TalkgroupId
+	}
+
+	unitsToUse := call.Units
+	if len(unitsToUse) == 0 && len(call.Meta.UnitRefs) > 0 {
+		unitsToUse = make([]CallUnit, 0, len(call.Meta.UnitRefs))
+		for _, unitRef := range call.Meta.UnitRefs {
+			unitsToUse = append(unitsToUse, CallUnit{UnitRef: unitRef})
+		}
+	}
+	if len(unitsToUse) > 0 {
+		sources := []map[string]any{}
+		for _, unit := range unitsToUse {
+			entry := map[string]any{"pos": unit.Offset, "src": unit.UnitRef}
+			if unit.Label != "" {
+				entry["tag"] = unit.Label
+			}
+			sources = append(sources, entry)
+		}
+		callMap["sources"] = sources
+		callMap["source"] = unitsToUse[0].UnitRef
+	} else {
+		callMap["source"] = 0
+	}
+	if call.Frequency > 0 {
+		callMap["frequency"] = call.Frequency
+	}
+
+	return json.Marshal(callMap)
+}
+
 type Calls struct {
 	controller *Controller
 }

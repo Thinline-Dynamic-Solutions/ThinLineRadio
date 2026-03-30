@@ -973,6 +973,7 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 			"pin":                user.Pin,
 			"subscriptionStatus": user.SubscriptionStatus,
 			"needsSubscription":  needsSubscription,
+			"needsPasswordReset": user.ForcePasswordReset,
 			"systemAdmin":        user.SystemAdmin,
 		},
 	})
@@ -1095,6 +1096,7 @@ func (api *Api) ResetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Set new password
 	user.SetPassword(request.NewPassword)
+	user.ForcePasswordReset = false
 
 	// Clear reset code
 	user.ResetCode = ""
@@ -1108,6 +1110,58 @@ func (api *Api) ResetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Password reset successful",
+	})
+}
+
+// UserForcePasswordResetHandler handles forced password changes after login.
+func (api *Api) UserForcePasswordResetHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var request struct {
+		Email           string `json:"email"`
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	request.Email = NormalizeEmail(request.Email)
+	if request.Email == "" || request.CurrentPassword == "" || request.NewPassword == "" {
+		api.exitWithError(w, http.StatusBadRequest, "Email, current password, and new password are required")
+		return
+	}
+
+	user := api.Controller.Users.GetUserByEmail(request.Email)
+	if user == nil || !user.VerifyPassword(request.CurrentPassword) {
+		api.exitWithError(w, http.StatusUnauthorized, "Invalid credentials")
+		return
+	}
+
+	if err := ValidatePassword(request.NewPassword); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	user.SetPassword(request.NewPassword)
+	user.ForcePasswordReset = false
+	if err := api.Controller.Users.Update(user); err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, "Failed to update user")
+		return
+	}
+	if err := api.Controller.Users.Write(api.Controller.Database); err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, "Failed to save user")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Password updated successfully",
 	})
 }
 
@@ -2325,7 +2379,7 @@ func (api *Api) CreateCheckoutSessionHandler(w http.ResponseWriter, r *http.Requ
 		PaymentMethodTypes: stripe.StringSlice([]string{
 			"card",
 		}),
-		LineItems: []*stripe.CheckoutSessionLineItemParams{lineItem},
+		LineItems:  []*stripe.CheckoutSessionLineItemParams{lineItem},
 		Mode:       stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		SuccessURL: stripe.String(request.SuccessUrl),
 		CancelURL:  stripe.String(request.CancelUrl),
@@ -2457,9 +2511,8 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Get user's alert preferences first (get all preferences, not just enabled ones)
-		// We'll filter by alertEnabled when checking individual alerts
-		prefsQuery := fmt.Sprintf(`SELECT "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "toneSetIds", "keywords", "keywordListIds" FROM "userAlertPreferences" WHERE "userId" = %d`, client.User.Id)
+		// Get user's alert preferences, excluding any that an admin has disabled at system/talkgroup level
+		prefsQuery := fmt.Sprintf(`SELECT p."systemId", p."talkgroupId", p."alertEnabled", p."toneAlerts", p."keywordAlerts", p."toneSetIds", p."keywords", p."keywordListIds" FROM "userAlertPreferences" p LEFT JOIN "talkgroups" t ON t."talkgroupId" = p."talkgroupId" LEFT JOIN "systems" s ON s."systemId" = p."systemId" WHERE p."userId" = %d AND COALESCE(t."alertsEnabled", true) = true AND COALESCE(s."alertsEnabled", true) = true`, client.User.Id)
 		prefsRows, err := api.Controller.Database.Sql.Query(prefsQuery)
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to query preferences: %v", err))
@@ -3192,7 +3245,7 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 	switch r.Method {
 	case http.MethodGet:
 		// Get preferences with talkgroupRef (for frontend matching)
-		query := fmt.Sprintf(`SELECT p."userId", p."systemId", p."talkgroupId", p."alertEnabled", p."toneAlerts", p."keywordAlerts", p."keywords", p."keywordListIds", p."toneSetIds", t."talkgroupRef", s."systemRef" FROM "userAlertPreferences" p LEFT JOIN "talkgroups" t ON t."talkgroupId" = p."talkgroupId" LEFT JOIN "systems" s ON s."systemId" = p."systemId" WHERE p."userId" = %d`, client.User.Id)
+		query := fmt.Sprintf(`SELECT p."userId", p."systemId", p."talkgroupId", p."alertEnabled", p."toneAlerts", p."keywordAlerts", p."keywords", p."keywordListIds", p."toneSetIds", p."notificationSound", p."toneSetSounds", t."talkgroupRef", s."systemRef" FROM "userAlertPreferences" p LEFT JOIN "talkgroups" t ON t."talkgroupId" = p."talkgroupId" LEFT JOIN "systems" s ON s."systemId" = p."systemId" WHERE p."userId" = %d AND COALESCE(t."alertsEnabled", true) = true AND COALESCE(s."alertsEnabled", true) = true`, client.User.Id)
 		rows, err := api.Controller.Database.Sql.Query(query)
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to query preferences: %v", err))
@@ -3203,20 +3256,22 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 		preferences := []map[string]any{}
 		for rows.Next() {
 			var (
-				userId         uint64
-				systemId       uint64
-				talkgroupId    uint64
-				alertEnabled   bool
-				toneAlerts     bool
-				keywordAlerts  bool
-				keywordsJson   string
-				keywordListIds string
-				toneSetIdsJson string
-				talkgroupRef   sql.NullInt32
-				systemRef      sql.NullInt32
+				userId            uint64
+				systemId          uint64
+				talkgroupId       uint64
+				alertEnabled      bool
+				toneAlerts        bool
+				keywordAlerts     bool
+				keywordsJson      string
+				keywordListIds    string
+				toneSetIdsJson    string
+				notificationSound string
+				toneSetSoundsJson string
+				talkgroupRef      sql.NullInt32
+				systemRef         sql.NullInt32
 			)
 
-			if err := rows.Scan(&userId, &systemId, &talkgroupId, &alertEnabled, &toneAlerts, &keywordAlerts, &keywordsJson, &keywordListIds, &toneSetIdsJson, &talkgroupRef, &systemRef); err != nil {
+			if err := rows.Scan(&userId, &systemId, &talkgroupId, &alertEnabled, &toneAlerts, &keywordAlerts, &keywordsJson, &keywordListIds, &toneSetIdsJson, &notificationSound, &toneSetSoundsJson, &talkgroupRef, &systemRef); err != nil {
 				continue
 			}
 
@@ -3235,16 +3290,23 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				json.Unmarshal([]byte(toneSetIdsJson), &toneSetIdsList)
 			}
 
+			var toneSetSoundsMap map[string]string
+			if toneSetSoundsJson != "" && toneSetSoundsJson != "{}" {
+				json.Unmarshal([]byte(toneSetSoundsJson), &toneSetSoundsMap)
+			}
+
 			prefMap := map[string]any{
-				"userId":         userId,
-				"systemId":       systemId,
-				"talkgroupId":    talkgroupId,
-				"alertEnabled":   alertEnabled,
-				"toneAlerts":     toneAlerts,
-				"keywordAlerts":  keywordAlerts,
-				"keywords":       keywords,
-				"keywordListIds": keywordListIdsList,
-				"toneSetIds":     toneSetIdsList,
+				"userId":            userId,
+				"systemId":          systemId,
+				"talkgroupId":       talkgroupId,
+				"alertEnabled":      alertEnabled,
+				"toneAlerts":        toneAlerts,
+				"keywordAlerts":     keywordAlerts,
+				"keywords":          keywords,
+				"keywordListIds":    keywordListIdsList,
+				"toneSetIds":        toneSetIdsList,
+				"notificationSound": notificationSound,
+				"toneSetSounds":     toneSetSoundsMap,
 			}
 
 			// Also include talkgroupRef and systemRef if available (for frontend matching)
@@ -3282,15 +3344,17 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 
 		for _, pref := range preferences {
 			var (
-				requestSystem  uint64
-				requestTg      uint64
-				systemId       uint64
-				alertEnabled   bool
-				toneAlerts     bool = true
-				keywordAlerts  bool = true
-				keywords       []string
-				keywordListIds []uint64
-				toneSetIds     []string
+				requestSystem     uint64
+				requestTg         uint64
+				systemId          uint64
+				alertEnabled      bool
+				toneAlerts        bool = true
+				keywordAlerts     bool = true
+				keywords          []string
+				keywordListIds    []uint64
+				toneSetIds        []string
+				notificationSound string
+				toneSetSounds     map[string]string
 			)
 
 			// Accept either systemId or systemRef field names
@@ -3345,6 +3409,17 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 					}
 				}
 			}
+			if v, ok := pref["notificationSound"].(string); ok {
+				notificationSound = v
+			}
+			if v, ok := pref["toneSetSounds"].(map[string]any); ok {
+				toneSetSounds = make(map[string]string)
+				for k, val := range v {
+					if s, ok := val.(string); ok {
+						toneSetSounds[k] = s
+					}
+				}
+			}
 
 			// Resolve systemId: prefer systemRef, fallback to systemId
 			systemId = 0
@@ -3382,8 +3457,9 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 			keywordsJson, _ := json.Marshal(keywords)
 			keywordListIdsJson, _ := json.Marshal(keywordListIds)
 			toneSetIdsJson, _ := json.Marshal(toneSetIds)
+			toneSetSoundsJson, _ := json.Marshal(toneSetSounds)
 
-			// Ensure we never store "null" for arrays - always use "[]" for empty arrays
+			// Ensure we never store "null" for arrays/objects
 			if string(keywordsJson) == "null" {
 				keywordsJson = []byte("[]")
 			}
@@ -3392,6 +3468,9 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 			}
 			if string(toneSetIdsJson) == "null" {
 				toneSetIdsJson = []byte("[]")
+			}
+			if string(toneSetSoundsJson) == "null" {
+				toneSetSoundsJson = []byte("{}")
 			}
 
 			// DEBUG: Log tone set preferences being saved
@@ -3403,14 +3482,13 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				api.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("💾 [TONE SET DEBUG] Saving preference for user %d, system %d, talkgroup %d: %s (alertEnabled=%t)", client.User.Id, systemId, dbTalkgroupId, meaning, alertEnabled))
 				api.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("💾 [TONE SET DEBUG] JSON being stored: %s", string(toneSetIdsJson)))
 			} else if alertEnabled {
-				// Alert is enabled but tone alerts are off (maybe just keyword alerts)
 				api.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("💾 [TONE SET DEBUG] Saving preference for user %d, system %d, talkgroup %d: toneAlerts=false (only keyword alerts)", client.User.Id, systemId, dbTalkgroupId))
 			}
 
 			// Upsert preference using verified database talkgroupId
-			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, alertEnabled, toneAlerts, keywordAlerts)
+			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, alertEnabled, toneAlerts, keywordAlerts)
 
-			if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson)); err != nil {
+			if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson)); err != nil {
 				api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update preference: %v", err))
 				return
 			}
@@ -4460,6 +4538,7 @@ func (api *Api) AccountUpdatePasswordHandler(w http.ResponseWriter, r *http.Requ
 	// Set new password
 	user.SetPassword(request.NewPassword)
 	user.ClearPasswordChangeCode() // Clear the verification code
+	user.ForcePasswordReset = false
 
 	// Update user in database
 	if err := api.Controller.Users.Update(user); err != nil {
@@ -5893,13 +5972,13 @@ func (api *Api) AdminGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			"stripePriceId":         group.StripePriceId,
 			"pricingOptions":        group.GetPricingOptions(),
 			"billingMode":           group.BillingMode,
-		"collectSalesTax":       group.CollectSalesTax,
-		"taxMode":               group.TaxMode,
-		"stripeTaxRateId":       group.StripeTaxRateId,
-		"isPublicRegistration":  group.IsPublicRegistration,
-		"allowAddExistingUsers": group.AllowAddExistingUsers,
-		"createdAt":             group.CreatedAt,
-	})
+			"collectSalesTax":       group.CollectSalesTax,
+			"taxMode":               group.TaxMode,
+			"stripeTaxRateId":       group.StripeTaxRateId,
+			"isPublicRegistration":  group.IsPublicRegistration,
+			"allowAddExistingUsers": group.AllowAddExistingUsers,
+			"createdAt":             group.CreatedAt,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -8524,7 +8603,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	cpmRows, err := db.Query(`
 		SELECT (c.timestamp / 60000) * 60000 AS minute, COUNT(*) AS count
 		FROM calls c
-		WHERE c.timestamp >= $1` + systemFilter + `
+		WHERE c.timestamp >= $1`+systemFilter+`
 		GROUP BY minute
 		ORDER BY minute ASC`, oneHourAgo)
 	if err == nil {
@@ -8551,7 +8630,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		SELECT COALESCE(t.label, CONCAT('TG ', t."talkgroupRef")), COUNT(*) AS count
 		FROM calls c
 		JOIN talkgroups t ON t."talkgroupId" = c."talkgroupId"
-		WHERE c.timestamp >= $1` + systemFilter + `
+		WHERE c.timestamp >= $1`+systemFilter+`
 		GROUP BY t."talkgroupId", t.label, t."talkgroupRef"
 		ORDER BY count DESC
 		LIMIT 10`, twentyFourHoursAgo)
@@ -8581,7 +8660,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	hourRows, err := db.Query(`
 		SELECT EXTRACT(HOUR FROM to_timestamp(c.timestamp / 1000)) AS hour, COUNT(*) AS count
 		FROM calls c
-		WHERE c.timestamp >= $1` + systemFilter + `
+		WHERE c.timestamp >= $1`+systemFilter+`
 		GROUP BY hour
 		ORDER BY hour ASC`, sevenDaysAgo)
 	if err == nil {
@@ -8700,8 +8779,8 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		Count int    `json:"count"`
 	}
 	type IncidentCat struct {
-		Category     string        `json:"category"`
-		Count        int           `json:"count"`
+		Category      string        `json:"category"`
+		Count         int           `json:"count"`
 		Subcategories []IncidentSub `json:"subcategories"`
 	}
 

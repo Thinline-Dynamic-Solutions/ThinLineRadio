@@ -33,38 +33,30 @@ import {
 import { RdioScannerService } from '../rdio-scanner.service';
 import { TagColorService } from '../tag-color.service';
 import { FavoritesService, FavoriteItem } from '../favorites.service';
-import { ScanListsService, ScanList, ScanListChannel } from '../scan-lists.service';
 import { SystemsVisibilityDialogComponent } from './systems-visibility-dialog.component';
 
 @Component({
-    selector: 'rdio-scanner-select',
+    selector: 'rdio-scanner-select-legacy',
     styleUrls: [
         '../common.scss',
         './select.component.scss',
     ],
-    templateUrl: './select.component.html',
+    templateUrl: './select-legacy.component.html',
 })
-export class RdioScannerSelectComponent implements OnDestroy, OnInit {
+export class RdioScannerSelectLegacyComponent implements OnDestroy, OnInit {
     categories: RdioScannerCategory[] | undefined;
 
     map: RdioScannerLivefeedMap = {};
 
     systems: RdioScannerSystem[] | undefined;
 
-    // Layout: master–detail (sidebar systems + detail panel)
+    // New properties for Flutter-style layout
     searchQuery = '';
     isSearchFocused = false;
-    /** Sidebar list: all visible systems, favorites, or scan lists */
-    navMode: 'all' | 'favorites' | 'scanLists' = 'all';
-
-    // Scan Lists
-    scanLists: ScanList[] = [];
-    private expandedScanLists = new Set<string>();
-    private expandedScanListSystems = new Set<string>();
-    private expandedScanListTags = new Set<string>();
-    private scanListsSubscription?: Subscription;
-    detailSystemId: number | null = null;
+    expandedSystems: Map<number, boolean> = new Map();
     expandedTags: Map<string, boolean> = new Map();
+    favoriteExpandedSystems: Map<number, boolean> = new Map();
+    favoriteExpandedTags: Map<string, boolean> = new Map();
     hiddenSystems: Set<number> = new Set();
     private eventSubscription?: Subscription;
     private favoritesSubscription?: Subscription;
@@ -76,7 +68,6 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         private rdioScannerService: RdioScannerService,
         private tagColorService: TagColorService,
         private favoritesService: FavoritesService,
-        private scanListsService: ScanListsService,
         private cdRef: ChangeDetectorRef,
         private matDialog: MatDialog,
     ) {
@@ -84,16 +75,9 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
         this.favoritesSubscription = this.favoritesService.getFavorites().subscribe(() => {
             this.favoriteItems = this.favoritesService.getFavoriteItems();
-            this.syncDetailSystemSelection();
             this.cdRef.markForCheck();
         });
         this.favoriteItems = this.favoritesService.getFavoriteItems();
-
-        this.scanListsSubscription = this.scanListsService.getLists().subscribe(lists => {
-            this.scanLists = lists;
-            this.cdRef.markForCheck();
-        });
-        this.scanLists = this.scanListsService.getListsSnapshot();
     }
 
     ngOnInit(): void {
@@ -102,21 +86,6 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         
         // Load hidden systems from localStorage
         this.loadHiddenSystems();
-
-        // Config/categories/map may have been applied before this instance subscribed (e.g. toggling New ↔ Classic view destroys and recreates this component).
-        this.seedFromRdioService();
-    }
-
-    /** Replay current server state from the service so UI is populated without waiting for another WebSocket event. */
-    private seedFromRdioService(): void {
-        const cfg = this.rdioScannerService.getConfig();
-        if (cfg?.systems) {
-            this.systems = cfg.systems;
-        }
-        this.categories = this.rdioScannerService.getCategories();
-        this.map = this.rdioScannerService.getLivefeedMap();
-        this.syncDetailSystemSelection();
-        this.cdRef.markForCheck();
     }
 
     avoid(options?: RdioScannerAvoidOptions): void {
@@ -142,7 +111,6 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     ngOnDestroy(): void {
         this.eventSubscription?.unsubscribe();
         this.favoritesSubscription?.unsubscribe();
-        this.scanListsSubscription?.unsubscribe();
     }
 
     toggle(category: RdioScannerCategory): void {
@@ -156,160 +124,6 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     clearSearch(): void {
         this.searchQuery = '';
-        this.syncDetailSystemSelection();
-        this.cdRef.markForCheck();
-    }
-
-    onSearchChange(): void {
-        this.syncDetailSystemSelection();
-        this.cdRef.markForCheck();
-    }
-
-    setNavMode(mode: 'all' | 'favorites' | 'scanLists'): void {
-        if (this.navMode === mode) return;
-        this.navMode = mode;
-        this.syncDetailSystemSelection();
-        this.cdRef.markForCheck();
-    }
-
-    // ── Scan List helpers ──────────────────────────────────────────────────────
-
-    isScanListExpanded(listId: string): boolean {
-        return this.expandedScanLists.has(listId);
-    }
-
-    toggleScanListExpanded(listId: string): void {
-        if (this.expandedScanLists.has(listId)) {
-            this.expandedScanLists.delete(listId);
-        } else {
-            this.expandedScanLists.add(listId);
-        }
-        this.cdRef.markForCheck();
-    }
-
-    isScanListSystemExpanded(listId: string, systemId: string): boolean {
-        return this.expandedScanListSystems.has(`${listId}:${systemId}`);
-    }
-
-    toggleScanListSystem(listId: string, systemId: string): void {
-        const key = `${listId}:${systemId}`;
-        if (this.expandedScanListSystems.has(key)) {
-            this.expandedScanListSystems.delete(key);
-        } else {
-            this.expandedScanListSystems.add(key);
-        }
-        this.cdRef.markForCheck();
-    }
-
-    isScanListTagExpanded(listId: string, systemId: string, tag: string): boolean {
-        return this.expandedScanListTags.has(`${listId}:${systemId}:${tag}`);
-    }
-
-    toggleScanListTag(listId: string, systemId: string, tag: string): void {
-        const key = `${listId}:${systemId}:${tag}`;
-        if (this.expandedScanListTags.has(key)) {
-            this.expandedScanListTags.delete(key);
-        } else {
-            this.expandedScanListTags.add(key);
-        }
-        this.cdRef.markForCheck();
-    }
-
-    getScanListEnabledCount(list: ScanList): number {
-        return list.channels.filter(ch => this.isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId)).length;
-    }
-
-    getScanListSystems(list: ScanList): { systemId: string; systemLabel: string; channels: ScanListChannel[] }[] {
-        const map = new Map<string, { systemId: string; systemLabel: string; channels: ScanListChannel[] }>();
-        for (const ch of list.channels) {
-            if (!map.has(ch.systemId)) {
-                map.set(ch.systemId, { systemId: ch.systemId, systemLabel: ch.systemLabel, channels: [] });
-            }
-            map.get(ch.systemId)!.channels.push(ch);
-        }
-        return Array.from(map.values()).sort((a, b) => a.systemLabel.localeCompare(b.systemLabel));
-    }
-
-    getScanListTags(channels: ScanListChannel[]): { tag: string; channels: ScanListChannel[] }[] {
-        const map = new Map<string, ScanListChannel[]>();
-        for (const ch of channels) {
-            const tag = ch.tag || 'Untagged';
-            if (!map.has(tag)) map.set(tag, []);
-            map.get(tag)!.push(ch);
-        }
-        return Array.from(map.entries())
-            .sort((a, b) => {
-                if (a[0] === 'Untagged') return 1;
-                if (b[0] === 'Untagged') return -1;
-                return a[0].localeCompare(b[0]);
-            })
-            .map(([tag, chs]) => ({ tag, channels: chs.sort((a, b) => a.talkgroupLabel.localeCompare(b.talkgroupLabel)) }));
-    }
-
-    createScanList(): void {
-        const name = prompt('New list name:');
-        if (name?.trim()) {
-            this.scanListsService.createList(name.trim());
-        }
-    }
-
-    renameScanList(list: ScanList): void {
-        const name = prompt('Rename list:', list.name);
-        if (name?.trim() && name.trim() !== list.name) {
-            this.scanListsService.renameList(list.id, name.trim());
-        }
-    }
-
-    deleteScanList(list: ScanList): void {
-        if (confirm(`Delete "${list.name}"?`)) {
-            this.scanListsService.deleteList(list.id);
-        }
-    }
-
-    removeScanListChannel(list: ScanList, ch: ScanListChannel, event: Event): void {
-        event.stopPropagation();
-        this.scanListsService.removeChannel(list.id, ch.systemId, ch.talkgroupId);
-    }
-
-    selectDetailSystem(systemId: number): void {
-        this.detailSystemId = systemId;
-        this.cdRef.markForCheck();
-    }
-
-    getSystemsForSidebar(): RdioScannerSystem[] {
-        let list: RdioScannerSystem[];
-        if (this.navMode === 'favorites') {
-            list = this.getFavoriteSystemsWithFavorites().filter(s => !this.hiddenSystems.has(s.id));
-        } else {
-            list = this.getVisibleSystems();
-        }
-        const q = this.searchQuery.trim().toLowerCase();
-        if (!q) return list;
-        return list.filter(system => {
-            if ((system.label || '').toLowerCase().includes(q)) return true;
-            return (system.talkgroups || []).some(tg => {
-                const label = (tg.label || '').toLowerCase();
-                const name = (tg.name || '').toLowerCase();
-                const id = tg.id.toString();
-                return label.includes(q) || name.includes(q) || id.includes(q);
-            });
-        });
-    }
-
-    getDetailSystem(): RdioScannerSystem | undefined {
-        if (this.detailSystemId == null || !this.systems) return undefined;
-        return this.systems.find(s => s.id === this.detailSystemId);
-    }
-
-    private syncDetailSystemSelection(): void {
-        const list = this.getSystemsForSidebar();
-        if (list.length === 0) {
-            this.detailSystemId = null;
-            return;
-        }
-        if (this.detailSystemId == null || !list.some(s => s.id === this.detailSystemId)) {
-            this.detailSystemId = list[0].id;
-        }
     }
 
     getVisibleSystems(): RdioScannerSystem[] {
@@ -358,6 +172,16 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         return sorted.map(([tag, talkgroups]) => ({ tag, talkgroups }));
     }
 
+    isSystemExpanded(systemId: number): boolean {
+        return this.expandedSystems.get(systemId) || false;
+    }
+
+    toggleSystem(systemId: number, event?: Event): void {
+
+        const current = this.expandedSystems.get(systemId) || false;
+        this.expandedSystems.set(systemId, !current);
+    }
+
     isTagExpanded(systemId: number, tag: string): boolean {
         const key = `${systemId}-${tag}`;
         return this.expandedTags.get(key) || false;
@@ -368,6 +192,26 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
         const current = this.expandedTags.get(key) || false;
         this.expandedTags.set(key, !current);
+    }
+
+    isFavoriteSystemExpanded(systemId: number): boolean {
+        return this.favoriteExpandedSystems.get(systemId) || false;
+    }
+
+    toggleFavoriteSystemExpand(systemId: number): void {
+        const current = this.favoriteExpandedSystems.get(systemId) || false;
+        this.favoriteExpandedSystems.set(systemId, !current);
+    }
+
+    isFavoriteTagExpanded(systemId: number, tag: string): boolean {
+        const key = `${systemId}-${tag}`;
+        return this.favoriteExpandedTags.get(key) || false;
+    }
+
+    toggleFavoriteTagExpand(systemId: number, tag: string): void {
+        const key = `${systemId}-${tag}`;
+        const current = this.favoriteExpandedTags.get(key) || false;
+        this.favoriteExpandedTags.set(key, !current);
     }
 
     isTalkgroupEnabled(systemId: number, talkgroupId: number): boolean {
@@ -425,44 +269,14 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         this.applyTagStatus(systemId, tag, talkgroups, status);
     }
 
-    /** Union of talkgroups covered by any system / tag / talkgroup favorite (for bulk on/off). */
-    private getFavoriteTalkgroupKeys(): Array<{ systemId: number; tgId: number }> {
-        const pairs = new Map<string, { systemId: number; tgId: number }>();
-        if (!this.systems?.length) return [];
-        for (const fav of this.favoriteItems) {
-            if (fav.systemId === undefined) continue;
-            const system = this.systems.find(s => s.id === fav.systemId);
-            if (!system) continue;
-            if (fav.type === 'system') {
-                (system.talkgroups || []).forEach(tg => {
-                    pairs.set(`${system.id}-${tg.id}`, { systemId: system.id, tgId: tg.id });
-                });
-            } else if (fav.type === 'tag' && fav.tag) {
-                (system.talkgroups || [])
-                    .filter(tg => (tg.tag || 'Untagged') === fav.tag)
-                    .forEach(tg => {
-                        pairs.set(`${system.id}-${tg.id}`, { systemId: system.id, tgId: tg.id });
-                    });
-            } else if (fav.type === 'talkgroup' && fav.talkgroupId !== undefined) {
-                pairs.set(`${system.id}-${fav.talkgroupId}`, { systemId: system.id, tgId: fav.talkgroupId });
-            }
-        }
-        return Array.from(pairs.values());
-    }
-
-    areAllFavoritesEnabled(): boolean {
-        const keys = this.getFavoriteTalkgroupKeys();
-        if (keys.length === 0) return false;
-        return keys.every(({ systemId, tgId }) => this.isTalkgroupEnabled(systemId, tgId));
-    }
-
-    toggleFavoritesBulk(event: Event): void {
+    enableAllFavorites(event: Event): void {
         event.stopPropagation();
-        if (this.areAllFavoritesEnabled()) {
-            this.applyFavoritesStatus(false);
-        } else {
-            this.applyFavoritesStatus(true);
-        }
+        this.applyFavoritesStatus(true);
+    }
+
+    disableAllFavorites(event: Event): void {
+        event.stopPropagation();
+        this.applyFavoritesStatus(false);
     }
 
     isAllEnabled(): boolean {
@@ -966,26 +780,14 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
         dialogRef.afterClosed().subscribe((result?: { systemId: number; hidden: boolean }[]) => {
             if (result) {
-                const previouslyHidden = new Set(this.hiddenSystems);
+                // Update hidden systems based on dialog result
                 this.hiddenSystems.clear();
                 result.forEach(item => {
                     if (item.hidden) {
                         this.hiddenSystems.add(item.systemId);
                     }
                 });
-
-                // Disable all talkgroups in newly-hidden systems
-                result.forEach(item => {
-                    if (item.hidden && !previouslyHidden.has(item.systemId)) {
-                        const system = this.systems?.find(s => s.id === item.systemId);
-                        if (system) {
-                            this.avoid({ system, status: false });
-                        }
-                    }
-                });
-
                 this.saveHiddenSystems();
-                this.syncDetailSystemSelection();
                 this.cdRef.markForCheck();
             }
         });
@@ -993,7 +795,7 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     private loadHiddenSystems(): void {
         try {
-            const stored = window?.localStorage?.getItem(RdioScannerSelectComponent.LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS);
+            const stored = window?.localStorage?.getItem(RdioScannerSelectLegacyComponent.LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS);
             if (stored) {
                 const hiddenIds: number[] = JSON.parse(stored);
                 this.hiddenSystems = new Set(hiddenIds);
@@ -1007,7 +809,7 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         try {
             const hiddenIds = Array.from(this.hiddenSystems);
             window?.localStorage?.setItem(
-                RdioScannerSelectComponent.LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS,
+                RdioScannerSelectLegacyComponent.LOCAL_STORAGE_KEY_HIDDEN_SYSTEMS,
                 JSON.stringify(hiddenIds)
             );
         } catch (error) {
@@ -1074,10 +876,7 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     }
 
     private eventHandler(event: RdioScannerEvent): void {
-        if (event.config) {
-            this.systems = event.config.systems;
-            this.syncDetailSystemSelection();
-        }
+        if (event.config) this.systems = event.config.systems;
         if (event.categories) this.categories = event.categories;
         if (event.map) this.map = event.map;
     }

@@ -150,10 +150,10 @@ var PostgresqlSchema = []string{
     "unitRef" bigint NOT NULL,
     CONSTRAINT "callUnits_callId" FOREIGN KEY ("callId") REFERENCES "calls" ("callId") ON DELETE CASCADE ON UPDATE CASCADE
   );`,
-	
+
 	// Migration: Change unitRef from integer to bigint for large radio unit IDs
 	`ALTER TABLE "callUnits" ALTER COLUMN "unitRef" TYPE bigint;`,
-	
+
 	// Index for fast lookup of units by callId (critical for search performance)
 	`CREATE INDEX IF NOT EXISTS "callUnits_callId_idx" ON "callUnits" ("callId", "offset");`,
 
@@ -246,6 +246,7 @@ var PostgresqlSchema = []string{
     "stripeSubscriptionId" text NOT NULL DEFAULT '',
     "subscriptionStatus" text NOT NULL DEFAULT '',
     "accountExpiresAt" bigint NOT NULL DEFAULT 0,
+    "forcePasswordReset" boolean NOT NULL DEFAULT false,
     "settings" text NOT NULL DEFAULT ''
   );`,
 

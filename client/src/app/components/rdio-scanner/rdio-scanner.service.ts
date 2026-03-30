@@ -109,6 +109,16 @@ export class RdioScannerService implements OnDestroy {
         return this.config;
     }
 
+    /** Current category list (same reference as live updates). */
+    getCategories(): RdioScannerCategory[] {
+        return this.categories;
+    }
+
+    /** Current livefeed enable map (same reference as live updates). */
+    getLivefeedMap(): RdioScannerLivefeedMap {
+        return this.livefeedMap;
+    }
+
     private instanceId = 'default';
 
     private livefeedMap = {} as RdioScannerLivefeedMap;
@@ -132,6 +142,9 @@ export class RdioScannerService implements OnDestroy {
     private isReconnecting = false;
     private reconnectAttempts = 0;
     private reconnectDelay = 2000; // Start with 2 seconds
+
+    // Audio encryption — key obtained from relay server via ECDH, held in memory only.
+    private audioDecryptionKey: CryptoKey | undefined;
 
     constructor(
         appUpdateService: AppUpdateService,
@@ -560,7 +573,7 @@ export class RdioScannerService implements OnDestroy {
         this.event.emit({ pause: this.livefeedPaused });
     }
 
-    play(call?: RdioScannerCall | undefined): void {
+    async play(call?: RdioScannerCall | undefined): Promise<void> {
         if (this.livefeedPaused || this.skipDelay) {
             return;
 
@@ -586,14 +599,25 @@ export class RdioScannerService implements OnDestroy {
             ? this.getPlaybackQueueCount()
             : this.callQueue.length;
 
-        const arrayBuffer = new ArrayBuffer(this.call.audio.data.length);
-        const arrayBufferView = new Uint8Array(arrayBuffer);
-
-        for (let i = 0; i < (this.call.audio.data.length); i++) {
-            arrayBufferView[i] = this.call.audio.data[i];
+        // If the audio is encrypted, decrypt it first before building the ArrayBuffer.
+        let audioBytes: Uint8Array;
+        if (this.call.audioType === 'EncryptedAES256GCM' && typeof this.call.audio?.data === 'string') {
+            const decrypted = await this.decryptAudio(this.call.audio.data);
+            if (!decrypted) {
+                this.skip({ delay: false });
+                return;
+            }
+            audioBytes = decrypted;
+        } else {
+            audioBytes = new Uint8Array(this.call.audio.data.length);
+            for (let i = 0; i < this.call.audio.data.length; i++) {
+                audioBytes[i] = this.call.audio.data[i];
+            }
         }
 
-        this.audioContext?.decodeAudioData(arrayBuffer, async (buffer) => {
+        const arrayBuffer = audioBytes.buffer.slice(audioBytes.byteOffset, audioBytes.byteOffset + audioBytes.byteLength);
+
+        this.audioContext?.decodeAudioData(arrayBuffer as ArrayBuffer, async (buffer) => {
             if (!this.audioContext || this.audioSource || !this.call) {
                 return;
             }
@@ -1065,11 +1089,29 @@ export class RdioScannerService implements OnDestroy {
         }
     }
 
-    private download(call: RdioScannerCall): void {
+    private async download(call: RdioScannerCall): Promise<void> {
         if (call.audio) {
-            const file = call.audio.data.reduce((str, val) => str += String.fromCharCode(val), '');
+            let audioBytes: Uint8Array;
+            let fileType = call.audioType || 'audio/*';
+
+            if (call.audioType === 'EncryptedAES256GCM' && typeof call.audio.data === 'string') {
+                const decrypted = await this.decryptAudio(call.audio.data);
+                if (!decrypted) {
+                    console.warn('[audio-enc] download decrypt failed');
+                    return;
+                }
+                audioBytes = decrypted;
+                // Use a generic audio type since we don't know the original MIME after decryption.
+                fileType = 'audio/aac';
+            } else {
+                audioBytes = new Uint8Array(call.audio.data.length);
+                for (let i = 0; i < call.audio.data.length; i++) {
+                    audioBytes[i] = call.audio.data[i];
+                }
+            }
+
+            const file = Array.from(audioBytes).reduce((str, val) => str += String.fromCharCode(val), '');
             const fileName = call.audioName || 'unknown.dat';
-            const fileType = call.audioType || 'audio/*';
             const fileUri = `data:${fileType};base64,${window.btoa(file)}`;
 
             const el = this.document.createElement('a');
@@ -1269,6 +1311,12 @@ export class RdioScannerService implements OnDestroy {
 
                         if (this.livefeedMode === RdioScannerLivefeedMode.Online) {
                             this.startLivefeed();
+                        }
+
+                        // Initiate ECDH key exchange with relay server if audio encryption is enabled.
+                        const opts = config.options;
+                        if (opts?.audioEncryptionEnabled && opts?.relayServerURL && opts?.audioClientToken && !this.audioDecryptionKey) {
+                            this.initAudioEncryption(opts.relayServerURL, opts.audioClientToken);
                         }
 
                         this.linked = true;
@@ -1684,6 +1732,129 @@ export class RdioScannerService implements OnDestroy {
         if (this.pendingHoldTg) {
             this.holdTalkgroup({ resubscribe: false });
             this.pendingHoldTg = false;
+        }
+    }
+
+    // Performs ECDH P-256 key exchange with the relay server to obtain the master
+    // AES-256-GCM audio decryption key. The raw key is never transmitted — it
+    // arrives wrapped in a HKDF-derived AES-GCM envelope.
+    private async initAudioEncryption(relayUrl: string, clientToken: string): Promise<void> {
+        try {
+            // Generate an ephemeral ECDH P-256 key pair.
+            const keyPair = await crypto.subtle.generateKey(
+                { name: 'ECDH', namedCurve: 'P-256' },
+                false,
+                ['deriveKey', 'deriveBits'],
+            );
+
+            // Export our public key in uncompressed raw format (65 bytes).
+            const rawPubKey = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+            const pubKeyB64 = btoa(String.fromCharCode(...new Uint8Array(rawPubKey)));
+
+            // POST to relay key-exchange endpoint.
+            const response = await fetch(`${relayUrl.replace(/\/$/, '')}/api/audio/key-exchange`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${clientToken}`,
+                },
+                body: JSON.stringify({ public_key: pubKeyB64 }),
+            });
+
+            if (!response.ok) {
+                console.warn('[audio-enc] relay key exchange failed:', response.status);
+                return;
+            }
+
+            const kxResp: { public_key: string; wrapped_key: string } = await response.json();
+
+            // Import the relay server's ephemeral public key.
+            const serverPubKeyBytes = Uint8Array.from(atob(kxResp.public_key), c => c.charCodeAt(0));
+            const serverPubKey = await crypto.subtle.importKey(
+                'raw',
+                serverPubKeyBytes,
+                { name: 'ECDH', namedCurve: 'P-256' },
+                false,
+                [],
+            );
+
+            // Derive the ECDH shared secret bits (32 bytes for P-256).
+            const sharedBits = await crypto.subtle.deriveBits(
+                { name: 'ECDH', public: serverPubKey },
+                keyPair.privateKey,
+                256,
+            );
+
+            // Derive the wrapping key from the shared secret using HKDF-SHA-256
+            // with the same label used by the relay server.
+            const sharedKeyMaterial = await crypto.subtle.importKey(
+                'raw', sharedBits, { name: 'HKDF' }, false, ['deriveKey'],
+            );
+            const wrappingKey = await crypto.subtle.deriveKey(
+                {
+                    name: 'HKDF',
+                    hash: 'SHA-256',
+                    salt: new Uint8Array(0),
+                    info: new TextEncoder().encode('tlr-audio-key-wrap-v1'),
+                },
+                sharedKeyMaterial,
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['decrypt'],
+            );
+
+            // Unwrap the master AES key: format is nonce (12 bytes) || ciphertext.
+            const wrappedKeyBytes = Uint8Array.from(atob(kxResp.wrapped_key), c => c.charCodeAt(0));
+            const nonce = wrappedKeyBytes.slice(0, 12);
+            const ciphertext = wrappedKeyBytes.slice(12);
+
+            const wrappingKeyRaw = await crypto.subtle.exportKey('raw', wrappingKey);
+            const wrappingKeyForDecrypt = await crypto.subtle.importKey(
+                'raw', wrappingKeyRaw, { name: 'AES-GCM' }, false, ['decrypt'],
+            );
+
+            const masterKeyBytes = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: nonce },
+                wrappingKeyForDecrypt,
+                ciphertext,
+            );
+
+            // Import master key as a non-extractable CryptoKey for audio decryption.
+            this.audioDecryptionKey = await crypto.subtle.importKey(
+                'raw',
+                masterKeyBytes,
+                { name: 'AES-GCM' },
+                false,
+                ['decrypt'],
+            );
+
+            console.info('[audio-enc] audio decryption key loaded');
+        } catch (err) {
+            console.warn('[audio-enc] key exchange error:', err);
+        }
+    }
+
+    // Decrypts an AES-256-GCM encrypted audio payload.
+    // The payload is base64(nonce[12] || ciphertext).
+    // Returns the decrypted bytes as a Uint8Array, or null on failure.
+    private async decryptAudio(b64Payload: string): Promise<Uint8Array | null> {
+        if (!this.audioDecryptionKey) {
+            console.warn('[audio-enc] no decryption key available');
+            return null;
+        }
+        try {
+            const data = Uint8Array.from(atob(b64Payload), c => c.charCodeAt(0));
+            const nonce = data.slice(0, 12);
+            const ciphertext = data.slice(12);
+            const plaintext = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: nonce },
+                this.audioDecryptionKey,
+                ciphertext,
+            );
+            return new Uint8Array(plaintext);
+        } catch (err) {
+            console.warn('[audio-enc] audio decrypt failed:', err);
+            return null;
         }
     }
 }

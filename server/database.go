@@ -241,6 +241,11 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Migrate users forcePasswordReset column
+	if err := migrateUserForcePasswordReset(db); err != nil {
+		return formatError(err, "")
+	}
+
 	// Migrate transferRequests approval token columns
 	if err := migrateTransferRequestsApprovalTokens(db); err != nil {
 		return formatError(err, "")
@@ -338,6 +343,21 @@ func (db *Database) migrate() error {
 
 	// Add label column to registrationCodes for human-readable code names
 	if err := migrateRegistrationCodesLabel(db); err != nil {
+		return formatError(err, "")
+	}
+
+	// Add alertsEnabled to systems and talkgroups for admin-level alert/transcription gating
+	if err := migrateAlertsEnabled(db); err != nil {
+		return formatError(err, "")
+	}
+
+	// Add per-channel and per-tone-set notification sound overrides to userAlertPreferences
+	if err := migrateChannelNotificationSounds(db); err != nil {
+		return formatError(err, "")
+	}
+
+	// Add per-system and per-talkgroup transcription prompt overrides
+	if err := migrateTranscriptionPrompt(db); err != nil {
 		return formatError(err, "")
 	}
 

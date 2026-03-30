@@ -42,7 +42,7 @@ export class RdioScannerAdminSystemComponent {
     expandedUnit: FormGroup | null = null;
 
     // ─── Column definitions ────────────────────────────────────────────────────
-    talkgroupDisplayedColumns = ['select', 'drag', 'talkgroupRef', 'label', 'name', 'groups', 'tag', 'actions'];
+    talkgroupDisplayedColumns = ['select', 'drag', 'talkgroupRef', 'label', 'name', 'groups', 'tag', 'alertsEnabled', 'actions'];
     siteDisplayedColumns      = ['drag', 'siteRef', 'rfss', 'label', 'preferred', 'actions'];
     unitDisplayedColumns      = ['drag', 'unitRef', 'label', 'range', 'actions'];
 

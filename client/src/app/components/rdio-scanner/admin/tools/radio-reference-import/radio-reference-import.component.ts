@@ -73,6 +73,8 @@ export interface RadioReferenceSite {
 })
 export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     @Output() config = new EventEmitter<Config>();
+    /** Emitted after a direct-to-DB import (data already persisted, no save needed). */
+    @Output() configSaved = new EventEmitter<Config>();
 
     baseConfig: Config = {};
 
@@ -113,6 +115,10 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     talkgroupColumns = ['select', 'id', 'alphaTag', 'description', 'group', 'tag', 'encrypted'];
     pageSize = 50;
     currentPage = 0;
+
+    // Review list pagination (importData)
+    importListPage = 0;
+    importListPageSize = 50;
 
     // Search and filtering
     searchTerm: string = '';
@@ -551,7 +557,7 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
 
         try {
             let importStats = { updated: 0, created: 0 };
-            
+
             switch (this.importType) {
                 case 'talkgroups':
                     importStats = await this.importTalkgroups();
@@ -561,29 +567,18 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
                     break;
             }
 
-            // Emit the updated config so it gets saved
-            this.config.emit(this.baseConfig);
-            
-            // Show success message with statistics
             const parts = [];
-            if (importStats.updated > 0) {
-                parts.push(`${importStats.updated} updated`);
-            }
-            if (importStats.created > 0) {
-                parts.push(`${importStats.created} created`);
-            }
-            this.successMessage = `Successfully imported ${this.importType}: ${parts.join(', ')}. Reloading config...`;
-            
-            // Clear the import data after successful import
-            this.importData = [];
-
-            // IMPORTANT: Reload the config after save to get the database-generated IDs
-            // This prevents duplicate key errors on subsequent imports
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for save to complete
-            await this.loadConfig();
-            
-            // Update success message after reload
+            if (importStats.updated > 0) parts.push(`${importStats.updated} updated`);
+            if (importStats.created > 0) parts.push(`${importStats.created} created`);
             this.successMessage = `Successfully imported ${this.importType}: ${parts.join(', ')}`;
+
+            this.importData = [];
+            this.importListPage = 0;
+
+            // Reload the fresh config from the server, then tell the parent to rebuild
+            // the form as already-saved (dirty: false) — the DB write already happened.
+            await this.loadConfig();
+            this.configSaved.emit(this.baseConfig);
         } catch (error: any) {
             console.error('Import failed:', error);
             this.errorMessage = `Import failed: ${error.message}`;
@@ -593,245 +588,33 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     }
 
     private async importTalkgroups(): Promise<{ updated: number, created: number }> {
-        if (!this.baseConfig.systems) return { updated: 0, created: 0 };
-
-        let updated = 0;
-        let created = 0;
-
-        let targetSystem: any = null;
-
-        if (this.targetSystemId !== null) {
-            targetSystem = this.baseConfig.systems.find((s: any) => this.normalizeSystemId(s.id) === this.targetSystemId);
+        if (this.targetSystemId === null) {
+            throw new Error('No target system selected');
         }
 
-        if (!targetSystem) {
-            targetSystem = this.baseConfig.systems.find((s: any) => s.systemRef === this.selectedSystem?.id);
+        const result = await this.adminService.rrImportToSystem(this.targetSystemId, this.importData);
+
+        if (!result.success) {
+            throw new Error(result.error || 'Import failed');
         }
 
-        if (!targetSystem) {
-            // Don't set id - let database auto-generate
-            targetSystem = {
-                label: this.selectedSystem?.name || 'Unknown System',
-                systemRef: this.selectedSystem?.id,
-                talkgroups: [],
-                units: [],
-                sites: [],
-                autoPopulate: false,
-                blacklists: '',
-                delay: 0,
-                led: '',
-                order: this.baseConfig.systems.length + 1,
-                alert: '',
-                kind: this.selectedSystem?.type || ''
-            };
-            this.baseConfig.systems.push(targetSystem);
-            this.localSystems = [...this.baseConfig.systems];
-            // After save, the system will get an ID from the database
-            // We'll need to refresh to get the actual ID
-        } else if (this.targetSystemId === null) {
-            this.targetSystemId = this.normalizeSystemId(targetSystem.id);
-        }
-
-        // Create groups and tags if they don't exist
-        if (!targetSystem.talkgroups) targetSystem.talkgroups = [];
-        if (!this.baseConfig.groups) this.baseConfig.groups = [];
-        if (!this.baseConfig.tags) this.baseConfig.tags = [];
-
-        // STEP 1: Create all needed groups and tags first
-        let needsGroupTagSave = false;
-        const groupsToCreate: string[] = [];
-        const tagsToCreate: string[] = [];
-
-        this.importData.forEach((tg: RadioReferenceTalkgroup) => {
-            // Check if group needs to be created
-            let group = this.baseConfig.groups!.find((g: any) => g.label === tg.group);
-            if (!group && !groupsToCreate.includes(tg.group)) {
-                groupsToCreate.push(tg.group);
-                group = {
-                    label: tg.group,
-                    alert: '',
-                    led: '',
-                    order: this.baseConfig.groups!.length + groupsToCreate.length
-                };
-                this.baseConfig.groups!.push(group);
-                needsGroupTagSave = true;
-            }
-
-            // Check if tag needs to be created
-            let tag = this.baseConfig.tags!.find((t: any) => t.label === tg.tag);
-            if (!tag && !tagsToCreate.includes(tg.tag)) {
-                tagsToCreate.push(tg.tag);
-                tag = {
-                    label: tg.tag,
-                    alert: '',
-                    led: '',
-                    order: this.baseConfig.tags!.length + tagsToCreate.length
-                };
-                this.baseConfig.tags!.push(tag);
-                needsGroupTagSave = true;
-            }
-        });
-
-        // STEP 2: If we created new groups/tags, save and reload to get their IDs
-        if (needsGroupTagSave) {
-            console.log('Saving new groups and tags to database...');
-            this.config.emit(this.baseConfig);
-            await new Promise(resolve => setTimeout(resolve, 1500)); // Wait for save
-            await this.loadConfig(); // Reload to get database-assigned IDs
-            
-            // Re-find the target system after reload
-            if (this.targetSystemId !== null) {
-                targetSystem = this.baseConfig.systems.find((s: any) => this.normalizeSystemId(s.id) === this.targetSystemId);
-            }
-            if (!targetSystem) {
-                targetSystem = this.baseConfig.systems.find((s: any) => s.systemRef === this.selectedSystem?.id);
-            }
-        }
-
-        // STEP 3: Now import talkgroups with valid group/tag IDs
-        this.importData.forEach((tg: RadioReferenceTalkgroup, index: number) => {
-            // Find group (should now have ID from database)
-            let group = this.baseConfig.groups!.find((g: any) => g.label === tg.group);
-            if (!group) {
-                console.warn(`Group not found: ${tg.group}`);
-                return;
-            }
-
-            // Find tag (should now have ID from database)
-            let tag = this.baseConfig.tags!.find((t: any) => t.label === tg.tag);
-            if (!tag) {
-                console.warn(`Tag not found: ${tg.tag}`);
-                return;
-            }
-
-            // Get proper IDs (handle both 'id' and type-specific ID fields)
-            const groupId = group.id || group.groupId;
-            const tagId = tag.id || tag.tagId;
-
-            if (!groupId || !tagId) {
-                console.warn(`Missing IDs - Group ID: ${groupId}, Tag ID: ${tagId}`);
-                return;
-            }
-
-            // Check if talkgroup already exists (match by talkgroupRef)
-            const existingTalkgroup = targetSystem.talkgroups.find((t: any) => t.talkgroupRef === tg.id);
-            
-            if (existingTalkgroup) {
-                // UPDATE existing talkgroup - only update fields from Radio Reference
-                // Preserve custom settings like tones, alerts, delays, LED, etc.
-                // IMPORTANT: Preserve the ID fields (id, talkgroupId)
-                existingTalkgroup.label = tg.alphaTag;
-                existingTalkgroup.name = tg.description;
-                existingTalkgroup.groupIds = [groupId];
-                existingTalkgroup.tagId = tagId;
-                // Don't touch: id, talkgroupId, alert, led, delay, frequency, type, toneDetectionEnabled, toneSets
-                updated++;
-            } else {
-                // CREATE new talkgroup (don't set id/talkgroupId - let database auto-generate)
-                const newTalkgroup: any = {
-                    talkgroupRef: tg.id,
-                    label: tg.alphaTag,
-                    name: tg.description,
-                    groupIds: [groupId],
-                    tagId: tagId,
-                    order: targetSystem.talkgroups.length + 1,
-                    alert: '',
-                    led: '',
-                    delay: 0,
-                    frequency: 0,
-                    type: ''
-                    // Don't set id or talkgroupId - backend will auto-generate
-                };
-
-                targetSystem.talkgroups.push(newTalkgroup);
-                created++;
-            }
-        });
-
-        return { updated, created };
+        return { updated: result.updated ?? 0, created: result.created ?? 0 };
     }
 
 
 
     private async importSites(): Promise<{ updated: number, created: number }> {
-        if (!this.baseConfig.systems) return { updated: 0, created: 0 };
-
-        let updated = 0;
-        let created = 0;
-
-        let targetSystem: any = null;
-
-        if (this.targetSystemId !== null) {
-            targetSystem = this.baseConfig.systems.find((s: any) => this.normalizeSystemId(s.id) === this.targetSystemId);
+        if (this.targetSystemId === null) {
+            throw new Error('No target system selected');
         }
 
-        if (!targetSystem) {
-            targetSystem = this.baseConfig.systems.find((s: any) => s.systemRef === this.selectedSystem?.id);
+        const result = await this.adminService.rrImportToSystem(this.targetSystemId, [], this.importData);
+
+        if (!result.success) {
+            throw new Error(result.error || 'Import failed');
         }
 
-        if (!targetSystem) {
-            // Don't set id - let database auto-generate
-            targetSystem = {
-                label: this.selectedSystem?.name || 'Unknown System',
-                systemRef: this.selectedSystem?.id,
-                talkgroups: [],
-                units: [],
-                sites: [],
-                autoPopulate: false,
-                blacklists: '',
-                delay: 0,
-                led: '',
-                order: this.baseConfig.systems.length + 1,
-                alert: '',
-                kind: this.selectedSystem?.type || ''
-            };
-            this.baseConfig.systems.push(targetSystem);
-            this.localSystems = [...this.baseConfig.systems];
-            // After save, the system will get an ID from the database
-            // We'll need to refresh to get the actual ID
-        } else if (this.targetSystemId === null) {
-            this.targetSystemId = this.normalizeSystemId(targetSystem.id);
-        }
-
-        if (!targetSystem.sites) targetSystem.sites = [];
-
-        // Import sites - update existing or create new
-        this.importData.forEach((site: RadioReferenceSite, index: number) => {
-            // Check if site already exists (match by siteRef as string)
-            const existingSite = targetSystem.sites.find((s: any) => s.siteRef === site.id.toString());
-            
-            if (existingSite) {
-                // UPDATE existing site - update label, RFSS, and frequencies from Radio Reference
-                existingSite.label = site.name;
-                existingSite.rfss = site.rfss || 0;
-                
-                // Update frequencies if available (keep as numbers for server)
-                if (site.frequencies && site.frequencies.length > 0) {
-                    existingSite.frequencies = [...site.frequencies];
-                }
-                
-                // Don't touch order or any custom settings
-                updated++;
-            } else {
-                // CREATE new site (don't set id - let database auto-generate)
-                const newSite: any = {
-                    siteRef: site.id.toString(), // Store as string to preserve leading zeros
-                    rfss: site.rfss || 0,
-                    label: site.name,
-                    order: targetSystem.sites.length + 1
-                };
-
-                // Add frequencies if available (keep as numbers for server)
-                if (site.frequencies && site.frequencies.length > 0) {
-                    newSite.frequencies = [...site.frequencies];
-                }
-
-                targetSystem.sites.push(newSite);
-                created++;
-            }
-        });
-
-        return { updated, created };
+        return { updated: result.updated ?? 0, created: result.created ?? 0 };
     }
 
     resetSearch(): void {
@@ -1047,8 +830,8 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     }
 
     toggleSelectAllCategories(): void {
-        this.selectAllCategories = !this.selectAllCategories;
-        
+        // Note: selectAllCategories is already updated by [(ngModel)] before this handler fires,
+        // so we read the current value rather than toggling it again.
         if (this.selectAllCategories) {
             // When selecting all, clear individual selections
             this.selectedCategories = [];
@@ -1339,6 +1122,7 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
         this.selectedTalkgroupIds.clear();
 
         if (addedCount > 0) {
+            this.importListPage = 0;
             this.successMessage = `Added ${addedCount} talkgroup${addedCount > 1 ? 's' : ''} to the review list.`;
             this.errorMessage = '';
         } else {
@@ -1346,11 +1130,22 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
         }
     }
 
+    getPaginatedImportData(): any[] {
+        const start = this.importListPage * this.importListPageSize;
+        return this.importData.slice(start, start + this.importListPageSize);
+    }
+
+    onImportListPageChange(event: any): void {
+        this.importListPage = event.pageIndex;
+        this.importListPageSize = event.pageSize;
+    }
+
     clearReviewList(): void {
         if (this.importData.length === 0) {
             return;
         }
         this.importData = [];
+        this.importListPage = 0;
         this.successMessage = '';
         this.errorMessage = '';
     }

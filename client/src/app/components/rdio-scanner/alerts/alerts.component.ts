@@ -68,13 +68,19 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
      */
     @Input() panelMode: RdioScannerAlertsPanelMode = 'alertsAndPreferences';
 
+    /**
+     * Classic/legacy sidenav: add a third inner tab “Transcripts” (full transcript list) next to Alerts / Preferences.
+     * Main board keeps a separate top-level Transcripts tab — leave this false there to avoid duplication.
+     */
+    @Input() includeTranscriptsTab = false;
+
     alerts: RdioScannerAlert[] = [];
     transcripts: RdioScannerTranscript[] = [];
     loading = false;
     loadingTranscripts = false;
     limit = 50;
     transcriptOffset = 0;
-    activeTab: 'alerts' | 'preferences' = 'alerts';
+    activeTab: 'alerts' | 'preferences' | 'transcripts' = 'alerts';
 
     // Stats
     stats: StatsData | null = null;
@@ -140,7 +146,7 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
                 if (this.boardEmbed || this.panelMode !== 'stats') {
                     this.loadAlerts(false);
                 }
-                if (!this.boardEmbed && this.panelMode === 'transcripts') {
+                if (!this.boardEmbed && (this.panelMode === 'transcripts' || (this.panelMode === 'alertsAndPreferences' && this.activeTab === 'transcripts'))) {
                     this.loadTranscripts();
                 }
                 if (this.boardEmbed || this.panelMode === 'alertsAndPreferences') {
@@ -248,13 +254,28 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         }
     }
 
-    setTab(tab: 'alerts' | 'preferences'): void {
+    /** When true, classic sidenav shows Alerts | Preferences | Transcripts inner tabs. */
+    get showTranscriptsInnerTab(): boolean {
+        return this.includeTranscriptsTab && this.isTranscriptionEnabled;
+    }
+
+    get isTranscriptionEnabled(): boolean {
+        return !!this.rdioScannerService.getConfig()?.options?.transcriptionEnabled;
+    }
+
+    setTab(tab: 'alerts' | 'preferences' | 'transcripts'): void {
         if (this.panelMode !== 'alertsAndPreferences') {
+            return;
+        }
+        if (tab === 'transcripts' && !this.showTranscriptsInnerTab) {
             return;
         }
         this.activeTab = tab;
         if (tab === 'alerts') {
             this.loadAlerts(false);
+        }
+        if (tab === 'transcripts') {
+            this.loadTranscripts();
         }
     }
 

@@ -198,6 +198,13 @@
 
     <!-- Registration Form -->
     <div class="auth-form" *ngIf="authMode === 'register' && isUserRegistrationEnabled()">
+
+      <div *ngIf="!registrationSettingsLoaded" class="registration-settings-loading" style="text-align: center; padding: 32px 16px;">
+        <mat-spinner diameter="40" style="margin: 0 auto 16px;"></mat-spinner>
+        <p style="color: #bbb; margin: 0;">Loading registration options…</p>
+      </div>
+
+      <ng-container *ngIf="registrationSettingsLoaded">
       
       <!-- Invite Only Notice -->
       <div class="invite-only-notice" *ngIf="isInviteOnlyMode && !success" style="padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; margin-bottom: 20px;">
@@ -213,7 +220,8 @@
         
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Invitation/Registration Code</mat-label>
-          <input matInput type="text" [(ngModel)]="pendingAccessCode" placeholder="Enter your code" required>
+          <input matInput type="text" name="pendingAccessCode" [(ngModel)]="pendingAccessCode"
+                 [ngModelOptions]="{standalone: true}" autocomplete="one-time-code" placeholder="Enter your code" required>
         </mat-form-field>
 
         <div class="error-message" *ngIf="codeValidationError" style="margin-bottom: 15px;">
@@ -362,10 +370,10 @@
           </mat-error>
         </mat-form-field>
 
-        <!-- Invite Code field (only show in public mode) -->
-        <mat-form-field appearance="outline" class="full-width" *ngIf="!isInviteOnlyMode && !registerForm.get('accessCode')?.value">
+        <!-- Invite Code field (public mode only; do not gate on accessCode value or the field vanishes on first keystroke) -->
+        <mat-form-field appearance="outline" class="full-width" *ngIf="!isInviteOnlyMode">
           <mat-label>Invite Code (Optional)</mat-label>
-          <input matInput type="text" formControlName="accessCode" placeholder="Enter invite code if you have one">
+          <input matInput type="text" formControlName="accessCode" placeholder="Enter invite code if you have one" autocomplete="one-time-code">
           <mat-hint>If you received an invite code, enter it here.</mat-hint>
         </mat-form-field>
         
@@ -435,6 +443,8 @@
           Continue to Sign In
         </button>
       </div>
+
+      </ng-container>
     </div>
 
     <!-- Stripe Checkout -->

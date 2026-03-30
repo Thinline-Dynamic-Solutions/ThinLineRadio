@@ -1830,6 +1830,15 @@ func migrateUserAccountExpiresAt(db *Database) error {
 	return nil
 }
 
+// migrateUserForcePasswordReset adds forcePasswordReset column to users table
+func migrateUserForcePasswordReset(db *Database) error {
+	query := `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "forcePasswordReset" boolean NOT NULL DEFAULT false`
+	if _, err := db.Sql.Exec(query); err != nil {
+		log.Printf("migration note: %v", err)
+	}
+	return nil
+}
+
 // migrateUserGroupsPricingOptions adds pricingOptions column to userGroups table
 func migrateUserGroupsPricingOptions(db *Database) error {
 	query := `ALTER TABLE "userGroups" ADD COLUMN IF NOT EXISTS "pricingOptions" text NOT NULL DEFAULT ''`
@@ -2336,22 +2345,22 @@ func migrateSystemHealthAlertOptions(db *Database) error {
 
 	// List of all system health alert options with their default values
 	options := map[string]string{
-		"systemHealthAlertsEnabled":           "true",
-		"transcriptionFailureAlertsEnabled":   "true",
-		"toneDetectionAlertsEnabled":          "true",
-		"noAudioAlertsEnabled":                "true",
-		"transcriptionFailureThreshold":       "10",
-		"transcriptionFailureTimeWindow":      "24",
-		"toneDetectionIssueThreshold":         "5",
-		"toneDetectionTimeWindow":             "24",
-		"noAudioThresholdMinutes":             "30",
-		"noAudioMultiplier":                   "1.5",
-		"noAudioTimeWindow":                   "24",
-		"noAudioHistoricalDataDays":           "7",
-		"transcriptionFailureRepeatMinutes":   "60",
-		"toneDetectionRepeatMinutes":          "60",
-		"noAudioRepeatMinutes":                "30",
-		"alertRetentionDays":                  "5",
+		"systemHealthAlertsEnabled":         "true",
+		"transcriptionFailureAlertsEnabled": "true",
+		"toneDetectionAlertsEnabled":        "true",
+		"noAudioAlertsEnabled":              "true",
+		"transcriptionFailureThreshold":     "10",
+		"transcriptionFailureTimeWindow":    "24",
+		"toneDetectionIssueThreshold":       "5",
+		"toneDetectionTimeWindow":           "24",
+		"noAudioThresholdMinutes":           "30",
+		"noAudioMultiplier":                 "1.5",
+		"noAudioTimeWindow":                 "24",
+		"noAudioHistoricalDataDays":         "7",
+		"transcriptionFailureRepeatMinutes": "60",
+		"toneDetectionRepeatMinutes":        "60",
+		"noAudioRepeatMinutes":              "30",
+		"alertRetentionDays":                "5",
 	}
 
 	// Insert each option if it doesn't already exist
@@ -2515,6 +2524,53 @@ func migrateRegistrationCodesLabel(db *Database) error {
 	query := `ALTER TABLE "registrationCodes" ADD COLUMN IF NOT EXISTS "label" text NOT NULL DEFAULT ''`
 	if _, err := db.Sql.Exec(query); err != nil {
 		return fmt.Errorf("migrateRegistrationCodesLabel: %w", err)
+	}
+	return nil
+}
+
+// migrateChannelNotificationSounds adds per-channel and per-tone-set notification sound
+// columns to userAlertPreferences. Empty string means "use device global default".
+func migrateChannelNotificationSounds(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "userAlertPreferences" ADD COLUMN IF NOT EXISTS "notificationSound" text NOT NULL DEFAULT ''`,
+		`ALTER TABLE "userAlertPreferences" ADD COLUMN IF NOT EXISTS "toneSetSounds"     text NOT NULL DEFAULT '{}'`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			return fmt.Errorf("migrateChannelNotificationSounds: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateAlertsEnabled adds the alertsEnabled column to both systems and talkgroups.
+// Default true preserves existing behaviour — all systems/talkgroups continue to allow
+// alerts and transcription unless an admin explicitly disables them.
+func migrateAlertsEnabled(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "systems"    ADD COLUMN IF NOT EXISTS "alertsEnabled" boolean NOT NULL DEFAULT true`,
+		`ALTER TABLE "talkgroups" ADD COLUMN IF NOT EXISTS "alertsEnabled" boolean NOT NULL DEFAULT true`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			return fmt.Errorf("migrateAlertsEnabled: %w", err)
+		}
+	}
+	return nil
+}
+
+// migrateTranscriptionPrompt adds a per-system and per-talkgroup transcriptionPrompt column.
+// When non-empty, it overrides the global transcription prompt configured in options.
+// DEFAULT ” means all existing rows use the global prompt — no change to existing behaviour.
+func migrateTranscriptionPrompt(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "systems"    ADD COLUMN IF NOT EXISTS "transcriptionPrompt" text NOT NULL DEFAULT ''`,
+		`ALTER TABLE "talkgroups" ADD COLUMN IF NOT EXISTS "transcriptionPrompt" text NOT NULL DEFAULT ''`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			return fmt.Errorf("migrateTranscriptionPrompt: %w", err)
+		}
 	}
 	return nil
 }

@@ -16,67 +16,136 @@
     </div>
 
     <div class="channels-nav-segment" role="tablist">
-      <button
-        type="button"
-        role="tab"
-        class="segment-btn"
-        [class.active]="navMode === 'all'"
-        (click)="setNavMode('all')">
-        All systems
+      <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'all'" (click)="setNavMode('all')">
+        Channels
       </button>
-      <button
-        type="button"
-        role="tab"
-        class="segment-btn"
-        [class.active]="navMode === 'favorites'"
-        (click)="setNavMode('favorites')">
+      <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'favorites'" (click)="setNavMode('favorites')">
         <mat-icon class="segment-star">star</mat-icon>
         Favorites
       </button>
-    </div>
-
-    <div class="action-buttons-row">
-      <button class="action-button"
-              [class.primary]="!isAllEnabled()"
-              [class.error]="isAllEnabled()"
-              (click)="toggleAllTalkgroups()">
-        <mat-icon>{{ isAllEnabled() ? 'toggle_on' : 'toggle_off' }}</mat-icon>
-        <span>{{ isAllEnabled() ? 'Disable All' : 'Enable All' }}</span>
-        <span *ngIf="isPartiallyEnabled() && !isAllEnabled()" class="badge">Some</span>
-      </button>
-      <button class="action-button primary" (click)="showSystemsModal()">
-        <mat-icon>filter_list</mat-icon>
-        <span>Systems</span>
-      </button>
-      <button *ngIf="getFavoriteItems().length > 0"
-              type="button"
-              class="action-button secondary-fav favorites-bulk-toggle"
-              [matTooltip]="areAllFavoritesEnabled() ? 'Disable all favorited talkgroups' : 'Enable all favorited talkgroups'"
-              (click)="toggleFavoritesBulk($event)">
-        <mat-icon>{{ areAllFavoritesEnabled() ? 'pause_circle' : 'play_circle' }}</mat-icon>
-        <span>{{ areAllFavoritesEnabled() ? 'Favs off' : 'Favs on' }}</span>
+      <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'scanLists'" (click)="setNavMode('scanLists')">
+        <mat-icon class="segment-icon">playlist_play</mat-icon>
+        Scan Lists
       </button>
     </div>
 
-    <div class="stats-row">
-      <div class="stat-chip">
-        <span class="stat-label">Enabled</span>
-        <span class="stat-value">{{ getEnabledCount() }}</span>
-      </div>
-      <div class="stat-chip secondary">
-        <span class="stat-label">Total</span>
-        <span class="stat-value">{{ getTotalCount() }}</span>
+    <div class="controls-row">
+      <span class="controls-stats">
+        <span class="stat-enabled"
+              [class.all]="isAllEnabled()"
+              [class.partial]="isPartiallyEnabled() && !isAllEnabled()"
+              [class.none]="!isPartiallyEnabled()">{{ getEnabledCount() }}</span>
+        <span class="stat-sep"> / {{ getTotalCount() }}</span>
+        <span class="stat-label"> enabled</span>
+      </span>
+      <div class="controls-actions">
+        <button class="icon-action"
+                [class.active]="isAllEnabled()"
+                [class.partial]="isPartiallyEnabled() && !isAllEnabled()"
+                [class.inactive]="!isPartiallyEnabled()"
+                [title]="isAllEnabled() ? 'Disable All' : 'Enable All'"
+                (click)="toggleAllTalkgroups()">
+          <mat-icon>{{ isAllEnabled() ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+        </button>
+        <button class="icon-action" title="Systems" (click)="showSystemsModal()">
+          <mat-icon>filter_list</mat-icon>
+        </button>
+        <button *ngIf="getFavoriteItems().length > 0"
+                class="icon-action fav"
+                [title]="areAllFavoritesEnabled() ? 'Disable favorites' : 'Enable favorites'"
+                (click)="toggleFavoritesBulk($event)">
+          <mat-icon>{{ areAllFavoritesEnabled() ? 'pause_circle' : 'play_circle' }}</mat-icon>
+        </button>
       </div>
     </div>
   </div>
 
-  <div *ngIf="!systems || systems.length === 0" class="channels-full-empty">
+  <!-- Scan Lists Panel -->
+  <div *ngIf="navMode === 'scanLists'" class="scan-lists-panel">
+    <div class="scan-lists-header">
+      <span class="scan-lists-title">Scan Lists</span>
+      <button class="icon-action" title="New Scan List" (click)="createScanList()">
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
+
+    <div *ngIf="scanLists.length === 0" class="scan-lists-empty">
+      <mat-icon>playlist_add</mat-icon>
+      <p>No scan lists yet</p>
+      <small>Create a list to group channels for quick access</small>
+    </div>
+
+    <div class="scan-lists-body">
+      <div *ngFor="let list of scanLists" class="scan-list-card" [class.expanded]="isScanListExpanded(list.id)">
+        <!-- Card header -->
+        <div class="scan-list-card-header" (click)="toggleScanListExpanded(list.id)">
+          <div class="scan-list-icon" [class.fav]="list.isFavoritesSource">
+            <mat-icon>{{ list.isFavoritesSource ? 'star' : 'playlist_play' }}</mat-icon>
+          </div>
+          <span class="scan-list-name">{{ list.name }}</span>
+          <span class="scan-list-count">{{ getScanListEnabledCount(list) }} / {{ list.channels.length }}</span>
+          <div class="scan-list-actions" (click)="$event.stopPropagation()">
+            <button *ngIf="!list.isFavoritesSource" class="icon-action sm" title="Rename" (click)="renameScanList(list)">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button *ngIf="!list.isFavoritesSource" class="icon-action sm error" title="Delete" (click)="deleteScanList(list)">
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          </div>
+          <mat-icon class="expand-icon">{{ isScanListExpanded(list.id) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+        </div>
+
+        <!-- Channels grouped by system then tag -->
+        <div *ngIf="isScanListExpanded(list.id)" class="scan-list-body">
+          <div *ngIf="list.channels.length === 0" class="scan-list-channels-empty">No channels in this list</div>
+          <div *ngFor="let sysGroup of getScanListSystems(list)" class="scan-list-system-group">
+            <div class="scan-list-system-header" (click)="toggleScanListSystem(list.id, sysGroup.systemId)">
+              <mat-icon class="expand-sm">{{ isScanListSystemExpanded(list.id, sysGroup.systemId) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+              <mat-icon style="font-size:14px;width:14px;height:14px;color:#00e676">radio</mat-icon>
+              <span class="sys-label">{{ sysGroup.systemLabel }}</span>
+              <span class="sys-count">{{ sysGroup.channels.length }}</span>
+            </div>
+            <div *ngIf="isScanListSystemExpanded(list.id, sysGroup.systemId)" class="scan-list-channels">
+              <div *ngFor="let tagGroup of getScanListTags(sysGroup.channels)" class="scan-list-tag-group">
+                <div class="scan-list-tag-header" [style.color]="getTagColor(tagGroup.tag)" (click)="toggleScanListTag(list.id, sysGroup.systemId, tagGroup.tag)">
+                  <mat-icon class="expand-sm">{{ isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                  <mat-icon style="font-size:13px;width:13px;height:13px;color:inherit">label</mat-icon>
+                  <span>{{ tagGroup.tag || 'Untagged' }}</span>
+                  <span class="tag-count-sm">{{ tagGroup.channels.length }}</span>
+                </div>
+                <div *ngIf="isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag)" class="talkgroup-list">
+                  <div *ngFor="let ch of tagGroup.channels"
+                       class="talkgroup-row"
+                       [class.enabled]="isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId)"
+                       (click)="toggleTalkgroup(+ch.systemId, +ch.talkgroupId)">
+                    <mat-icon class="row-radio-icon">
+                      {{ isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                    </mat-icon>
+                    <div class="row-text">
+                      <span class="row-label">{{ ch.talkgroupLabel }}</span>
+                      <span *ngIf="ch.talkgroupName && ch.talkgroupName !== ch.talkgroupLabel" class="row-name">{{ ch.talkgroupName }}</span>
+                    </div>
+                    <span class="row-id">{{ ch.talkgroupId }}</span>
+                    <button class="icon-action sm error" title="Remove from list" (click)="removeScanListChannel(list, ch, $event)">
+                      <mat-icon>remove_circle_outline</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="navMode !== 'scanLists' && (!systems || systems.length === 0)" class="channels-full-empty">
     <mat-icon class="empty-icon">filter_alt_off</mat-icon>
     <h3>No systems configured</h3>
     <p>No talkgroups are available</p>
   </div>
 
-  <div *ngIf="systems && systems.length > 0" class="channels-split">
+  <div *ngIf="navMode !== 'scanLists' && systems && systems.length > 0" class="channels-split">
     <aside class="channels-sidebar">
       <div class="sidebar-head">Systems</div>
       <div class="sidebar-list">
@@ -183,16 +252,19 @@
             </div>
 
             <div *ngIf="isTagExpanded(ds.id, tagGroup.tag)" class="tag-content">
-              <div class="talkgroup-grid">
+              <div class="talkgroup-list">
                 <div *ngFor="let talkgroup of tagGroup.talkgroups"
-                     class="talkgroup-chip"
+                     class="talkgroup-row"
                      [class.enabled]="isTalkgroupEnabled(ds.id, talkgroup.id)"
                      (click)="toggleTalkgroup(ds.id, talkgroup.id)">
-                  <div class="chip-content">
-                    <div class="chip-label">{{ talkgroup.label }}</div>
-                    <div *ngIf="talkgroup.name && talkgroup.name !== talkgroup.label" class="chip-name">{{ talkgroup.name }}</div>
-                    <div class="chip-id">ID: {{ talkgroup.id }}</div>
+                  <mat-icon class="row-radio-icon">
+                    {{ isTalkgroupEnabled(ds.id, talkgroup.id) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                  </mat-icon>
+                  <div class="row-text">
+                    <span class="row-label">{{ talkgroup.label }}</span>
+                    <span *ngIf="talkgroup.name && talkgroup.name !== talkgroup.label" class="row-name">{{ talkgroup.name }}</span>
                   </div>
+                  <span class="row-id">{{ talkgroup.id }}</span>
                   <button class="favorite-toggle chip-favorite" (click)="toggleFavoriteTalkgroup(ds.id, talkgroup.id, $event)">
                     <mat-icon>{{ isFavorite(ds.id, talkgroup.id) ? 'star' : 'star_border' }}</mat-icon>
                   </button>

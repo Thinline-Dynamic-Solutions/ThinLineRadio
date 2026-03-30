@@ -19,10 +19,12 @@
 
 import { Routes } from '@angular/router';
 import { RdioScannerAdminPageComponent } from './admin.component';
+import { mobileWebAdminGuard } from '../mobile-web-admin.guard';
 
 export const routes: Routes = [
     {
         path: '',
         component: RdioScannerAdminPageComponent,
+        canActivate: [mobileWebAdminGuard],
     },
 ];

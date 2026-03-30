@@ -1,5 +1,152 @@
 # Change log
 
+## Version 7.0 Beta 9.7.26 - Released Mar 28, 2026
+
+### New
+
+- **Audio Encryption (AES-256-GCM)**
+  - Available to registered servers only — prevents unauthorized scraping and rebroadcasting of audio streams
+  - The encryption key is hosted exclusively on the Thinline App Server and is never visible on the client or server side
+  - Authorized clients decrypt audio transparently with no audible difference
+  - Downstream sends are now fired in parallel rather than sequentially
+
+- **Download Rate Limiting**
+  - Audio download requests can now be rate-limited per connection using a configurable sliding window (max downloads / window duration in minutes)
+  - Configurable in Admin → Options → Audio Security
+  - Set max downloads to 0 to disable
+
+### New
+
+- **Web Client — Classic / Legacy View toggle**
+  - New fixed toggle button (top-right) lets users switch between the modern tab-based layout and the original classic scanner layout at any time without a page refresh
+  - Both views remain mounted simultaneously using `[hidden]` instead of `*ngIf`, preserving WebSocket subscriptions, audio state, and all component state across view switches
+  - View preference is saved to `localStorage` and restored on next visit
+  - Classic view uses the exact original `mat-sidenav-container` architecture: Search slides in from the left, Channel Select / Settings / Alerts slide in from the right — identical to the pre-tab-era layout
+  - Classic view source files (`main-legacy.component.*`, `select-legacy.component.*`) are restored verbatim from git history (commit `21a729b`) — only class names and selectors renamed to avoid conflicts
+
+- **Web Client — Channel Select: Scan Lists tab**
+  - New "Scan Lists" tab in the channel select panel alongside "Channels" and "Favorites"
+  - Users can create, rename, and delete multiple named scan lists
+  - Channels can be added or removed from any list; lists are persisted server-side under `users.settings`
+  - Scan lists are collapsible by system and tag group, matching the Channels tab layout
+
+- **Web Client — Channel Select: bubble/pill channel layout**
+  - Talkgroups replaced the old CSS grid with full-width pill rows (`border-radius: 20px`)
+  - Each pill shows the talkgroup label, name subtitle, and ID badge
+  - Enabled channels highlighted with green border and background; disabled channels subdued
+  - Sidebar + detail layout: systems listed on the left, talkgroup pills in the right detail panel, grouped by tag with collapsible tag headers
+
+- **Web Client — Channel Select: compact toolbar redesign**
+  - Search bar on its own row at the top
+  - Single controls row below: enabled/total count on the left, icon-only action buttons (toggle all, systems filter, favorites bulk) on the right — replacing the previous cluttered layout
+
+- **Web Client — Transcripts tab in Alerts screen**
+  - New "Transcripts" tab alongside "Alerts" and "System Alerts" in the alerts panel
+  - Displays all transcripts with system/talkgroup filters (sorted A–Z, grouped by tag), full-text search, and infinite scroll
+  - Clicking anywhere on a transcript card plays the audio for that call
+  - Pulls data via the same API path as the web app transcript list
+  - Tab bar redesigned with a visible active indicator/border
+
+- **Admin — Alerts enabled toggle per system and talkgroup**
+  - New toggle on each system and talkgroup config card to enable or disable alerts (and transcription) for that entity
+  - Toggle is surfaced directly in the system/talkgroup list rows — no need to open the edit card
+  - When alerts are disabled for a system or talkgroup, all existing user alert preferences for that entity are automatically deleted from the database (migration runs on save)
+  - Channels with alerts disabled are excluded from the alerts preferences UI for all users
+
+- **Mobile — Per-channel notification sounds**
+  - Users can select a distinct alert sound per channel and per tone set within that channel
+  - Accessible from App Settings → Notification Sounds (renamed from "Notification Sound")
+  - The global default sound appears at the top; systems and tag groups below it are collapsed by default, sorted the same as Alert Preferences
+  - Tapping anywhere on a system or tag row expands or collapses it
+  - The same bottom-sheet sound picker used for per-channel sounds is also used for the global default
+
+- **Mobile — Transcripts tab in Alerts screen**
+  - New "Transcripts" tab in the mobile alerts screen alongside "Alerts" and "System Alerts"
+  - Displays transcripts with system/talkgroup filter chips (sorted A–Z, tag-separated), search bar, pull-to-refresh, and infinite scroll
+  - Tapping anywhere on a transcript card plays the audio for that call
+  - Tab bar updated with a visible bottom border/indicator on the active tab
+
+- **Mobile — Scan Lists (replaces Favorites as multi-list system)**
+  - Favorites are preserved in the backend; front-end now exposes them as one of potentially many user-defined "Scan Lists"
+  - Users can create, rename, and delete multiple scan lists; each list stores a collection of channels
+  - New "Scan Lists" tab in the channel select screen alongside "Channels"
+  - Channel items in the Scan Lists tab shown as full-width round-bubble pills with name subtitle, ID badge, and tag-color header grouping; remove icon is red
+  - Scan list data persisted server-side via `users.settings` and synced across devices
+  - Key-press beep plays when toggling a channel in or out of a list
+
+- **Mobile — Edit List mode in Channels tab**
+  - New edit mode in the Channels tab: user selects a scan list, then taps channels to add or remove them from that list
+  - Visual checkmark on each channel indicates membership in the selected list
+  - Tag group headers show full / partial / no-check state; tapping the tag header bulk-adds or bulk-removes all channels in that tag from the list
+  - Sticky banner at the top of the screen shows which list is being edited with a Done button
+
+- **Mobile — Channel tab full-width bubble layout**
+  - Replaced the grid layout in the Channels tab with full-width round-bubble list items matching the Scan Lists tab style
+  - Each bubble shows the talkgroup label, name subtitle, ID badge, enabled/disabled state, and favorite star
+  - Background uses the same black card style as the Scan Lists tab for visual consistency
+
+- **Mobile — Channels tab top section redesign**
+  - Compact two-row layout: search bar on top, then a single row with enabled/total count on the left and three icon-only action buttons (toggle all, systems filter, edit list) on the right
+  - Replaced the previous cluttered arrangement of separate stat chips and labeled buttons
+
+- **Web Client — Mobile browsers: scanner UI blocked; account hub**
+  - Detects common phone/tablet user agents (Android, iPhone, iPad, iPadOS “desktop” Safari with touch, and similar mobile UAs)
+  - After login—or whenever the scanner would normally appear—mobile users see a **Mobile Web Hub** instead of the new tabbed scanner or classic `mat-sidenav` layout: brief notice to use the **native app** or a **desktop browser**, Play Store / App Store badges (same store URLs as the existing native snackbar), and **Sign out**
+  - When **user registration** and **Stripe paywall** are enabled: **Subscribe**, **Change plan**, and **Manage billing or cancel** (Stripe Customer Portal, including subscription cancellation) mirror the billing actions in App Settings
+  - **`/register`** and **`/verify`** are unchanged and remain available on mobile for registration and email verification
+  - **System admin** (`/admin`) is not available on mobile browsers (`canActivate` guard redirects to `/`); **group admin** routes are unchanged
+  - The delayed “use native app” `MatSnackBar` is not shown on mobile, since the hub already links to the stores
+
+### Changes
+
+- **User Accounts — Force password reset on next login (Issue #23)**
+  - Added a per-user `Require Password Reset on Next Login` flag in Admin → Users
+  - Admin-triggered password resets now automatically mark the user to change their password at next sign-in
+  - User login now returns a password-reset-required state and blocks normal app access until the user sets a new password
+
+- **Web Client — Channel Select: hide system disables its talkgroups**
+  - When a system is hidden via the Systems Visibility dialog, all of its talkgroups are immediately forced off in the livefeed map
+  - New talkgroups added to a hidden system via config updates are also forced off on merge
+
+- **Mobile — Hide system disables its talkgroups**
+  - Hiding a system in the channel select now forces all of its talkgroups off immediately
+  - Config update merges also check hidden system state and force new talkgroups in hidden systems off automatically
+
+- **Web Client — Classic view: Channel Select uses new bubble UI**
+  - The classic view's channel select sidenav now uses the new `rdio-scanner-select` component (bubbles, Scan Lists, tag grouping) instead of the legacy grid-based select
+
+- **Web Client — Classic view: Recent Alerts beside the scanner (stylesheet)**
+  - `RdioScannerMainLegacyComponent` only listed `common.scss` and `main.component.scss` in `styleUrls`, so **`main-legacy.component.scss` was never applied** — the `.scanner-layout` flex row rules lived only in that file, which caused the Recent Alerts column to stack **below** the scanner on all viewports
+  - **`./main-legacy.component.scss`** is now included in `styleUrls` so the intended side-by-side scanner + alerts layout is active again
+
+- **Web Client — Config timing fix: buttons and tabs appear without page refresh**
+  - Both `main.component` and `main-legacy.component` now seed `this.config` from `rdioScannerService.getConfig()` at `ngOnInit`, immediately after mounting
+  - Fixes Alerts, Transcripts, Stats tabs and the legacy Alerts button not appearing until a page refresh when the WebSocket config event fires before the component subscribes
+
+- **Mobile — App Settings: Notification Sounds box colour**
+  - The Notification Sounds settings box is now grey (matching all other menu items) instead of black
+
+- **Web Client — Per-channel sounds section styling**
+  - Per-channel sounds section redesigned to match the mobile look: collapsible systems, white sound text in dropdowns, cleaner layout consistent with Alert Preferences
+
+### Fixes
+
+- **Admin — Radio Reference import: all talkgroups now imported correctly**
+  - "All Categories" checkbox now visually selects all categories in the list immediately on first click
+  - Backend now writes talkgroups directly to the database on import rather than staging them, fixing a bug where only 3 of an expected 50+ talkgroups were saved
+  - System and site imports use the same direct DB write path
+  - UI refreshes the system form data after import so the imported talkgroups are immediately visible without navigating away
+
+- **Web Client — Alert preferences: systems with alerts disabled no longer shown**
+  - Systems and talkgroups with `alertsEnabled = false` are now excluded from the user-facing alert preferences list on both web and mobile
+  - Does not affect the channel select for live listening — only the alerts/transcription preference UI
+
+- **Web Client — Classic view: Channel Select, Playback, Alerts, Settings buttons now functional**
+  - Previously, clicking these buttons emitted `@Output` events that the parent component never handled, so the panels never opened
+  - Fixed by wiring the `mat-sidenav` open/close calls in the root `rdio-scanner.component` to handle `(openSelectPanel)`, `(openSearchPanel)`, `(openSettingsPanel)`, and `(openAlertsPanel)` events emitted by the legacy main component — exactly matching the original pre-tab architecture
+
+---
+
 ## Version 7.0 Beta 9.7.25 - Released Mar 27, 2026
 
 ### Performance

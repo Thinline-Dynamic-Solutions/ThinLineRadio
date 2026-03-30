@@ -192,17 +192,40 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 		// 3. Training Whisper to handle dispatch tones better
 		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: processing call %d (tone removal disabled)", workerId, job.CallId))
 
+		// Resolve transcription prompt: talkgroup overrides system which overrides global.
+		// An empty string at any level means "fall through to the next level".
+		resolvedPrompt := queue.controller.Options.TranscriptionConfig.Prompt
+		if system, ok := queue.controller.Systems.GetSystemById(job.SystemId); ok {
+			if system.TranscriptionPrompt != "" {
+				resolvedPrompt = system.TranscriptionPrompt
+			}
+			if talkgroup, ok := system.Talkgroups.GetTalkgroupById(job.TalkgroupId); ok {
+				if talkgroup.TranscriptionPrompt != "" {
+					resolvedPrompt = talkgroup.TranscriptionPrompt
+				}
+			}
+		}
+
 		// Transcribe audio (filtered if tones were present, original otherwise)
 		transcriptionOpts := TranscriptionOptions{
 			Language:      queue.controller.Options.TranscriptionConfig.Language,
-			InitialPrompt: queue.controller.Options.TranscriptionConfig.Prompt,
+			InitialPrompt: resolvedPrompt,
 			AudioMime:     audioMimeType, // Use original audio MIME type
 		}
 
 		// Add AssemblyAI-specific options if configured
 		if queue.controller.Options.TranscriptionConfig.Provider == "assemblyai" {
-			transcriptionOpts.WordBoost = queue.controller.Options.TranscriptionConfig.AssemblyAIWordBoost
 			transcriptionOpts.SpeechModel = queue.controller.Options.TranscriptionConfig.AssemblyAISpeechModel
+
+			// Merge global word boost with any per-channel prompt terms.
+			// Per-channel prompts are split into individual words for AssemblyAI word boost.
+			wordBoost := append([]string{}, queue.controller.Options.TranscriptionConfig.AssemblyAIWordBoost...)
+			if resolvedPrompt != queue.controller.Options.TranscriptionConfig.Prompt && resolvedPrompt != "" {
+				for _, term := range strings.Fields(resolvedPrompt) {
+					wordBoost = append(wordBoost, term)
+				}
+			}
+			transcriptionOpts.WordBoost = wordBoost
 		}
 
 		result, err := queue.provider.Transcribe(audioToTranscribe, transcriptionOpts)

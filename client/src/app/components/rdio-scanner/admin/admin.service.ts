@@ -72,6 +72,7 @@ export interface User {
     pin?: string;
     verified?: boolean;
     systemAdmin?: boolean;
+    forcePasswordReset?: boolean;
     isGroupAdmin?: boolean;
     userGroupId?: number;
     connectionLimit?: number;
@@ -309,6 +310,9 @@ export interface Options {
     alertRetentionDays?: number;
     relayServerURL?: string;
     relayServerAPIKey?: string;
+  audioEncryptionEnabled?: boolean;
+  maxDownloadsPerWindow?: number;
+    downloadWindowMinutes?: number;
     adminLocalhostOnly?: boolean;
     adminPasswordLoginDisabled?: boolean;
     adminAllowedIPs?: string;
@@ -360,6 +364,8 @@ export interface System {
     preferredApiKeyId?: number | null;  // Optional preferred API key for uploads
     noAudioAlertsEnabled?: boolean;     // Enable no-audio alerts for this system
     noAudioThresholdMinutes?: number;   // Minutes without audio before alerting
+    alertsEnabled?: boolean;            // Admin toggle: false disables all alerts & transcription for this system
+    transcriptionPrompt?: string;       // Custom Whisper/AssemblyAI prompt; overrides global when non-empty
 }
 
 export interface Tag {
@@ -399,6 +405,10 @@ export interface Talkgroup {
     linkedVoiceTalkgroupRef?: number;
     linkedVoiceWindowSeconds?: number;
     linkedVoiceMinDurationSeconds?: number;
+    // Admin toggle: false disables all alerts & transcription for this talkgroup
+    alertsEnabled?: boolean;
+    // Custom transcription prompt; overrides system and global prompts when non-empty
+    transcriptionPrompt?: string;
 }
 
 export interface Unit {
@@ -1133,6 +1143,7 @@ export class RdioScannerAdminService implements OnDestroy {
             pin: this.ngFormBuilder.control(user?.pin || ''),
             verified: this.ngFormBuilder.control(user?.verified),
             systemAdmin: this.ngFormBuilder.control(user?.systemAdmin),
+            forcePasswordReset: this.ngFormBuilder.control(user?.forcePasswordReset),
             isGroupAdmin: this.ngFormBuilder.control(user?.isGroupAdmin),
             userGroupId: this.ngFormBuilder.control(user?.userGroupId),
             connectionLimit: this.ngFormBuilder.control(user?.connectionLimit),
@@ -1295,6 +1306,9 @@ export class RdioScannerAdminService implements OnDestroy {
             alertRetentionDays: this.ngFormBuilder.control(options?.alertRetentionDays || 30, [Validators.min(0)]),
             relayServerURL: this.ngFormBuilder.control('https://tlradioserver.thinlineds.com'), // Hardcoded
             relayServerAPIKey: this.ngFormBuilder.control(options?.relayServerAPIKey || ''),
+            audioEncryptionEnabled: this.ngFormBuilder.control(options?.audioEncryptionEnabled ?? false),
+            maxDownloadsPerWindow: this.ngFormBuilder.control(options?.maxDownloadsPerWindow ?? 0, [Validators.min(0)]),
+            downloadWindowMinutes: this.ngFormBuilder.control(options?.downloadWindowMinutes ?? 60, [Validators.min(1), Validators.max(60)]),
             configSyncEnabled: this.ngFormBuilder.control(options?.configSyncEnabled || false),
             configSyncPath: this.ngFormBuilder.control(options?.configSyncPath || ''),
             turnstileEnabled: this.ngFormBuilder.control(options?.turnstileEnabled || false),
@@ -1339,6 +1353,8 @@ export class RdioScannerAdminService implements OnDestroy {
             preferredApiKeyId: this.ngFormBuilder.control(system?.preferredApiKeyId),
             noAudioAlertsEnabled: this.ngFormBuilder.control(system?.noAudioAlertsEnabled !== false), // Default to true
             noAudioThresholdMinutes: this.ngFormBuilder.control(system?.noAudioThresholdMinutes || 30), // Default to 30
+            alertsEnabled: this.ngFormBuilder.control(system?.alertsEnabled !== false), // Default to true
+            transcriptionPrompt: this.ngFormBuilder.control(system?.transcriptionPrompt || ''),
         });
     }
 
@@ -1406,6 +1422,8 @@ export class RdioScannerAdminService implements OnDestroy {
             linkedVoiceTalkgroupRef: this.ngFormBuilder.control(talkgroup?.linkedVoiceTalkgroupRef || 0, Validators.min(0)),
             linkedVoiceWindowSeconds: this.ngFormBuilder.control(talkgroup?.linkedVoiceWindowSeconds || 0, Validators.min(0)),
             linkedVoiceMinDurationSeconds: this.ngFormBuilder.control(talkgroup?.linkedVoiceMinDurationSeconds || 0, Validators.min(0)),
+            alertsEnabled: this.ngFormBuilder.control(talkgroup?.alertsEnabled !== false), // Default to true
+            transcriptionPrompt: this.ngFormBuilder.control(talkgroup?.transcriptionPrompt || ''),
         });
     }
 
@@ -1985,6 +2003,20 @@ export class RdioScannerAdminService implements OnDestroy {
 		try {
 			const res = await firstValueFrom(this.ngHttpClient.get<any>(
 				this.getUrl(`/radioreference/sites?systemId=${systemId}`),
+				{ headers: this.getHeaders(), responseType: 'json' },
+			));
+			return res;
+		} catch (error: any) {
+			this.errorHandler(error);
+			return { success: false, error: error.message };
+		}
+	}
+
+	async rrImportToSystem(systemId: number, talkgroups: any[], sites: any[] = []): Promise<{ success: boolean, created?: number, updated?: number, error?: string }> {
+		try {
+			const res = await firstValueFrom(this.ngHttpClient.post<any>(
+				this.getUrl('/radioreference/import-to-system'),
+				{ systemId, talkgroups, sites },
 				{ headers: this.getHeaders(), responseType: 'json' },
 			));
 			return res;

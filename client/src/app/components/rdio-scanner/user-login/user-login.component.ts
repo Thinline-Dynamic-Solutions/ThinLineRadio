@@ -32,11 +32,15 @@ export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
   loginForm: FormGroup;
   forgotPasswordForm: FormGroup;
   resetPasswordForm: FormGroup;
+  forcedPasswordResetForm: FormGroup;
   loading = false;
   error = '';
   showForgotPassword = false;
   showResetPassword = false;
+  showForcedPasswordReset = false;
   resetEmail = '';
+  forcedResetEmail = '';
+  forcedResetCurrentPassword = '';
   
   // Countdown for blocked logins
   isBlocked = false;
@@ -61,6 +65,11 @@ export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
 
     this.resetPasswordForm = this.fb.group({
       code: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
+      newPassword: ['', [Validators.required, Validators.minLength(8), this.passwordStrengthValidator]],
+      confirmPassword: ['', [Validators.required]]
+    }, { validators: this.passwordMatchValidator });
+
+    this.forcedPasswordResetForm = this.fb.group({
       newPassword: ['', [Validators.required, Validators.minLength(8), this.passwordStrengthValidator]],
       confirmPassword: ['', [Validators.required]]
     }, { validators: this.passwordMatchValidator });
@@ -170,6 +179,15 @@ export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
       this.http.post('/api/user/login', formData).subscribe({
         next: (response: any) => {
           this.loading = false;
+          if (response?.user?.needsPasswordReset === true) {
+            this.showForcedPasswordReset = true;
+            this.showForgotPassword = false;
+            this.showResetPassword = false;
+            this.forcedResetEmail = formData.email;
+            this.forcedResetCurrentPassword = formData.password;
+            this.error = '';
+            return;
+          }
           const pin = response?.user?.pin;
           if (typeof pin === 'string' && pin.length > 0) {
             this.rdioScannerService.savePin(pin);
@@ -200,6 +218,62 @@ export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
             this.error = error.error;
           } else {
             this.error = 'Login failed. Please check your credentials.';
+          }
+        }
+      });
+    }
+  }
+
+  onForcedPasswordReset(): void {
+    if (this.forcedPasswordResetForm.valid && !this.loading) {
+      this.loading = true;
+      this.error = '';
+
+      const newPassword = this.forcedPasswordResetForm.get('newPassword')?.value;
+      const updatePayload = {
+        email: this.forcedResetEmail,
+        currentPassword: this.forcedResetCurrentPassword,
+        newPassword
+      };
+
+      this.http.post('/api/user/force-password-reset', updatePayload).subscribe({
+        next: () => {
+          const loginPayload = {
+            email: this.forcedResetEmail,
+            password: newPassword
+          };
+          this.http.post('/api/user/login', loginPayload).subscribe({
+            next: (response: any) => {
+              this.loading = false;
+              const pin = response?.user?.pin;
+              if (typeof pin === 'string' && pin.length > 0) {
+                this.rdioScannerService.savePin(pin);
+              }
+              this.rdioScannerService.saveIsSystemAdmin(response?.user?.systemAdmin === true);
+              this.showForcedPasswordReset = false;
+              this.forcedPasswordResetForm.reset();
+              this.forcedResetEmail = '';
+              this.forcedResetCurrentPassword = '';
+              this.error = '';
+            },
+            error: () => {
+              this.loading = false;
+              this.error = 'Password was changed, but automatic login failed. Please sign in with your new password.';
+              this.showForcedPasswordReset = false;
+              this.forcedPasswordResetForm.reset();
+              this.forcedResetEmail = '';
+              this.forcedResetCurrentPassword = '';
+            }
+          });
+        },
+        error: (error) => {
+          this.loading = false;
+          if (error.error?.error && typeof error.error.error === 'string') {
+            this.error = error.error.error;
+          } else if (error.error?.message && typeof error.error.message === 'string') {
+            this.error = error.error.message;
+          } else {
+            this.error = 'Failed to update password. Please try again.';
           }
         }
       });
@@ -278,9 +352,13 @@ export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
   backToLogin(): void {
     this.showForgotPassword = false;
     this.showResetPassword = false;
+    this.showForcedPasswordReset = false;
     this.resetEmail = '';
+    this.forcedResetEmail = '';
+    this.forcedResetCurrentPassword = '';
     this.forgotPasswordForm.reset();
     this.resetPasswordForm.reset();
+    this.forcedPasswordResetForm.reset();
     this.error = '';
   }
 }

@@ -1,0 +1,102 @@
+<div class="mobile-hub">
+    <div class="mobile-hub-card">
+        <h1 class="title">{{ branding }}</h1>
+        <p class="lede">
+            The live scanner is not available in mobile browsers. Use the native app or a desktop browser to listen.
+            You can still manage your account below.
+        </p>
+
+        <section class="section apps" *ngIf="isAndroid || isApple">
+            <h2>Get the app</h2>
+            <div class="store-badges">
+                <a *ngIf="isAndroid"
+                   href="https://play.google.com/store/apps/details?id=com.thinlinedynamicsolutions.ohiorsn"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="store-link">
+                    <google-play-badge></google-play-badge>
+                </a>
+                <a *ngIf="isApple"
+                   href="https://apps.apple.com/us/app/ohiorsn/id6740734031"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="store-link">
+                    <app-store-badge></app-store-badge>
+                </a>
+            </div>
+        </section>
+
+        <section class="section billing" *ngIf="showBillingSection()">
+            <h2>Billing &amp; subscription</h2>
+            <p *ngIf="loadingAccount" class="muted">Loading account…</p>
+
+            <ng-container *ngIf="!loadingAccount && accountInfo">
+                <p class="status-line" *ngIf="accountInfo.subscriptionStatus || accountInfo.subscriptionStatusDisplay">
+                    Status:
+                    <strong>{{ accountInfo.subscriptionStatusDisplay || accountInfo.subscriptionStatus }}</strong>
+                </p>
+
+                <div class="actions" *ngIf="!isGroupAdminManaged()">
+                    <button
+                        *ngIf="(accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId"
+                        mat-raised-button
+                        color="primary"
+                        type="button"
+                        (click)="openBillingPortal()">
+                        <mat-icon>payment</mat-icon>
+                        Manage billing or cancel
+                    </button>
+                    <button
+                        *ngIf="(accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId"
+                        mat-raised-button
+                        color="accent"
+                        type="button"
+                        (click)="openChangeSubscription()">
+                        <mat-icon>swap_horiz</mat-icon>
+                        Change plan
+                    </button>
+                    <button
+                        *ngIf="(!accountInfo.stripeSubscriptionId || (accountInfo.subscriptionStatus !== 'active' && accountInfo.subscriptionStatus !== 'trialing')) && accountInfo.billingRequired"
+                        mat-raised-button
+                        color="primary"
+                        type="button"
+                        (click)="openCheckout()">
+                        <mat-icon>add_card</mat-icon>
+                        Subscribe
+                    </button>
+                </div>
+
+                <p *ngIf="isGroupAdminManaged()" class="muted admin-managed">
+                    Billing is managed by your group administrator.
+                </p>
+            </ng-container>
+
+            <p *ngIf="!loadingAccount && userRegistrationEnabled && !accountInfo && hasStoredPin()" class="muted">
+                Could not load account details. Try signing out and back in.
+            </p>
+        </section>
+
+        <div class="footer-actions">
+            <button mat-stroked-button type="button" color="warn" (click)="onSignOutClick()">
+                <mat-icon>logout</mat-icon>
+                Sign out
+            </button>
+        </div>
+    </div>
+
+    <div class="checkout-overlay" *ngIf="showCheckout">
+        <div class="checkout-backdrop" (click)="onCheckoutCancel()"></div>
+        <div class="checkout-modal">
+            <rdio-scanner-stripe-checkout
+                *ngIf="config"
+                [config]="config"
+                [email]="userEmail"
+                [isChangingPlan]="showChangeSubscription"
+                [currentPriceId]="currentPriceId"
+                (checkoutSuccess)="onCheckoutSuccess()"
+                (checkoutError)="onCheckoutCancel()"
+                (checkoutCancel)="onCheckoutCancel()">
+            </rdio-scanner-stripe-checkout>
+        </div>
+    </div>
+</div>

@@ -142,7 +142,7 @@
         <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: 12px;">
             <div *ngFor="let cat of talkgroupCategories" style="margin-bottom: 8px;">
                 <mat-checkbox 
-                    [checked]="isCategorySelected(cat)" 
+                    [checked]="selectAllCategories || isCategorySelected(cat)" 
                     (change)="toggleCategorySelection(cat)"
                     [disabled]="selectAllCategories"
                     color="primary">
@@ -557,9 +557,9 @@
 <section *ngIf="importData.length > 0">
     <h4 class="mat-h4">Review Data to Import</h4>
     <div class="import-preview">
-        <div class="scroll">
+        <div>
             <!-- Talkgroups Table -->
-            <mat-table *ngIf="importType === 'talkgroups'" #importTable [dataSource]="importData" class="mat-elevation-z1">
+            <mat-table *ngIf="importType === 'talkgroups'" #importTable [dataSource]="getPaginatedImportData()" class="mat-elevation-z1">
                 <ng-container matColumnDef="id">
                     <mat-header-cell *matHeaderCellDef>ID</mat-header-cell>
                     <mat-cell *matCellDef="let item">{{ item.id }}</mat-cell>
@@ -604,7 +604,7 @@
             </mat-table>
 
             <!-- Sites Table -->
-            <mat-table *ngIf="importType === 'sites'" #importTable [dataSource]="importData" class="mat-elevation-z1">
+            <mat-table *ngIf="importType === 'sites'" #importTable [dataSource]="getPaginatedImportData()" class="mat-elevation-z1">
                 <ng-container matColumnDef="rfss">
                     <mat-header-cell *matHeaderCellDef>RFSS</mat-header-cell>
                     <mat-cell *matCellDef="let site">{{ site.rfss || 'N/A' }}</mat-cell>
@@ -660,6 +660,16 @@
                 <mat-row *matRowDef="let row; columns: ['rfss', 'id', 'name', 'county', 'latitude', 'longitude', 'frequencies', 'action'];"></mat-row>
             </mat-table>
         </div>
+
+        <mat-paginator
+            *ngIf="importData.length > importListPageSize"
+            [length]="importData.length"
+            [pageSize]="importListPageSize"
+            [pageIndex]="importListPage"
+            [pageSizeOptions]="[25, 50, 100, 200]"
+            (page)="onImportListPageChange($event)"
+            showFirstLastButtons>
+        </mat-paginator>
 
         <div class="import-summary">
             <p class="mat-body">

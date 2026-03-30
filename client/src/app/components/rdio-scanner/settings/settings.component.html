@@ -53,7 +53,7 @@
             <div class="alert-sound-setting">
                 <h4>Alert Notification Sound</h4>
                 <p class="setting-description">
-                    Choose a sound to play when new alerts arrive.
+                    Choose a default sound to play when new alerts arrive.
                 </p>
                 
                 <div class="sound-selector">
@@ -69,6 +69,88 @@
                         <mat-hint>Sound will play locally in your browser when new alerts arrive</mat-hint>
                     </mat-form-field>
                 </div>
+            </div>
+
+            <!-- Per-channel alert sounds -->
+            <div class="per-channel-sounds-setting">
+                <h4>Per-Channel Alert Sounds</h4>
+                <p class="setting-description">
+                    Override the alert sound for individual channels. Leave a channel on "Default" to use the sound above.
+                </p>
+
+                <div *ngIf="loadingChannelSounds" class="channel-sounds-loading">
+                    <mat-spinner diameter="20"></mat-spinner>
+                    <span>Loading channels…</span>
+                </div>
+
+                <ng-container *ngIf="!loadingChannelSounds">
+                    <div *ngIf="getSystemsWithActivePrefs().length === 0" class="channel-sounds-empty">
+                        No channels with alerts enabled. Enable alerts on a channel in Alert Preferences first.
+                    </div>
+
+                    <!-- System card (collapsed by default) -->
+                    <div *ngFor="let system of getSystemsWithActivePrefs()" class="cs-system-card">
+                        <div class="cs-system-header" (click)="toggleSystem(system.id)">
+                            <mat-icon class="cs-system-icon">radio</mat-icon>
+                            <span class="cs-system-name">{{ system.label }}</span>
+                            <span class="cs-count-badge">{{ getChannelPrefsForSystem(system.id).length }}</span>
+                            <mat-icon class="cs-chevron">{{ isSystemExpanded(system.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                        </div>
+
+                        <div *ngIf="isSystemExpanded(system.id)" class="cs-system-body">
+                            <!-- Tag group (collapsed by default) -->
+                            <div *ngFor="let tag of getTagsForSystem(system.id)" class="cs-tag-card">
+                                <div class="cs-tag-header" (click)="toggleTag(system.id + ':' + tag)">
+                                    <mat-icon class="cs-tag-icon">label</mat-icon>
+                                    <span class="cs-tag-name">{{ tag }}</span>
+                                    <span class="cs-count-badge cs-count-sm">{{ getChannelPrefsForSystemAndTag(system.id, tag).length }}</span>
+                                    <mat-icon class="cs-chevron cs-chevron-sm">{{ isTagExpanded(system.id + ':' + tag) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                                </div>
+
+                                <div *ngIf="isTagExpanded(system.id + ':' + tag)" class="cs-channels">
+                                    <div *ngFor="let pref of getChannelPrefsForSystemAndTag(system.id, tag)" class="cs-channel-row">
+                                        <span class="cs-channel-name">
+                                            {{ getTalkgroupLabel(system.id, pref.talkgroupRef ?? pref.talkgroupId ?? 0) }}
+                                        </span>
+                                        <div class="cs-channel-controls">
+                                            <mat-form-field appearance="outline" class="cs-sound-field">
+                                                <mat-select
+                                                    [value]="getChannelSoundName(pref)"
+                                                    [disabled]="isChannelSoundSaving(pref)"
+                                                    (selectionChange)="setChannelSound(pref, $event.value)">
+                                                    <mat-option value="none">Default</mat-option>
+                                                    <mat-option *ngFor="let sound of availableAlertSounds | slice:1" [value]="sound.name">
+                                                        {{ sound.displayName }}
+                                                    </mat-option>
+                                                </mat-select>
+                                            </mat-form-field>
+                                            <mat-spinner *ngIf="isChannelSoundSaving(pref)" diameter="14" class="cs-saving-spinner"></mat-spinner>
+                                        </div>
+
+                                        <!-- Per-tone-set sounds -->
+                                        <div *ngIf="getToneSetsForPref(pref).length > 0" class="cs-tone-sets">
+                                            <div *ngFor="let ts of getToneSetsForPref(pref)" class="cs-tone-row">
+                                                <mat-icon class="cs-ts-icon">music_note</mat-icon>
+                                                <span class="cs-ts-name">{{ ts.label || ts.id }}</span>
+                                                <mat-form-field appearance="outline" class="cs-sound-field">
+                                                    <mat-select
+                                                        [value]="getToneSetSoundName(pref, ts.id)"
+                                                        [disabled]="isChannelSoundSaving(pref)"
+                                                        (selectionChange)="setToneSetSound(pref, ts.id, $event.value)">
+                                                        <mat-option value="none">Default</mat-option>
+                                                        <mat-option *ngFor="let sound of availableAlertSounds | slice:1" [value]="sound.name">
+                                                            {{ sound.displayName }}
+                                                        </mat-option>
+                                                    </mat-select>
+                                                </mat-form-field>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </ng-container>
             </div>
         </div>
 

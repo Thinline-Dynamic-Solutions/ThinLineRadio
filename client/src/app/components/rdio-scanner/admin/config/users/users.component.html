@@ -121,6 +121,10 @@
                             <mat-icon>admin_panel_settings</mat-icon>
                             Sys Admin
                         </span>
+                        <span *ngIf="user.forcePasswordReset" class="chip chip-warn">
+                            <mat-icon>lock_reset</mat-icon>
+                            Password Reset Required
+                        </span>
                         <span *ngIf="user.subscriptionStatus" class="chip"
                               [class.chip-success]="user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing'"
                               [class.chip-error]="user.subscriptionStatus === 'canceled' || user.subscriptionStatus === 'unpaid' || user.subscriptionStatus === 'past_due'"
@@ -437,6 +441,7 @@
                                     Group Admin
                                 </mat-checkbox>
                                 <mat-checkbox formControlName="systemAdmin">System Admin</mat-checkbox>
+                                <mat-checkbox formControlName="forcePasswordReset">Require Password Reset on Next Login</mat-checkbox>
                             </div>
                             <div class="hint-row">
                                 <span class="muted" *ngIf="editingUser && !editingUser.userGroupId">

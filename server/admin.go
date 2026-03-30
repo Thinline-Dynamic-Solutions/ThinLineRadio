@@ -1439,6 +1439,32 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 					} else {
 						// Restart transcription queue with updated settings
 						admin.Controller.RestartTranscriptionQueue()
+
+						// If audio encryption is enabled and we don't have a key yet
+						// (or it was just enabled), fetch the key + client token from
+						// the relay server without requiring a server restart.
+						if admin.Controller.Options.AudioEncryptionEnabled &&
+							admin.Controller.Options.RelayServerURL != "" &&
+							admin.Controller.Options.RelayServerAPIKey != "" &&
+							len(admin.Controller.AudioKey) == 0 {
+							go func() {
+								key, fetchErr := FetchAudioKeyFromRelay(
+									admin.Controller.Options.RelayServerURL,
+									admin.Controller.Options.RelayServerAPIKey,
+								)
+								if fetchErr != nil {
+									admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("audio encryption: failed to fetch key from relay after settings save: %v", fetchErr))
+									return
+								}
+								admin.Controller.AudioKey = key
+								admin.Controller.Logs.LogEvent(LogLevelInfo, "audio encryption: AES-256-GCM key loaded from relay server (triggered by settings save)")
+								admin.Controller.fetchAudioClientToken()
+							}()
+						} else if !admin.Controller.Options.AudioEncryptionEnabled {
+							// Encryption was turned off — clear keys from memory immediately.
+							admin.Controller.AudioKey = nil
+							admin.Controller.AudioClientToken = ""
+						}
 					}
 				}
 			}
@@ -1486,45 +1512,45 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-		switch v := m["systems"].(type) {
-		case []any:
-			// Preserve per-system noAudioAlertsEnabled / noAudioThresholdMinutes values
-			// when the incoming config payload omits them (e.g. a normal talkgroup save from
-			// the admin UI that is unaware of the System Health tab settings).
-			// Without this, Systems.FromMap defaults noAudioAlertsEnabled to true, silently
-			// overwriting a user's "disabled" setting and causing it to reappear after restart.
-			for _, r := range v {
-				m, ok := r.(map[string]any)
-				if !ok {
-					continue
-				}
-				// Only patch fields that are completely absent from the payload
-				_, hasEnabled := m["noAudioAlertsEnabled"]
-				_, hasThreshold := m["noAudioThresholdMinutes"]
-				if hasEnabled && hasThreshold {
-					continue
-				}
-				// Try to find the matching existing system by id, then by systemRef
-				var existing *System
-				if idVal, ok := m["id"].(float64); ok {
-					existing, _ = admin.Controller.Systems.GetSystemById(uint64(idVal))
-				}
-				if existing == nil {
-					if refVal, ok := m["systemRef"].(float64); ok {
-						existing, _ = admin.Controller.Systems.GetSystemByRef(uint(refVal))
+			switch v := m["systems"].(type) {
+			case []any:
+				// Preserve per-system noAudioAlertsEnabled / noAudioThresholdMinutes values
+				// when the incoming config payload omits them (e.g. a normal talkgroup save from
+				// the admin UI that is unaware of the System Health tab settings).
+				// Without this, Systems.FromMap defaults noAudioAlertsEnabled to true, silently
+				// overwriting a user's "disabled" setting and causing it to reappear after restart.
+				for _, r := range v {
+					m, ok := r.(map[string]any)
+					if !ok {
+						continue
+					}
+					// Only patch fields that are completely absent from the payload
+					_, hasEnabled := m["noAudioAlertsEnabled"]
+					_, hasThreshold := m["noAudioThresholdMinutes"]
+					if hasEnabled && hasThreshold {
+						continue
+					}
+					// Try to find the matching existing system by id, then by systemRef
+					var existing *System
+					if idVal, ok := m["id"].(float64); ok {
+						existing, _ = admin.Controller.Systems.GetSystemById(uint64(idVal))
+					}
+					if existing == nil {
+						if refVal, ok := m["systemRef"].(float64); ok {
+							existing, _ = admin.Controller.Systems.GetSystemByRef(uint(refVal))
+						}
+					}
+					if existing != nil {
+						if !hasEnabled {
+							m["noAudioAlertsEnabled"] = existing.NoAudioAlertsEnabled
+						}
+						if !hasThreshold {
+							m["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
+						}
 					}
 				}
-				if existing != nil {
-					if !hasEnabled {
-						m["noAudioAlertsEnabled"] = existing.NoAudioAlertsEnabled
-					}
-					if !hasThreshold {
-						m["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
-					}
-				}
-			}
-			admin.Controller.Systems.FromMap(v)
-			err = admin.Controller.Systems.Write(admin.Controller.Database)
+				admin.Controller.Systems.FromMap(v)
+				err = admin.Controller.Systems.Write(admin.Controller.Database)
 				if err != nil {
 					logError(err)
 					// The write transaction was rolled back, but any INSERT…RETURNING
@@ -1612,10 +1638,10 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						existingGroup.StripePriceId = getStringFromMap(groupMap, "stripePriceId")
 						existingGroup.PricingOptions = getStringFromMap(groupMap, "pricingOptions")
 						existingGroup.BillingMode = getStringFromMap(groupMap, "billingMode")
-					existingGroup.CollectSalesTax = getBoolFromMap(groupMap, "collectSalesTax", false)
-					existingGroup.TaxMode = getStringFromMap(groupMap, "taxMode")
-					existingGroup.StripeTaxRateId = getStringFromMap(groupMap, "stripeTaxRateId")
-					existingGroup.IsPublicRegistration = getBoolFromMap(groupMap, "isPublicRegistration", false)
+						existingGroup.CollectSalesTax = getBoolFromMap(groupMap, "collectSalesTax", false)
+						existingGroup.TaxMode = getStringFromMap(groupMap, "taxMode")
+						existingGroup.StripeTaxRateId = getStringFromMap(groupMap, "stripeTaxRateId")
+						existingGroup.IsPublicRegistration = getBoolFromMap(groupMap, "isPublicRegistration", false)
 						existingGroup.AllowAddExistingUsers = getBoolFromMap(groupMap, "allowAddExistingUsers", false)
 						if createdAt, ok := groupMap["createdAt"].(float64); ok {
 							existingGroup.CreatedAt = int64(createdAt)
@@ -1644,10 +1670,10 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 							StripePriceId:         getStringFromMap(groupMap, "stripePriceId"),
 							PricingOptions:        getStringFromMap(groupMap, "pricingOptions"),
 							BillingMode:           getStringFromMap(groupMap, "billingMode"),
-						CollectSalesTax:       getBoolFromMap(groupMap, "collectSalesTax", false),
-						TaxMode:               getStringFromMap(groupMap, "taxMode"),
-						StripeTaxRateId:       getStringFromMap(groupMap, "stripeTaxRateId"),
-						IsPublicRegistration:  getBoolFromMap(groupMap, "isPublicRegistration", false),
+							CollectSalesTax:       getBoolFromMap(groupMap, "collectSalesTax", false),
+							TaxMode:               getStringFromMap(groupMap, "taxMode"),
+							StripeTaxRateId:       getStringFromMap(groupMap, "stripeTaxRateId"),
+							IsPublicRegistration:  getBoolFromMap(groupMap, "isPublicRegistration", false),
 							AllowAddExistingUsers: getBoolFromMap(groupMap, "allowAddExistingUsers", false),
 						}
 						if createdAt, ok := groupMap["createdAt"].(float64); ok {
@@ -1787,6 +1813,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						existingUser.UserGroupId = actualUserGroupId
 						existingUser.IsGroupAdmin = getBoolFromMap(userMap, "isGroupAdmin", false)
 						existingUser.SystemAdmin = getBoolFromMap(userMap, "systemAdmin", false)
+						existingUser.ForcePasswordReset = getBoolFromMap(userMap, "forcePasswordReset", false)
 						existingUser.PinExpiresAt = getUint64FromMap(userMap, "pinExpiresAt")
 						existingUser.ConnectionLimit = uint(getFloat64FromMap(userMap, "connectionLimit"))
 						existingUser.Systems = getStringFromMap(userMap, "systems")
@@ -1832,6 +1859,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 							UserGroupId:          actualUserGroupId,
 							IsGroupAdmin:         getBoolFromMap(userMap, "isGroupAdmin", false),
 							SystemAdmin:          getBoolFromMap(userMap, "systemAdmin", false),
+							ForcePasswordReset:   getBoolFromMap(userMap, "forcePasswordReset", false),
 							Pin:                  getStringFromMap(userMap, "pin"),
 							PinExpiresAt:         getUint64FromMap(userMap, "pinExpiresAt"),
 							ConnectionLimit:      uint(getFloat64FromMap(userMap, "connectionLimit")),
@@ -2290,6 +2318,7 @@ func (admin *Admin) GetConfig() map[string]any {
 			"userGroupId":          user.UserGroupId,
 			"isGroupAdmin":         user.IsGroupAdmin,
 			"systemAdmin":          user.SystemAdmin,
+			"forcePasswordReset":   user.ForcePasswordReset,
 			"stripeCustomerId":     user.StripeCustomerId,
 			"stripeSubscriptionId": user.StripeSubscriptionId,
 			"subscriptionStatus":   user.SubscriptionStatus,
@@ -4258,6 +4287,189 @@ func (admin *Admin) RadioReferenceSitesHandler(w http.ResponseWriter, r *http.Re
 	json.NewEncoder(w).Encode(result)
 }
 
+// RadioReferenceImportToSystemHandler directly writes RR talkgroups or sites into a local
+// system, creating any missing groups/tags in the database on the fly.
+func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var body struct {
+		SystemId   float64 `json:"systemId"`
+		Talkgroups []struct {
+			Id          float64 `json:"id"`
+			AlphaTag    string  `json:"alphaTag"`
+			Description string  `json:"description"`
+			Group       string  `json:"group"`
+			Tag         string  `json:"tag"`
+			Enc         float64 `json:"enc"`
+		} `json:"talkgroups"`
+		Sites []struct {
+			Id          float64   `json:"id"`
+			Name        string    `json:"name"`
+			Rfss        float64   `json:"rfss"`
+			Frequencies []float64 `json:"frequencies"`
+		} `json:"sites"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.SystemId == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	ctrl := admin.Controller
+	systemId := uint64(body.SystemId)
+
+	system, ok := ctrl.Systems.GetSystemById(systemId)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "system not found"})
+		return
+	}
+
+	created := 0
+	updated := 0
+
+	// ── Talkgroups ────────────────────────────────────────────────────────────
+	for _, tg := range body.Talkgroups {
+		groupLabel := tg.Group
+		if groupLabel == "" {
+			groupLabel = "Unknown"
+		}
+		tagLabel := tg.Tag
+		if tagLabel == "" {
+			tagLabel = "Untagged"
+		}
+
+		// Find or create group
+		group, ok := ctrl.Groups.GetGroupByLabel(groupLabel)
+		if !ok {
+			group = &Group{Label: groupLabel}
+			ctrl.Groups.List = append(ctrl.Groups.List, group)
+			if err := ctrl.Groups.Write(ctrl.Database); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "failed to write group: " + err.Error()})
+				return
+			}
+			if err := ctrl.Groups.Read(ctrl.Database); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "failed to read groups: " + err.Error()})
+				return
+			}
+			group, ok = ctrl.Groups.GetGroupByLabel(groupLabel)
+			if !ok {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "group disappeared after write: " + groupLabel})
+				return
+			}
+		}
+
+		// Find or create tag
+		tag, ok := ctrl.Tags.GetTagByLabel(tagLabel)
+		if !ok {
+			tag = &Tag{Label: tagLabel}
+			ctrl.Tags.List = append(ctrl.Tags.List, tag)
+			if err := ctrl.Tags.Write(ctrl.Database); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "failed to write tag: " + err.Error()})
+				return
+			}
+			if err := ctrl.Tags.Read(ctrl.Database); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "failed to read tags: " + err.Error()})
+				return
+			}
+			tag, ok = ctrl.Tags.GetTagByLabel(tagLabel)
+			if !ok {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "tag disappeared after write: " + tagLabel})
+				return
+			}
+		}
+
+		tgRef := uint(tg.Id)
+
+		if existing, ok := system.Talkgroups.GetTalkgroupByRef(tgRef); ok {
+			existing.Label = tg.AlphaTag
+			existing.Name = tg.Description
+			existing.GroupIds = []uint64{group.Id}
+			existing.TagId = tag.Id
+			updated++
+		} else {
+			maxOrder := uint(0)
+			for _, t := range system.Talkgroups.List {
+				if t.Order > maxOrder {
+					maxOrder = t.Order
+				}
+			}
+			system.Talkgroups.List = append(system.Talkgroups.List, &Talkgroup{
+				TalkgroupRef: tgRef,
+				Label:        tg.AlphaTag,
+				Name:         tg.Description,
+				GroupIds:     []uint64{group.Id},
+				TagId:        tag.Id,
+				Order:        maxOrder + 1,
+			})
+			created++
+		}
+	}
+
+	// ── Sites ─────────────────────────────────────────────────────────────────
+	for _, s := range body.Sites {
+		siteRef := fmt.Sprintf("%d", uint(s.Id))
+
+		if existing, ok := system.Sites.GetSiteByRef(siteRef); ok {
+			existing.Label = s.Name
+			existing.RFSS = uint(s.Rfss)
+			if len(s.Frequencies) > 0 {
+				existing.Frequencies = s.Frequencies
+			}
+			updated++
+		} else {
+			maxOrder := uint(0)
+			for _, site := range system.Sites.List {
+				if site.Order > maxOrder {
+					maxOrder = site.Order
+				}
+			}
+			system.Sites.List = append(system.Sites.List, &Site{
+				SiteRef:     siteRef,
+				Label:       s.Name,
+				RFSS:        uint(s.Rfss),
+				Frequencies: s.Frequencies,
+				Order:       maxOrder + 1,
+			})
+			created++
+		}
+	}
+
+	// ── Persist ───────────────────────────────────────────────────────────────
+	if err := ctrl.Systems.Write(ctrl.Database); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to write systems: " + err.Error()})
+		return
+	}
+	if err := ctrl.Systems.Read(ctrl.Database); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to read systems: " + err.Error()})
+		return
+	}
+
+	ctrl.SyncConfigToFile()
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"created": created,
+		"updated": updated,
+	})
+}
+
 // Configuration reload handler
 func (admin *Admin) ConfigReloadHandler(w http.ResponseWriter, r *http.Request) {
 	t := admin.GetAuthorization(r)
@@ -5076,6 +5288,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"userGroupId":              user.UserGroupId,
 			"isGroupAdmin":             user.IsGroupAdmin,
 			"systemAdmin":              user.SystemAdmin,
+			"forcePasswordReset":       user.ForcePasswordReset,
 			"stripeCustomerId":         user.StripeCustomerId,
 			"stripeSubscriptionId":     user.StripeSubscriptionId,
 			"subscriptionStatus":       user.SubscriptionStatus,
@@ -5293,6 +5506,7 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		UserGroupId          *uint64 `json:"userGroupId"`
 		IsGroupAdmin         *bool   `json:"isGroupAdmin"`
 		SystemAdmin          *bool   `json:"systemAdmin"`
+		ForcePasswordReset   *bool   `json:"forcePasswordReset"`
 		StripeCustomerId     string  `json:"stripeCustomerId"`
 		StripeSubscriptionId string  `json:"stripeSubscriptionId"`
 		SubscriptionStatus   string  `json:"subscriptionStatus"`
@@ -5374,6 +5588,9 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 	if request.SystemAdmin != nil {
 		user.SystemAdmin = *request.SystemAdmin
+	}
+	if request.ForcePasswordReset != nil {
+		user.ForcePasswordReset = *request.ForcePasswordReset
 	}
 
 	if request.RegeneratePin {
@@ -5653,6 +5870,7 @@ func (admin *Admin) UserResetPasswordHandler(w http.ResponseWriter, r *http.Requ
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to reset password"})
 		return
 	}
+	user.ForcePasswordReset = true
 
 	// Update user in memory and database
 	admin.Controller.Users.Update(user)

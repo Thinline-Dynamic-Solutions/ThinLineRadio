@@ -795,5 +795,64 @@
     </div>
   </div>
 
+  <!-- ── Audio Security ────────────────────────────────────────────────── -->
+  <div class="row" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #333;">
+    <h3 style="width: 100%; margin: 0 0 8px 0;">Audio Security</h3>
+    <p style="width: 100%; margin: 0; color: #aaa; font-size: 14px;">
+      Encrypt all audio before sending over WebSocket using AES-256-GCM. The raw key is never
+      transmitted — clients obtain it from the relay server via ECDH key exchange. Requires the
+      Relay Server URL and API Key to be configured above. The client token is fetched automatically
+      from the relay server using your API key — no manual entry needed.
+    </p>
+    <p *ngIf="!form!.get('relayServerAPIKey')!.value" style="width: 100%; margin: 8px 0 0 0; color: #f39c12; font-size: 13px;">
+      <mat-icon style="font-size: 16px; vertical-align: middle; margin-right: 4px;">warning</mat-icon>
+      Your server must be registered with the relay (Relay Server API Key required) before audio encryption can be enabled.
+    </p>
+  </div>
+
+  <div class="row">
+    <p>
+      <span class="mat-body">Enable Audio Encryption</span><br>
+      <span class="mat-caption">AES-256-GCM encryption for all audio streamed over WebSocket. Zero playback overhead — hardware-accelerated on modern devices.</span>
+    </p>
+    <div>
+      <mat-slide-toggle color="primary" formControlName="audioEncryptionEnabled"
+        [disabled]="!form!.get('relayServerAPIKey')!.value">
+      </mat-slide-toggle>
+    </div>
+  </div>
+
+  <!-- Download Rate Limiting -->
+  <div class="row" style="margin-top: 16px;">
+    <h4 style="width: 100%; margin: 0 0 6px 0; color: #ccc;">Download Rate Limiting</h4>
+    <p style="width: 100%; margin: 0; color: #aaa; font-size: 13px;">
+      Limit how many audio files a single WebSocket connection can download within a rolling time window.
+      Set <strong>Max Downloads</strong> to <code>0</code> to disable rate limiting.
+    </p>
+  </div>
+
+  <div class="row">
+    <p>
+      <span class="mat-body">Max Downloads per Window</span><br>
+      <span class="mat-caption">Maximum number of audio download requests allowed per client per window. Set to 0 to disable.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input matInput type="number" formControlName="maxDownloadsPerWindow" placeholder="0 = disabled">
+      <mat-error *ngIf="form?.get('maxDownloadsPerWindow')?.hasError('min')">Must be 0 or greater</mat-error>
+    </mat-form-field>
+  </div>
+
+  <div class="row" *ngIf="form?.get('maxDownloadsPerWindow')?.value > 0">
+    <p>
+      <span class="mat-body">Window Duration (minutes)</span><br>
+      <span class="mat-caption">Rolling window size in minutes (1–60). Downloads are counted within this window.</span>
+    </p>
+    <mat-form-field floatLabel="auto">
+      <input matInput type="number" formControlName="downloadWindowMinutes" placeholder="60">
+      <mat-error *ngIf="form?.get('downloadWindowMinutes')?.hasError('min')">Must be at least 1</mat-error>
+      <mat-error *ngIf="form?.get('downloadWindowMinutes')?.hasError('max')">Must be 60 or less</mat-error>
+    </mat-form-field>
+  </div>
+
 
 </ng-container>

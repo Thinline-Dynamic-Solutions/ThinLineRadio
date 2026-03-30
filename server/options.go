@@ -109,6 +109,18 @@ type Options struct {
 	NoAudioRepeatMinutes              uint   `json:"noAudioRepeatMinutes"`
 	RelayServerURL                    string `json:"relayServerURL"`
 	RelayServerAPIKey                 string `json:"relayServerAPIKey"`
+	// Audio encryption — requires relay server (RelayServerURL + RelayServerAPIKey) to be configured.
+	// When enabled the TLR server fetches the AES-256-GCM master key from the relay
+	// server on startup (via ECDH; raw key never transmitted) and encrypts all audio
+	// bytes before sending over WebSocket. Clients decrypt using the same key obtained
+	// via their own ECDH exchange with the relay server.
+	// The client token is auto-fetched from the relay using RelayServerAPIKey — no
+	// manual configuration required.
+	AudioEncryptionEnabled bool `json:"audioEncryptionEnabled"`
+	// Download rate limiting — applied per WebSocket connection.
+	// Set MaxDownloadsPerWindow to 0 to disable.
+	MaxDownloadsPerWindow uint `json:"maxDownloadsPerWindow"` // max download requests in the window
+	DownloadWindowMinutes uint `json:"downloadWindowMinutes"` // rolling window size in minutes (1–60)
 	RadioReferenceAPIKey              string `json:"radioReferenceAPIKey"`
 	AdminLocalhostOnly                bool   `json:"adminLocalhostOnly"`
 	// When true, the traditional admin password login form is disabled. Admin access is only
@@ -639,6 +651,31 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.RelayServerAPIKey = v
 	default:
 		options.RelayServerAPIKey = ""
+	}
+
+	switch v := m["audioEncryptionEnabled"].(type) {
+	case bool:
+		options.AudioEncryptionEnabled = v
+	default:
+		options.AudioEncryptionEnabled = false
+	}
+
+	switch v := m["maxDownloadsPerWindow"].(type) {
+	case float64:
+		options.MaxDownloadsPerWindow = uint(v)
+	case uint:
+		options.MaxDownloadsPerWindow = v
+	default:
+		options.MaxDownloadsPerWindow = 0
+	}
+
+	switch v := m["downloadWindowMinutes"].(type) {
+	case float64:
+		options.DownloadWindowMinutes = uint(v)
+	case uint:
+		options.DownloadWindowMinutes = v
+	default:
+		options.DownloadWindowMinutes = 60
 	}
 
 	switch v := m["hydraAPIKey"].(type) {
@@ -1501,14 +1538,35 @@ func (options *Options) Read(db *Database) error {
 					options.RelayServerURL = v
 				}
 			}
-		case "relayServerAPIKey":
-			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-				switch v := f.(type) {
-				case string:
-					options.RelayServerAPIKey = v
-				}
+	case "relayServerAPIKey":
+		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+			switch v := f.(type) {
+			case string:
+				options.RelayServerAPIKey = v
 			}
-		case "hydraAPIKey":
+		}
+	case "audioEncryptionEnabled":
+		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+			switch v := f.(type) {
+			case bool:
+				options.AudioEncryptionEnabled = v
+			}
+		}
+	case "maxDownloadsPerWindow":
+		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+			switch v := f.(type) {
+			case float64:
+				options.MaxDownloadsPerWindow = uint(v)
+			}
+		}
+	case "downloadWindowMinutes":
+		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+			switch v := f.(type) {
+			case float64:
+				options.DownloadWindowMinutes = uint(v)
+			}
+		}
+	case "hydraAPIKey":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
 				case string:
@@ -1727,6 +1785,9 @@ func (options *Options) Write(db *Database) error {
 	set("noAudioRepeatMinutes", options.NoAudioRepeatMinutes)
 	set("relayServerURL", options.RelayServerURL)
 	set("relayServerAPIKey", options.RelayServerAPIKey)
+	set("audioEncryptionEnabled", options.AudioEncryptionEnabled)
+	set("maxDownloadsPerWindow", options.MaxDownloadsPerWindow)
+	set("downloadWindowMinutes", options.DownloadWindowMinutes)
 	set("hydraAPIKey", options.HydraAPIKey)
 	set("hydraTranscriptionEnabled", options.HydraTranscriptionEnabled)
 	set("radioReferenceAPIKey", options.RadioReferenceAPIKey)

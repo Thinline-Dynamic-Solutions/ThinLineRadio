@@ -29,7 +29,11 @@ import { GooglePlayBadgeComponent } from './badges/google-play-badge.component';
         GooglePlayBadgeComponent,
         RdioScannerNativeComponent,
     ],
-    exports: [RdioScannerNativeComponent],
+    exports: [
+        RdioScannerNativeComponent,
+        AppStoreBadgeComponent,
+        GooglePlayBadgeComponent,
+    ],
     imports: [AppSharedModule],
 })
 export class RdioScannerNativeModule { }

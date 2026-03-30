@@ -59,7 +59,8 @@
 
             <ng-container *ngSwitchCase="'radio-reference'">
                 <rdio-scanner-admin-radio-reference-import
-                    (config)="config.emit($event)">
+                    (config)="config.emit($event)"
+                    (configSaved)="configSaved.emit($event)">
                 </rdio-scanner-admin-radio-reference-import>
             </ng-container>
 

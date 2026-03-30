@@ -11,7 +11,7 @@
   </div>
 
   <!-- Login Form -->
-  <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" *ngIf="!showForgotPassword && !showResetPassword && !isBlocked">
+  <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" *ngIf="!showForgotPassword && !showResetPassword && !showForcedPasswordReset && !isBlocked">
     <mat-form-field appearance="outline" class="full-width">
       <mat-label>Email</mat-label>
       <input matInput type="email" formControlName="email" required>
@@ -47,6 +47,51 @@
         Forgot Password?
       </a>
     </div>
+  </form>
+
+  <!-- Forced Password Reset Form -->
+  <form [formGroup]="forcedPasswordResetForm" (ngSubmit)="onForcedPasswordReset()" *ngIf="showForcedPasswordReset">
+    <h3 style="margin-bottom: 20px;">Password Update Required</h3>
+    <p style="color: #666; margin-bottom: 20px;">
+      Your administrator requires you to change your password before continuing.
+    </p>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>New Password</mat-label>
+      <input matInput type="password" formControlName="newPassword" required>
+      <mat-error *ngIf="forcedPasswordResetForm.get('newPassword')?.touched && forcedPasswordResetForm.get('newPassword')?.invalid">
+        <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('required')">Password is required</span>
+        <span *ngIf="!forcedPasswordResetForm.get('newPassword')?.hasError('required')">
+          Missing: 
+          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('minlength')">8+ chars, </span>
+          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireUpper')">uppercase, </span>
+          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireLower')">lowercase, </span>
+          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireNumber')">number, </span>
+          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireSpecial')">special char</span>
+        </span>
+      </mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Confirm Password</mat-label>
+      <input matInput type="password" formControlName="confirmPassword" required>
+      <mat-error *ngIf="forcedPasswordResetForm.get('confirmPassword')?.hasError('required')">
+        Please confirm your password
+      </mat-error>
+      <mat-error *ngIf="forcedPasswordResetForm.get('confirmPassword')?.hasError('passwordMismatch')">
+        Passwords do not match
+      </mat-error>
+    </mat-form-field>
+
+    <div class="error-message" *ngIf="error">
+      {{ error }}
+    </div>
+
+    <button mat-raised-button color="primary" type="submit" 
+            [disabled]="forcedPasswordResetForm.invalid || loading" class="full-width">
+      <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
+      <span *ngIf="!loading">Update Password</span>
+    </button>
   </form>
 
   <!-- Forgot Password Form -->

@@ -145,6 +145,10 @@ export interface RdioScannerAlertPreference {
     keywords: string[];
     keywordListIds: number[];
     toneSetIds?: string[];
+    /** Per-channel notification sound override. Empty string = use global default. Filename format e.g. "alert.wav". */
+    notificationSound?: string;
+    /** Per-tone-set notification sound overrides. Key = toneSetId, value = filename e.g. "chirp_long.wav". */
+    toneSetSounds?: { [toneSetId: string]: string };
 }
 
 export interface RdioScannerKeywordList {
@@ -323,6 +327,7 @@ export interface RdioScannerSystem {
     talkgroups: RdioScannerTalkgroup[];
     type?: string;
     units: RdioScannerUnit[];
+    alertsEnabled?: boolean;
 }
 
 export interface RdioScannerTagData {
@@ -343,6 +348,7 @@ export interface RdioScannerTalkgroup {
     name: string;
     toneDetectionEnabled?: boolean;
     toneSets?: RdioScannerToneSet[];
+    alertsEnabled?: boolean;
     tag: string;
     type?: string;
 }

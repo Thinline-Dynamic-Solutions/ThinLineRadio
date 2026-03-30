@@ -19,7 +19,7 @@ $background-color: rgb(30, 30, 30);
     min-height: 0;
   }
 
-  /* Scanner main fills viewport under sidenav so inner tabs can scroll independently. */
+  /* New tab-based main fills height */
   ::ng-deep rdio-scanner-main {
     flex: 1 1 auto;
     width: 100%;
@@ -27,6 +27,27 @@ $background-color: rgb(30, 30, 30);
     min-height: 0;
     display: flex;
     flex-direction: column;
+  }
+
+  /* Classic view: sidenav container fills full height */
+  ::ng-deep .mat-sidenav-container {
+    background-color: $background-color;
+    color: inherit;
+    height: 100%;
+    width: 100%;
+  }
+
+  ::ng-deep .mat-sidenav {
+    background-color: $background-color;
+    color: inherit;
+    width: 100%;
+  }
+
+  ::ng-deep .mat-sidenav-content {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: auto;
   }
 }
 

@@ -111,6 +111,17 @@ type Controller struct {
 	// Debug logging for tones/keywords
 	DebugLogger              *DebugLogger
 	TranscriptionDebugLogger *TranscriptionDebugLogger
+
+	// AudioKey holds the 32-byte AES-256-GCM master key fetched from the relay
+	// server on startup. Stored in memory only — never persisted to the DB.
+	// When nil/empty, audio is sent unencrypted (encryption disabled or relay unreachable).
+	AudioKey []byte
+
+	// AudioClientToken is fetched automatically from the relay server using the
+	// server's registered API key. It is sent to clients in the config message so
+	// they can perform their own ECDH key exchange with the relay server.
+	// Stored in memory only — never persisted to the DB.
+	AudioClientToken string
 }
 
 // WaitingShortCall represents a short voice call that is waiting for a longer one to arrive
@@ -1134,7 +1145,9 @@ func (controller *Controller) processToneDetection(call *Call) {
 		// Pre-alerts are not saved to database - they're instant notifications only
 		if len(matchedToneSets) > 0 {
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sending pre-alert notifications for call with %d matched tone sets", len(matchedToneSets)))
-			go controller.AlertEngine.TriggerPreAlerts(call)
+			if call.System != nil && call.System.AlertsEnabled && call.Talkgroup != nil && call.Talkgroup.AlertsEnabled {
+				go controller.AlertEngine.TriggerPreAlerts(call)
+			}
 		}
 
 		// If transcription is still pending, we don't know yet if this is tone-only or has voice
@@ -1151,7 +1164,9 @@ func (controller *Controller) processToneDetection(call *Call) {
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("tones detected on tone-only call %d, storing as pending for talkgroup %d (audio: %d bytes, duration: %.2fs, no alert created)", call.Id, call.Talkgroup.TalkgroupRef, len(call.Audio), audioDuration))
 		} else {
 			// Transcription completed and has voice - trigger alert immediately
-			go controller.AlertEngine.TriggerToneAlerts(call)
+			if call.System != nil && call.System.AlertsEnabled && call.Talkgroup != nil && call.Talkgroup.AlertsEnabled {
+				go controller.AlertEngine.TriggerToneAlerts(call)
+			}
 		}
 	} else {
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("tone detection completed for call %d: no tones detected", call.Id))
@@ -1655,7 +1670,7 @@ func (controller *Controller) checkOrphanedTones(key string, callId uint64, time
 	// This allows a late voice call to still attach if it comes in
 
 	// Trigger tone alerts for this orphaned call
-	if controller.AlertEngine != nil {
+	if controller.AlertEngine != nil && call.System != nil && call.System.AlertsEnabled && call.Talkgroup != nil && call.Talkgroup.AlertsEnabled {
 		go controller.AlertEngine.TriggerToneAlerts(call)
 	}
 }
@@ -2185,7 +2200,9 @@ func (controller *Controller) storeWaitingShortCall(call *Call, pending *Pending
 		controller.waitingShortCallsMutex.Unlock()
 
 		// Trigger tone alerts for the short call
-		go controller.AlertEngine.TriggerToneAlerts(shortCall)
+		if shortCall.System != nil && shortCall.System.AlertsEnabled && shortCall.Talkgroup != nil && shortCall.Talkgroup.AlertsEnabled {
+			go controller.AlertEngine.TriggerToneAlerts(shortCall)
+		}
 	})
 
 	// Store the waiting short call
@@ -2281,6 +2298,14 @@ func (controller *Controller) resetStuckTranscriptions() {
 
 // queueTranscriptionIfNeeded queues transcription if at least one user has alerts enabled for this talkgroup
 func (controller *Controller) queueTranscriptionIfNeeded(call *Call) {
+	// Admin-level gate: skip transcription entirely if alerts are disabled at system or talkgroup level
+	if call.System != nil && !call.System.AlertsEnabled {
+		return
+	}
+	if call.Talkgroup != nil && !call.Talkgroup.AlertsEnabled {
+		return
+	}
+
 	// Check if Hydra transcription is enabled and call has transmission_id
 	controller.Options.mutex.Lock()
 	hydraEnabled := controller.Options.HydraTranscriptionEnabled
@@ -2630,6 +2655,21 @@ func (controller *Controller) ProcessMessageCommandCall(client *Client, message 
 				}
 				return nil
 			}
+		}
+	}
+
+	// Enforce per-client download rate limit when the download flag is present.
+	if message.Flag == WebsocketCallFlagDownload {
+		if client.IsDownloadRateLimited() {
+			msg := &Message{
+				Command: MessageCommandError,
+				Payload: fmt.Sprintf("download rate limit exceeded: max %d downloads per %d minute(s)", controller.Options.MaxDownloadsPerWindow, controller.Options.DownloadWindowMinutes),
+			}
+			select {
+			case client.Send <- msg:
+			default:
+			}
+			return nil
 		}
 	}
 
@@ -2992,6 +3032,28 @@ func (controller *Controller) Start() error {
 		go controller.fetchRadioReferenceAPIKey()
 	}
 
+	// Fetch the AES-256-GCM audio encryption key and the client token from the relay
+	// server if encryption is enabled. Both are held in memory only — never in the DB.
+	if controller.Options.AudioEncryptionEnabled {
+		if controller.Options.RelayServerURL == "" || controller.Options.RelayServerAPIKey == "" {
+			controller.Logs.LogEvent(LogLevelWarn, "audio encryption enabled but relay server URL or API key not configured — encryption disabled")
+		} else {
+			go func() {
+				// Fetch the master AES key (via ECDH — raw key never transmitted).
+				key, err := FetchAudioKeyFromRelay(controller.Options.RelayServerURL, controller.Options.RelayServerAPIKey)
+				if err != nil {
+					controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("audio encryption: failed to fetch key from relay: %v — audio will be sent unencrypted", err))
+					return
+				}
+				controller.AudioKey = key
+				controller.Logs.LogEvent(LogLevelInfo, "audio encryption: AES-256-GCM key loaded from relay server")
+
+				// Fetch the client token so it can be distributed to web/mobile clients.
+				controller.fetchAudioClientToken()
+			}()
+		}
+	}
+
 	// Initialize transcription queue after options are loaded
 	if controller.Options.TranscriptionConfig.Enabled {
 		controller.TranscriptionQueue = NewTranscriptionQueue(controller, controller.Options.TranscriptionConfig)
@@ -3323,6 +3385,59 @@ func (controller *Controller) fetchRadioReferenceAPIKey() {
 		}
 	} else {
 		controller.Logs.LogEvent(LogLevelWarn, "Radio Reference API key not found in relay server response")
+	}
+}
+
+// fetchAudioClientToken retrieves the audio_client_token from the relay server
+// using the TLR server's registered push-notification API key. The token is stored
+// in memory on the Controller and included in config messages sent to web/mobile
+// clients so they can perform their own ECDH key exchange with the relay server.
+func (controller *Controller) fetchAudioClientToken() {
+	relayServerURL := controller.Options.RelayServerURL
+	apiKey := controller.Options.RelayServerAPIKey
+	if relayServerURL == "" || apiKey == "" {
+		controller.Logs.LogEvent(LogLevelWarn, "audio encryption: relay server URL or API key not set — cannot fetch client token")
+		return
+	}
+
+	url := fmt.Sprintf("%s/api/audio/client-token", strings.TrimRight(relayServerURL, "/"))
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("audio encryption: failed to build client-token request: %v", err))
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("audio encryption: failed to fetch client token from relay: %v", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("audio encryption: relay returned %d fetching client token: %s", resp.StatusCode, string(body)))
+		return
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("audio encryption: failed to decode client token response: %v", err))
+		return
+	}
+
+	if token, ok := result["client_token"].(string); ok && token != "" {
+		controller.AudioClientToken = token
+		controller.Logs.LogEvent(LogLevelInfo, "audio encryption: client token loaded from relay server")
+
+		// Push a fresh config to all currently connected clients so they receive
+		// the token immediately (they may have connected before the async fetch
+		// completed and received an empty token in their initial config).
+		controller.Clients.EmitConfig(controller)
+	} else {
+		controller.Logs.LogEvent(LogLevelWarn, "audio encryption: client token not found in relay response — is audio_client_token set in relay-server.ini?")
 	}
 }
 

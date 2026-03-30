@@ -28,6 +28,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+
 type Client struct {
 	User        *User
 	AuthCount   int
@@ -45,6 +46,47 @@ type Client struct {
 	Livefeed    *Livefeed
 	SystemsMap  SystemsMap
 	request     *http.Request
+
+	// DownloadTimestamps tracks when each audio download was requested by this
+	// client, used for sliding-window rate limiting.
+	DownloadTimestamps []time.Time
+	downloadMu         sync.Mutex
+}
+
+// IsDownloadRateLimited returns true if the client has exceeded the configured
+// download rate limit within the rolling window. It also prunes expired entries.
+func (client *Client) IsDownloadRateLimited() bool {
+	if client.Controller == nil {
+		return false
+	}
+	maxDownloads := client.Controller.Options.MaxDownloadsPerWindow
+	windowMinutes := client.Controller.Options.DownloadWindowMinutes
+	if maxDownloads == 0 || windowMinutes == 0 {
+		return false
+	}
+
+	client.downloadMu.Lock()
+	defer client.downloadMu.Unlock()
+
+	now := time.Now()
+	window := time.Duration(windowMinutes) * time.Minute
+	cutoff := now.Add(-window)
+
+	// Prune timestamps outside the window.
+	valid := client.DownloadTimestamps[:0]
+	for _, t := range client.DownloadTimestamps {
+		if t.After(cutoff) {
+			valid = append(valid, t)
+		}
+	}
+	client.DownloadTimestamps = valid
+
+	if uint(len(client.DownloadTimestamps)) >= maxDownloads {
+		return true
+	}
+
+	client.DownloadTimestamps = append(client.DownloadTimestamps, now)
+	return false
 }
 
 func (client *Client) Init(controller *Controller, request *http.Request, conn *websocket.Conn) error {
@@ -76,6 +118,39 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 			// Save state for potential reconnection before unregistering
 			if client.User != nil && client.Controller != nil && client.Controller.ReconnectionMgr != nil {
 				client.Controller.ReconnectionMgr.SaveDisconnectedState(client)
+			}
+
+			// Send a disconnect push notification if the user has opted in and live feed was active.
+			// A 10-second grace period lets transient reconnects suppress the notification.
+			if client.User != nil && client.Controller != nil && !client.Livefeed.IsAllOff() {
+				user := client.User
+				ctrl := client.Controller
+				var userSettings map[string]interface{}
+				if user.Settings != "" {
+					if err := json.Unmarshal([]byte(user.Settings), &userSettings); err == nil {
+						if enabled, ok := userSettings["disconnectAlertPushEnabled"].(bool); ok && enabled {
+							userId := user.Id
+							go func() {
+								time.Sleep(10 * time.Second)
+								// Skip if the user still has another active connection with live
+								// feed running — e.g. a web browser that is still listening.
+								// Only send when they truly have no live audio anymore.
+								hasActiveLivefeed := false
+								ctrl.Clients.mutex.Lock()
+								for c := range ctrl.Clients.Map {
+									if c.User != nil && c.User.Id == userId && c.Send != nil && !c.Livefeed.IsAllOff() {
+										hasActiveLivefeed = true
+										break
+									}
+								}
+								ctrl.Clients.mutex.Unlock()
+								if !hasActiveLivefeed {
+									ctrl.sendDisconnectPushNotification(user)
+								}
+							}()
+						}
+					}
+				}
 			}
 
 			controller.Unregister <- client
@@ -159,18 +234,48 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 					}
 				}
 
-				if b, err := message.ToJson(); err != nil {
-					controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("client.message.tojson error for ip %s: %v", client.GetRemoteAddr(), err))
-					log.Println(fmt.Errorf("client.message.tojson: %v", err))
+			var b []byte
+			var jsonErr error
 
+			// When audio encryption is enabled and this is a call message, encrypt
+			// the audio exactly once (sync.Once guards concurrent client goroutines)
+			// and cache the wire bytes on the message so every listener reuses the
+			// same ciphertext. Memory is freed when the last channel reference drops.
+			if message.Command == MessageCommandCall && len(controller.AudioKey) == 32 {
+				if call, ok := message.Payload.(*Call); ok {
+					audioKey := controller.AudioKey
+					message.encryptOnce.Do(func() {
+						var enc []byte
+						enc, jsonErr = call.MarshalJSONWithEncryption(audioKey)
+						if jsonErr == nil {
+							envelope := []any{message.Command, json.RawMessage(enc)}
+							if message.Flag != nil && message.Flag != "" {
+								envelope = append(envelope, message.Flag)
+							}
+							enc, jsonErr = json.Marshal(envelope)
+						}
+						if jsonErr == nil {
+							message.encryptedJSON = enc
+						}
+					})
+					b = message.encryptedJSON
+				}
+			}
+			if b == nil && jsonErr == nil {
+				b, jsonErr = message.ToJson()
+			}
+
+				if jsonErr != nil {
+					controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("client.message.tojson error for ip %s: %v", client.GetRemoteAddr(), jsonErr))
+					log.Println(fmt.Errorf("client.message.tojson: %v", jsonErr))
 				} else {
-					if err = client.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-						controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("websocket set write deadline error for ip %s: %v", client.GetRemoteAddr(), err))
+					if writeErr := client.Conn.SetWriteDeadline(time.Now().Add(writeWait)); writeErr != nil {
+						controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("websocket set write deadline error for ip %s: %v", client.GetRemoteAddr(), writeErr))
 						return
 					}
 
-					if err = client.Conn.WriteMessage(websocket.TextMessage, b); err != nil {
-						controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("websocket write error for ip %s: %v", client.GetRemoteAddr(), err))
+					if writeErr := client.Conn.WriteMessage(websocket.TextMessage, b); writeErr != nil {
+						controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("websocket write error for ip %s: %v", client.GetRemoteAddr(), writeErr))
 						return
 					}
 				}
@@ -246,6 +351,12 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 			"pricingOptions":          pricingOptions,
 			"baseUrl":                 options.BaseUrl,
 			"transcriptionEnabled":    options.TranscriptionConfig.Enabled,
+			// Audio encryption: clients need the relay URL and client token to
+			// perform their own ECDH key exchange. The raw AES key is never sent here.
+			// The client token is auto-fetched from the relay using the server's API key.
+			"audioEncryptionEnabled": options.AudioEncryptionEnabled,
+			"relayServerURL":         options.RelayServerURL,
+			"audioClientToken":       client.Controller.AudioClientToken,
 		},
 		"playbackGoesLive":   options.PlaybackGoesLive,
 		"showListenersCount": options.ShowListenersCount,

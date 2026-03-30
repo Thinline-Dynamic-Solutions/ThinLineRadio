@@ -23,6 +23,7 @@ import { AppSharedModule } from '../../shared/shared.module';
 import { RdioScannerComponent } from './rdio-scanner.component';
 import { RdioScannerService } from './rdio-scanner.service';
 import { RdioScannerMainComponent } from './main/main.component';
+import { RdioScannerMainLegacyComponent } from './main/main-legacy.component';
 import { RdioScannerSupportComponent } from './main/support/support.component';
 import { RdioScannerNativeModule } from './native/native.module';
 import { RdioScannerSearchComponent } from './search/search.component';
@@ -40,14 +41,19 @@ import { SettingsService } from './settings/settings.service';
 import { AlertsService } from './alerts/alerts.service';
 import { TagColorService } from './tag-color.service';
 import { FavoritesService } from './favorites.service';
+import { ScanListsService } from './scan-lists.service';
+import { RdioScannerSelectLegacyComponent } from './select/select-legacy.component';
 import { AlertSoundService } from './alert-sound.service';
+import { RdioScannerMobileWebHubComponent } from './mobile-web-hub/mobile-web-hub.component';
 
 @NgModule({
     declarations: [
         RdioScannerComponent,
         RdioScannerMainComponent,
+        RdioScannerMainLegacyComponent,
         RdioScannerSearchComponent,
         RdioScannerSelectComponent,
+        RdioScannerSelectLegacyComponent,
         SystemsVisibilityDialogComponent,
         RdioScannerSupportComponent,
         RdioScannerUserLoginComponent,
@@ -58,6 +64,7 @@ import { AlertSoundService } from './alert-sound.service';
         RdioScannerSettingsComponent,
         RdioScannerAlertsComponent,
         RdioScannerAlertPreferencesComponent,
+        RdioScannerMobileWebHubComponent,
     ],
     exports: [RdioScannerComponent],
     imports: [
@@ -70,6 +77,7 @@ import { AlertSoundService } from './alert-sound.service';
         AlertsService,
         TagColorService,
         FavoritesService,
+        ScanListsService,
         AlertSoundService,
         { provide: OverlayContainer, useClass: FullscreenOverlayContainer },
     ],

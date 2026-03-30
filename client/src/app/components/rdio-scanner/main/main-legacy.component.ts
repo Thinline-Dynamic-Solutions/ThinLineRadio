@@ -18,7 +18,6 @@
  */
 
 import { ChangeDetectorRef, Component, EventEmitter, OnDestroy, OnInit, Output, ViewChild } from '@angular/core';
-import { RdioScannerSearchComponent } from '../search/search.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MatInput } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -37,17 +36,52 @@ import {
 import { RdioScannerService } from '../rdio-scanner.service';
 import { TagColorService } from '../tag-color.service';
 import { RdioScannerSupportComponent } from './support/support.component';
+import { AlertsService } from '../alerts/alerts.service';
+import { RdioScannerAlert } from '../rdio-scanner';
 import { SettingsService } from '../settings/settings.service';
 
+
+// Merged alert: multiple alerts for the same callId collapsed into one card
+interface MergedAlert {
+    callId: number;
+    alertIds: number[];
+    systemId: number;
+    systemLabel?: string;
+    talkgroupIds: number[];
+    talkgroupLabels: string[];
+    alertType: 'tone' | 'keyword' | 'tone+keyword';
+    toneDetected: boolean;
+    matchedToneSetNames: string[];
+    keywordsMatched: string[];
+    transcript?: string;
+    createdAt: number;
+}
+
+interface ButtonVisibility {
+    liveFeed: boolean;
+    pause: boolean;
+    replayLast: boolean;
+    skipNext: boolean;
+    avoid: boolean;
+    favorite: boolean;
+    holdSystem: boolean;
+    holdTalkgroup: boolean;
+    playback: boolean;
+    alerts: boolean;
+    settings: boolean;
+    channelSelect: boolean;
+}
+
 @Component({
-    selector: 'rdio-scanner-main',
+    selector: 'rdio-scanner-main-legacy',
     styleUrls: [
         '../common.scss',
         './main.component.scss',
+        './main-legacy.component.scss',
     ],
-    templateUrl: './main.component.html',
+    templateUrl: './main-legacy.component.html',
 })
-export class RdioScannerMainComponent implements OnDestroy, OnInit {
+export class RdioScannerMainLegacyComponent implements OnDestroy, OnInit {
     auth = false;
     authForm: FormGroup;
     userRegistrationEnabled = false;
@@ -55,10 +89,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     avoided = false;
 
     branding = '';
-
-    /** Same endpoint as login (`/email-logo`); hidden on image error. */
-    toolbarLogoUrl = '';
-    toolbarLogoError = false;
+    
 
     version = packageInfo.version;
     showVersion = false;
@@ -68,10 +99,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     callDate: Date | undefined;
     callError = '0';
     callFrequency: string = this.formatFrequency(0);
-    /** Finished calls, newest first (pruned ~2h). */
-    callHistoryStore: RdioScannerCall[] = [];
-    selectedHistoryCall: RdioScannerCall | undefined;
-    boardTabIndex = 0;
+    callHistory: RdioScannerCall[] = new Array<RdioScannerCall>(10);
     callPrevious: RdioScannerCall | undefined;
     callProgress = new Date(0, 0, 0, 0, 0, 0);
     callQueue = 0;
@@ -275,16 +303,12 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         // Reset index to 0 when starting
         this.currentScanningSystemIndex = 0;
 
-        // Cycle through systems every 1 second.
-        // Do NOT call detectChanges() here — the timer runs inside Angular's zone so
-        // the framework already schedules a CD pass when the property is mutated.
-        // An explicit detectChanges() would trigger a second full-tree pass every tick,
-        // re-evaluating every template expression (including callsLastHour, all row
-        // methods, etc.) a second time for no benefit.
+        // Cycle through systems every 1 second
         this.scanningSystemTimer = timer(0, 1000).subscribe(() => {
-            const systems = this.getEnabledSystems();
-            if (systems.length > 0) {
-                this.currentScanningSystemIndex = (this.currentScanningSystemIndex + 1) % systems.length;
+            const enabledSystems = this.getEnabledSystems();
+            if (enabledSystems.length > 0) {
+                this.currentScanningSystemIndex = (this.currentScanningSystemIndex + 1) % enabledSystems.length;
+                this.ngChangeDetectorRef.detectChanges();
             }
         });
     }
@@ -297,6 +321,14 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         this.currentScanningSystemIndex = 0;
     }
 
+    @Output() openSearchPanel = new EventEmitter<void>();
+
+    @Output() openSelectPanel = new EventEmitter<void>();
+
+    @Output() openSettingsPanel = new EventEmitter<void>();
+
+    @Output() openAlertsPanel = new EventEmitter<void>();
+
     @Output() toggleFullscreen = new EventEmitter<void>();
 
     @Output() signOut = new EventEmitter<void>();
@@ -304,8 +336,6 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     @Output() toggleClassicViewRequest = new EventEmitter<void>();
 
     @ViewChild('password', { read: MatInput }) private authPassword: MatInput | undefined;
-
-    @ViewChild('archiveSearch') archiveSearch: RdioScannerSearchComponent | undefined;
 
     private clockTimer: Subscription | undefined;
 
@@ -316,6 +346,45 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     private eventSubscription;
     private storedPinAttempts = 0;
     private lastStoredPin: string | null = null;
+
+    // Recent alerts (merged by callId so the same call shows as one card)
+    recentAlerts: MergedAlert[] = [];
+    loadingAlerts = false;
+    showRecentAlertsPanel = true; // User preference to show/hide the alerts panel
+    private alertsSubscription: Subscription | undefined;
+
+    // Customization / Edit mode
+    editMode = false;
+    previewMode = false; // For previewing layout changes
+    buttonVisibility: ButtonVisibility = {
+        liveFeed: true,
+        pause: true,
+        replayLast: true,
+        skipNext: true,
+        avoid: true,
+        favorite: true,
+        holdSystem: true,
+        holdTalkgroup: true,
+        playback: true,
+        alerts: true,
+        settings: true,
+        channelSelect: true
+    };
+    
+    // Layout preferences
+    layoutPreferences = {
+        layoutMode: 'horizontal' as 'horizontal' | 'vertical', // horizontal = side-by-side, vertical = stacked
+        scannerOnLeft: true, // true = scanner left, alerts right (horizontal mode only)
+        scannerWidth: 640, // pixels
+        alertsWidth: 400, // pixels
+    };
+    
+    // Button order (for drag and drop reordering)
+    buttonOrder = [
+        'liveFeed', 'pause', 'replayLast', 'skipNext',
+        'avoid', 'favorite', 'holdSystem', 'holdTalkgroup',
+        'playback', 'alerts', 'settings', 'channelSelect'
+    ];
 
     // Subscription management
     showCheckout = false;
@@ -332,6 +401,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         private ngChangeDetectorRef: ChangeDetectorRef,
         private ngFormBuilder: FormBuilder,
         private tagColorService: TagColorService,
+        private alertsService: AlertsService,
         private settingsService: SettingsService,
         private titleService: Title,
     ) {
@@ -459,6 +529,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         this.stopScanningAnimation();
 
         this.eventSubscription.unsubscribe();
+        this.alertsSubscription?.unsubscribe();
     }
 
     checkSubscriptionStatus(): void {
@@ -687,31 +758,73 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     ngOnInit(): void {
         this.syncClock();
 
-        if (!this.toolbarLogoUrl) {
-            this.toolbarLogoUrl = `${window.location.origin}/email-logo?t=${Date.now()}`;
-        }
-
-        // Seed config in case the event already fired before this component mounted
+        // Seed config immediately in case the event fired before this component mounted
         const currentConfig = this.rdioScannerService.getConfig();
         if (currentConfig) {
             this.config = currentConfig;
         }
 
+        // Load user preference for showing alerts panel
+        const savedPref = localStorage.getItem('showRecentAlertsPanel');
+        if (savedPref !== null) {
+            this.showRecentAlertsPanel = savedPref === 'true';
+        }
+
+        // Load button visibility preferences
+        const savedVisibility = localStorage.getItem('buttonVisibility');
+        if (savedVisibility) {
+            try {
+                this.buttonVisibility = { ...this.buttonVisibility, ...JSON.parse(savedVisibility) };
+            } catch (e) {
+                console.error('Failed to parse button visibility preferences:', e);
+            }
+        }
+
+        // Load layout preferences — always force horizontal so alerts appear to the right
+        const savedLayout = localStorage.getItem('layoutPreferences');
+        if (savedLayout) {
+            try {
+                const parsed = JSON.parse(savedLayout);
+                this.layoutPreferences = { ...this.layoutPreferences, ...parsed, layoutMode: 'horizontal' };
+            } catch (e) {
+                console.error('Failed to parse layout preferences:', e);
+            }
+        }
+
+        // Load button order
+        const savedOrder = localStorage.getItem('buttonOrder');
+        if (savedOrder) {
+            try {
+                this.buttonOrder = JSON.parse(savedOrder);
+            } catch (e) {
+                console.error('Failed to parse button order:', e);
+            }
+        }
+        
+        // Initial load - fetch new alerts incrementally
+        this.loadRecentAlerts();
+        
+        // Subscribe to shared alerts service for automatic updates
+        this.alertsService.alerts$.subscribe(alerts => {
+            // Merge by callId then show 20 most recent
+            this.recentAlerts = this.mergeAlertsByCallId(alerts)
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .slice(0, 20);
+        });
+        
+        // Listen for new alerts via WebSocket
+        this.alertsSubscription = this.rdioScannerService.event.subscribe((event: any) => {
+            if (event.alert) {
+                // Fetch only new alerts (incremental) - will update via alerts$ subscription
+                this.loadRecentAlerts();
+            }
+        });
+        
+        // Note: Subscription check is handled in the event handler when config is received
+        // No need to check here since config always arrives via WebSocket event handler
+
         // Check for auto-start livefeed (PWA only)
         this.checkAutoStartLivefeed();
-    }
-
-    getToolbarLogoBorderRadius(): string {
-        const borderRadius = this.config?.options?.emailLogoBorderRadius;
-        return borderRadius && borderRadius.trim() !== '' ? borderRadius : '8px';
-    }
-
-    onToolbarLogoError(event: Event): void {
-        this.toolbarLogoError = true;
-        const img = event.target as HTMLImageElement;
-        if (img) {
-            img.style.display = 'none';
-        }
     }
 
     private checkAutoStartLivefeed(): void {
@@ -773,7 +886,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
 
                 if (this.replayTimer instanceof Subscription) {
                     this.replayTimer.unsubscribe();
-                    this.replayOffset = Math.min(this.callHistoryStore.length, this.replayOffset + 1);
+                    this.replayOffset = Math.min(this.callHistory.length, this.replayOffset + 1);
                 }
 
                 this.replayTimer = timer(1000).subscribe(() => {
@@ -783,14 +896,14 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
 
                 if (this.call && !this.replayOffset) {
                     this.rdioScannerService.replay()
-                } else if (this.callPrevious !== this.callHistoryStore[0]) {
+                } else if (this.callPrevious !== this.callHistory[0]) {
                     if (this.replayOffset) {
-                        this.playCallFromHistoryEntry(this.callHistoryStore[this.replayOffset - 1]);
+                        this.rdioScannerService.play(this.callHistory[this.replayOffset - 1]);
                     } else {
                         this.rdioScannerService.replay()
                     }
-                } else if (this.replayOffset < this.callHistoryStore.length) {
-                    this.playCallFromHistoryEntry(this.callHistoryStore[this.replayOffset]);
+                } else if (this.replayOffset < this.callHistory.length) {
+                    this.rdioScannerService.play(this.callHistory[this.replayOffset]);
                 }
 
             } else {
@@ -874,7 +987,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         } else {
             this.rdioScannerService.beep();
 
-            this.applyBoardTab(1, true);
+            this.openSearchPanel.emit();
         }
     }
 
@@ -889,7 +1002,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         } else {
             this.rdioScannerService.beep();
 
-            this.applyBoardTab(2, false);
+            this.openSelectPanel.emit();
         }
     }
 
@@ -904,13 +1017,8 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         } else {
             this.rdioScannerService.beep();
 
-            this.applyBoardTab(this.settingsBoardTabIndex, false);
+            this.openSettingsPanel.emit();
         }
-    }
-
-    /** Settings tab index: 6 when Alerts/Transcripts/Stats exist, otherwise 3. */
-    get settingsBoardTabIndex(): number {
-        return this.isTranscriptionEnabled ? 6 : 3;
     }
 
     showAlertsPanel(): void {
@@ -924,29 +1032,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         } else {
             this.rdioScannerService.beep();
 
-            if (this.isTranscriptionEnabled) {
-                this.applyBoardTab(3, false);
-            } else {
-                this.matSnackBar.open('Alerts require transcription to be enabled on the server.', 'OK', {
-                    duration: 5000,
-                });
-            }
-        }
-    }
-
-    onBoardIndexChange(index: number): void {
-        this.applyBoardTab(index, true);
-    }
-
-    /** Tab index: 0 Current, 1 Archive, 2 Channels, 3–5 Alerts/Transcripts/Stats (when transcription on), 6 Settings. */
-    private applyBoardTab(index: number, refreshArchiveSearch: boolean): void {
-        const prev = this.boardTabIndex;
-        if (prev === 1 && index !== 1) {
-            this.rdioScannerService.stopPlaybackMode();
-        }
-        this.boardTabIndex = index;
-        if (refreshArchiveSearch && index === 1) {
-            setTimeout(() => this.archiveSearch?.searchCalls(), 0);
+            this.openAlertsPanel.emit();
         }
     }
 
@@ -1193,9 +1279,9 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
                 this.callPrevious = this.call;
 
                 // Move the finished call to history immediately
-                if (this.callPrevious?.id != null && !this.callHistoryStore.find((call: RdioScannerCall) => call?.id === this.callPrevious?.id)) {
-                    this.callHistoryStore.unshift(this.callPrevious);
-                    this.pruneCallHistoryStore(); // also calls refreshCallsLastHour
+                if (!this.callHistory.find((call: RdioScannerCall) => call?.id === this.callPrevious?.id)) {
+                    this.callHistory.pop();
+                    this.callHistory.unshift(this.callPrevious);
                 }
 
                 this.call = undefined;
@@ -1222,9 +1308,6 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
                 this.tempAvoid = 0;
                 this.type = '';
                 this.isFavorite = false;
-
-                // Drop bottom "Transmission detail" selection between calls (stale row was still detailCall).
-                this.selectedHistoryCall = undefined;
                 
                 // Turn dimmer off when call stops
                 this.updateDimmer();
@@ -1235,8 +1318,6 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
 
             if (event.call) {
                 this.call = event.call;
-                this.selectedHistoryCall = this.call;
-                this.updateLiveCallInStore(this.call);
                 // Turn dimmer on immediately when call arrives
                 this.updateDimmer();
             }
@@ -1456,7 +1537,8 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         // Dimmer should be ON when audio is actually playing (call exists)
         // It will be turned OFF when call becomes undefined
         this.dimmer = !!this.call;
-        // No detectChanges() needed — called from zone-aware event handlers.
+
+        this.ngChangeDetectorRef.detectChanges();
     }
 
     private updateDisplay(time = this.callTime): void {
@@ -1550,8 +1632,13 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         const call = this.call || this.callPrevious;
 
         if (call) {
-            // Only flag DELAYED when the server marks the call (feed delay). Start time is almost always < now for live audio.
-            this.delayed = !!call.delayed;
+            // Show delayed indicator for both explicitly delayed calls and calls from before current time
+            const now = new Date();
+            const callTime = new Date(call.dateTime);
+            const isHistorical = callTime < now;
+            
+            // Show delayed if the call was explicitly delayed OR if it's historical audio
+            this.delayed = call.delayed || isHistorical;
 
             this.tempAvoid = this.rdioScannerService.isAvoidedTimer(call);
 
@@ -1572,33 +1659,228 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         }
 
         this.updateLedStyle();
-        // No detectChanges() needed — all callers run inside Angular's zone.
+
+        this.ngChangeDetectorRef.detectChanges();
     }
 
     /**
      * Get the appropriate text for the delayed indicator
      */
     getDelayedText(): string {
-        if (this.playbackMode) {
-            return 'PLAYBACK';
-        }
         if (this.delayed) {
             return 'DELAYED';
+        } else {
+            return 'LIVE';
         }
-        return 'LIVE';
     }
 
     /**
      * Get the tooltip text for the delayed indicator
      */
     getDelayedTooltip(): string {
-        if (this.playbackMode) {
-            return 'Playing from archive or search';
+        if (this.call?.delayed) {
+            return 'Call was delayed by system';
+        } else if (this.delayed) {
+            return 'Playing historical audio';
+        } else {
+            return 'Live audio';
         }
-        if (this.delayed) {
-            return 'Feed delay reported for this call';
+    }
+
+    loadRecentAlerts(): void {
+        const pin = this.rdioScannerService.readPin();
+        if (!pin) {
+            this.recentAlerts = [];
+            return;
         }
-        return 'Live audio';
+
+        this.loadingAlerts = true;
+        
+        // Use shared service to fetch new alerts incrementally
+        this.alertsService.fetchNewAlerts(pin, false).subscribe({
+            next: () => {
+                const allAlerts = this.alertsService.getCachedAlerts();
+                this.recentAlerts = this.mergeAlertsByCallId(allAlerts)
+                    .sort((a, b) => b.createdAt - a.createdAt)
+                    .slice(0, 20);
+                this.loadingAlerts = false;
+            },
+            error: (error) => {
+                console.error('Error loading recent alerts:', error);
+                const allAlerts = this.alertsService.getCachedAlerts();
+                this.recentAlerts = this.mergeAlertsByCallId(allAlerts)
+                    .sort((a, b) => b.createdAt - a.createdAt)
+                    .slice(0, 20);
+                this.loadingAlerts = false;
+            },
+        });
+    }
+
+    private mergeAlertsByCallId(alerts: RdioScannerAlert[]): MergedAlert[] {
+        const callMap = new Map<number, MergedAlert>();
+
+        for (const alert of alerts) {
+            const callId = alert.callId;
+
+            // Parse keywords from JSON string
+            let keywords: string[] = [];
+            if (alert.keywordsMatched) {
+                try { keywords = JSON.parse(alert.keywordsMatched); } catch { keywords = []; }
+            }
+
+            // Collect tone set names
+            const toneNames: string[] = alert.matchedToneSetNames?.length
+                ? alert.matchedToneSetNames
+                : (alert.matchedToneSetName ? [alert.matchedToneSetName] : []);
+
+            const tgLabel = alert.talkgroupLabel || alert.talkgroupName || `Talkgroup ${alert.talkgroupId}`;
+
+            if (callMap.has(callId)) {
+                const merged = callMap.get(callId)!;
+
+                if (!merged.talkgroupLabels.includes(tgLabel)) {
+                    merged.talkgroupLabels.push(tgLabel);
+                    merged.talkgroupIds.push(alert.talkgroupId);
+                }
+                for (const t of toneNames) {
+                    if (!merged.matchedToneSetNames.includes(t)) merged.matchedToneSetNames.push(t);
+                }
+                for (const k of keywords) {
+                    if (!merged.keywordsMatched.includes(k)) merged.keywordsMatched.push(k);
+                }
+                // Upgrade alert type if different matches came in
+                if (merged.alertType !== alert.alertType) {
+                    merged.alertType = 'tone+keyword';
+                }
+                if (alert.toneDetected) merged.toneDetected = true;
+                merged.alertIds.push(alert.alertId);
+                if ((alert.createdAt || 0) > merged.createdAt) merged.createdAt = alert.createdAt || 0;
+                if (!merged.transcript) merged.transcript = alert.transcript || alert.transcriptSnippet;
+            } else {
+                callMap.set(callId, {
+                    callId,
+                    alertIds: [alert.alertId],
+                    systemId: alert.systemId,
+                    systemLabel: alert.systemLabel,
+                    talkgroupIds: [alert.talkgroupId],
+                    talkgroupLabels: [tgLabel],
+                    alertType: alert.alertType,
+                    toneDetected: alert.toneDetected,
+                    matchedToneSetNames: [...toneNames],
+                    keywordsMatched: [...keywords],
+                    transcript: alert.transcript || alert.transcriptSnippet,
+                    createdAt: alert.createdAt || 0,
+                });
+            }
+        }
+
+        return Array.from(callMap.values());
+    }
+
+    getKeywordsMatched(alert: MergedAlert): string[] {
+        return alert.keywordsMatched || [];
+    }
+
+    private _getKeywordsMatchedFromRaw(alert: RdioScannerAlert): string[] {
+        if (!alert.keywordsMatched) {
+            return [];
+        }
+        try {
+            return JSON.parse(alert.keywordsMatched);
+        } catch {
+            return [];
+        }
+    }
+
+    formatTimestamp(timestamp: number): string {
+        const date = new Date(timestamp);
+        return date.toLocaleString();
+    }
+
+    toggleRecentAlertsPanel(): void {
+        this.showRecentAlertsPanel = !this.showRecentAlertsPanel;
+        // Save preference to localStorage
+        localStorage.setItem('showRecentAlertsPanel', this.showRecentAlertsPanel.toString());
+    }
+
+    toggleEditMode(): void {
+        this.editMode = !this.editMode;
+        if (!this.editMode) {
+            // Save preferences when exiting edit mode
+            this.saveButtonPreferences();
+        }
+    }
+
+    toggleButtonVisibility(button: keyof typeof this.buttonVisibility): void {
+        this.buttonVisibility[button] = !this.buttonVisibility[button];
+    }
+
+    saveButtonPreferences(): void {
+        localStorage.setItem('buttonVisibility', JSON.stringify(this.buttonVisibility));
+        localStorage.setItem('layoutPreferences', JSON.stringify(this.layoutPreferences));
+        localStorage.setItem('buttonOrder', JSON.stringify(this.buttonOrder));
+        this.matSnackBar.open('Layout preferences saved!', 'Close', {
+            duration: 2000,
+        });
+    }
+
+    resetButtonPreferences(): void {
+        // Reset to all visible
+        Object.keys(this.buttonVisibility).forEach(key => {
+            this.buttonVisibility[key as keyof typeof this.buttonVisibility] = true;
+        });
+        // Reset layout
+        this.layoutPreferences = {
+            layoutMode: 'horizontal',
+            scannerOnLeft: true,
+            scannerWidth: 640,
+            alertsWidth: 400,
+        };
+        localStorage.removeItem('buttonVisibility');
+        localStorage.removeItem('layoutPreferences');
+        localStorage.removeItem('buttonOrder');
+        this.matSnackBar.open('Layout reset to default!', 'Close', {
+            duration: 2000,
+        });
+    }
+
+    swapPanels(): void {
+        if (this.layoutPreferences.layoutMode === 'horizontal') {
+            this.layoutPreferences.scannerOnLeft = !this.layoutPreferences.scannerOnLeft;
+        }
+    }
+
+    getButtonVisibility(buttonKey: string): boolean {
+        return this.buttonVisibility[buttonKey as keyof ButtonVisibility] ?? true;
+    }
+
+    shouldShowButton(buttonKey: string): boolean {
+        // In edit mode, show all buttons always (including alerts even if transcription is off)
+        if (this.editMode) {
+            return true;
+        }
+        
+        // In normal mode, check visibility and special conditions
+        const isVisible = this.getButtonVisibility(buttonKey);
+        
+        // Alerts button only shows if transcription is enabled
+        if (buttonKey === 'alerts') {
+            return isVisible && this.isTranscriptionEnabled;
+        }
+        
+        return isVisible;
+    }
+
+    togglePreviewMode(): void {
+        this.previewMode = !this.previewMode;
+    }
+
+    onButtonClick(buttonKey: string): void {
+        if (this.editMode) {
+            this.toggleButtonVisibility(buttonKey as keyof ButtonVisibility);
+        } else {
+            this.executeButtonAction(buttonKey);
+        }
     }
 
     executeButtonAction(buttonKey: string): void {
@@ -1608,6 +1890,9 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
                 break;
             case 'pause':
                 this.pause();
+                break;
+            case 'replayLast':
+                this.replay();
                 break;
             case 'skipNext':
                 this.skip();
@@ -1624,199 +1909,140 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
             case 'holdTalkgroup':
                 this.holdTalkgroup();
                 break;
+            case 'playback':
+                this.showSearchPanel();
+                break;
+            case 'alerts':
+                this.showAlertsPanel();
+                break;
+            case 'settings':
+                this.showSettingsPanel();
+                break;
+            case 'channelSelect':
+                this.showSelectPanel();
+                break;
         }
     }
 
-    toolbarIcon(buttonKey: string): string {
-        const icons: Record<string, string> = {
+    getButtonClasses(buttonKey: string): any {
+        const classes: any = {};
+        
+        // Add specific button class
+        classes[buttonKey] = true;
+        
+        // Add edit-hidden class if in edit mode and button is hidden
+        if (this.editMode && !this.getButtonVisibility(buttonKey)) {
+            classes['edit-hidden'] = true;
+        }
+        
+        // Add active/inactive states
+        switch (buttonKey) {
+            case 'liveFeed':
+                if (this.livefeedOnline) classes['active'] = true;
+                if (this.livefeedOffline && !this.playbackMode) classes['inactive'] = true;
+                break;
+            case 'pause':
+                if (this.livefeedPaused) classes['active'] = true;
+                break;
+            case 'favorite':
+                if (this.isFavorite) classes['active'] = true;
+                break;
+            case 'holdSystem':
+                if (this.holdSys) classes['active'] = true;
+                break;
+            case 'holdTalkgroup':
+                if (this.holdTg) classes['active'] = true;
+                break;
+        }
+        
+        return classes;
+    }
+
+    getButtonIcon(buttonKey: string): string {
+        const icons: any = {
             liveFeed: this.livefeedOnline ? 'radio' : 'radio_button_unchecked',
             pause: this.livefeedPaused ? 'play_arrow' : 'pause',
+            replayLast: 'replay',
             skipNext: 'skip_next',
             avoid: 'block',
             favorite: this.isFavorite ? 'star' : 'star_border',
             holdSystem: 'keyboard_arrow_down',
             holdTalkgroup: 'keyboard_double_arrow_down',
+            playback: 'play_circle',
+            alerts: 'notifications',
+            settings: 'settings',
+            channelSelect: 'tune'
         };
         return icons[buttonKey] || 'help';
     }
 
-    toolbarTooltip(buttonKey: string): string {
-        const paused = this.livefeedPaused ? 'Resume' : 'Pause';
-        const tips: Record<string, string> = {
-            liveFeed: this.livefeedOnline ? 'Stop live feed' : 'Start live feed',
-            pause: paused,
-            skipNext: 'Skip',
-            avoid: 'Avoid talkgroup',
-            favorite: 'Favorite',
-            holdSystem: 'Hold system',
-            holdTalkgroup: 'Hold talkgroup',
+    getButtonText(buttonKey: string): string {
+        const texts: any = {
+            liveFeed: 'LIVE<br>FEED',
+            pause: this.livefeedPaused ? 'RESUME' : 'PAUSE',
+            replayLast: 'REPLAY<br>LAST',
+            skipNext: 'SKIP<br>NEXT',
+            avoid: 'AVOID<br>TALKGROUP',
+            favorite: this.isFavorite ? 'REMOVE<br>FAVORITE' : 'ADD<br>FAVORITE',
+            holdSystem: 'HOLD<br>SYSTEM',
+            holdTalkgroup: 'HOLD<br>TALKGROUP',
+            playback: 'PLAYBACK',
+            alerts: 'ALERTS',
+            settings: 'SETTINGS',
+            channelSelect: 'CHANNEL<br>SELECT'
         };
-        return tips[buttonKey] || buttonKey;
+        return texts[buttonKey] || buttonKey;
     }
 
-    displayTgidForCall(call: RdioScannerCall | undefined): string {
-        if (!call) return '—';
-        if (this.isAfsSystem(call)) {
-            return this.formatAfs(call.talkgroup);
+    getScannerMaxWidth(): string {
+        if (this.layoutPreferences.layoutMode === 'vertical') {
+            return '100%'; // Full width in vertical mode
         }
-        return String(call.talkgroup ?? '0');
+        return `${this.layoutPreferences.scannerWidth}px`;
     }
 
-    private resolveUnitLabelForSrc(call: RdioScannerCall, src: number): string {
-        const units = call.systemData?.units;
-        if (Array.isArray(units)) {
-            const label = units.find((unit) => {
-                if (typeof unit.unitFrom === 'number' && typeof unit.unitTo === 'number') {
-                    if (unit.unitFrom <= src && unit.unitTo >= src) return true;
-                }
-                return unit.id === src;
-            })?.label;
-            if (label) return label;
+    getAlertsMaxWidth(): string {
+        if (this.layoutPreferences.layoutMode === 'vertical') {
+            return '100%'; // Full width in vertical mode
         }
-        return String(src);
+        return `${this.layoutPreferences.alertsWidth}px`;
     }
 
-    displayUnitForCall(call: RdioScannerCall | undefined): string {
-        if (!call) return '—';
-        if (Array.isArray(call.sources) && call.sources.length) {
-            const ordered = [...call.sources].sort((a, b) => (a.pos || 0) - (b.pos || 0));
-            for (const s of ordered) {
-                if (typeof s.tag === 'string' && s.tag.length > 0) {
-                    return s.tag;
-                }
-            }
-            const first = ordered[0];
-            if (typeof first?.src === 'number') {
-                return this.resolveUnitLabelForSrc(call, first.src);
-            }
+    getAlertsWidth(): string {
+        if (this.layoutPreferences.layoutMode === 'vertical') {
+            return '100%'; // Full width in vertical mode
         }
-        if (typeof call.source === 'number') {
-            return this.resolveUnitLabelForSrc(call, call.source);
+        return `${this.layoutPreferences.alertsWidth}px`;
+    }
+
+    getScannerOrder(): number {
+        if (this.layoutPreferences.layoutMode === 'vertical') {
+            return 1; // Scanner always on top in vertical mode
         }
-        return '—';
+        return this.layoutPreferences.scannerOnLeft ? 1 : 2;
     }
 
-    /**
-     * Now playing: use time-varying callUnit during audio when it matches the live call; otherwise static from call payload.
-     */
-    displaySourceForNowPlaying(call: RdioScannerCall): string {
-        if (this.call?.id != null && call.id === this.call.id) {
-            const u = this.callUnit?.trim() ?? '';
-            if (u !== '' && u !== '0') {
-                return u;
-            }
+    getAlertsOrder(): number {
+        if (this.layoutPreferences.layoutMode === 'vertical') {
+            return 2; // Alerts always below in vertical mode
         }
-        return this.displayUnitForCall(call);
+        return this.layoutPreferences.scannerOnLeft ? 2 : 1;
     }
 
-    toolbarActionClass(buttonKey: string): { active: boolean; inactive: boolean } {
-        const o = { active: false, inactive: false };
-        switch (buttonKey) {
-            case 'liveFeed':
-                if (this.livefeedOnline) o.active = true;
-                if (this.livefeedOffline && !this.playbackMode) o.inactive = true;
-                break;
-            case 'pause':
-                if (this.livefeedPaused) o.active = true;
-                break;
-            case 'favorite':
-                if (this.isFavorite) o.active = true;
-                break;
-            case 'holdSystem':
-                if (this.holdSys) o.active = true;
-                break;
-            case 'holdTalkgroup':
-                if (this.holdTg) o.active = true;
-                break;
-        }
-        return o;
+    playCall(callId: number): void {
+        this.rdioScannerService.loadAndPlay(callId);
     }
 
-    /** Cached slice of callHistoryStore — updated only when the store changes, not on every CD cycle. */
-    callsLastHour: RdioScannerCall[] = [];
-
-    private refreshCallsLastHour(): void {
-        const cutoff = Date.now() - 60 * 60 * 1000;
-        this.callsLastHour = this.callHistoryStore.filter((c) => {
-            if (!c?.dateTime) return false;
-            return new Date(c.dateTime).getTime() >= cutoff;
-        });
-    }
-
-    get detailCall(): RdioScannerCall | undefined {
-        return this.call ?? this.selectedHistoryCall;
-    }
-
-    onHistoryRowClick(c: RdioScannerCall): void {
-        if (!c || this.auth) {
-            if (this.auth) this.authFocus();
-            return;
-        }
-        this.selectedHistoryCall = c;
-        this.rdioScannerService.beep();
-        if (c.id != null) {
-            this.rdioScannerService.loadAndPlay(c.id);
-        } else {
-            this.playCallFromHistoryEntry(c);
-        }
-    }
-
-    isRowPlaying(c: RdioScannerCall): boolean {
-        return !!this.call?.id && !!c?.id && this.call!.id === c.id;
-    }
-
-    /** Left accent for the “now playing” table row (tag color or primary). */
-    nowPlayingRowAccent(c: RdioScannerCall): string {
-        const col = this.getTransmissionHistoryTagColor(c);
-        if (!col || col === 'transparent') {
-            return 'inset 3px 0 0 var(--primary-color, #00e676)';
-        }
-        return `inset 3px 0 0 ${col}`;
-    }
-
-    /** Hide duplicate field grid when the detailed row is the same as the live “now playing” line. */
-    showDetailFieldGrid(dc: RdioScannerCall): boolean {
-        if (!this.call || dc.id == null || this.call.id == null) {
-            return true;
-        }
-        return dc.id !== this.call.id;
-    }
-
-    openArchiveSearch(): void {
-        this.showSearchPanel();
-    }
-
-    private pruneCallHistoryStore(): void {
-        const cutoff = Date.now() - 2 * 60 * 60 * 1000;
-        this.callHistoryStore = this.callHistoryStore.filter((c) => {
-            const t = c?.dateTime ? new Date(c.dateTime).getTime() : 0;
-            return t >= cutoff;
-        });
-        if (this.callHistoryStore.length > 400) {
-            this.callHistoryStore = this.callHistoryStore.slice(0, 400);
-        }
-        this.refreshCallsLastHour();
-    }
-
-    private updateLiveCallInStore(live: RdioScannerCall): void {
-        if (live?.id == null) return;
-        const i = this.callHistoryStore.findIndex((c) => c?.id === live.id);
-        if (i >= 0) {
-            this.callHistoryStore[i] = { ...this.callHistoryStore[i], ...live };
-            this.refreshCallsLastHour();
-        }
-    }
-
-    private playCallFromHistoryEntry(entry: RdioScannerCall | undefined): void {
-        if (!entry) return;
-        const d = entry.audio?.data;
-        const hasAudio = Array.isArray(d) ? d.length > 0 : false;
-        if (hasAudio) {
-            this.rdioScannerService.play(entry);
-        } else if (entry.id != null) {
-            this.rdioScannerService.loadAndPlay(entry.id);
-        } else {
-            this.rdioScannerService.beep(RdioScannerBeepStyle.Denied);
+    getAlertTypeLabel(alert: MergedAlert): string {
+        switch (alert.alertType) {
+            case 'tone':
+                return 'TONE';
+            case 'keyword':
+                return 'KEYWORD';
+            case 'tone+keyword':
+                return 'TONE & KEYWORD';
+            default:
+                return 'ALERT';
         }
     }
 

@@ -17,6 +17,7 @@ package main
 
 import (
 	"encoding/json"
+	"sync"
 )
 
 const (
@@ -35,12 +36,22 @@ const (
 	MessageCommandPushId         = "PID"
 	MessageCommandServer         = "SRV"
 	MessageCommandVersion        = "VER"
+
+	// WebsocketCallFlagDownload matches the client-side WebsocketCallFlag.Download value.
+	WebsocketCallFlagDownload = "d"
 )
 
 type Message struct {
 	Command any
 	Payload any
 	Flag    any
+
+	// encryptOnce / encryptedJSON cache the AES-256-GCM encrypted wire bytes for
+	// call messages so encryption runs exactly once regardless of how many client
+	// goroutines receive the same *Message pointer concurrently. The bytes are
+	// freed when the last client channel drops its reference to the message.
+	encryptOnce   sync.Once
+	encryptedJSON []byte
 }
 
 func (message *Message) FromJson(b []byte) error {

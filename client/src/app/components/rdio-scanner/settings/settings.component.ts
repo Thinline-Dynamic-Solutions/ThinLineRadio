@@ -26,6 +26,8 @@ import { RdioScannerService } from '../rdio-scanner.service';
 import { SettingsService } from './settings.service';
 import { TagColorService, TagColorConfig } from '../tag-color.service';
 import { AlertSoundService, AlertSound } from '../alert-sound.service';
+import { AlertsService } from '../alerts/alerts.service';
+import { RdioScannerAlertPreference } from '../rdio-scanner';
 
 @Component({
     selector: 'rdio-scanner-settings',
@@ -53,6 +55,13 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         { name: 'ShareTechMono', value: '"Share Tech Mono", monospace', displayName: 'Share Tech Mono (Terminal)' },
         { name: 'Audiowide', value: 'Audiowide, cursive', displayName: 'Audiowide (Digital Display)' },
     ];
+
+    // Per-channel sounds
+    channelPreferences: RdioScannerAlertPreference[] = [];
+    loadingChannelSounds: boolean = false;
+    savingChannelSound: Set<string> = new Set();
+    expandedSystems: Set<number> = new Set();
+    expandedTags: Set<string> = new Set();
 
     // Account info
     accountInfo: any = null;
@@ -92,6 +101,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         private settingsService: SettingsService,
         private tagColorService: TagColorService,
         private alertSoundService: AlertSoundService,
+        private alertsService: AlertsService,
         private http: HttpClient,
         private fb: FormBuilder,
         private snackBar: MatSnackBar,
@@ -125,10 +135,177 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.loadAccountInfo();
         this.loadConfig();
         this.loadAlertSounds();
+        this.loadChannelPreferences();
     }
 
     loadAlertSounds(): void {
         this.availableAlertSounds = this.alertSoundService.getAvailableSounds();
+    }
+
+    loadChannelPreferences(): void {
+        const pin = this.getPin();
+        if (!pin) return;
+        this.loadingChannelSounds = true;
+        this.alertsService.getPreferences(pin).subscribe({
+            next: (prefs) => {
+                this.channelPreferences = (prefs || []).filter(p => p.alertEnabled);
+                this.loadingChannelSounds = false;
+            },
+            error: () => { this.loadingChannelSounds = false; },
+        });
+    }
+
+    /** Returns active channel preferences for a given system, sorted by talkgroup label */
+    getChannelPrefsForSystem(systemRef: number): RdioScannerAlertPreference[] {
+        return this.channelPreferences.filter(p => (p.systemRef ?? p.systemId) === systemRef);
+    }
+
+    /** Returns all unique systems that have at least one active channel preference */
+    getSystemsWithActivePrefs(): any[] {
+        if (!this.config?.systems) return [];
+        return (this.config.systems as any[]).filter(s =>
+            this.channelPreferences.some(p => (p.systemRef ?? p.systemId) === s.id)
+        );
+    }
+
+    getTalkgroupLabel(systemRef: number, talkgroupRef: number): string {
+        const system = (this.config?.systems as any[] | undefined)?.find((s: any) => s.id === systemRef);
+        if (!system) return `Channel ${talkgroupRef}`;
+        const tg = (system.talkgroups as any[] | undefined)?.find((t: any) => t.talkgroupRef === talkgroupRef || t.id === talkgroupRef);
+        return tg?.label || tg?.name || `Channel ${talkgroupRef}`;
+    }
+
+    getToneSetsForPref(pref: RdioScannerAlertPreference): any[] {
+        if (!pref.toneAlerts) return [];
+        const sysRef = pref.systemRef ?? pref.systemId;
+        const tgRef = pref.talkgroupRef ?? pref.talkgroupId;
+        const system = (this.config?.systems as any[] | undefined)?.find((s: any) => s.id === sysRef);
+        if (!system) return [];
+        const tg = (system.talkgroups as any[] | undefined)?.find((t: any) => t.talkgroupRef === tgRef || t.id === tgRef);
+        return tg?.toneSets || [];
+    }
+
+    /** Convert web sound name ('alert') to filename ('alert.wav') */
+    soundNameToFilename(name: string): string {
+        if (!name || name === 'none') return '';
+        const sound = this.availableAlertSounds.find(s => s.name === name);
+        if (!sound?.file) return '';
+        // Extract filename from path: 'assets/sounds/alert.wav' → 'alert.wav'
+        return sound.file.split('/').pop() || '';
+    }
+
+    /** Convert filename ('alert.wav') to web sound name ('alert') */
+    filenameToSoundName(filename: string): string {
+        if (!filename) return 'none';
+        const base = filename.replace(/\.(wav|mp3|m4a)$/i, '').toLowerCase();
+        const sound = this.availableAlertSounds.find(s => s.name === base || s.name === base.replace(/-/g, '_'));
+        return sound?.name || 'none';
+    }
+
+    getChannelSoundName(pref: RdioScannerAlertPreference): string {
+        return this.filenameToSoundName(pref.notificationSound || '');
+    }
+
+    getToneSetSoundName(pref: RdioScannerAlertPreference, toneSetId: string): string {
+        return this.filenameToSoundName((pref.toneSetSounds || {})[toneSetId] || '');
+    }
+
+    setChannelSound(pref: RdioScannerAlertPreference, soundName: string): void {
+        const filename = this.soundNameToFilename(soundName);
+        pref.notificationSound = filename;
+        if (soundName && soundName !== 'none') {
+            this.alertSoundService.previewSound(soundName);
+        }
+        this.saveChannelPref(pref);
+    }
+
+    setToneSetSound(pref: RdioScannerAlertPreference, toneSetId: string, soundName: string): void {
+        if (!pref.toneSetSounds) pref.toneSetSounds = {};
+        const filename = this.soundNameToFilename(soundName);
+        if (!filename) {
+            delete pref.toneSetSounds[toneSetId];
+        } else {
+            pref.toneSetSounds[toneSetId] = filename;
+        }
+        if (soundName && soundName !== 'none') {
+            this.alertSoundService.previewSound(soundName);
+        }
+        this.saveChannelPref(pref);
+    }
+
+    private saveChannelPref(pref: RdioScannerAlertPreference): void {
+        const pin = this.getPin();
+        if (!pin) return;
+        const key = `${pref.systemRef ?? pref.systemId}:${pref.talkgroupRef ?? pref.talkgroupId}`;
+        this.savingChannelSound.add(key);
+        // Send the full list so nothing else gets wiped
+        this.alertsService.updatePreferences(this.channelPreferences, pin).subscribe({
+            next: () => this.savingChannelSound.delete(key),
+            error: () => {
+                this.savingChannelSound.delete(key);
+                this.snackBar.open('Failed to save sound setting', 'Close', { duration: 3000 });
+            },
+        });
+    }
+
+    isChannelSoundSaving(pref: RdioScannerAlertPreference): boolean {
+        const key = `${pref.systemRef ?? pref.systemId}:${pref.talkgroupRef ?? pref.talkgroupId}`;
+        return this.savingChannelSound.has(key);
+    }
+
+    // ── Collapse helpers ──────────────────────────────────────────────────────
+
+    toggleSystem(systemId: number): void {
+        if (this.expandedSystems.has(systemId)) {
+            this.expandedSystems.delete(systemId);
+        } else {
+            this.expandedSystems.add(systemId);
+        }
+    }
+
+    isSystemExpanded(systemId: number): boolean {
+        return this.expandedSystems.has(systemId);
+    }
+
+    toggleTag(key: string): void {
+        if (this.expandedTags.has(key)) {
+            this.expandedTags.delete(key);
+        } else {
+            this.expandedTags.add(key);
+        }
+    }
+
+    isTagExpanded(key: string): boolean {
+        return this.expandedTags.has(key);
+    }
+
+    // ── Tag-grouping helpers ──────────────────────────────────────────────────
+
+    private getTalkgroupTag(systemRef: number, talkgroupRef: number): string {
+        const system = (this.config?.systems as any[] | undefined)
+            ?.find((s: any) => s.id === systemRef);
+        if (!system) return 'Untagged';
+        const tg = (system.talkgroups as any[] | undefined)
+            ?.find((t: any) => t.talkgroupRef === talkgroupRef || t.id === talkgroupRef);
+        return tg?.tag || 'Untagged';
+    }
+
+    getTagsForSystem(systemId: number): string[] {
+        const tags = new Set<string>();
+        for (const pref of this.getChannelPrefsForSystem(systemId)) {
+            tags.add(this.getTalkgroupTag(systemId, pref.talkgroupRef ?? pref.talkgroupId ?? 0));
+        }
+        return Array.from(tags).sort((a, b) => {
+            if (a === 'Untagged') return 1;
+            if (b === 'Untagged') return -1;
+            return a.localeCompare(b);
+        });
+    }
+
+    getChannelPrefsForSystemAndTag(systemId: number, tag: string): RdioScannerAlertPreference[] {
+        return this.getChannelPrefsForSystem(systemId).filter(pref =>
+            this.getTalkgroupTag(systemId, pref.talkgroupRef ?? pref.talkgroupId ?? 0) === tag
+        );
     }
 
     checkIfPWA(): void {

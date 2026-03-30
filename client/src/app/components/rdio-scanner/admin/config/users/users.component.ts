@@ -59,6 +59,7 @@ export interface User {
     userGroupId?: number;
     isGroupAdmin?: boolean;
     systemAdmin?: boolean;
+    forcePasswordReset?: boolean;
     stripeCustomerId: string;
     stripeSubscriptionId: string;
     subscriptionStatus: string;
@@ -129,6 +130,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             userGroupId: [0],
             isGroupAdmin: [false],
             systemAdmin: [false],
+            forcePasswordReset: [false],
             stripeCustomerId: [''],
             stripeSubscriptionId: [''],
             subscriptionStatus: ['']
@@ -173,6 +175,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 userGroupId: user.userGroupId || 0,
                 isGroupAdmin: user.isGroupAdmin || false,
                 systemAdmin: user.systemAdmin || false,
+                forcePasswordReset: user.forcePasswordReset || false,
                 stripeCustomerId: user.stripeCustomerId || '',
                 stripeSubscriptionId: user.stripeSubscriptionId || '',
                 subscriptionStatus: user.subscriptionStatus || '',
@@ -591,6 +594,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             userGroupId: user.userGroupId || 0,
             isGroupAdmin: user.isGroupAdmin || false,
             systemAdmin: user.systemAdmin || false,
+            forcePasswordReset: user.forcePasswordReset || false,
             stripeCustomerId: user.stripeCustomerId || '',
             stripeSubscriptionId: user.stripeSubscriptionId || '',
             subscriptionStatus: user.subscriptionStatus || ''
@@ -703,6 +707,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             userGroupId: parseNonNegativeInt(formValue.userGroupId),
             isGroupAdmin: !!formValue.isGroupAdmin,
             systemAdmin: !!formValue.systemAdmin,
+            forcePasswordReset: !!formValue.forcePasswordReset,
             stripeCustomerId: (formValue.stripeCustomerId ?? '').toString().trim(),
             stripeSubscriptionId: (formValue.stripeSubscriptionId ?? '').toString().trim(),
             subscriptionStatus: (formValue.subscriptionStatus ?? '').toString().trim(),

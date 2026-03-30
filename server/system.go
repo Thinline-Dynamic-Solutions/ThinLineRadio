@@ -41,6 +41,8 @@ type System struct {
 	PreferredApiKeyId       *uint64 // Optional preferred API key for uploads
 	NoAudioAlertsEnabled    bool    // Enable no-audio alerts for this system
 	NoAudioThresholdMinutes uint    // Minutes without audio before alerting
+	AlertsEnabled           bool    // Admin toggle: false suppresses all alerts & transcription for this system
+	TranscriptionPrompt     string  // Custom Whisper/AssemblyAI prompt; overrides the global prompt when non-empty
 }
 
 func NewSystem() *System {
@@ -134,6 +136,20 @@ func (system *System) FromMap(m map[string]any) *System {
 		system.NoAudioThresholdMinutes = 30 // Default to 30 minutes
 	}
 
+	// Parse alertsEnabled (defaults to true — no change in behaviour for existing data)
+	switch v := m["alertsEnabled"].(type) {
+	case bool:
+		system.AlertsEnabled = v
+	default:
+		system.AlertsEnabled = true
+	}
+
+	// Parse transcriptionPrompt (empty string = use global prompt)
+	switch v := m["transcriptionPrompt"].(type) {
+	case string:
+		system.TranscriptionPrompt = v
+	}
+
 	return system
 }
 
@@ -176,6 +192,12 @@ func (system *System) MarshalJSON() ([]byte, error) {
 
 	// Always include noAudioThresholdMinutes
 	m["noAudioThresholdMinutes"] = system.NoAudioThresholdMinutes
+
+	// Always include alertsEnabled
+	m["alertsEnabled"] = system.AlertsEnabled
+
+	// Always include transcriptionPrompt (empty string is valid — means "use global")
+	m["transcriptionPrompt"] = system.TranscriptionPrompt
 
 	return json.Marshal(m)
 }
@@ -370,46 +392,46 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 						continue
 					}
 
-					system, ok := systems.GetSystemByRef(systemId)
-					if !ok {
+				system, ok := systems.GetSystemByRef(systemId)
+				if !ok {
+					continue
+				}
+
+				// Check group access first - if group doesn't allow this system, skip it
+				if !isSystemAllowed(system.SystemRef) {
+					continue
+				}
+
+				switch v := mTalkgroups.(type) {
+				case string:
+					if mTalkgroups == "*" {
+						// User allows all talkgroups, but filter by group restrictions
+						filteredSystem := filterTalkgroupsByGroup(system)
+						rawSystems = append(rawSystems, *filteredSystem)
 						continue
 					}
 
-					// Check group access first - if group doesn't allow this system, skip it
-					if !isSystemAllowed(system.SystemRef) {
-						continue
-					}
-
-					switch v := mTalkgroups.(type) {
-					case string:
-						if mTalkgroups == "*" {
-							// User allows all talkgroups, but filter by group restrictions
-							filteredSystem := filterTalkgroupsByGroup(system)
-							rawSystems = append(rawSystems, *filteredSystem)
-							continue
-						}
-
-					case []any:
-						rawSystem := *system
-						rawSystem.Talkgroups = NewTalkgroups()
-						for _, fTalkgroupId := range v {
-							switch v := fTalkgroupId.(type) {
-							case float64:
-								rawTalkgroup, ok := system.Talkgroups.GetTalkgroupByRef(uint(v))
-								if !ok {
-									continue
-								}
-								// Also check group access for this talkgroup
-								if userGroup != nil && !userGroup.HasTalkgroupAccess(uint64(system.SystemRef), rawTalkgroup.TalkgroupRef) {
-									continue
-								}
-								rawSystem.Talkgroups.List = append(rawSystem.Talkgroups.List, rawTalkgroup)
-							default:
+				case []any:
+					rawSystem := *system
+					rawSystem.Talkgroups = NewTalkgroups()
+					for _, fTalkgroupId := range v {
+						switch v := fTalkgroupId.(type) {
+						case float64:
+							rawTalkgroup, ok := system.Talkgroups.GetTalkgroupByRef(uint(v))
+							if !ok {
 								continue
 							}
+							// Check group access for this talkgroup
+							if userGroup != nil && !userGroup.HasTalkgroupAccess(uint64(system.SystemRef), rawTalkgroup.TalkgroupRef) {
+								continue
+							}
+							rawSystem.Talkgroups.List = append(rawSystem.Talkgroups.List, rawTalkgroup)
+						default:
+							continue
 						}
-						rawSystems = append(rawSystems, rawSystem)
 					}
+					rawSystems = append(rawSystems, rawSystem)
+				}
 				}
 			}
 		}
@@ -455,6 +477,7 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 				"toneDownstreamEnabled":   rawTalkgroup.ToneDownstreamEnabled,
 				"toneDownstreamURL":       rawTalkgroup.ToneDownstreamURL,
 				"toneDownstreamAPIKey":    rawTalkgroup.ToneDownstreamAPIKey,
+				"alertsEnabled":           rawTalkgroup.AlertsEnabled,
 			}
 
 			if len(rawTalkgroup.ToneSets) > 0 {
@@ -508,14 +531,15 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 		}
 
 		systemMap := SystemMap{
-			"id":         rawSystem.SystemRef,
-			"systemId":   rawSystem.Id,        // Database ID for admin/backend use
-			"systemRef":  rawSystem.SystemRef, // Radio reference ID
-			"label":      rawSystem.Label,
-			"order":      rawSystem.Order,
-			"talkgroups": talkgroupsMap,
-			"units":      rawSystem.Units.List,
-			"type":       rawSystem.Kind,
+			"id":            rawSystem.SystemRef,
+			"systemId":      rawSystem.Id,        // Database ID for admin/backend use
+			"systemRef":     rawSystem.SystemRef, // Radio reference ID
+			"label":         rawSystem.Label,
+			"order":         rawSystem.Order,
+			"talkgroups":    talkgroupsMap,
+			"units":         rawSystem.Units.List,
+			"type":          rawSystem.Kind,
+			"alertsEnabled": rawSystem.AlertsEnabled,
 		}
 
 		systemsMap = append(systemsMap, systemMap)
@@ -545,7 +569,7 @@ func (systems *Systems) Read(db *Database) error {
 	formatError := errorFormatter("systems", "read")
 
 	// --- Query 1: systems ---
-	query := `SELECT "systemId", "autoPopulate", "blacklists", "delay", "label", "order", "systemRef", "type", "preferredApiKeyId", "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "systems"`
+	query := `SELECT "systemId", "autoPopulate", "blacklists", "delay", "label", "order", "systemRef", "type", "preferredApiKeyId", "noAudioAlertsEnabled", "noAudioThresholdMinutes", "alertsEnabled", "transcriptionPrompt" FROM "systems"`
 	rows, err := db.Sql.Query(query)
 	if err != nil {
 		return formatError(err, query)
@@ -556,7 +580,7 @@ func (systems *Systems) Read(db *Database) error {
 	for rows.Next() {
 		system := NewSystem()
 		var preferredApiKeyId sql.NullInt64
-		if err = rows.Scan(&system.Id, &system.AutoPopulate, &system.Blacklists, &system.Delay, &system.Label, &system.Order, &system.SystemRef, &system.Kind, &preferredApiKeyId, &system.NoAudioAlertsEnabled, &system.NoAudioThresholdMinutes); err != nil {
+		if err = rows.Scan(&system.Id, &system.AutoPopulate, &system.Blacklists, &system.Delay, &system.Label, &system.Order, &system.SystemRef, &system.Kind, &preferredApiKeyId, &system.NoAudioAlertsEnabled, &system.NoAudioThresholdMinutes, &system.AlertsEnabled, &system.TranscriptionPrompt); err != nil {
 			return formatError(err, query)
 		}
 		if preferredApiKeyId.Valid {
@@ -611,9 +635,9 @@ func (systems *Systems) Read(db *Database) error {
 	// --- Query 3: all talkgroups (bulk, no per-system loop) ---
 	var tgQuery string
 	if db.Config.DbType == DbTypePostgresql {
-		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", STRING_AGG(CAST(COALESCE(tg."groupId", 0) AS text), ',') FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId", t."systemId", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds" ORDER BY t."systemId", t."order", t."talkgroupId"`
+		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", STRING_AGG(CAST(COALESCE(tg."groupId", 0) AS text), ',') FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId", t."systemId", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt" ORDER BY t."systemId", t."order", t."talkgroupId"`
 	} else {
-		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", GROUP_CONCAT(COALESCE(tg."groupId", 0)) FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId" ORDER BY t."systemId", t."order", t."talkgroupId"`
+		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", GROUP_CONCAT(COALESCE(tg."groupId", 0)) FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId" ORDER BY t."systemId", t."order", t."talkgroupId"`
 	}
 
 	tgRows, err := db.Sql.Query(tgQuery)
@@ -629,7 +653,7 @@ func (systems *Systems) Read(db *Database) error {
 		var groupIds string
 		var preferredApiKeyId sql.NullInt64
 
-		if err = tgRows.Scan(&talkgroup.Id, &systemId, &talkgroup.Delay, &talkgroup.Frequency, &talkgroup.Label, &talkgroup.Name, &talkgroup.Order, &talkgroup.TagId, &talkgroup.TalkgroupRef, &talkgroup.Kind, &talkgroup.ToneDetectionEnabled, &toneSetsJson, &preferredApiKeyId, &talkgroup.ExcludeFromPreferredSite, &talkgroup.ToneDownstreamEnabled, &talkgroup.ToneDownstreamURL, &talkgroup.ToneDownstreamAPIKey, &talkgroup.AlertCooldownSeconds, &talkgroup.LinkedVoiceTalkgroupRef, &talkgroup.LinkedVoiceWindowSeconds, &talkgroup.LinkedVoiceMinDurationSeconds, &groupIds); err != nil {
+		if err = tgRows.Scan(&talkgroup.Id, &systemId, &talkgroup.Delay, &talkgroup.Frequency, &talkgroup.Label, &talkgroup.Name, &talkgroup.Order, &talkgroup.TagId, &talkgroup.TalkgroupRef, &talkgroup.Kind, &talkgroup.ToneDetectionEnabled, &toneSetsJson, &preferredApiKeyId, &talkgroup.ExcludeFromPreferredSite, &talkgroup.ToneDownstreamEnabled, &talkgroup.ToneDownstreamURL, &talkgroup.ToneDownstreamAPIKey, &talkgroup.AlertCooldownSeconds, &talkgroup.LinkedVoiceTalkgroupRef, &talkgroup.LinkedVoiceWindowSeconds, &talkgroup.LinkedVoiceMinDurationSeconds, &talkgroup.AlertsEnabled, &talkgroup.TranscriptionPrompt, &groupIds); err != nil {
 			return formatError(err, tgQuery)
 		}
 		if preferredApiKeyId.Valid {
@@ -818,10 +842,10 @@ func (systems *Systems) Write(db *Database) error {
 		if count == 0 {
 			if system.Id > 0 {
 				// Preserve the explicit ID when inserting
-				query = fmt.Sprintf(`INSERT INTO "systems" ("systemId", "autoPopulate", "blacklists", "delay", "label", "order", "systemRef", "type", "preferredApiKeyId", "noAudioAlertsEnabled", "noAudioThresholdMinutes") VALUES (%d, %t, '%s', %d, '%s', %d, %d, '%s', %s, %t, %d)`, system.Id, system.AutoPopulate, system.Blacklists, system.Delay, escapeQuotes(system.Label), system.Order, system.SystemRef, system.Kind, preferredApiKeyIdSQL, system.NoAudioAlertsEnabled, system.NoAudioThresholdMinutes)
+				query = fmt.Sprintf(`INSERT INTO "systems" ("systemId", "autoPopulate", "blacklists", "delay", "label", "order", "systemRef", "type", "preferredApiKeyId", "noAudioAlertsEnabled", "noAudioThresholdMinutes", "alertsEnabled", "transcriptionPrompt") VALUES (%d, %t, '%s', %d, '%s', %d, %d, '%s', %s, %t, %d, %t, '%s')`, system.Id, system.AutoPopulate, system.Blacklists, system.Delay, escapeQuotes(system.Label), system.Order, system.SystemRef, system.Kind, preferredApiKeyIdSQL, system.NoAudioAlertsEnabled, system.NoAudioThresholdMinutes, system.AlertsEnabled, escapeQuotes(system.TranscriptionPrompt))
 			} else {
 				// Let database assign auto-increment ID
-				query = fmt.Sprintf(`INSERT INTO "systems" ("autoPopulate", "blacklists", "delay", "label", "order", "systemRef", "type", "preferredApiKeyId", "noAudioAlertsEnabled", "noAudioThresholdMinutes") VALUES (%t, '%s', %d, '%s', %d, %d, '%s', %s, %t, %d)`, system.AutoPopulate, system.Blacklists, system.Delay, escapeQuotes(system.Label), system.Order, system.SystemRef, system.Kind, preferredApiKeyIdSQL, system.NoAudioAlertsEnabled, system.NoAudioThresholdMinutes)
+				query = fmt.Sprintf(`INSERT INTO "systems" ("autoPopulate", "blacklists", "delay", "label", "order", "systemRef", "type", "preferredApiKeyId", "noAudioAlertsEnabled", "noAudioThresholdMinutes", "alertsEnabled", "transcriptionPrompt") VALUES (%t, '%s', %d, '%s', %d, %d, '%s', %s, %t, %d, %t, '%s')`, system.AutoPopulate, system.Blacklists, system.Delay, escapeQuotes(system.Label), system.Order, system.SystemRef, system.Kind, preferredApiKeyIdSQL, system.NoAudioAlertsEnabled, system.NoAudioThresholdMinutes, system.AlertsEnabled, escapeQuotes(system.TranscriptionPrompt))
 			}
 
 			if db.Config.DbType == DbTypePostgresql {
@@ -853,7 +877,7 @@ func (systems *Systems) Write(db *Database) error {
 			}
 
 		} else {
-			query = fmt.Sprintf(`UPDATE "systems" SET "autoPopulate" = %t, "blacklists" = '%s', "delay" = %d, "label" = '%s', "order" = %d, "systemRef" = %d, "type" = '%s', "preferredApiKeyId" = %s, "noAudioAlertsEnabled" = %t, "noAudioThresholdMinutes" = %d WHERE "systemId" = %d`, system.AutoPopulate, system.Blacklists, system.Delay, escapeQuotes(system.Label), system.Order, system.SystemRef, system.Kind, preferredApiKeyIdSQL, system.NoAudioAlertsEnabled, system.NoAudioThresholdMinutes, system.Id)
+			query = fmt.Sprintf(`UPDATE "systems" SET "autoPopulate" = %t, "blacklists" = '%s', "delay" = %d, "label" = '%s', "order" = %d, "systemRef" = %d, "type" = '%s', "preferredApiKeyId" = %s, "noAudioAlertsEnabled" = %t, "noAudioThresholdMinutes" = %d, "alertsEnabled" = %t, "transcriptionPrompt" = '%s' WHERE "systemId" = %d`, system.AutoPopulate, system.Blacklists, system.Delay, escapeQuotes(system.Label), system.Order, system.SystemRef, system.Kind, preferredApiKeyIdSQL, system.NoAudioAlertsEnabled, system.NoAudioThresholdMinutes, system.AlertsEnabled, escapeQuotes(system.TranscriptionPrompt), system.Id)
 			if _, err = tx.Exec(query); err != nil {
 				break
 			}
@@ -883,6 +907,20 @@ func (systems *Systems) Write(db *Database) error {
 		log.Printf("systems.write: tx.Commit() failed: %v", err)
 		// defer will call tx.Rollback(); no need to call it explicitly here.
 		return formatError(err, "")
+	}
+
+	// Idempotent cleanup: delete user alert preferences for any talkgroup or system
+	// that now has alertsEnabled = false. Runs on every config save but only touches
+	// rows that are actually disabled, so it's safe and self-healing.
+	cleanupQuery := `
+		DELETE FROM "userAlertPreferences"
+		WHERE "talkgroupId" IN (
+			SELECT t."talkgroupId" FROM "talkgroups" t
+			JOIN "systems" s ON s."systemId" = t."systemId"
+			WHERE t."alertsEnabled" = false OR s."alertsEnabled" = false
+		)`
+	if _, err := db.Sql.Exec(cleanupQuery); err != nil {
+		log.Printf("systems.write: cleanup userAlertPreferences failed: %v", err)
 	}
 
 	return nil

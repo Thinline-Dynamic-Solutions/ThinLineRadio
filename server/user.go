@@ -30,47 +30,48 @@ import (
 )
 
 type User struct {
-	Id                   uint64
-	Email                string
-	Password             string
-	Verified             bool
-	VerificationToken    string
-	CreatedAt            string
-	LastLogin            string
-	FirstName            string
-	LastName             string
-	ZipCode              string
-	Systems              string
-	Talkgroups           string // JSON array of talkgroup IDs or "*" for all
-	Delay                int
-	SystemDelays         string
-	TalkgroupDelays      string
-	Settings             string // JSON string for user settings (tag colors, etc.)
-	Pin                  string
-	PinExpiresAt         uint64
-	ConnectionLimit      uint
-	StripeCustomerId     string
-	StripeSubscriptionId string
-	SubscriptionStatus   string
-	UserGroupId          uint64
-	IsGroupAdmin         bool
-	SystemAdmin          bool   // System administrator flag
-	ResetCode            string
-	ResetCodeExpires     uint64
-	EmailChangeCode         string
-	EmailChangeCodeExpires  uint64
-	PasswordChangeCode      string
+	Id                        uint64
+	Email                     string
+	Password                  string
+	Verified                  bool
+	VerificationToken         string
+	CreatedAt                 string
+	LastLogin                 string
+	FirstName                 string
+	LastName                  string
+	ZipCode                   string
+	Systems                   string
+	Talkgroups                string // JSON array of talkgroup IDs or "*" for all
+	Delay                     int
+	SystemDelays              string
+	TalkgroupDelays           string
+	Settings                  string // JSON string for user settings (tag colors, etc.)
+	Pin                       string
+	PinExpiresAt              uint64
+	ConnectionLimit           uint
+	StripeCustomerId          string
+	StripeSubscriptionId      string
+	SubscriptionStatus        string
+	UserGroupId               uint64
+	IsGroupAdmin              bool
+	SystemAdmin               bool // System administrator flag
+	ForcePasswordReset        bool
+	ResetCode                 string
+	ResetCodeExpires          uint64
+	EmailChangeCode           string
+	EmailChangeCodeExpires    uint64
+	PasswordChangeCode        string
 	PasswordChangeCodeExpires uint64
-	AccountExpiresAt        uint64 // Unix timestamp, 0 = no expiration
-	systemsData          any
-	systemDelaysMap      map[uint64]uint
-	talkgroupDelaysMap   map[string]uint
+	AccountExpiresAt          uint64 // Unix timestamp, 0 = no expiration
+	systemsData               any
+	systemDelaysMap           map[uint64]uint
+	talkgroupDelaysMap        map[string]uint
 }
 
 type Users struct {
 	mutex sync.RWMutex
-	users       map[uint64]*User
-	pins        map[string]*User
+	users map[uint64]*User
+	pins  map[string]*User
 	// groupAdmins maps groupId → the group admin User for O(1) billing lookups.
 	// Maintained alongside users so push notification billing never has to scan
 	// the full user list just to find the admin's subscription status.
@@ -118,7 +119,7 @@ func NewUser(email, password string) *User {
 		Verified:             false,
 		VerificationToken:    "",
 		CreatedAt:            fmt.Sprintf("%d", time.Now().Unix()), // Initialize with current timestamp
-		LastLogin:            "0",                                   // 0 means never logged in
+		LastLogin:            "0",                                  // 0 means never logged in
 		Systems:              "",
 		Talkgroups:           "",
 		Delay:                0,
@@ -622,7 +623,7 @@ func (users *Users) Read(db *Database) error {
 	users.pins = make(map[string]*User)
 	users.groupAdmins = make(map[uint64]*User)
 
-	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("systemAdmin", false), "resetCode", "resetCodeExpires", "accountExpiresAt" FROM "users"`)
+	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("systemAdmin", false), COALESCE("forcePasswordReset", false), "resetCode", "resetCodeExpires", "accountExpiresAt" FROM "users"`)
 	if err != nil {
 		return formatError(err, "")
 	}
@@ -639,11 +640,12 @@ func (users *Users) Read(db *Database) error {
 		var userGroupId sql.NullInt64
 		var isGroupAdmin sql.NullBool
 		var systemAdmin sql.NullBool
+		var forcePasswordReset sql.NullBool
 		var resetCode sql.NullString
 		var resetCodeExpires sql.NullInt64
 		var accountExpiresAt sql.NullInt64
 
-		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &talkgroups, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &systemAdmin, &resetCode, &resetCodeExpires, &accountExpiresAt)
+		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &talkgroups, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &systemAdmin, &forcePasswordReset, &resetCode, &resetCodeExpires, &accountExpiresAt)
 		if err != nil {
 			return formatError(err, "")
 		}
@@ -691,6 +693,9 @@ func (users *Users) Read(db *Database) error {
 		if systemAdmin.Valid {
 			user.SystemAdmin = systemAdmin.Bool
 		}
+		if forcePasswordReset.Valid {
+			user.ForcePasswordReset = forcePasswordReset.Bool
+		}
 		if resetCode.Valid {
 			user.ResetCode = resetCode.String
 		}
@@ -704,7 +709,7 @@ func (users *Users) Read(db *Database) error {
 		if settings.Valid {
 			user.Settings = settings.String
 		}
-		
+
 		user.ensurePinsLoaded()
 		user.loadSystemScopes()
 		user.loadDelayMaps()
@@ -799,8 +804,8 @@ func (users *Users) Write(db *Database) error {
 				accountExpiresAtVal = int64(0)
 			}
 
-		result, err := db.Sql.Exec(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", "systemAdmin", "resetCode", "resetCodeExpires", "accountExpiresAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
-			user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal)
+			result, err := db.Sql.Exec(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", "systemAdmin", "forcePasswordReset", "resetCode", "resetCodeExpires", "accountExpiresAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)`,
+				user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.ForcePasswordReset, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal)
 			if err != nil {
 				return formatError(err, "")
 			}
@@ -859,8 +864,8 @@ func (users *Users) Write(db *Database) error {
 				accountExpiresAtVal = int64(0)
 			}
 
-		_, err = db.Sql.Exec(`UPDATE "users" SET "email"=$1, "password"=$2, "pin"=$3, "pinExpiresAt"=$4, "connectionLimit"=$5, "verified"=$6, "verificationToken"=$7, "createdAt"=$8, "lastLogin"=$9, "firstName"=$10, "lastName"=$11, "zipCode"=$12, "systems"=$13, "talkgroups"=$14, "delay"=$15, "systemDelays"=$16, "talkgroupDelays"=$17, "settings"=$18, "stripeCustomerId"=$19, "stripeSubscriptionId"=$20, "subscriptionStatus"=$21, "userGroupId"=$22, "isGroupAdmin"=$23, "systemAdmin"=$24, "resetCode"=$25, "resetCodeExpires"=$26, "accountExpiresAt"=$27 WHERE "userId"=$28`,
-			user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.Id)
+			_, err = db.Sql.Exec(`UPDATE "users" SET "email"=$1, "password"=$2, "pin"=$3, "pinExpiresAt"=$4, "connectionLimit"=$5, "verified"=$6, "verificationToken"=$7, "createdAt"=$8, "lastLogin"=$9, "firstName"=$10, "lastName"=$11, "zipCode"=$12, "systems"=$13, "talkgroups"=$14, "delay"=$15, "systemDelays"=$16, "talkgroupDelays"=$17, "settings"=$18, "stripeCustomerId"=$19, "stripeSubscriptionId"=$20, "subscriptionStatus"=$21, "userGroupId"=$22, "isGroupAdmin"=$23, "systemAdmin"=$24, "forcePasswordReset"=$25, "resetCode"=$26, "resetCodeExpires"=$27, "accountExpiresAt"=$28 WHERE "userId"=$29`,
+				user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.ForcePasswordReset, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.Id)
 			if err != nil {
 				return formatError(err, "")
 			}
@@ -876,7 +881,7 @@ func (users *Users) GetUserByEmail(email string) *User {
 
 	// Normalize email to lowercase for case-insensitive comparison
 	normalizedEmail := NormalizeEmail(email)
-	
+
 	for _, user := range users.users {
 		if NormalizeEmail(user.Email) == normalizedEmail {
 			return user
@@ -934,13 +939,13 @@ func (users *Users) CheckDuplicateEmails() map[string][]*User {
 	defer users.mutex.RUnlock()
 
 	emailMap := make(map[string][]*User)
-	
+
 	// Group users by normalized email
 	for _, user := range users.users {
 		normalizedEmail := NormalizeEmail(user.Email)
 		emailMap[normalizedEmail] = append(emailMap[normalizedEmail], user)
 	}
-	
+
 	// Filter to only duplicates
 	duplicates := make(map[string][]*User)
 	for email, userList := range emailMap {
@@ -948,7 +953,7 @@ func (users *Users) CheckDuplicateEmails() map[string][]*User {
 			duplicates[email] = userList
 		}
 	}
-	
+
 	return duplicates
 }
 
@@ -956,7 +961,7 @@ func (users *Users) SaveNewUser(user *User, db *Database) error {
 	formatError := errorFormatter("users", "saveNewUser")
 
 	user.ensurePinsLoaded()
-	
+
 	// All these columns are NOT NULL, so use empty string instead of NULL
 	systems := user.Systems
 	systemDelays := user.SystemDelays
@@ -997,8 +1002,8 @@ func (users *Users) SaveNewUser(user *User, db *Database) error {
 	}
 
 	// Insert user with all fields including systems, delays, settings, and Stripe data
-	err := db.Sql.QueryRow(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "accountExpiresAt", "userGroupId", "isGroupAdmin", "systemAdmin") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING "userId"`,
-		user.Email, user.Password, user.Pin, user.PinExpiresAt, user.ConnectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.AccountExpiresAt, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin).Scan(&userId)
+	err := db.Sql.QueryRow(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "accountExpiresAt", "userGroupId", "isGroupAdmin", "systemAdmin", "forcePasswordReset") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING "userId"`,
+		user.Email, user.Password, user.Pin, user.PinExpiresAt, user.ConnectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.AccountExpiresAt, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.ForcePasswordReset).Scan(&userId)
 	if err != nil {
 		return formatError(err, "")
 	}

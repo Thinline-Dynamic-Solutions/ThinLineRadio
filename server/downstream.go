@@ -522,17 +522,18 @@ func (downstreams *Downstreams) Read(db *Database) error {
 
 func (downstreams *Downstreams) Send(controller *Controller, call *Call) {
 	for _, downstream := range downstreams.List {
-		logEvent := func(logLevel string, message string) {
-			controller.Logs.LogEvent(logLevel, fmt.Sprintf("downstream: system=%d talkgroup=%d file=%s to %s %s", call.System.SystemRef, call.Talkgroup.TalkgroupRef, call.AudioFilename, downstream.Url, message))
+		if !downstream.HasAccess(call) {
+			continue
 		}
-
-		if downstream.HasAccess(call) {
-			if err := downstream.Send(call); err == nil {
-				logEvent(LogLevelInfo, "success")
+		ds := downstream // capture loop variable
+		go func() {
+			label := fmt.Sprintf("downstream: system=%d talkgroup=%d file=%s to %s", call.System.SystemRef, call.Talkgroup.TalkgroupRef, call.AudioFilename, ds.Url)
+			if err := ds.Send(call); err == nil {
+				controller.Logs.LogEvent(LogLevelInfo, label+" success")
 			} else {
-				logEvent(LogLevelError, err.Error())
+				controller.Logs.LogEvent(LogLevelError, label+" "+err.Error())
 			}
-		}
+		}()
 	}
 }
 

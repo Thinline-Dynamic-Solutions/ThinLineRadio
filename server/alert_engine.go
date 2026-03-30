@@ -202,7 +202,7 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 		if len(eligibleUsers) > 0 {
 			toneSetName := matchedToneSet.Label
 			engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sending pre-alert notifications to %d users for tone set '%s'", len(eligibleUsers), toneSetName))
-			go engine.controller.sendBatchedPushNotification(eligibleUsers, "pre-alert", call, systemLabel, talkgroupLabel, toneSetName, nil)
+			go engine.controller.sendBatchedPushNotificationWithToneSet(eligibleUsers, "pre-alert", call, systemLabel, talkgroupLabel, toneSetName, matchedToneSet.Id, nil)
 		}
 	}
 }
@@ -422,11 +422,13 @@ func (engine *AlertEngine) TriggerToneAlerts(call *Call) {
 		// Send batched push notification for all eligible users
 		if len(eligibleUsers) > 0 {
 			toneSetName := ""
+			toneSetIdStr := ""
 			if matchedToneSet != nil {
 				toneSetName = matchedToneSet.Label
+				toneSetIdStr = matchedToneSet.Id
 			}
 			// Include keywords if they were matched (tone alert with keyword info)
-			go engine.controller.sendBatchedPushNotification(eligibleUsers, "tone", call, systemLabel, talkgroupLabel, toneSetName, keywordsMatched)
+			go engine.controller.sendBatchedPushNotificationWithToneSet(eligibleUsers, "tone", call, systemLabel, talkgroupLabel, toneSetName, toneSetIdStr, keywordsMatched)
 		}
 	}
 }

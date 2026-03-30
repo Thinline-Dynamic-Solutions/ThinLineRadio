@@ -1,3 +1,20 @@
+// ─── Warning card ─────────────────────────────────────────────────────────────
+.warn-card {
+    background: rgba(255, 87, 34, 0.08);
+    border: 1px solid rgba(255, 87, 34, 0.35);
+    border-radius: 6px;
+    padding: 4px 8px;
+    width: 100%;
+
+    mat-card-content {
+        display: flex;
+        align-items: center;
+        padding: 8px 0;
+        font-size: 0.85rem;
+        color: #ccc;
+    }
+}
+
 // ─── Tone Sets Container ──────────────────────────────────────────────────────
 .tone-sets-container {
     display: flex;

@@ -208,7 +208,7 @@ func (controller *Controller) SendSystemAlertNotification(title, message, alertT
 			if delay > 0 {
 				time.Sleep(delay)
 			}
-			controller.sendNotificationBatch(ids, notificationTitle, title, message, plat, snd, nil, "", "")
+			controller.sendNotificationBatch(ids, notificationTitle, title, message, plat, snd, nil, "", "", nil)
 		}()
 		batchIndex++
 	}

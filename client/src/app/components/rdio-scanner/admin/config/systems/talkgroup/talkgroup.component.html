@@ -98,6 +98,21 @@
     </div>
     <div class="row">
         <p>
+            <span class="mat-body">Transcription Prompt</span><br>
+            <span class="mat-caption">
+                Custom prompt for Whisper / AssemblyAI transcription on this talkgroup. Overrides both the
+                system-level and global prompts when set. Leave blank to inherit from the system or global prompt.
+                For AssemblyAI, individual words are extracted and used as key-term boosts.
+            </span>
+        </p>
+        <mat-form-field floatLabel="auto" style="width:100%">
+            <textarea matInput formControlName="transcriptionPrompt"
+                      placeholder="e.g. Engine 4 Ladder 2 Station 12 Code 3 dispatch"
+                      rows="2"></textarea>
+        </mat-form-field>
+    </div>
+    <div class="row">
+        <p>
             <span class="mat-body">Linked Voice Channel (TGID)</span><br>
             <span class="mat-caption">
                 <b>Cross-channel paging:</b> if this talkgroup transmits paging tones on a dedicated
@@ -210,6 +225,25 @@
         <div>
             <mat-slide-toggle color="primary" formControlName="excludeFromPreferredSite"></mat-slide-toggle>
         </div>
+    </div>
+    <div class="row">
+        <p>
+            <span class="mat-body">Alerts Enabled</span><br>
+            <span class="mat-caption">Allow alerts and transcription for this talkgroup. When disabled, no alerts will fire and no transcription will run, regardless of user preferences.</span>
+        </p>
+        <div>
+            <mat-slide-toggle color="primary" formControlName="alertsEnabled"></mat-slide-toggle>
+        </div>
+    </div>
+    <div class="row" *ngIf="!form.get('alertsEnabled')?.value">
+        <p>
+            <mat-card class="warn-card" style="width:100%">
+                <mat-card-content>
+                    <mat-icon color="warn" style="vertical-align:middle;margin-right:6px">warning</mat-icon>
+                    <span>Alerts are disabled for this talkgroup. All existing user alert preferences for this talkgroup will be deleted when you save.</span>
+                </mat-card-content>
+            </mat-card>
+        </p>
     </div>
     <div class="row">
         <p>

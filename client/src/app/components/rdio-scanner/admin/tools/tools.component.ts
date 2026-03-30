@@ -36,6 +36,7 @@ export interface ToolSection {
 })
 export class RdioScannerAdminToolsComponent {
     @Output() config = new EventEmitter<Config>();
+    @Output() configSaved = new EventEmitter<Config>();
 
     activeSection = 'import-talkgroups';
 

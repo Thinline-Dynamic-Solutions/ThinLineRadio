@@ -66,7 +66,9 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   availableChannels: any[] = [];
   loadingChannels = false;
   showChannels = false;
-  isInviteOnlyMode = true; // Default to true
+  /** Set from `/api/registration-settings` after load — do not assume invite-only before then (fixes invite box vanishing when public mode loads). */
+  registrationSettingsLoaded = false;
+  isInviteOnlyMode = true;
   codeValidated = false;
   pendingAccessCode = '';
   validatingCode = false;
@@ -868,11 +870,15 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         } else {
           console.log('[AUTH-SCREEN] Skipping public info - invite-only mode');
         }
+        this.registrationSettingsLoaded = true;
+        this.cdr.markForCheck();
       },
       error: (error) => {
         console.error('[AUTH-SCREEN] Error loading registration settings:', error);
         // Default to invite-only if we can't load settings
         this.isInviteOnlyMode = true;
+        this.registrationSettingsLoaded = true;
+        this.cdr.markForCheck();
       }
     });
   }

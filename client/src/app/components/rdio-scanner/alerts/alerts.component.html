@@ -21,10 +21,17 @@
                 <mat-icon>tune</mat-icon>
                 Preferences
             </button>
+            <button *ngIf="showTranscriptsInnerTab" type="button" class="tab-button" [class.active]="activeTab === 'transcripts'" (click)="setTab('transcripts')">
+                <mat-icon>forum</mat-icon>
+                Transcripts
+            </button>
         </div>
         <div class="header-actions">
             <button *ngIf="activeTab === 'alerts'" type="button" class="btn-refresh" (click)="loadAlerts()" [disabled]="loading">
                 {{ loading ? 'Loading...' : 'Refresh Alerts' }}
+            </button>
+            <button *ngIf="activeTab === 'transcripts'" type="button" class="btn-refresh" (click)="loadTranscripts()" [disabled]="loadingTranscripts">
+                {{ loadingTranscripts ? 'Loading...' : 'Refresh Transcripts' }}
             </button>
         </div>
     </div>
@@ -193,7 +200,7 @@
         </div>
     </div>
     
-    <div class="transcripts-content" *ngIf="!boardEmbed && panelMode === 'transcripts'">
+    <div class="transcripts-content" *ngIf="!boardEmbed && (panelMode === 'transcripts' || (panelMode === 'alertsAndPreferences' && activeTab === 'transcripts'))">
         <!-- Filter Controls -->
         <div class="transcript-filters">
             <div class="filter-row">

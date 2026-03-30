@@ -201,6 +201,18 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 		}
 	}
 
+	// Resolve per-channel notification sound for this user+talkgroup.
+	var systemId, talkgroupId uint64
+	if call != nil {
+		if call.System != nil {
+			systemId = call.System.Id
+		}
+		if call.Talkgroup != nil {
+			talkgroupId = call.Talkgroup.Id
+		}
+	}
+	channelSound := controller.resolveUserAlertSound(userId, systemId, talkgroupId, "")
+
 	// Group devices by platform and sound preference.
 	// Legacy OneSignal tokens are deleted on the spot and the user is emailed once.
 	androidDevices := []string{}
@@ -215,16 +227,21 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 			continue
 		}
 
+		// Sound priority: per-channel override → device default → fallback
+		effectiveSound := channelSound
+		if effectiveSound == "" {
+			effectiveSound = device.Sound
+		}
+		if effectiveSound == "" {
+			effectiveSound = "startup.wav"
+		}
+
 		if device.Platform == "ios" {
 			iosDevices = append(iosDevices, device.FCMToken)
-			if device.Sound != "" {
-				iosSound = device.Sound
-			}
+			iosSound = effectiveSound
 		} else {
 			androidDevices = append(androidDevices, device.FCMToken)
-			if device.Sound != "" {
-				androidSound = device.Sound
-			}
+			androidSound = effectiveSound
 		}
 	}
 
@@ -235,7 +252,7 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: sending to %d Android device(s) for user %d with sound: %s", len(androidDevices), userId, androidSound))
 		// Send in goroutine to ensure independent execution - failures don't affect other batches
 		go func(ids []string, sound string) {
-			controller.sendNotificationBatch(ids, title, "", message, "android", sound, call, systemLabel, talkgroupLabel)
+			controller.sendNotificationBatch(ids, title, "", message, "android", sound, call, systemLabel, talkgroupLabel, nil)
 		}(androidDevices, androidSound)
 	}
 
@@ -250,12 +267,12 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: iOS final sound (stripped extension): %s", iosSoundStripped))
 		// Send in goroutine to ensure independent execution - failures don't affect other batches
 		go func(ids []string, sound string) {
-			controller.sendNotificationBatch(ids, title, "", message, "ios", sound, call, systemLabel, talkgroupLabel)
+			controller.sendNotificationBatch(ids, title, "", message, "ios", sound, call, systemLabel, talkgroupLabel, nil)
 		}(iosDevices, iosSoundStripped)
 	}
 }
 
-func (controller *Controller) sendNotificationBatch(playerIDs []string, title, subtitle, message, platform, sound string, call *Call, systemLabel, talkgroupLabel string) {
+func (controller *Controller) sendNotificationBatch(playerIDs []string, title, subtitle, message, platform, sound string, call *Call, systemLabel, talkgroupLabel string, extraData map[string]interface{}) {
 	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: sendNotificationBatch called with %d player ID(s) for %s platform", len(playerIDs), platform))
 	for i, playerID := range playerIDs {
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: player ID %d: %s", i+1, playerID))
@@ -263,6 +280,11 @@ func (controller *Controller) sendNotificationBatch(playerIDs []string, title, s
 
 	// Build payload data (keep existing structure)
 	data := map[string]interface{}{}
+
+	// Merge any extra data provided by the caller first (callers can override defaults).
+	for k, v := range extraData {
+		data[k] = v
+	}
 
 	if call != nil {
 		data["callId"] = call.Id
@@ -394,9 +416,123 @@ func (controller *Controller) sendNotificationBatch(playerIDs []string, title, s
 	}
 }
 
+// sendDisconnectPushNotification sends a push notification to a user's devices
+// when their WebSocket connection to the TLR server is dropped.
+func (controller *Controller) sendDisconnectPushNotification(user *User) {
+	if controller.Options.RelayServerAPIKey == "" {
+		return
+	}
+
+	deviceTokens := controller.DeviceTokens.GetByUser(user.Id)
+	if len(deviceTokens) == 0 {
+		return
+	}
+
+	serverName := controller.Options.Branding
+	if serverName == "" {
+		serverName = "TLR Server"
+	}
+
+	title := "DISCONNECTED"
+	message := fmt.Sprintf("You have been disconnected from %s", strings.ToUpper(serverName))
+
+	// Read the user's chosen disconnect alert sound (set via the mobile app's
+	// Notification Sounds screen). Falls back to the device default then "startup.wav".
+	disconnectSound := ""
+	if user.Settings != "" {
+		var userSettings map[string]interface{}
+		if err := json.Unmarshal([]byte(user.Settings), &userSettings); err == nil {
+			if s, ok := userSettings["disconnectAlertSound"].(string); ok && s != "" {
+				disconnectSound = s
+			}
+		}
+	}
+
+	androidDevices := []string{}
+	iosDevices := []string{}
+	androidSound := disconnectSound
+	iosSound := disconnectSound
+	notifiedUsers := make(map[uint64]struct{})
+
+	for _, device := range deviceTokens {
+		if isLegacyOneSignalToken(device) {
+			controller.handleLegacyOneSignalToken(device, notifiedUsers)
+			continue
+		}
+		// Fall back to device default sound if no disconnect-specific sound is set.
+		effectiveSound := disconnectSound
+		if effectiveSound == "" {
+			effectiveSound = device.Sound
+		}
+		if effectiveSound == "" {
+			effectiveSound = "startup.wav"
+		}
+		if device.Platform == "ios" {
+			iosDevices = append(iosDevices, device.FCMToken)
+			iosSound = effectiveSound
+		} else {
+			androidDevices = append(androidDevices, device.FCMToken)
+			androidSound = effectiveSound
+		}
+	}
+
+	if androidSound == "" {
+		androidSound = "startup.wav"
+	}
+	if iosSound == "" {
+		iosSound = "startup.wav"
+	}
+
+	disconnectExtra := map[string]interface{}{
+		"type":                 "disconnect",
+		"notification_message": "false",
+	}
+
+	if len(androidDevices) > 0 {
+		go func(ids []string, sound string) {
+			controller.sendNotificationBatch(ids, title, "", message, "android", sound, nil, "", "", disconnectExtra)
+		}(androidDevices, androidSound)
+	}
+
+	if len(iosDevices) > 0 {
+		iosSoundStripped := strings.TrimSuffix(iosSound, ".wav")
+		iosSoundStripped = strings.TrimSuffix(iosSoundStripped, ".mp3")
+		iosSoundStripped = strings.TrimSuffix(iosSoundStripped, ".m4a")
+		go func(ids []string, sound string) {
+			controller.sendNotificationBatch(ids, title, "", message, "ios", sound, nil, "", "", disconnectExtra)
+		}(iosDevices, iosSoundStripped)
+	}
+}
+
+// resolveUserAlertSound returns the notification sound for a specific user+talkgroup alert.
+// Priority: per-tone-set sound → per-channel sound → "" (use device default).
+func (controller *Controller) resolveUserAlertSound(userId, systemId, talkgroupId uint64, toneSetId string) string {
+	var notificationSound, toneSetSoundsJson string
+	query := `SELECT COALESCE("notificationSound",''), COALESCE("toneSetSounds",'{}') FROM "userAlertPreferences" WHERE "userId" = $1 AND "systemId" = $2 AND "talkgroupId" = $3 LIMIT 1`
+	if err := controller.Database.Sql.QueryRow(query, userId, systemId, talkgroupId).Scan(&notificationSound, &toneSetSoundsJson); err != nil {
+		return ""
+	}
+	// Check per-tone-set sound first
+	if toneSetId != "" && toneSetSoundsJson != "" && toneSetSoundsJson != "{}" {
+		var toneSetSounds map[string]string
+		if err := json.Unmarshal([]byte(toneSetSoundsJson), &toneSetSounds); err == nil {
+			if s, ok := toneSetSounds[toneSetId]; ok && s != "" {
+				return s
+			}
+		}
+	}
+	return notificationSound
+}
+
 // sendBatchedPushNotification sends push notifications to multiple users in a single batch
 // Groups device tokens by platform and sound preference, then sends batched notifications
 func (controller *Controller) sendBatchedPushNotification(userIds []uint64, alertType string, call *Call, systemLabel, talkgroupLabel string, toneSetName string, keywords []string) {
+	controller.sendBatchedPushNotificationWithToneSet(userIds, alertType, call, systemLabel, talkgroupLabel, toneSetName, "", keywords)
+}
+
+// sendBatchedPushNotificationWithToneSet is the full implementation that accepts a toneSetId
+// so per-tone-set notification sounds can be resolved from each user's alert preferences.
+func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []uint64, alertType string, call *Call, systemLabel, talkgroupLabel string, toneSetName string, toneSetId string, keywords []string) {
 	// Check if relay server API key is configured (URL is hardcoded)
 	if controller.Options.RelayServerAPIKey == "" {
 		return // Push notifications not configured
@@ -537,6 +673,19 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification (batched): device %d for user %d - token: %s, platform: %s", i+1, userId, device.Token, device.Platform))
 		}
 
+		// Resolve per-channel / per-tone-set sound for this user.
+		// Falls back to "" which means "use device default" below.
+		var systemId, talkgroupId uint64
+		if call != nil {
+			if call.System != nil {
+				systemId = call.System.Id
+			}
+			if call.Talkgroup != nil {
+				talkgroupId = call.Talkgroup.Id
+			}
+		}
+		channelSound := controller.resolveUserAlertSound(userId, systemId, talkgroupId, toneSetId)
+
 		// Group devices by platform and sound; delete any legacy OneSignal tokens.
 		for _, device := range deviceTokens {
 			if isLegacyOneSignalToken(device) {
@@ -544,7 +693,11 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 				continue
 			}
 
-			sound := device.Sound
+			// Sound priority: per-tone-set/per-channel → device default → fallback
+			sound := channelSound
+			if sound == "" {
+				sound = device.Sound
+			}
 			if sound == "" {
 				sound = "startup.wav"
 			}
@@ -585,7 +738,7 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 			if d > 0 {
 				time.Sleep(d)
 			}
-			controller.sendNotificationBatch(ids, title, "", message, plat, snd, call, systemLabel, talkgroupLabel)
+			controller.sendNotificationBatch(ids, title, "", message, plat, snd, call, systemLabel, talkgroupLabel, nil)
 		}(playerIDs, platform, finalSound, delay)
 		batchIndex++
 	}
