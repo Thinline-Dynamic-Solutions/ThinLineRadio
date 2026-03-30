@@ -2416,9 +2416,10 @@ func (controller *Controller) queueTranscriptionIfNeeded(call *Call) {
 				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d on tone-enabled talkgroup: meets global minimum (%.1fs >= %.1fs)", call.Id, audioDuration, minDuration))
 				// Continue to alert checks
 			} else if toneDetectionEnabled && audioDuration < minDuration {
-				// Tone-enabled talkgroup, no tones detected in this call, shorter than minimum - skip
-				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("skipping transcription for call %d on tone-enabled talkgroup: duration %.1fs is less than minimum %.1fs (no tones detected)", call.Id, audioDuration, minDuration))
-				return
+				// Tone-detection talkgroups always bypass the minimum duration — short calls may be
+				// the voice dispatch that follows a tone page on a separate call
+				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d on tone-enabled talkgroup: bypassing global minimum (%.1fs < %.1fs)", call.Id, audioDuration, minDuration))
+				// Continue to alert checks
 			} else if audioDuration < minDuration {
 				// Normal check for non-tone-enabled talkgroups or calls without tones
 				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("skipping transcription for call %d: duration %.1fs is less than minimum %.1fs", call.Id, audioDuration, minDuration))

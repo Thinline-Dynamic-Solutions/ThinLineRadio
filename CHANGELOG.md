@@ -1,5 +1,14 @@
 # Change log
 
+## Version 26.04.014 - Released Mar 30, 2026
+
+### New
+
+- **Transcription queue depth endpoint**
+  - New unauthenticated endpoint `GET /api/status/transcription-queue` returns `{"pending": N}` — the number of jobs currently waiting in the in-memory transcription queue
+  - Queue depth also included in the existing `GET /api/status/performance` response as `transcription_queue_depth`
+  - Useful for monitoring transcription backlog without logging into the admin panel
+
 ## Version 26.04.013 - Released Mar 30, 2026
 
 ### Fixed

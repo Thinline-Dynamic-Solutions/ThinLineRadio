@@ -529,12 +529,18 @@ func main() {
 		var memStats runtime.MemStats
 		runtime.ReadMemStats(&memStats)
 
+		transcriptionQueueDepth := 0
+		if controller.TranscriptionQueue != nil {
+			transcriptionQueueDepth = controller.TranscriptionQueue.QueueDepth()
+		}
+
 		response := map[string]interface{}{
-			"cpu_cores":        runtime.NumCPU(),
-			"active_workers":   activeWorkers,
-			"total_calls":      totalCalls,
-			"avg_process_time": avgProcessTime.String(),
-			"goroutines":       runtime.NumGoroutine(),
+			"cpu_cores":                 runtime.NumCPU(),
+			"active_workers":            activeWorkers,
+			"total_calls":               totalCalls,
+			"avg_process_time":          avgProcessTime.String(),
+			"goroutines":                runtime.NumGoroutine(),
+			"transcription_queue_depth": transcriptionQueueDepth,
 			"memory_stats": map[string]interface{}{
 				"alloc_mb":       memStats.Alloc / 1024 / 1024,
 				"total_alloc_mb": memStats.TotalAlloc / 1024 / 1024,
@@ -545,6 +551,16 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	})).ServeHTTP)
+
+	// Transcription queue depth — no auth, plain JSON, useful for monitoring
+	http.HandleFunc("/api/status/transcription-queue", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		depth := 0
+		if controller.TranscriptionQueue != nil {
+			depth = controller.TranscriptionQueue.QueueDepth()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"pending":%d}`, depth)
+	}))
 
 	// Login blocked countdown page
 	http.HandleFunc("/login-blocked", wrapHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

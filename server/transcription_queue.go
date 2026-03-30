@@ -754,6 +754,11 @@ func (queue *TranscriptionQueue) storeKeywordMatchesBatch(callId uint64, userIds
 	}
 }
 
+// QueueDepth returns the number of jobs currently waiting in the queue channel
+func (queue *TranscriptionQueue) QueueDepth() int {
+	return len(queue.jobs)
+}
+
 // Stop stops the transcription queue
 func (queue *TranscriptionQueue) Stop() {
 	queue.mutex.Lock()
