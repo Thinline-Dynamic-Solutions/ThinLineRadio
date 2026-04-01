@@ -35,6 +35,13 @@ create-ico-temp.js
 *.swo
 *~
 
+# Local build and run scripts (each environment has its own)
+build-all.sh
+build-linux.sh
+build-macos.sh
+build-windows.sh
+run-server.sh
+
 # Temporary files
 *.log
 *.tmp
