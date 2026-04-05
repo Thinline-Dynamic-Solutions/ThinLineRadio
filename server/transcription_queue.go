@@ -16,7 +16,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -493,18 +492,12 @@ func (queue *TranscriptionQueue) processKeywords(callId uint64, systemId uint64,
 
 	queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("processing keywords for call %d (system=%d, talkgroup=%d)", callId, systemId, talkgroupId))
 
-	// Get all users with keyword alerts enabled for this talkgroup
-	query := fmt.Sprintf(`SELECT "userId", "keywords", "keywordListIds" FROM "userAlertPreferences" WHERE "systemId" = %d AND "talkgroupId" = %d AND "alertEnabled" = true AND "keywordAlerts" = true`, systemId, talkgroupId)
-	rows, err := queue.controller.Database.Sql.Query(query)
-	if err != nil {
-		queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to query user alert preferences: %v", err))
-		return
-	}
-	defer rows.Close()
+	// Get all users with keyword alerts enabled for this talkgroup from cache
+	userIds := queue.controller.PreferencesCache.GetUsersForTalkgroup(systemId, talkgroupId)
 
 	transcript := strings.ToUpper(result.Transcript) // Ensure ALL CAPS
 
-	// Step 1: Collect all users and their keyword preferences
+	// Step 1: Collect all users and their keyword preferences from cache
 	type userKeywords struct {
 		userId         uint64
 		keywords       []string
@@ -512,29 +505,17 @@ func (queue *TranscriptionQueue) processKeywords(callId uint64, systemId uint64,
 	}
 	var users []userKeywords
 
-	for rows.Next() {
-		var (
-			userId         uint64
-			keywordsJson   string
-			keywordListIds string
-		)
-
-		if err := rows.Scan(&userId, &keywordsJson, &keywordListIds); err != nil {
+	for _, userId := range userIds {
+		pref := queue.controller.PreferencesCache.GetPreference(userId, systemId, talkgroupId)
+		if pref == nil || !pref.AlertEnabled || !pref.KeywordAlerts {
 			continue
 		}
 
-		user := userKeywords{userId: userId}
-
-		// Parse user's personal keywords
-		if keywordsJson != "" && keywordsJson != "[]" {
-			json.Unmarshal([]byte(keywordsJson), &user.keywords)
+		user := userKeywords{
+			userId:         userId,
+			keywords:       pref.Keywords,
+			keywordListIds: pref.KeywordListIds,
 		}
-
-		// Parse user's keyword list IDs
-		if keywordListIds != "" && keywordListIds != "[]" {
-			json.Unmarshal([]byte(keywordListIds), &user.keywordListIds)
-		}
-
 		users = append(users, user)
 	}
 
@@ -708,18 +689,12 @@ func (queue *TranscriptionQueue) processKeywords(callId uint64, systemId uint64,
 
 // getKeywordsFromList retrieves keywords from a keyword list
 func (queue *TranscriptionQueue) getKeywordsFromList(listId uint64) []string {
-	query := fmt.Sprintf(`SELECT "keywords" FROM "keywordLists" WHERE "keywordListId" = %d`, listId)
-	var keywordsJson string
-	if err := queue.controller.Database.Sql.QueryRow(query).Scan(&keywordsJson); err != nil {
+	// Get from cache instead of database
+	list := queue.controller.KeywordListsCache.GetList(listId)
+	if list == nil {
 		return []string{}
 	}
-
-	var keywords []string
-	if keywordsJson != "" && keywordsJson != "[]" {
-		json.Unmarshal([]byte(keywordsJson), &keywords)
-	}
-
-	return keywords
+	return list.Keywords
 }
 
 // storeKeywordMatch stores a keyword match in the database

@@ -27,10 +27,44 @@
     <!-- Todos / notifications -->
     <rdio-scanner-admin-todos></rdio-scanner-admin-todos>
 
-    <!-- Compact warning bar -->
-    <div class="admin-warning-bar">
-        <mat-icon>warning</mat-icon>
-        <span>Use localhost or a local IP when modifying settings — remote changes over the internet can cause data loss.</span>
+    <!-- Master Search Bar -->
+    <div class="admin-search-wrap" (keydown.escape)="closeSearch()">
+        <div class="admin-search-input-wrap">
+            <mat-icon class="search-icon">search</mat-icon>
+            <input
+                #searchInput
+                class="admin-search-input"
+                type="text"
+                placeholder="Search settings, tools…"
+                [(ngModel)]="searchQuery"
+                (input)="onSearch()"
+                (focus)="onSearchFocus()"
+                (blur)="onSearchBlur()"
+                autocomplete="off"
+                spellcheck="false">
+            <button *ngIf="searchQuery" class="search-clear-btn" type="button" (mousedown)="clearSearch()">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+        <div class="admin-search-results" *ngIf="searchResultsVisible && searchResults.length > 0">
+            <button
+                *ngFor="let result of searchResults; let i = index"
+                type="button"
+                class="search-result-item"
+                [class.active]="searchActiveIndex === i"
+                (mousedown)="navigateToResult(result)">
+                <mat-icon class="result-icon">{{ result.icon }}</mat-icon>
+                <div class="result-body">
+                    <span class="result-label">{{ result.label }}</span>
+                    <span class="result-breadcrumb">{{ result.breadcrumb }}</span>
+                </div>
+                <mat-icon class="result-arrow">chevron_right</mat-icon>
+            </button>
+        </div>
+        <div class="admin-search-results admin-search-empty" *ngIf="searchResultsVisible && searchQuery && searchResults.length === 0">
+            <mat-icon>search_off</mat-icon>
+            <span>No results for "{{ searchQuery }}"</span>
+        </div>
     </div>
 
     <!-- Top-level tab navigation -->
@@ -47,7 +81,7 @@
                 <span class="tab-label">Config</span>
             </ng-template>
             <div class="tab-content">
-                <rdio-scanner-admin-config #configComponent></rdio-scanner-admin-config>
+                <rdio-scanner-admin-config #configComponent [hideActions]="true"></rdio-scanner-admin-config>
             </div>
         </mat-tab>
 

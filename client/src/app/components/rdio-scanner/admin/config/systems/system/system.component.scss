@@ -16,6 +16,58 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
  */
+
+// ─── Pagination Controls ──────────────────────────────────────────────────────
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    margin-bottom: 8px;
+
+    &.bottom {
+        margin-top: 8px;
+        margin-bottom: 0;
+    }
+
+    .page-info {
+        font-size: 13px;
+        color: #ccc;
+        min-width: 120px;
+        text-align: center;
+        font-weight: 500;
+    }
+
+    button {
+        &[disabled] {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+    }
+}
+
+.load-prompt {
+    text-align: center;
+    padding: 40px 20px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    margin: 16px 0;
+
+    p {
+        margin-bottom: 16px;
+        color: #aaa;
+    }
+
+    button {
+        min-width: 200px;
+    }
+}
+
 // ─── System Header ────────────────────────────────────────────────────────────
 .system-detail-header {
     display: flex;

@@ -74,7 +74,7 @@
                 <ng-container [formGroup]="apikey">
                     <mat-form-field appearance="outline" class="ident-field">
                         <input matInput formControlName="ident" placeholder="e.g. recorder-1, trunk-player"
-                               [class.input-invalid]="apikey.get('ident')?.invalid && apikey.get('ident')?.touched">
+                               [class.input-invalid]="apikey.get('ident')?.invalid && apikey.get('ident')?.touched" autocomplete="off">
                         <mat-error *ngIf="apikey.get('ident')?.hasError('required')">Required</mat-error>
                     </mat-form-field>
                     <mat-icon *ngIf="apikey.get('ident')?.invalid && apikey.get('ident')?.touched"

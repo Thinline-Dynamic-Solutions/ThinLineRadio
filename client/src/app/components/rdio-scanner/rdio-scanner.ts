@@ -195,7 +195,6 @@ export enum RdioScannerCategoryType {
 export interface RdioScannerConfig {
     alerts?: RdioScannerAlerts;
     branding?: string;
-    dimmerDelay: number | false;
     email?: string;
     groups: { [key: string]: { [key: number]: number[] } };
     groupsData: RdioScannerGroupData[];

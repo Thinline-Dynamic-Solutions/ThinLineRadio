@@ -635,13 +635,35 @@ func (controller *Controller) MonitorNoAudioForSystem(systemId uint64, systemLab
 	}
 }
 
-// StartNoAudioMonitoringForAllSystems starts per-system no-audio monitoring with individual timers
+// stopAllNoAudioMonitors signals all running per-system no-audio goroutines to stop
+// and clears the stop-channel map. Must be called before restarting monitoring.
+func (controller *Controller) stopAllNoAudioMonitors() {
+	controller.noAudioMonitorStopsMu.Lock()
+	defer controller.noAudioMonitorStopsMu.Unlock()
+	for systemId, ch := range controller.noAudioMonitorStops {
+		close(ch)
+		delete(controller.noAudioMonitorStops, systemId)
+	}
+}
+
+// StartNoAudioMonitoringForAllSystems stops any existing per-system monitors and
+// starts fresh ones for all systems that have no-audio alerts enabled.
 func (controller *Controller) StartNoAudioMonitoringForAllSystems() {
+	// Stop any previously running goroutines first to avoid duplicates
+	controller.stopAllNoAudioMonitors()
+
 	// Check if no-audio alerts are enabled globally
 	if !controller.Options.NoAudioAlertsEnabled || !controller.Options.SystemHealthAlertsEnabled {
 		controller.Logs.LogEvent(LogLevelInfo, "no-audio monitoring is disabled")
 		return
 	}
+
+	// Initialise the map if needed
+	controller.noAudioMonitorStopsMu.Lock()
+	if controller.noAudioMonitorStops == nil {
+		controller.noAudioMonitorStops = make(map[uint64]chan struct{})
+	}
+	controller.noAudioMonitorStopsMu.Unlock()
 
 	// Get all systems with their no-audio alert settings
 	query := `SELECT "systemId", "label", "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "systems"`
@@ -671,14 +693,21 @@ func (controller *Controller) StartNoAudioMonitoringForAllSystems() {
 			thresholdMinutes = 30
 		}
 
+		// Create a stop channel for this system's goroutine
+		stopCh := make(chan struct{})
+		controller.noAudioMonitorStopsMu.Lock()
+		controller.noAudioMonitorStops[systemId] = stopCh
+		controller.noAudioMonitorStopsMu.Unlock()
+
 		// Start monitoring for this system with its own interval
-		go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, thresholdMinutes)
+		go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, thresholdMinutes, stopCh)
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("started no-audio monitoring for system '%s' (ID: %d) with %d minute threshold", systemLabel, systemId, thresholdMinutes))
 	}
 }
 
-// StartNoAudioMonitoringForSystem starts monitoring a specific system with its own timer
-func (controller *Controller) StartNoAudioMonitoringForSystem(systemId uint64, systemLabel string, thresholdMinutes uint) {
+// StartNoAudioMonitoringForSystem starts monitoring a specific system with its own timer.
+// stopCh is closed by the caller to terminate this goroutine cleanly.
+func (controller *Controller) StartNoAudioMonitoringForSystem(systemId uint64, systemLabel string, thresholdMinutes uint, stopCh <-chan struct{}) {
 	ticker := time.NewTicker(time.Duration(thresholdMinutes) * time.Minute)
 	defer ticker.Stop()
 
@@ -686,73 +715,74 @@ func (controller *Controller) StartNoAudioMonitoringForSystem(systemId uint64, s
 	controller.MonitorNoAudioForSystem(systemId, systemLabel, thresholdMinutes)
 
 	// Then check at the threshold interval
-	for range ticker.C {
-		// Re-check if monitoring is still enabled
-		if !controller.Options.NoAudioAlertsEnabled || !controller.Options.SystemHealthAlertsEnabled {
-			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("stopping no-audio monitoring for system '%s' (ID: %d) - globally disabled", systemLabel, systemId))
+	for {
+		select {
+		case <-stopCh:
+			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("stopped no-audio monitoring for system '%s' (ID: %d)", systemLabel, systemId))
 			return
-		}
+		case <-ticker.C:
+			// Re-check if monitoring is still enabled globally
+			if !controller.Options.NoAudioAlertsEnabled || !controller.Options.SystemHealthAlertsEnabled {
+				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("stopping no-audio monitoring for system '%s' (ID: %d) - globally disabled", systemLabel, systemId))
+				return
+			}
 
-		// Re-check system settings from database in case they changed
-		var noAudioAlertsEnabled bool
-		var currentThresholdMinutes uint
-		checkQuery := `SELECT "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "systems" WHERE "systemId" = $1`
-		if err := controller.Database.Sql.QueryRow(checkQuery, systemId).Scan(&noAudioAlertsEnabled, &currentThresholdMinutes); err != nil {
-			controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to check system settings for system %d: %v", systemId, err))
-			continue
+			// Run the check
+			controller.MonitorNoAudioForSystem(systemId, systemLabel, thresholdMinutes)
 		}
-
-		// If alerts disabled for this system, stop monitoring
-		if !noAudioAlertsEnabled {
-			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("stopping no-audio monitoring for system '%s' (ID: %d) - disabled for this system", systemLabel, systemId))
-			return
-		}
-
-		// If threshold changed, restart with new interval
-		if currentThresholdMinutes != thresholdMinutes && currentThresholdMinutes > 0 {
-			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("restarting no-audio monitoring for system '%s' (ID: %d) - threshold changed from %d to %d minutes", systemLabel, systemId, thresholdMinutes, currentThresholdMinutes))
-			// Stop this ticker and start a new one
-			ticker.Stop()
-			go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, currentThresholdMinutes)
-			return
-		}
-
-		// Run the check
-		controller.MonitorNoAudioForSystem(systemId, systemLabel, thresholdMinutes)
 	}
 }
 
-// RestartNoAudioMonitoringForSystem restarts monitoring for a specific system
-// This should be called when system no-audio settings are updated via admin interface
+// RestartNoAudioMonitoringForSystem stops any existing monitor for a specific system
+// and starts a fresh one. Called when per-system no-audio settings are updated.
 func (controller *Controller) RestartNoAudioMonitoringForSystem(systemId uint64) {
+	// Stop existing goroutine for this system if any
+	controller.noAudioMonitorStopsMu.Lock()
+	if controller.noAudioMonitorStops == nil {
+		controller.noAudioMonitorStops = make(map[uint64]chan struct{})
+	}
+	if existing, ok := controller.noAudioMonitorStops[systemId]; ok {
+		close(existing)
+		delete(controller.noAudioMonitorStops, systemId)
+	}
+	controller.noAudioMonitorStopsMu.Unlock()
+
 	// Get current system settings
 	var systemLabel string
 	var noAudioAlertsEnabled bool
 	var thresholdMinutes uint
-	
+
 	query := `SELECT "label", "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "systems" WHERE "systemId" = $1`
 	if err := controller.Database.Sql.QueryRow(query, systemId).Scan(&systemLabel, &noAudioAlertsEnabled, &thresholdMinutes); err != nil {
 		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to query system for no-audio monitoring restart: %v", err))
 		return
 	}
 
-	// If alerts are disabled or threshold is 0, nothing to start
-	if !noAudioAlertsEnabled || thresholdMinutes == 0 {
+	// If alerts are disabled globally or for this system, nothing to start
+	if !controller.Options.SystemHealthAlertsEnabled || !controller.Options.NoAudioAlertsEnabled || !noAudioAlertsEnabled || thresholdMinutes == 0 {
 		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no-audio monitoring not started for system '%s' (ID: %d) - disabled or invalid threshold", systemLabel, systemId))
 		return
 	}
 
-	// Start monitoring with new settings (the goroutine will detect setting changes and adapt)
-	go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, thresholdMinutes)
+	stopCh := make(chan struct{})
+	controller.noAudioMonitorStopsMu.Lock()
+	controller.noAudioMonitorStops[systemId] = stopCh
+	controller.noAudioMonitorStopsMu.Unlock()
+
+	go controller.StartNoAudioMonitoringForSystem(systemId, systemLabel, thresholdMinutes, stopCh)
 	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("restarted no-audio monitoring for system '%s' (ID: %d) with %d minute threshold", systemLabel, systemId, thresholdMinutes))
 }
 
-// StartSystemHealthMonitoring starts periodic system health checks
+// StartSystemHealthMonitoring starts periodic system health checks.
+// An initial check runs immediately at startup, then repeats hourly.
 func (controller *Controller) StartSystemHealthMonitoring() {
-	// Start hourly checks for transcription failures and tone detection issues
-	ticker := time.NewTicker(1 * time.Hour)
 	controller.healthMonitorStop = make(chan struct{})
 	go func() {
+		// Run an immediate startup check
+		controller.MonitorTranscriptionFailures()
+		controller.MonitorToneDetectionIssues()
+
+		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for {
 			select {

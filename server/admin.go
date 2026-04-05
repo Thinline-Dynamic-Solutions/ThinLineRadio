@@ -1437,10 +1437,13 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						logError(err)
 					} else {
-						// Restart transcription queue with updated settings
-						admin.Controller.RestartTranscriptionQueue()
+					// Restart transcription queue with updated settings
+					admin.Controller.RestartTranscriptionQueue()
 
-						// If audio encryption is enabled and we don't have a key yet
+					// Restart no-audio monitoring in case health alert settings changed
+					go admin.Controller.StartNoAudioMonitoringForAllSystems()
+
+					// If audio encryption is enabled and we don't have a key yet
 						// (or it was just enabled), fetch the key + client token from
 						// the relay server without requiring a server restart.
 						if admin.Controller.Options.AudioEncryptionEnabled &&
@@ -1564,6 +1567,11 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 					err = admin.Controller.Systems.Read(admin.Controller.Database)
 					if err != nil {
 						logError(err)
+					} else {
+						// Reload ID lookups cache after systems/talkgroups change
+						if err := admin.Controller.IdLookupsCache.Read(admin.Controller.Database); err != nil {
+							admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload ID lookups cache: %v", err))
+						}
 					}
 				}
 			}
@@ -2382,44 +2390,26 @@ func (admin *Admin) GetConfig() map[string]any {
 	}
 	admin.Controller.DeviceTokens.mutex.RUnlock()
 
-	// Get all keyword lists for export
+	// Get all keyword lists from cache for export
 	keywordListList := make([]map[string]any, 0)
-	query := `SELECT "keywordListId", "label", "description", "keywords", "order", "createdAt" FROM "keywordLists" ORDER BY "order" ASC, "createdAt" DESC`
-	rows, err := admin.Controller.Database.Sql.Query(query)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var (
-				listId       uint64
-				label        string
-				description  string
-				keywordsJson string
-				order        uint
-				createdAt    int64
-			)
-
-			if err := rows.Scan(&listId, &label, &description, &keywordsJson, &order, &createdAt); err != nil {
-				continue
-			}
-
-			var keywords []string
-			if keywordsJson != "" && keywordsJson != "[]" {
-				json.Unmarshal([]byte(keywordsJson), &keywords)
-			}
-
-			keywordListList = append(keywordListList, map[string]any{
-				"id":          listId,
-				"label":       label,
-				"description": description,
-				"keywords":    keywords,
-				"order":       order,
-				"createdAt":   createdAt,
-			})
-		}
+	cachedLists := admin.Controller.KeywordListsCache.GetAllLists()
+	for _, list := range cachedLists {
+		keywordListList = append(keywordListList, map[string]any{
+			"id":          list.Id,
+			"label":       list.Label,
+			"description": list.Description,
+			"keywords":    list.Keywords,
+			"order":       list.Order,
+			"createdAt":   list.CreatedAt,
+		})
 	}
 
-	// Get all user alert preferences for export
+	// Get all user alert preferences from cache for export
 	userAlertPrefList := make([]map[string]any, 0)
+	
+	// We need to query the database for this as we don't have a method to get ALL preferences
+	// across ALL users from cache. This is acceptable as it's only for admin config export.
+	// Alternative: Could add GetAllPreferences() to cache, but export is rare operation.
 	alertQuery := `SELECT "userAlertPreferenceId", "userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds" FROM "userAlertPreferences" ORDER BY "userId" ASC`
 	alertRows, alertErr := admin.Controller.Database.Sql.Query(alertQuery)
 	if alertErr == nil {
@@ -2444,17 +2434,23 @@ func (admin *Admin) GetConfig() map[string]any {
 
 			var keywords []string
 			if keywordsJson != "" && keywordsJson != "[]" {
-				json.Unmarshal([]byte(keywordsJson), &keywords)
+				if err := json.Unmarshal([]byte(keywordsJson), &keywords); err != nil {
+					keywords = []string{}
+				}
 			}
 
 			var keywordListIdsParsed []int
 			if keywordListIds != "" && keywordListIds != "[]" {
-				json.Unmarshal([]byte(keywordListIds), &keywordListIdsParsed)
+				if err := json.Unmarshal([]byte(keywordListIds), &keywordListIdsParsed); err != nil {
+					keywordListIdsParsed = []int{}
+				}
 			}
 
 			var toneSetIdsParsed []string
 			if toneSetIds != "" && toneSetIds != "[]" {
-				json.Unmarshal([]byte(toneSetIds), &toneSetIdsParsed)
+				if err := json.Unmarshal([]byte(toneSetIds), &toneSetIdsParsed); err != nil {
+					toneSetIdsParsed = []string{}
+				}
 			}
 
 			userAlertPrefList = append(userAlertPrefList, map[string]any{

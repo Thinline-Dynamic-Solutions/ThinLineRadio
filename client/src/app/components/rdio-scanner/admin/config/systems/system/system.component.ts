@@ -19,7 +19,7 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { FormArray, FormControl, FormGroup } from '@angular/forms';
 import { RdioScannerAdminService, Group, Tag } from '../../../admin.service';
 
@@ -27,14 +27,17 @@ import { RdioScannerAdminService, Group, Tag } from '../../../admin.service';
     selector: 'rdio-scanner-admin-system',
     templateUrl: './system.component.html',
     styleUrls: ['./system.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class RdioScannerAdminSystemComponent {
+export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
     @Input() form = new FormGroup({});
     @Input() groups: Group[] = [];
     @Input() tags: Tag[] = [];
     @Input() apikeys: any[] = [];
+    @Input() systemData: any; // Original system data for lazy loading
 
     @Output() remove = new EventEmitter<void>();
+    @Output() onTalkgroupsLoaded = new EventEmitter<void>();
 
     // ─── Expanded row state ────────────────────────────────────────────────────
     expandedTalkgroup: FormGroup | null = null;
@@ -45,6 +48,11 @@ export class RdioScannerAdminSystemComponent {
     talkgroupDisplayedColumns = ['select', 'drag', 'talkgroupRef', 'label', 'name', 'groups', 'tag', 'alertsEnabled', 'actions'];
     siteDisplayedColumns      = ['drag', 'siteRef', 'rfss', 'label', 'preferred', 'actions'];
     unitDisplayedColumns      = ['drag', 'unitRef', 'label', 'range', 'actions'];
+
+    // ─── Pagination & Performance ──────────────────────────────────────────────
+    talkgroupPageSize = 50; // Show 50 talkgroups per page
+    talkgroupCurrentPage = 0;
+    talkgroupsLoaded = false; // Defer loading until talkgroups section is viewed
 
     // ─── Bulk selection ────────────────────────────────────────────────────────
     selectedTalkgroupIndices: Set<number> = new Set();
@@ -64,7 +72,90 @@ export class RdioScannerAdminSystemComponent {
     private _lastTalkgroupsVersion: number = 0;
     private _lastUnitsVersion:      number = 0;
 
-    constructor(private adminService: RdioScannerAdminService) { }
+    constructor(
+        private adminService: RdioScannerAdminService,
+        private cdr: ChangeDetectorRef
+    ) { }
+
+    ngOnChanges(changes: SimpleChanges) {
+        // Reset talkgroupsLoaded flag when switching to a different system
+        if (changes['form'] && !changes['form'].firstChange) {
+            const tgArray = this.form.get('talkgroups') as FormArray | null;
+            this.talkgroupsLoaded = tgArray ? tgArray.length > 0 : false;
+            this.talkgroupCurrentPage = 0;
+            this.selectedTalkgroupIndices.clear();
+            this.talkgroupsSearchTerm = '';
+            
+            // Auto-load talkgroups for the new system
+            if (!this.talkgroupsLoaded) {
+                setTimeout(() => {
+                    this.loadTalkgroupsProgressively();
+                }, 100);
+            }
+        }
+    }
+
+    ngOnInit() {
+        // Check if talkgroups are already loaded (has items in FormArray)
+        const tgArray = this.form.get('talkgroups') as FormArray | null;
+        if (tgArray && tgArray.length > 0) {
+            this.talkgroupsLoaded = true;
+        } else {
+            // Auto-load talkgroups progressively after a short delay
+            setTimeout(() => {
+                this.loadTalkgroupsProgressively();
+            }, 100);
+        }
+        
+        // Disable validators for all talkgroups except first page to improve performance
+        if (tgArray && tgArray.length > this.talkgroupPageSize) {
+            for (let i = this.talkgroupPageSize; i < tgArray.length; i++) {
+                const control = tgArray.at(i);
+                if (control) {
+                    control.disable({ emitEvent: false });
+                }
+            }
+        }
+    }
+
+    loadTalkgroupsProgressively() {
+        if (this.talkgroupsLoaded || !this.systemData?.talkgroups) {
+            return;
+        }
+
+        const tgArray = this.form.get('talkgroups') as FormArray | null;
+        if (!tgArray || tgArray.length > 0) {
+            return;
+        }
+
+        const talkgroups = this.systemData.talkgroups;
+        const batchSize = 50; // Load 50 talkgroups at a time
+        let currentIndex = 0;
+
+        const loadNextBatch = () => {
+            const endIndex = Math.min(currentIndex + batchSize, talkgroups.length);
+            
+            // Load batch
+            for (let i = currentIndex; i < endIndex; i++) {
+                tgArray.push(this.adminService.newTalkgroupForm(talkgroups[i]), { emitEvent: false });
+            }
+
+            currentIndex = endIndex;
+
+            // Check if we're done
+            if (currentIndex >= talkgroups.length) {
+                this.talkgroupsLoaded = true;
+                this.onTalkgroupsLoaded.emit();
+                this.cdr.markForCheck();
+            } else {
+                // Schedule next batch
+                setTimeout(loadNextBatch, 0);
+            }
+        };
+
+        // Start loading
+        loadNextBatch();
+    }
 
     // ─── Sub-array getters ─────────────────────────────────────────────────────
 
@@ -77,14 +168,13 @@ export class RdioScannerAdminSystemComponent {
                 const d = (a.value.order || 0) - (b.value.order || 0);
                 return d !== 0 ? d : (a.value.id || 0) - (b.value.id || 0);
             });
-            arr.clear({ emitEvent: false });
-            this._cachedSites.forEach(c => arr.push(c, { emitEvent: false }));
             this._lastSitesVersion = v;
         }
         return this._cachedSites;
     }
 
     get talkgroups(): FormGroup[] {
+        if (!this.talkgroupsLoaded) return []; // Don't access until loaded
         const arr = this.form.get('talkgroups') as FormArray | null;
         if (!arr) return [];
         const v = arr.length;
@@ -93,11 +183,31 @@ export class RdioScannerAdminSystemComponent {
                 const d = (a.value.order || 0) - (b.value.order || 0);
                 return d !== 0 ? d : (a.value.talkgroupId || 0) - (b.value.talkgroupId || 0);
             });
-            arr.clear({ emitEvent: false });
-            this._cachedTalkgroups.forEach(c => arr.push(c, { emitEvent: false }));
             this._lastTalkgroupsVersion = v;
         }
         return this._cachedTalkgroups;
+    }
+
+    loadTalkgroups() {
+        if (!this.talkgroupsLoaded && this.systemData?.talkgroups) {
+            const tgArray = this.form.get('talkgroups') as FormArray | null;
+            if (tgArray && tgArray.length === 0) {
+                this.systemData.talkgroups.forEach((tg: any) => {
+                    tgArray.push(this.adminService.newTalkgroupForm(tg), { emitEvent: false });
+                });
+            }
+            this.talkgroupsLoaded = true;
+            this.onTalkgroupsLoaded.emit();
+            this.cdr.markForCheck();
+        }
+    }
+
+    getTalkgroupArrayLength(): number {
+        if (this.systemData?.talkgroups) {
+            return this.systemData.talkgroups.length;
+        }
+        const arr = this.form.get('talkgroups') as FormArray | null;
+        return arr ? arr.length : 0;
     }
 
     get units(): FormGroup[] {
@@ -109,8 +219,6 @@ export class RdioScannerAdminSystemComponent {
                 const d = (a.value.order || 0) - (b.value.order || 0);
                 return d !== 0 ? d : (a.value.id || 0) - (b.value.id || 0);
             });
-            arr.clear({ emitEvent: false });
-            this._cachedUnits.forEach(c => arr.push(c, { emitEvent: false }));
             this._lastUnitsVersion = v;
         }
         return this._cachedUnits;
@@ -119,13 +227,69 @@ export class RdioScannerAdminSystemComponent {
     // ─── Filtered / paginated ──────────────────────────────────────────────────
 
     get filteredTalkgroups(): FormGroup[] {
-        if (!this.talkgroupsSearchTerm.trim()) return this.talkgroups;
-        const s = this.talkgroupsSearchTerm.toLowerCase();
-        return this.talkgroups.filter(tg =>
-            (tg.value.label || '').toLowerCase().includes(s) ||
-            (tg.value.name  || '').toLowerCase().includes(s) ||
-            String(tg.value.talkgroupRef).includes(s)
-        );
+        let filtered = this.talkgroupsSearchTerm.trim() 
+            ? this.talkgroups.filter(tg => {
+                const s = this.talkgroupsSearchTerm.toLowerCase();
+                return (tg.value.label || '').toLowerCase().includes(s) ||
+                       (tg.value.name  || '').toLowerCase().includes(s) ||
+                       String(tg.value.talkgroupRef).includes(s);
+              })
+            : this.talkgroups;
+        
+        // Reset to page 1 if we're beyond the available pages
+        const totalPages = Math.ceil(filtered.length / this.talkgroupPageSize);
+        if (this.talkgroupCurrentPage >= totalPages && totalPages > 0) {
+            this.talkgroupCurrentPage = 0;
+        }
+        
+        return filtered;
+    }
+
+    get paginatedTalkgroups(): FormGroup[] {
+        const start = this.talkgroupCurrentPage * this.talkgroupPageSize;
+        const end = start + this.talkgroupPageSize;
+        return this.filteredTalkgroups.slice(start, end);
+    }
+
+    get talkgroupTotalPages(): number {
+        return Math.ceil(this.filteredTalkgroups.length / this.talkgroupPageSize);
+    }
+
+    get talkgroupPageInfo(): string {
+        const total = this.filteredTalkgroups.length;
+        if (total === 0) return 'No talkgroups';
+        const start = this.talkgroupCurrentPage * this.talkgroupPageSize + 1;
+        const end = Math.min((this.talkgroupCurrentPage + 1) * this.talkgroupPageSize, total);
+        return `${start}–${end} of ${total}`;
+    }
+
+    nextTalkgroupPage(): void {
+        if (this.talkgroupCurrentPage < this.talkgroupTotalPages - 1) {
+            this.talkgroupCurrentPage++;
+            // Collapse expanded talkgroup when changing pages
+            this.expandedTalkgroup = null;
+        }
+    }
+
+    prevTalkgroupPage(): void {
+        if (this.talkgroupCurrentPage > 0) {
+            this.talkgroupCurrentPage--;
+            // Collapse expanded talkgroup when changing pages
+            this.expandedTalkgroup = null;
+        }
+    }
+
+    goToTalkgroupPage(page: number): void {
+        if (page >= 0 && page < this.talkgroupTotalPages) {
+            this.talkgroupCurrentPage = page;
+            // Collapse expanded talkgroup when changing pages
+            this.expandedTalkgroup = null;
+        }
+    }
+
+    // TrackBy functions for performance
+    trackByTalkgroupId(index: number, talkgroup: FormGroup): any {
+        return talkgroup.value.talkgroupId || talkgroup.value.talkgroupRef || index;
     }
 
     get filteredSites(): FormGroup[] {

@@ -41,6 +41,52 @@
                 });
         })();
     </script>
+    <!-- Block Chrome/Edge password-save prompts on the admin panel -->
+    <script>
+        (function () {
+            // Tell the browser credential manager not to auto-fill or track credentials
+            if (navigator.credentials && navigator.credentials.preventSilentAccess) {
+                navigator.credentials.preventSilentAccess();
+            }
+
+            function isAdminPage() {
+                return window.location.pathname.includes('/admin');
+            }
+
+            function disableAutocomplete(root) {
+                if (!isAdminPage()) return;
+                root.querySelectorAll('input, textarea').forEach(function (el) {
+                    // Leave the login form alone
+                    if (el.closest('rdio-scanner-admin-login, .login-form')) return;
+                    var ac = el.getAttribute('autocomplete');
+                    if (!ac || ac === 'on') {
+                        el.setAttribute('autocomplete',
+                            el.type === 'password' ? 'new-password' : 'off');
+                    }
+                });
+                root.querySelectorAll('form').forEach(function (el) {
+                    if (el.closest('rdio-scanner-admin-login, .login-form')) return;
+                    if (!el.getAttribute('autocomplete')) {
+                        el.setAttribute('autocomplete', 'off');
+                    }
+                });
+            }
+
+            // Run on initial load and on every DOM mutation (Angular renders dynamically)
+            var observer = new MutationObserver(function (mutations) {
+                mutations.forEach(function (m) {
+                    m.addedNodes.forEach(function (node) {
+                        if (node.nodeType === 1) disableAutocomplete(node);
+                    });
+                });
+            });
+
+            document.addEventListener('DOMContentLoaded', function () {
+                disableAutocomplete(document.body);
+                observer.observe(document.body, { childList: true, subtree: true });
+            });
+        })();
+    </script>
     <!-- Capture invitation code BEFORE Angular loads -->
     <script>
         (function() {

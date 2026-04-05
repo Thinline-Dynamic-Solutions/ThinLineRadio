@@ -31,7 +31,6 @@ type Options struct {
 	AutoPopulate                bool   `json:"autoPopulate"`
 	Branding                    string `json:"branding"`
 	DefaultSystemDelay          uint   `json:"defaultSystemDelay"`
-	DimmerDelay                 uint   `json:"dimmerDelay"`
 	DisableDuplicateDetection   bool   `json:"disableDuplicateDetection"`
 	DuplicateDetectionMode      string `json:"duplicateDetectionMode"`      // "legacy" or "advanced"
 	DuplicateDetectionTimeFrame uint   `json:"duplicateDetectionTimeFrame"` // Legacy mode timeframe
@@ -50,6 +49,7 @@ type Options struct {
 	UserRegistrationEnabled     bool   `json:"userRegistrationEnabled"`
 	PublicRegistrationEnabled   bool   `json:"publicRegistrationEnabled"`
 	PublicRegistrationMode      string `json:"publicRegistrationMode"` // "codes", "email", "both"
+	EmailVerificationRequired   bool   `json:"emailVerificationRequired"`
 	StripePaywallEnabled        bool   `json:"stripePaywallEnabled"`
 	EmailServiceEnabled         bool   `json:"emailServiceEnabled"`
 	EmailServiceType            string `json:"emailServiceType"` // "emailjs" or "smtp"
@@ -244,13 +244,6 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.Branding = v
 	}
 
-	switch v := m["dimmerDelay"].(type) {
-	case float64:
-		options.DimmerDelay = uint(v)
-	default:
-		options.DimmerDelay = defaults.options.dimmerDelay
-	}
-
 	switch v := m["disableDuplicateDetection"].(type) {
 	case bool:
 		options.DisableDuplicateDetection = v
@@ -376,6 +369,13 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.PublicRegistrationMode = v
 	default:
 		options.PublicRegistrationMode = defaults.options.publicRegistrationMode
+	}
+
+	switch v := m["emailVerificationRequired"].(type) {
+	case bool:
+		options.EmailVerificationRequired = v
+	default:
+		options.EmailVerificationRequired = defaults.options.emailVerificationRequired
 	}
 
 	switch v := m["stripePaywallEnabled"].(type) {
@@ -949,7 +949,6 @@ func (options *Options) Read(db *Database) error {
 	options.AutoPopulate = defaults.options.autoPopulate
 	options.Branding = defaults.options.branding
 	options.DefaultSystemDelay = defaults.options.defaultSystemDelay
-	options.DimmerDelay = defaults.options.dimmerDelay
 	options.DisableDuplicateDetection = defaults.options.disableDuplicateDetection
 	options.DuplicateDetectionMode = defaults.options.duplicateDetectionMode
 	options.DuplicateDetectionTimeFrame = defaults.options.duplicateDetectionTimeFrame
@@ -1048,13 +1047,6 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case float64:
 					options.DefaultSystemDelay = uint(v)
-				}
-			}
-		case "dimmerDelay":
-			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-				switch v := f.(type) {
-				case float64:
-					options.DimmerDelay = uint(v)
 				}
 			}
 		case "disableDuplicateDetection":
@@ -1186,6 +1178,13 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case string:
 					options.PublicRegistrationMode = v
+				}
+			}
+		case "emailVerificationRequired":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.EmailVerificationRequired = v
 				}
 			}
 		case "centralManagementEnabled":
@@ -1715,7 +1714,6 @@ func (options *Options) Write(db *Database) error {
 	set("autoPopulate", options.AutoPopulate)
 	set("branding", options.Branding)
 	set("defaultSystemDelay", options.DefaultSystemDelay)
-	set("dimmerDelay", options.DimmerDelay)
 	set("disableDuplicateDetection", options.DisableDuplicateDetection)
 	set("duplicateDetectionMode", options.DuplicateDetectionMode)
 	set("duplicateDetectionTimeFrame", options.DuplicateDetectionTimeFrame)
@@ -1735,6 +1733,7 @@ func (options *Options) Write(db *Database) error {
 	set("userRegistrationEnabled", options.UserRegistrationEnabled)
 	set("publicRegistrationEnabled", options.PublicRegistrationEnabled)
 	set("publicRegistrationMode", options.PublicRegistrationMode)
+	set("emailVerificationRequired", options.EmailVerificationRequired)
 	set("centralManagementEnabled", options.CentralManagementEnabled)
 	set("centralManagementURL", options.CentralManagementURL)
 	set("centralManagementAPIKey", options.CentralManagementAPIKey)

@@ -17,8 +17,8 @@
  * ****************************************************************************
  */
 
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
-import { FormGroup, Validators } from '@angular/forms';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, AfterViewInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
+import { FormGroup, FormArray, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
@@ -31,16 +31,30 @@ import { LocationDataService } from 'src/app/services/location-data.service';
     selector: 'rdio-scanner-admin-options',
     templateUrl: './options.component.html',
 })
-export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnChanges {
+export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, OnDestroy, OnChanges {
     @Input() form: FormGroup | undefined;
+    @Input() systemsForm: FormArray | undefined;
     @Output() saveRequested = new EventEmitter<void>();
     private radioReferenceSubscription?: Subscription;
     private initialLoadComplete = false;
     public isEditingRadioReference = false;
+    panelsReady = false;
     private originalRadioReferenceUsername = '';
     private originalRadioReferencePassword = '';
     faviconUrl: string = '';
     window = window;
+    
+    // Expansion panel state - all collapsed by default
+    generalExpanded = false;
+    brandingExpanded = false;
+    transcriptionExpanded = false;
+    alertsExpanded = false;
+    emailExpanded = false;
+    notificationsExpanded = false;
+    userRegistrationExpanded = false;
+    stripeExpanded = false;
+    integrationsExpanded = false;
+    securityExpanded = false;
     
     // Central Management Integration
     centralConnectionStatus: 'success' | 'error' | null = null;
@@ -54,6 +68,23 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         private http: HttpClient,
         private cdr: ChangeDetectorRef
     ) {}
+
+    asFormGroup(ctrl: any): FormGroup {
+        return ctrl as FormGroup;
+    }
+
+    /** Programmatically open a specific expansion panel (called by global search). */
+    openPanel(panelName: string): void {
+        const key = panelName as keyof this;
+        if (key in this) {
+            (this as any)[key] = true;
+            this.cdr.markForCheck();
+            setTimeout(() => {
+                const el = document.getElementById('opt-panel-' + panelName);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 180);
+        }
+    }
 
     get isRadioReferenceLoggedIn(): boolean {
         return this.hasStoredRadioReferenceCredentials();
@@ -70,14 +101,19 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         this.setupRelayServerFormListeners();
         this.setupRateLimitingToggle();
         this.setupAudioEncryptionToggle();
-        // Ensure hardcoded relay server URL is set
         this.setHardcodedRelayServerURL();
-        // Initialize favicon URL
         this.updateFaviconUrl();
-        // Mark initial load as complete after a brief delay to allow form to populate
+        this.updateEmailLogoUrl();
         setTimeout(() => {
             this.initialLoadComplete = true;
         }, 100);
+    }
+
+    ngAfterViewInit(): void {
+        setTimeout(() => {
+            this.panelsReady = true;
+            this.cdr.detectChanges();
+        }, 80);
     }
 
     ngOnDestroy(): void {
@@ -86,6 +122,20 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
 
     ngOnChanges(changes: SimpleChanges): void {
         if (changes['form'] && this.form) {
+            // Collapse all panels explicitly before hiding so they are in the right state when re-shown
+            this.generalExpanded = false;
+            this.brandingExpanded = false;
+            this.transcriptionExpanded = false;
+            this.alertsExpanded = false;
+            this.notificationsExpanded = false;
+            this.userRegistrationExpanded = false;
+            this.stripeExpanded = false;
+            this.integrationsExpanded = false;
+            this.securityExpanded = false;
+
+            this.panelsReady = false;
+            this.cdr.detectChanges(); // Force the hide to apply immediately
+
             this.setupRadioReferenceValidation();
             this.setInitialRadioReferenceValidation();
             this.storeOriginalCredentials();
@@ -94,6 +144,12 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
             this.setupAudioEncryptionToggle();
             this.setHardcodedRelayServerURL();
             this.isEditingRadioReference = false;
+            this.updateEmailLogoUrl();
+
+            setTimeout(() => {
+                this.panelsReady = true;
+                this.cdr.detectChanges();
+            }, 80);
         }
     }
 
@@ -488,6 +544,289 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         }
     }
 
+    private updateEmailLogoUrl(): void {
+        if (this.hasEmailLogo()) {
+            this.emailLogoUrl = `${window.location.origin}/email-logo?t=${Date.now()}`;
+        } else {
+            this.emailLogoUrl = '';
+        }
+    }
+
+    // Email logo methods
+    emailLogoUrl: string = '';
+    private emailLogoErrorRetryCount: number = 0;
+    private readonly MAX_EMAIL_LOGO_RETRIES: number = 1;
+
+    hasEmailLogo(): boolean {
+        return !!(this.form?.get('emailLogoFilename')?.value);
+    }
+
+    getEmailLogoPreview(): string {
+        if (this.emailLogoUrl) {
+            return this.emailLogoUrl;
+        }
+        return `${window.location.origin}/email-logo?t=${Date.now()}`;
+    }
+
+    getEmailLogoStyle(): string {
+        const borderRadius = this.form?.get('emailLogoBorderRadius')?.value || '0px';
+        return `max-width: 100%; max-height: 105px; display: block; border-radius: ${borderRadius};`;
+    }
+
+    onEmailLogoSelected(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        if (input.files && input.files.length > 0) {
+            const file = input.files[0];
+            
+            if (!file.type.match(/^image\/(png|jpeg|jpg|svg\+xml)$/)) {
+                alert('Please select a PNG, JPG, or SVG image file.');
+                return;
+            }
+
+            if (file.size > 5000000) {
+                alert('Logo file size must be less than 5MB.');
+                return;
+            }
+
+            if (file.type === 'image/svg+xml') {
+                this.uploadEmailLogo(file);
+            } else {
+                this.compressAndUploadEmailLogo(file);
+            }
+        }
+    }
+
+    private compressAndUploadEmailLogo(file: File): void {
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+                const maxSize = 300;
+                
+                if (width > maxSize || height > maxSize) {
+                    if (width > height) {
+                        height = (height / width) * maxSize;
+                        width = maxSize;
+                    } else {
+                        width = (width / height) * maxSize;
+                        height = maxSize;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    alert('Failed to process image.');
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        alert('Failed to compress image.');
+                        return;
+                    }
+
+                    if (blob.size > 500000 && file.type !== 'image/png') {
+                        canvas.toBlob((compressedBlob) => {
+                            if (compressedBlob) {
+                                this.uploadEmailLogo(compressedBlob, file.name);
+                            } else {
+                                this.uploadEmailLogo(blob, file.name);
+                            }
+                        }, 'image/jpeg', 0.7);
+                    } else {
+                        this.uploadEmailLogo(blob, file.name);
+                    }
+                }, file.type === 'image/png' ? 'image/png' : 'image/jpeg', file.type === 'image/png' ? 1.0 : 0.85);
+            };
+            img.onerror = () => alert('Failed to load image.');
+            img.src = e.target.result;
+        };
+        reader.onerror = () => alert('Failed to read file.');
+        reader.readAsDataURL(file);
+    }
+
+    private uploadEmailLogo(file: File | Blob, originalName?: string): void {
+        const formData = new FormData();
+        const fileToUpload = file instanceof File ? file : new File([file], originalName || 'logo.jpg', { type: file.type || 'image/jpeg' });
+        formData.append('logo', fileToUpload);
+
+        const token = sessionStorage.getItem('rdio-scanner-admin-token');
+        if (!token) {
+            alert('Not authenticated. Please log in again.');
+            return;
+        }
+
+        const headers = new HttpHeaders({ 'Authorization': token });
+
+        this.http.post(`${window.location.origin}/api/admin/email-logo`, formData, { headers })
+            .subscribe({
+                next: (response: any) => {
+                    if (response.success && response.filename) {
+                        this.form?.get('emailLogoFilename')?.setValue(response.filename, { emitEvent: false });
+                        this.emailLogoErrorRetryCount = 0;
+                        this.emailLogoUrl = `${window.location.origin}/email-logo?t=${Date.now()}`;
+                        this.cdr.detectChanges();
+                        this.snackBar.open('Email logo uploaded successfully', 'Close', { duration: 3000 });
+                        this.form?.markAsDirty();
+                    } else {
+                        alert('Failed to upload logo: ' + (response.error || 'Unknown error'));
+                    }
+                },
+                error: (error) => {
+                    console.error('Logo upload error:', error);
+                    let errorMsg = 'Failed to upload logo.';
+                    if (error.status === 0) {
+                        errorMsg += ' The file may be too large or the connection timed out.';
+                    } else if (error.status === 413) {
+                        errorMsg += ' The file is too large.';
+                    } else if (error.error && error.error.error) {
+                        errorMsg += ' ' + error.error.error;
+                    }
+                    alert(errorMsg);
+                }
+            });
+    }
+
+    removeEmailLogo(): void {
+        const token = sessionStorage.getItem('rdio-scanner-admin-token');
+        if (!token) {
+            alert('Not authenticated. Please log in again.');
+            return;
+        }
+
+        const headers = new HttpHeaders({ 'Authorization': token });
+
+        this.http.delete(`${window.location.origin}/api/admin/email-logo/delete`, { headers })
+            .subscribe({
+                next: (response: any) => {
+                    if (response.success) {
+                        this.form?.get('emailLogoFilename')?.setValue('', { emitEvent: false });
+                        this.emailLogoUrl = '';
+                        this.emailLogoErrorRetryCount = 0;
+                        this.cdr.detectChanges();
+                        this.snackBar.open('Email logo removed successfully', 'Close', { duration: 3000 });
+                        this.form?.markAsDirty();
+                    } else {
+                        alert('Failed to remove logo: ' + (response.error || 'Unknown error'));
+                    }
+                },
+                error: (error) => {
+                    console.error('Logo removal error:', error);
+                    alert('Failed to remove logo: ' + (error.error?.error || error.message || 'Unknown error'));
+                }
+            });
+    }
+
+    onEmailLogoLoad(): void {
+        this.emailLogoErrorRetryCount = 0;
+        this.cdr.detectChanges();
+    }
+
+    onEmailLogoError(): void {
+        if (this.emailLogoUrl && this.emailLogoErrorRetryCount < this.MAX_EMAIL_LOGO_RETRIES) {
+            this.emailLogoErrorRetryCount++;
+            const url = new URL(this.emailLogoUrl);
+            url.searchParams.set('t', Date.now().toString());
+            this.emailLogoUrl = url.toString();
+            this.cdr.detectChanges();
+        } else {
+            this.emailLogoUrl = '';
+            this.emailLogoErrorRetryCount = 0;
+            this.cdr.detectChanges();
+        }
+    }
+
+    // Test email functionality
+    testEmailAddress: string = '';
+    sendingTestEmail: boolean = false;
+    testEmailError: string = '';
+    testEmailSuccess: string = '';
+
+    sendTestEmail(): void {
+        if (!this.testEmailAddress || !this.testEmailAddress.trim()) {
+            this.testEmailError = 'Please enter a recipient email address';
+            this.testEmailSuccess = '';
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(this.testEmailAddress)) {
+            this.testEmailError = 'Please enter a valid email address';
+            this.testEmailSuccess = '';
+            return;
+        }
+
+        const token = sessionStorage.getItem('rdio-scanner-admin-token');
+        if (!token) {
+            this.testEmailError = 'Not authenticated. Please log in again.';
+            this.testEmailSuccess = '';
+            return;
+        }
+
+        this.sendingTestEmail = true;
+        this.testEmailError = '';
+        this.testEmailSuccess = '';
+
+        const headers = new HttpHeaders({
+            'Authorization': token,
+            'Content-Type': 'application/json'
+        });
+
+        this.http.post(`${window.location.origin}/api/admin/email-test`, 
+            { toEmail: this.testEmailAddress.trim() }, 
+            { headers })
+            .subscribe({
+                next: (response: any) => {
+                    this.sendingTestEmail = false;
+                    if (response.success) {
+                        this.testEmailSuccess = response.message || 'Test email sent successfully!';
+                        this.testEmailError = '';
+                    } else {
+                        this.testEmailError = response.error || 'Failed to send test email';
+                        this.testEmailSuccess = '';
+                    }
+                    this.cdr.detectChanges();
+                },
+                error: (error) => {
+                    this.sendingTestEmail = false;
+                    console.error('Test email error:', error);
+                    let errorMsg = 'Failed to send test email.';
+                    
+                    if (error.error) {
+                        if (typeof error.error === 'string') {
+                            errorMsg = error.error;
+                        } else if (error.error.error) {
+                            errorMsg = error.error.error;
+                        } else if (error.error.message) {
+                            errorMsg = error.error.message;
+                        }
+                    } else if (error.message) {
+                        errorMsg = error.message;
+                    }
+                    
+                    if (errorMsg === 'Failed to send test email.') {
+                        if (error.status === 0) {
+                            errorMsg = 'Connection error. Please check your network connection.';
+                        } else if (error.status === 401) {
+                            errorMsg = 'Authentication failed. Please log in again.';
+                        } else if (error.status === 500) {
+                            errorMsg = 'Server error occurred. Check server logs for details.';
+                        }
+                    }
+                    
+                    this.testEmailError = errorMsg;
+                    this.testEmailSuccess = '';
+                    this.cdr.detectChanges();
+                }
+            });
+    }
+
     generateExternalAPIKey(): void {
         if (!this.form) return;
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -498,6 +837,94 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
         this.form.get('centralManagementAPIKey')?.setValue(key);
         this.form.markAsDirty();
         this.snackBar.open('New API key generated — save your configuration to apply it.', 'Close', { duration: 5000 });
+    }
+
+    async generateFaviconFromLogo(): Promise<void> {
+        if (!this.hasEmailLogo() || !this.emailLogoUrl) {
+            this.snackBar.open('No server logo found. Please upload a server logo first.', 'Close', { duration: 3000 });
+            return;
+        }
+
+        try {
+            // Create an image element to load the logo
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = () => reject(new Error('Failed to load server logo'));
+                img.src = this.emailLogoUrl;
+            });
+
+            // Create a canvas to resize the logo to favicon size (32x32)
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+                throw new Error('Failed to create canvas context');
+            }
+
+            // Get the border radius setting
+            const borderRadius = this.form?.get('emailLogoBorderRadius')?.value || '0px';
+            
+            // Parse border radius (handle px, %, or unitless numbers)
+            let radius = 0;
+            if (borderRadius.includes('%')) {
+                // If percentage, apply to 32x32 canvas
+                const percent = parseFloat(borderRadius);
+                radius = (32 * percent) / 100;
+            } else {
+                // Parse as pixels
+                radius = parseFloat(borderRadius) || 0;
+                // Scale the radius proportionally if the original logo is larger
+                // Assume typical logo is ~200px, scale to 32px
+                radius = (radius * 32) / 200;
+            }
+
+            // Apply border radius clipping if set
+            if (radius > 0) {
+                ctx.beginPath();
+                
+                // Create rounded rectangle path
+                const x = 0, y = 0, width = 32, height = 32;
+                ctx.moveTo(x + radius, y);
+                ctx.lineTo(x + width - radius, y);
+                ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+                ctx.lineTo(x + width, y + height - radius);
+                ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                ctx.lineTo(x + radius, y + height);
+                ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+                ctx.lineTo(x, y + radius);
+                ctx.quadraticCurveTo(x, y, x + radius, y);
+                ctx.closePath();
+                
+                ctx.clip();
+            }
+
+            // Draw the image scaled to 32x32
+            ctx.drawImage(img, 0, 0, 32, 32);
+
+            // Convert canvas to blob
+            const blob = await new Promise<Blob>((resolve, reject) => {
+                canvas.toBlob((b) => {
+                    if (b) resolve(b);
+                    else reject(new Error('Failed to create favicon blob'));
+                }, 'image/png');
+            });
+
+            // Create a file from the blob
+            const file = new File([blob], 'favicon.png', { type: 'image/png' });
+
+            // Upload the favicon
+            await this.uploadFavicon(file);
+
+            this.snackBar.open('Favicon generated successfully from server logo!', 'Close', { duration: 3000 });
+        } catch (error) {
+            console.error('Error generating favicon:', error);
+            this.snackBar.open('Failed to generate favicon. Please try uploading manually.', 'Close', { duration: 5000 });
+        }
     }
 
     testCentralConnection(): void {
@@ -530,5 +957,26 @@ export class RdioScannerAdminOptionsComponent implements OnInit, OnDestroy, OnCh
                 this.snackBar.open('Connection test failed', 'Close', { duration: 5000 });
             }
         });
+    }
+
+    // Helper methods for array handling in templates
+    getAssemblyAIWordBoostDisplay(): string {
+        const wordBoost = this.form?.get('transcriptionConfig')?.get('assemblyAIWordBoost')?.value;
+        return Array.isArray(wordBoost) ? wordBoost.join(',') : '';
+    }
+
+    setAssemblyAIWordBoost(value: string): void {
+        const terms = value.split(',').map(s => s.trim()).filter(s => s);
+        this.form?.get('transcriptionConfig')?.get('assemblyAIWordBoost')?.setValue(terms);
+    }
+
+    getHallucinationPatternsDisplay(): string {
+        const patterns = this.form?.get('transcriptionConfig')?.get('hallucinationPatterns')?.value;
+        return Array.isArray(patterns) ? patterns.join('\n') : '';
+    }
+
+    setHallucinationPatterns(value: string): void {
+        const patterns = value.split('\n').map(s => s.trim()).filter(s => s);
+        this.form?.get('transcriptionConfig')?.get('hallucinationPatterns')?.setValue(patterns);
     }
 }

@@ -1070,6 +1070,222 @@ func (es *EmailService) SendVerificationEmail(user *User) error {
 	return nil
 }
 
+// SendSignupVerificationEmail sends a verification CODE (not link) during signup
+func (es *EmailService) SendSignupVerificationEmail(email, verificationCode string) error {
+	// Check if email service is enabled and configured
+	if !es.Controller.Options.EmailServiceEnabled {
+		log.Printf("Email service is disabled")
+		return fmt.Errorf("email service is disabled")
+	}
+
+	// Validate email provider configuration
+	if es.Controller.Options.EmailProvider == "" {
+		log.Printf("Email provider not configured")
+		return fmt.Errorf("email provider not configured")
+	}
+
+	provider := strings.ToLower(es.Controller.Options.EmailProvider)
+	if provider == "sendgrid" && es.Controller.Options.EmailSendGridAPIKey == "" {
+		log.Printf("SendGrid API key not configured")
+		return fmt.Errorf("SendGrid API key not configured")
+	}
+	if provider == "mailgun" && (es.Controller.Options.EmailMailgunAPIKey == "" || es.Controller.Options.EmailMailgunDomain == "") {
+		log.Printf("Mailgun not properly configured - missing API key or domain")
+		return fmt.Errorf("Mailgun not properly configured")
+	}
+	if provider == "smtp" && es.Controller.Options.EmailSmtpHost == "" {
+		log.Printf("SMTP host not configured")
+		return fmt.Errorf("SMTP host not configured")
+	}
+	if es.Controller.Options.EmailSmtpFromEmail == "" {
+		log.Printf("From email address not configured")
+		return fmt.Errorf("from email address not configured")
+	}
+
+	// Get branding
+	branding := es.Controller.Options.Branding
+	if branding == "" {
+		branding = "ThinLine Radio"
+	}
+
+	// Get from name
+	fromName := es.Controller.Options.EmailSmtpFromName
+	if fromName == "" {
+		fromName = branding
+	}
+
+	// Get logo URL (if uploaded by admin)
+	var logoURL string
+	if es.Controller.Options.EmailLogoFilename != "" {
+		baseUrl := es.Controller.Options.BaseUrl
+		if baseUrl == "" {
+			baseUrl = "https://localhost:8080"
+		} else {
+			if strings.HasPrefix(baseUrl, "http://") {
+				baseUrl = strings.Replace(baseUrl, "http://", "https://", 1)
+			} else if !strings.HasPrefix(baseUrl, "https://") {
+				baseUrl = "https://" + baseUrl
+			}
+		}
+		logoURL = baseUrl + "/email-logo"
+	}
+
+	// Get border radius for logo
+	borderRadius := es.Controller.Options.EmailLogoBorderRadius
+	if borderRadius == "" {
+		borderRadius = "0px"
+	}
+
+	// Generate email HTML with verification code
+	htmlBody := getSignupVerificationEmailHTML(email, verificationCode, branding, logoURL, borderRadius)
+
+	// Set up email headers
+	fromEmail := es.Controller.Options.EmailSmtpFromEmail
+	toEmail := email
+	subject := fmt.Sprintf("📻 Email Verification Code - %s", branding)
+
+	// Extract domain for HELO
+	domain := extractDomainFromEmail(fromEmail)
+
+	log.Printf("📧 Sending signup verification email to %s with HELO %s...", email, domain)
+
+	// Remove emojis from subject and body
+	subject = removeEmojis(subject)
+	htmlBody = removeEmojisFromHTML(htmlBody)
+	
+	// Send email using provider routing
+	if err := es.sendEmail(fromName, fromEmail, toEmail, subject, htmlBody); err != nil {
+		return err
+	}
+
+	log.Printf("✅ Signup verification email sent successfully to %s", email)
+	return nil
+}
+
+// getSignupVerificationEmailHTML generates the HTML content for signup verification code emails
+func getSignupVerificationEmailHTML(email, verificationCode, branding, logoURL, borderRadius string) string {
+	if branding == "" {
+		branding = "ThinLine Radio"
+	}
+	
+	htmlTemplate := `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - {{.Branding}}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            max-width: 200px;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin: 0 0 20px 0;
+            font-size: 24px;
+        }
+        .code-box {
+            background-color: #f8f9fa;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin: 30px 0;
+        }
+        .code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+            letter-spacing: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            {{if .LogoURL}}
+            <img src="{{.LogoURL}}" alt="{{.Branding}}" class="logo" style="border-radius: {{.BorderRadius}};">
+            {{end}}
+            <h1>Verify Your Email</h1>
+        </div>
+        
+        <p>Hello,</p>
+        
+        <p>Thank you for signing up for <strong>{{.Branding}}</strong>!</p>
+        
+        <p>Please enter the following verification code to complete your registration:</p>
+        
+        <div class="code-box">
+            <div class="code">{{.Code}}</div>
+        </div>
+        
+        <p><strong>This code will expire in 15 minutes.</strong></p>
+        
+        <p>If you didn't request this code, you can safely ignore this email.</p>
+        
+        <div class="footer">
+            <p>This is an automated message from {{.Branding}}.</p>
+        </div>
+    </div>
+</body>
+</html>`
+
+	data := map[string]string{
+		"Email":        email,
+		"Code":         verificationCode,
+		"Branding":     branding,
+		"LogoURL":      logoURL,
+		"BorderRadius": borderRadius,
+	}
+
+	html := htmlTemplate
+	html = strings.ReplaceAll(html, "{{.Email}}", data["Email"])
+	html = strings.ReplaceAll(html, "{{.Code}}", data["Code"])
+	html = strings.ReplaceAll(html, "{{.Branding}}", data["Branding"])
+	html = strings.ReplaceAll(html, "{{.LogoURL}}", data["LogoURL"])
+	html = strings.ReplaceAll(html, "{{.BorderRadius}}", data["BorderRadius"])
+
+	// Handle conditional logo
+	if logoURL == "" {
+		html = strings.ReplaceAll(html, "{{if .LogoURL}}", "<!--")
+		html = strings.ReplaceAll(html, "{{end}}", "-->")
+	} else {
+		html = strings.ReplaceAll(html, "{{if .LogoURL}}", "")
+		html = strings.ReplaceAll(html, "{{end}}", "")
+	}
+
+	return html
+}
+
 // getPasswordResetEmailHTML generates the HTML content for password reset emails
 func getPasswordResetEmailHTML(resetCode, branding, logoURL, borderRadius string) string {
 	if branding == "" {

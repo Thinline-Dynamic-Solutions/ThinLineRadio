@@ -71,6 +71,12 @@ type Controller struct {
 	AlertEngine                      *AlertEngine
 	HallucinationDetector            *HallucinationDetector
 	CentralManagement                *CentralManagementService
+	// Performance caches
+	PreferencesCache                 *PreferencesCache
+	KeywordListsCache                *KeywordListsCache
+	IdLookupsCache                   *IdLookupsCache
+	RecentAlertsCache                *RecentAlertsCache
+	DedupCache                       *DedupCache
 	Register                         chan *Client
 	Unregister                       chan *Client
 	Ingest                           chan *Call
@@ -100,6 +106,10 @@ type Controller struct {
 
 	// Stop channel for the system health monitoring ticker (StartSystemHealthMonitoring)
 	healthMonitorStop chan struct{}
+
+	// Stop channels for per-system no-audio monitoring goroutines
+	noAudioMonitorStops   map[uint64]chan struct{}
+	noAudioMonitorStopsMu sync.Mutex
 
 	// Rate limiting
 	RateLimiter         *RateLimiter
@@ -176,6 +186,13 @@ func NewController(config *Config) *Controller {
 	controller.Delayer = NewDelayer(controller)
 	controller.Downstreams = NewDownstreams(controller)
 	controller.Scheduler = NewScheduler(controller)
+
+	// Initialize performance caches
+	controller.PreferencesCache = NewPreferencesCache(controller)
+	controller.KeywordListsCache = NewKeywordListsCache(controller)
+	controller.IdLookupsCache = NewIdLookupsCache(controller)
+	controller.RecentAlertsCache = NewRecentAlertsCache(controller)
+	controller.DedupCache = NewDedupCache(defaults.options.duplicateDetectionTimeFrame)
 
 	controller.Logs.setDaemon(config.daemon)
 	controller.Logs.setDatabase(controller.Database)
@@ -402,6 +419,8 @@ func (controller *Controller) IngestCall(call *Call) {
 		system.Id = uint64(systemId)
 		system.SystemRef = systemId
 		system.AutoPopulate = true
+		system.AlertsEnabled = true
+		system.AutoPopulateAlertsEnabled = true
 
 		if len(call.Meta.SystemLabel) > 0 {
 			system.Label = call.Meta.SystemLabel
@@ -488,12 +507,13 @@ func (controller *Controller) IngestCall(call *Call) {
 			}
 
 			talkgroup = &Talkgroup{
-				GroupIds:     []uint64{groupId},
-				Label:        fmt.Sprintf("%d", talkgroupId),
-				Name:         fmt.Sprintf("%d", talkgroupId),
-				TalkgroupRef: talkgroupId,
-				TagId:        tagId,
-				Order:        maxOrder + 1, // Assign order at the end of the list
+				GroupIds:        []uint64{groupId},
+				Label:           fmt.Sprintf("%d", talkgroupId),
+				Name:            fmt.Sprintf("%d", talkgroupId),
+				TalkgroupRef:    talkgroupId,
+				TagId:           tagId,
+				Order:           maxOrder + 1, // Assign order at the end of the list
+				AlertsEnabled:   system.AutoPopulateAlertsEnabled,
 			}
 
 			// Update label and name if provided (v6 style)
@@ -683,11 +703,10 @@ func (controller *Controller) IngestCall(call *Call) {
 	// CRITICAL: Ensure talkgroup.Id is set before WriteCall (WriteCall uses it on line 641)
 	// If Id is still 0, query the database to get it
 	if call.Talkgroup != nil && call.Talkgroup.Id == 0 && call.Talkgroup.TalkgroupRef > 0 && system != nil && system.Id > 0 {
-		var dbTalkgroupId uint64
-		query := fmt.Sprintf(`SELECT "talkgroupId" FROM "talkgroups" WHERE "systemId" = %d AND "talkgroupRef" = %d LIMIT 1`, system.Id, call.Talkgroup.TalkgroupRef)
-		if err := controller.Database.Sql.QueryRow(query).Scan(&dbTalkgroupId); err == nil && dbTalkgroupId > 0 {
-			call.Talkgroup.Id = dbTalkgroupId
-			talkgroup.Id = dbTalkgroupId
+		// Use cache to resolve talkgroup ID
+		if id, ok := controller.IdLookupsCache.GetTalkgroupId(system.Id, call.Talkgroup.TalkgroupRef); ok {
+			call.Talkgroup.Id = id
+			talkgroup.Id = id
 		}
 	}
 
@@ -815,6 +834,17 @@ func (controller *Controller) IngestCall(call *Call) {
 		// Legacy mode (explicit legacy setting, or fallback when advanced not configured/available)
 		// Uses legacy timeframe
 		if !useAdvanced || err != nil {
+			// In-memory check first to close the race window where two identical
+			// calls arrive simultaneously and both pass the DB check.
+			if controller.DedupCache != nil && controller.DedupCache.CheckAndMark(
+				call.System.Id, call.Talkgroup.Id,
+				call.Timestamp.UnixMilli(),
+				controller.Options.DuplicateDetectionTimeFrame,
+			) {
+				logCall(call, LogLevelWarn, "duplicate (legacy/cache)")
+				return
+			}
+
 			isDuplicate, err = controller.Calls.CheckDuplicate(
 				call,
 				controller.Options.DuplicateDetectionTimeFrame,
@@ -894,17 +924,16 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 		call.Id = id
 		// After writing, query the database to get the talkgroup ID that was actually written
 		// This ensures we have the correct database ID for logging (like v6 did)
+		// First try to get from cache, fallback to database query if needed
 		var dbTalkgroupId uint64
-		query := fmt.Sprintf(`SELECT "talkgroupId" FROM "calls" WHERE "callId" = %d`, call.Id)
-		if err := controller.Database.Sql.QueryRow(query).Scan(&dbTalkgroupId); err == nil && dbTalkgroupId > 0 {
-			if call.Talkgroup != nil {
+		if call.Talkgroup != nil && system != nil && call.Talkgroup.TalkgroupRef > 0 && system.Id > 0 {
+			if id, ok := controller.IdLookupsCache.GetTalkgroupId(system.Id, call.Talkgroup.TalkgroupRef); ok {
+				dbTalkgroupId = id
 				call.Talkgroup.Id = dbTalkgroupId
-			}
-		} else {
-			// If query failed, try querying talkgroups table directly
-			if call.Talkgroup != nil && system != nil && call.Talkgroup.TalkgroupRef > 0 && system.Id > 0 {
-				query2 := fmt.Sprintf(`SELECT "talkgroupId" FROM "talkgroups" WHERE "systemId" = %d AND "talkgroupRef" = %d LIMIT 1`, system.Id, call.Talkgroup.TalkgroupRef)
-				if err2 := controller.Database.Sql.QueryRow(query2).Scan(&dbTalkgroupId); err2 == nil && dbTalkgroupId > 0 {
+			} else {
+				// Fallback to database query if not in cache
+				query := fmt.Sprintf(`SELECT "talkgroupId" FROM "calls" WHERE "callId" = %d`, call.Id)
+				if err := controller.Database.Sql.QueryRow(query).Scan(&dbTalkgroupId); err == nil && dbTalkgroupId > 0 {
 					call.Talkgroup.Id = dbTalkgroupId
 				}
 			}
@@ -1419,9 +1448,8 @@ func (controller *Controller) storePendingTones(call *Call, toneSequence *ToneSe
 		// register a second pending-tones entry keyed by the linked talkgroup's DB ID.
 		// The mutex is still held here, so we look up the linked ID under the lock (fast PK query).
 		if call.Talkgroup.LinkedVoiceTalkgroupRef > 0 {
-			var linkedTalkgroupId uint64
-			linkQuery := fmt.Sprintf(`SELECT "talkgroupId" FROM "talkgroups" WHERE "systemId" = %d AND "talkgroupRef" = %d LIMIT 1`, call.System.Id, call.Talkgroup.LinkedVoiceTalkgroupRef)
-			if err := controller.Database.Sql.QueryRow(linkQuery).Scan(&linkedTalkgroupId); err == nil && linkedTalkgroupId > 0 {
+			// Use cache to resolve linked talkgroup ID
+			if linkedTalkgroupId, ok := controller.IdLookupsCache.GetTalkgroupId(call.System.Id, call.Talkgroup.LinkedVoiceTalkgroupRef); ok && linkedTalkgroupId > 0 {
 				windowSecs := call.Talkgroup.LinkedVoiceWindowSeconds
 				if windowSecs == 0 {
 					windowSecs = 30 // sensible default: 30-second look-forward window
@@ -1443,8 +1471,8 @@ func (controller *Controller) storePendingTones(call *Call, toneSequence *ToneSe
 				))
 			} else {
 				controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf(
-					"cross-talkgroup watch: could not resolve linkedVoiceTalkgroupRef %d for talkgroup %d: %v",
-					call.Talkgroup.LinkedVoiceTalkgroupRef, call.Talkgroup.TalkgroupRef, err,
+					"cross-talkgroup watch: could not resolve linkedVoiceTalkgroupRef %d for talkgroup %d (not in cache)",
+					call.Talkgroup.LinkedVoiceTalkgroupRef, call.Talkgroup.TalkgroupRef,
 				))
 			}
 		}
@@ -1701,17 +1729,21 @@ func (controller *Controller) checkAndAttachPendingTones(call *Call) bool {
 	talkgroupId := call.Talkgroup.Id
 
 	if systemId == 0 && call.System.SystemRef > 0 {
-		query := fmt.Sprintf(`SELECT "systemId" FROM "systems" WHERE "systemRef" = %d LIMIT 1`, call.System.SystemRef)
-		if err := controller.Database.Sql.QueryRow(query).Scan(&systemId); err != nil {
-			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("checkAndAttachPendingTones: failed to resolve systemId from systemRef %d: %v", call.System.SystemRef, err))
+		// Use cache to resolve system ID
+		if id, ok := controller.IdLookupsCache.GetSystemId(call.System.SystemRef); ok {
+			systemId = id
+		} else {
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("checkAndAttachPendingTones: failed to resolve systemId from systemRef %d", call.System.SystemRef))
 			return false
 		}
 	}
 
 	if talkgroupId == 0 && call.Talkgroup.TalkgroupRef > 0 && systemId > 0 {
-		query := fmt.Sprintf(`SELECT "talkgroupId" FROM "talkgroups" WHERE "systemId" = %d AND "talkgroupRef" = %d LIMIT 1`, systemId, call.Talkgroup.TalkgroupRef)
-		if err := controller.Database.Sql.QueryRow(query).Scan(&talkgroupId); err != nil {
-			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("checkAndAttachPendingTones: failed to resolve talkgroupId from talkgroupRef %d: %v", call.Talkgroup.TalkgroupRef, err))
+		// Use cache to resolve talkgroup ID
+		if id, ok := controller.IdLookupsCache.GetTalkgroupId(systemId, call.Talkgroup.TalkgroupRef); ok {
+			talkgroupId = id
+		} else {
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("checkAndAttachPendingTones: failed to resolve talkgroupId from talkgroupRef %d", call.Talkgroup.TalkgroupRef))
 			return false
 		}
 	}
@@ -2529,22 +2561,28 @@ func (controller *Controller) queueTranscriptionJobIfNeeded(call *Call, priority
 
 // hasUsersWithToneAlerts checks if any user has tone alerts enabled for this talkgroup
 func (controller *Controller) hasUsersWithToneAlerts(systemId uint64, talkgroupId uint64) bool {
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM "userAlertPreferences" WHERE "systemId" = %d AND "talkgroupId" = %d AND "alertEnabled" = true AND "toneAlerts" = true`, systemId, talkgroupId)
-	var count uint64
-	if err := controller.Database.Sql.QueryRow(query).Scan(&count); err != nil {
-		return false
+	// Check cache instead of database
+	userIds := controller.PreferencesCache.GetUsersForTalkgroup(systemId, talkgroupId)
+	for _, userId := range userIds {
+		pref := controller.PreferencesCache.GetPreference(userId, systemId, talkgroupId)
+		if pref != nil && pref.AlertEnabled && pref.ToneAlerts {
+			return true
+		}
 	}
-	return count > 0
+	return false
 }
 
 // hasUsersWithKeywordAlerts checks if any user has keyword alerts enabled for this talkgroup
 func (controller *Controller) hasUsersWithKeywordAlerts(systemId uint64, talkgroupId uint64) bool {
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM "userAlertPreferences" WHERE "systemId" = %d AND "talkgroupId" = %d AND "alertEnabled" = true AND "keywordAlerts" = true`, systemId, talkgroupId)
-	var count uint64
-	if err := controller.Database.Sql.QueryRow(query).Scan(&count); err != nil {
-		return false
+	// Check cache instead of database
+	userIds := controller.PreferencesCache.GetUsersForTalkgroup(systemId, talkgroupId)
+	for _, userId := range userIds {
+		pref := controller.PreferencesCache.GetPreference(userId, systemId, talkgroupId)
+		if pref != nil && pref.AlertEnabled && pref.KeywordAlerts {
+			return true
+		}
 	}
-	return count > 0
+	return false
 }
 
 func (controller *Controller) LogClientsCount() {
@@ -3229,7 +3267,7 @@ func (controller *Controller) readAllData() error {
 		}
 	}
 
-	wg.Add(12)
+	wg.Add(16)
 	go readFunc(func() error { return controller.Apikeys.Read(controller.Database) }, "apikeys")
 	go readFunc(func() error { return controller.Dirwatches.Read(controller.Database) }, "dirwatches")
 	go readFunc(func() error { return controller.Downstreams.Read(controller.Database) }, "downstreams")
@@ -3244,6 +3282,12 @@ func (controller *Controller) readAllData() error {
 	go readFunc(func() error { return controller.RegistrationCodes.Load(controller.Database) }, "registrationCodes")
 	go readFunc(func() error { return controller.TransferRequests.Load(controller.Database) }, "transferRequests")
 	go readFunc(func() error { return controller.DeviceTokens.Load(controller.Database) }, "deviceTokens")
+
+	// Load performance caches
+	go readFunc(func() error { return controller.PreferencesCache.Read(controller.Database) }, "preferencesCache")
+	go readFunc(func() error { return controller.KeywordListsCache.Read(controller.Database) }, "keywordListsCache")
+	go readFunc(func() error { return controller.IdLookupsCache.Read(controller.Database) }, "idLookupsCache")
+	go readFunc(func() error { return controller.RecentAlertsCache.Read(controller.Database) }, "recentAlertsCache")
 
 	// Wait for all reads to complete
 	wg.Wait()
@@ -3263,7 +3307,7 @@ func (controller *Controller) readAllData() error {
 	if controller.ReconnectionMgr != nil {
 		controller.ReconnectionMgr.HoldDuration = time.Duration(controller.Options.ReconnectionGracePeriod) * time.Second
 		controller.ReconnectionMgr.MaxBufferSize = int(controller.Options.ReconnectionMaxBufferSize)
-		controller.ReconnectionMgr.Enabled = controller.Options.ReconnectionEnabled
+		controller.ReconnectionMgr.Enabled = true // Always enabled — not user-configurable
 		log.Printf("[ReconnectionManager] Configured - Enabled: %v, Grace Period: %ds, Max Buffer: %d",
 			controller.ReconnectionMgr.Enabled,
 			controller.Options.ReconnectionGracePeriod,
@@ -3528,12 +3572,25 @@ func (controller *Controller) Terminate() {
 		close(controller.healthMonitorStop)
 	}
 
+	// Stop all per-system no-audio monitoring goroutines
+	controller.noAudioMonitorStopsMu.Lock()
+	for _, ch := range controller.noAudioMonitorStops {
+		close(ch)
+	}
+	controller.noAudioMonitorStops = nil
+	controller.noAudioMonitorStopsMu.Unlock()
+
 	// Stop auto-updater background goroutine
 	if controller.Updater != nil {
 		controller.Updater.Stop()
 	}
 
 	controller.Dirwatches.Stop()
+
+	// Stop dedup cache eviction goroutine
+	if controller.DedupCache != nil {
+		controller.DedupCache.Stop()
+	}
 
 	// Stop transcription queue
 	if controller.TranscriptionQueue != nil {

@@ -26,6 +26,28 @@
             </div>
         </div>
         <div class="header-right">
+            <!-- Unsaved changes indicator -->
+            <div class="unsaved-badge" *ngIf="authenticated && onConfigTab && formDirty">
+                <span class="unsaved-dot"></span>
+                <span class="unsaved-label">Unsaved changes</span>
+            </div>
+
+            <!-- Save / Reset — Config tab only -->
+            <ng-container *ngIf="authenticated && onConfigTab">
+                <button type="button" mat-stroked-button class="header-action-btn header-reset-btn"
+                        [disabled]="configLoading || !formDirty"
+                        (click)="resetConfig()">
+                    <mat-icon>undo</mat-icon>
+                    <span class="btn-label">Reset</span>
+                </button>
+                <button type="button" mat-raised-button class="header-action-btn header-save-btn"
+                        [disabled]="configLoading || !formDirty || !formValid"
+                        (click)="saveConfig()">
+                    <mat-icon>save</mat-icon>
+                    <span class="btn-label">Save</span>
+                </button>
+            </ng-container>
+
             <span class="header-badge">
                 <mat-icon>admin_panel_settings</mat-icon>
                 Admin Console
@@ -41,6 +63,6 @@
         </div>
     </header>
     <main class="admin-body">
-        <rdio-scanner-admin></rdio-scanner-admin>
+        <rdio-scanner-admin #adminComponent></rdio-scanner-admin>
     </main>
 </div>

@@ -18,16 +18,13 @@
 -->
 <div class="config-layout">
 
+    <!-- Prevent Chrome/Edge from showing "save password" prompts on admin fields -->
+    <input type="text" autocomplete="username" aria-hidden="true" tabindex="-1" style="display:none">
+    <input type="password" autocomplete="current-password" aria-hidden="true" tabindex="-1" style="display:none">
+
     <!-- ── Left Sidebar Navigation ──────────────────────────── -->
     <nav class="config-sidebar">
         <div class="sidebar-section-label">Configuration Sections</div>
-
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'user-registration'"
-                (click)="setSection('user-registration')">
-            <mat-icon>person_add</mat-icon>
-            <span>User Registration</span>
-        </button>
 
         <button type="button" class="sidebar-item"
                 [class.active]="activeSection === 'user-groups'"
@@ -135,8 +132,8 @@
             <span>Keyword Lists</span>
         </button>
 
-        <!-- Save / Reset at bottom of sidebar -->
-        <div class="sidebar-actions">
+        <!-- Save / Reset at bottom of sidebar (hidden when header bar owns them) -->
+        <div class="sidebar-actions" *ngIf="!hideActions">
             <button type="button" mat-raised-button class="btn-reset"
                     [disabled]="loading || !form || form.disabled || form.pristine"
                     (click)="reset()">
@@ -163,14 +160,6 @@
 
         <form *ngIf="!loading && form" autocomplete="off" [formGroup]="form" class="config-form-body">
         <ng-container [ngSwitch]="activeSection">
-
-            <ng-container *ngSwitchCase="'user-registration'">
-                <div class="section-header">
-                    <mat-icon>person_add</mat-icon>
-                    <h3>User Registration</h3>
-                </div>
-                <rdio-scanner-admin-user-registration [form]="options"></rdio-scanner-admin-user-registration>
-            </ng-container>
 
             <ng-container *ngSwitchCase="'user-groups'">
                 <div class="section-header">
@@ -220,7 +209,7 @@
                     <mat-icon>workspaces</mat-icon>
                     <h3>Groups</h3>
                 </div>
-                <rdio-scanner-admin-groups [form]="groups"></rdio-scanner-admin-groups>
+                <rdio-scanner-admin-groups [form]="groups" [originalConfig]="originalConfig"></rdio-scanner-admin-groups>
             </ng-container>
 
             <ng-container *ngSwitchCase="'options'">
@@ -228,7 +217,7 @@
                     <mat-icon>tune</mat-icon>
                     <h3>Options</h3>
                 </div>
-                <rdio-scanner-admin-options [form]="options" (saveRequested)="save()"></rdio-scanner-admin-options>
+                <rdio-scanner-admin-options [form]="options" [systemsForm]="systems" (saveRequested)="save()"></rdio-scanner-admin-options>
             </ng-container>
 
             <!-- Systems overview (landing when none selected) -->
@@ -252,7 +241,9 @@
                         [groups]="groupsValue"
                         [tags]="tagsValue"
                         [apikeys]="apikeysValue"
-                        (remove)="removeCurrentSystem()">
+                        [systemData]="getSystemData(activeSystemForm)"
+                        (remove)="removeCurrentSystem()"
+                        (onTalkgroupsLoaded)="markSystemTalkgroupsLoaded(activeSystemForm)">
                     </rdio-scanner-admin-system>
                 </ng-container>
             </ng-container>
@@ -262,7 +253,7 @@
                     <mat-icon>sell</mat-icon>
                     <h3>Tags</h3>
                 </div>
-                <rdio-scanner-admin-tags [form]="tags"></rdio-scanner-admin-tags>
+                <rdio-scanner-admin-tags [form]="tags" [originalConfig]="originalConfig"></rdio-scanner-admin-tags>
             </ng-container>
 
             <ng-container *ngSwitchCase="'keyword-lists'">

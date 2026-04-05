@@ -343,6 +343,76 @@ rdio-scanner-admin-config {
     .text-center {
         text-align: center;
     }
+
+    /* ── Expansion Panels for Options ──────────────────────────────────────── */
+    .section-panel {
+        background: #1e1e1e !important;
+        border: 1px solid #2a2a2a !important;
+        border-radius: 8px !important;
+        margin-bottom: 10px !important;
+        box-shadow: none !important;
+
+        &::before {
+            display: none !important; /* Remove default Material elevation shadow */
+        }
+
+        .mat-expansion-panel-header {
+            padding: 10px 18px !important;
+            height: auto !important;
+            min-height: 48px !important;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.03) !important;
+            }
+
+            &.mat-expanded {
+                border-bottom: 1px solid #2a2a2a !important;
+            }
+        }
+
+        .mat-expansion-panel-header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #eee;
+
+            mat-icon {
+                color: #cc0000;
+                font-size: 20px;
+                width: 20px;
+                height: 20px;
+            }
+        }
+
+        .mat-expansion-panel-header-description {
+            color: #888;
+            font-size: 12px;
+            margin-left: 30px;
+        }
+
+        .mat-expansion-panel-body {
+            padding: 0 !important;
+        }
+
+        .panel-content {
+            padding: 16px 18px 18px;
+        }
+    }
+
+    /* Success/Error cards for connection status */
+    .success-card {
+        background-color: rgba(76, 175, 80, 0.1) !important;
+        border: 1px solid rgba(76, 175, 80, 0.3) !important;
+        color: #a5d6a7 !important;
+    }
+
+    .error-card {
+        background-color: rgba(244, 67, 54, 0.1) !important;
+        border: 1px solid rgba(244, 67, 54, 0.3) !important;
+        color: #ef9a9a !important;
+    }
 }
 
 /* ── Responsive: stack sidebar above content on small screens ─ */

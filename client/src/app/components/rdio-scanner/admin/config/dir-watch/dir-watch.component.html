@@ -78,7 +78,7 @@
                     </span>
                 </p>
                 <mat-form-field floatLabel="never">
-                    <input type="text" matInput formControlName="directory" placeholder="Directory">
+                    <input type="text" matInput formControlName="directory" placeholder="Directory" autocomplete="off">
                     <mat-error *ngIf="dirWatch.get('directory')?.hasError('required')">
                         Directory is required
                     </mat-error>
@@ -97,7 +97,7 @@
                         "wav".</span>
                 </p>
                 <mat-form-field floatLabel="never">
-                    <input type="text" matInput formControlName="extension" placeholder="Extension">
+                    <input type="text" matInput formControlName="extension" placeholder="Extension" autocomplete="off">
                     <mat-error *ngIf="dirWatch.get('extension')?.hasError('invalid')">
                         Invalid extension
                     </mat-error>
@@ -174,7 +174,7 @@
                     </span>
                 </p>
                 <mat-form-field floatLabel="never">
-                    <input type="text" matInput formControlName="mask" placeholder="Mask">
+                    <input type="text" matInput formControlName="mask" placeholder="Mask" autocomplete="off">
                     <mat-error *ngIf="dirWatch.get('mask')?.hasError('invalid')">
                         Invalid mask
                     </mat-error>
@@ -186,7 +186,7 @@
                     <span class="mat-caption">Fake frequency in hertz displayed on the main screen.</span>
                 </p>
                 <mat-form-field floatLabel="never">
-                    <input type="number" matInput formControlName="frequency" placeholder="Frequency">
+                    <input type="number" matInput formControlName="frequency" placeholder="Frequency" autocomplete="off">
                     <mat-error *ngIf="dirWatch.get('frequency')?.errors">
                         Invalid frequency
                     </mat-error>
@@ -200,7 +200,7 @@
                         settle before ingesting it.</span>
                 </p>
                 <mat-form-field floatLabel="never">
-                    <input type="number" matInput formControlName="delay" min="2000" placeholder="Delay">
+                    <input type="number" matInput formControlName="delay" min="2000" placeholder="Delay" autocomplete="off">
                     <mat-error *ngIf="dirWatch.get('delay')?.hasError('min')">
                         Delay value cannot be less than 2000 milliseconds.
                     </mat-error>

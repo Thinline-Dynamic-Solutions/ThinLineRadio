@@ -361,6 +361,11 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Add autoPopulateAlertsEnabled on systems (default true)
+	if err := migrateAutoPopulateAlertsEnabled(db); err != nil {
+		return formatError(err, "")
+	}
+
 	return nil
 }
 

@@ -49,7 +49,6 @@ type DefaultOptions struct {
 	audioConversion             uint
 	branding                    string
 	defaultSystemDelay          uint
-	dimmerDelay                 uint
 	disableDuplicateDetection   bool
 	duplicateDetectionMode      string
 	duplicateDetectionTimeFrame uint
@@ -68,6 +67,7 @@ type DefaultOptions struct {
 	userRegistrationEnabled     bool
 	publicRegistrationEnabled   bool
 	publicRegistrationMode      string
+	emailVerificationRequired   bool
 	stripePaywallEnabled        bool
 	emailServiceEnabled         bool
 	emailServiceApiKey          string
@@ -166,7 +166,6 @@ var defaults = Defaults{
 		audioConversion:             AUDIO_CONVERSION_ENABLED, // match rdio-scanner: on by default
 		branding:                    "",
 		defaultSystemDelay:          0,
-		dimmerDelay:                 30000,
 		disableDuplicateDetection:   false,
 		duplicateDetectionMode:      "legacy",
 		duplicateDetectionTimeFrame: 1000,
@@ -185,6 +184,7 @@ var defaults = Defaults{
 		userRegistrationEnabled:     true,
 		publicRegistrationEnabled:   false, // Default to invite-only
 		publicRegistrationMode:      "both",
+		emailVerificationRequired:   false, // Default to not requiring email verification
 		stripePaywallEnabled:        false,
 		emailServiceEnabled:         false,
 		emailServiceApiKey:          "",

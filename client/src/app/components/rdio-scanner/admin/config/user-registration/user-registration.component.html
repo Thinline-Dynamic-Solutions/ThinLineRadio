@@ -25,7 +25,7 @@
       <mat-form-field appearance="outline" class="leave-cm-input">
         <mat-label>Removal Code</mat-label>
         <input matInput [(ngModel)]="leaveCMCode" [ngModelOptions]="{standalone: true}"
-               placeholder="e.g. X4K9M2" maxlength="8" style="text-transform: uppercase; letter-spacing: 4px; font-size: 20px;">
+               placeholder="e.g. X4K9M2" maxlength="8" style="text-transform: uppercase; letter-spacing: 4px; font-size: 20px;" autocomplete="off">
       </mat-form-field>
       <div class="leave-cm-error" *ngIf="leaveCMError">{{ leaveCMError }}</div>
       <div class="leave-cm-actions">
@@ -41,7 +41,7 @@
   </div>
 
   <div *ngIf="!isCentrallyManaged">
-  <form [formGroup]="userRegistrationForm" (ngModelChange)="syncToParentForm()">
+  <form [formGroup]="userRegistrationForm" (ngModelChange)="syncToParentForm()" autocomplete="off">
     <div class="config-section">
       <h3>User Registration Settings</h3>
         <mat-form-field appearance="outline" class="full-width">
@@ -95,7 +95,7 @@
       <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'sendgrid'">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>SendGrid API Key</mat-label>
-          <input matInput type="password" formControlName="emailSendGridApiKey" placeholder="SG.xxxxxxxxxxxxx">
+          <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailSendGridApiKey" placeholder="SG.xxxxxxxxxxxxx">
           <mat-hint>Get your API key from <a href="https://app.sendgrid.com/settings/api_keys" target="_blank">SendGrid Dashboard</a></mat-hint>
         </mat-form-field>
       </div>
@@ -104,13 +104,13 @@
       <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'mailgun'">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Mailgun API Key</mat-label>
-          <input matInput type="password" formControlName="emailMailgunApiKey" placeholder="key-xxxxxxxxxxxxx">
+          <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailMailgunApiKey" placeholder="key-xxxxxxxxxxxxx">
           <mat-hint>Get your API key from <a href="https://app.mailgun.com/app/account/security/api_keys" target="_blank">Mailgun Dashboard</a></mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Mailgun Domain</mat-label>
-          <input matInput type="text" formControlName="emailMailgunDomain" placeholder="mg.yourdomain.com">
+          <input matInput type="text" formControlName="emailMailgunDomain" placeholder="mg.yourdomain.com" autocomplete="off">
           <mat-hint>Your verified sending domain in Mailgun</mat-hint>
         </mat-form-field>
 
@@ -128,25 +128,25 @@
       <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'smtp'">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>SMTP Host</mat-label>
-          <input matInput type="text" formControlName="emailSmtpHost" placeholder="smtp.example.com">
+          <input matInput type="text" formControlName="emailSmtpHost" placeholder="smtp.example.com" autocomplete="off">
           <mat-hint>SMTP server hostname or IP address</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>SMTP Port</mat-label>
-          <input matInput type="number" formControlName="emailSmtpPort" placeholder="587">
+          <input matInput type="number" formControlName="emailSmtpPort" placeholder="587" autocomplete="off">
           <mat-hint>Common ports: 25 (unencrypted), 465 (SSL/TLS), 587 (STARTTLS)</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>SMTP Username</mat-label>
-          <input matInput type="text" formControlName="emailSmtpUsername" placeholder="user@example.com">
+          <input matInput type="text" formControlName="emailSmtpUsername" placeholder="user@example.com" autocomplete="off">
           <mat-hint>Leave empty if authentication is not required</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>SMTP Password</mat-label>
-          <input matInput type="password" formControlName="emailSmtpPassword" placeholder="">
+          <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailSmtpPassword" placeholder="">
           <mat-hint>Leave empty if authentication is not required</mat-hint>
         </mat-form-field>
 
@@ -172,13 +172,13 @@
       <!-- Common Email Settings -->
       <mat-form-field appearance="outline" class="full-width" *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value">
         <mat-label>From Email Address</mat-label>
-        <input matInput type="email" formControlName="emailSmtpFromEmail" placeholder="noreply@example.com">
+        <input matInput type="email" formControlName="emailSmtpFromEmail" placeholder="noreply@example.com" autocomplete="off">
         <mat-hint>The email address emails will be sent from</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width" *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value">
         <mat-label>From Name</mat-label>
-        <input matInput type="text" formControlName="emailSmtpFromName" placeholder="ThinLine Radio">
+        <input matInput type="text" formControlName="emailSmtpFromName" placeholder="ThinLine Radio" autocomplete="off">
         <mat-hint>The display name for sent emails</mat-hint>
       </mat-form-field>
 
@@ -204,7 +204,7 @@
         <div *ngIf="hasLogo()" style="margin-top: 12px;">
           <mat-form-field appearance="outline" style="width: 200px;">
             <mat-label>Border Radius</mat-label>
-            <input matInput type="text" formControlName="emailLogoBorderRadius" placeholder="0px">
+            <input matInput type="text" formControlName="emailLogoBorderRadius" placeholder="0px" autocomplete="off">
             <mat-hint>e.g., 0px, 8px, 50%</mat-hint>
           </mat-form-field>
         </div>
@@ -215,7 +215,7 @@
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Base URL</mat-label>
-        <input matInput type="text" formControlName="baseUrl" placeholder="https://yourdomain.com">
+        <input matInput type="text" formControlName="baseUrl" placeholder="https://yourdomain.com" autocomplete="off">
         <mat-hint>Base URL for email verification links (must be HTTPS in production)</mat-hint>
       </mat-form-field>
 
@@ -227,7 +227,7 @@
         <div style="display: flex; gap: 10px; align-items: flex-start;">
           <mat-form-field appearance="outline" style="flex: 1;">
             <mat-label>Recipient Email</mat-label>
-            <input matInput type="email" [value]="testEmailAddress" (input)="testEmailAddress = $any($event.target).value" placeholder="test@example.com">
+            <input matInput type="email" [value]="testEmailAddress" (input)="testEmailAddress = $any($event.target).value" placeholder="test@example.com" autocomplete="off">
             <mat-hint>Email address to send the test email to</mat-hint>
           </mat-form-field>
           <button mat-raised-button color="primary" (click)="sendTestEmail()" [disabled]="sendingTestEmail || !testEmailAddress">
@@ -250,23 +250,23 @@
     
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Stripe Publishable Key</mat-label>
-        <input matInput type="text" formControlName="stripePublishableKey" placeholder="pk_test_...">
+        <input matInput type="text" formControlName="stripePublishableKey" placeholder="pk_test_..." autocomplete="off">
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Stripe Secret Key</mat-label>
-        <input matInput type="password" formControlName="stripeSecretKey" placeholder="sk_test_...">
+        <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="stripeSecretKey" placeholder="sk_test_...">
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Stripe Webhook Secret</mat-label>
-        <input matInput type="password" formControlName="stripeWebhookSecret" placeholder="whsec_...">
+        <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="stripeWebhookSecret" placeholder="whsec_...">
         <mat-hint>This is the "Signing secret" from Stripe Dashboard → Developers → Webhooks → Your endpoint → Signing secret (starts with whsec_)</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Grace Period (Days)</mat-label>
-        <input matInput type="number" formControlName="stripeGracePeriodDays" placeholder="0" min="0">
+        <input matInput type="number" formControlName="stripeGracePeriodDays" placeholder="0" min="0" autocomplete="off">
         <mat-hint>Number of extra days to allow access after a payment fails (only applies to users who have had at least one successful payment). Users get a 2-day buffer by default after their first successful payment.</mat-hint>
       </mat-form-field>
 

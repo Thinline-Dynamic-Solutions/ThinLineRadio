@@ -43,5 +43,5 @@
     "build": "ng build --base-href ./ --configuration production",
     "start": "ng serve"
   },
-  "version": "26.04.015"
+  "version": "26.04.017"
 }

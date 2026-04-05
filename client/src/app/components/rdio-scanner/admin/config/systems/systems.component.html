@@ -62,7 +62,7 @@
                 <mat-label>Search systems</mat-label>
                 <input matInput [value]="systemsSearchTerm"
                        (input)="onSystemsSearchChange($any($event.target).value)"
-                       placeholder="Search by label or ID">
+                       placeholder="Search by label or ID" autocomplete="off">
                 <mat-icon matSuffix>search</mat-icon>
             </mat-form-field>
             <span *ngIf="systemsSearchTerm" class="mat-caption result-count">

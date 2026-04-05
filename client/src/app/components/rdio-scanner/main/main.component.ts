@@ -1444,19 +1444,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     }
 
     private updateDimmer(): void {
-        // Only update dimmer if we have a config with dimmerDelay
-        if (typeof this.config?.dimmerDelay !== 'number') {
-            return;
-        }
-
-        // Clear any existing timer
-        this.dimmerTimer?.unsubscribe();
-        this.dimmerTimer = undefined;
-
-        // Dimmer should be ON when audio is actually playing (call exists)
-        // It will be turned OFF when call becomes undefined
-        this.dimmer = !!this.call;
-        // No detectChanges() needed — called from zone-aware event handlers.
+        // Dimmer functionality removed - was not actually implemented
     }
 
     private updateDisplay(time = this.callTime): void {
@@ -1696,13 +1684,42 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
         return '—';
     }
 
+    /** True if `display` is a tag, raw src, or resolved unit label for this call (avoids stale callUnit after call swap). */
+    private displayStringBelongsToCall(call: RdioScannerCall, display: string): boolean {
+        const norm = display.trim();
+        if (!norm || norm === '0') {
+            return false;
+        }
+        if (Array.isArray(call.sources)) {
+            for (const s of call.sources) {
+                if (typeof s.src === 'number') {
+                    if (norm === String(s.src)) {
+                        return true;
+                    }
+                    if (norm === this.resolveUnitLabelForSrc(call, s.src)) {
+                        return true;
+                    }
+                }
+                if (typeof s.tag === 'string' && s.tag.trim() === norm) {
+                    return true;
+                }
+            }
+        }
+        if (typeof call.source === 'number') {
+            if (norm === String(call.source) || norm === this.resolveUnitLabelForSrc(call, call.source)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Now playing: use time-varying callUnit during audio when it matches the live call; otherwise static from call payload.
      */
     displaySourceForNowPlaying(call: RdioScannerCall): string {
         if (this.call?.id != null && call.id === this.call.id) {
             const u = this.callUnit?.trim() ?? '';
-            if (u !== '' && u !== '0') {
+            if (u !== '' && u !== '0' && this.displayStringBelongsToCall(call, u)) {
                 return u;
             }
         }

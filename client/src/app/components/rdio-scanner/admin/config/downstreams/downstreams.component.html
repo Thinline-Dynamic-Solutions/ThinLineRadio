@@ -20,7 +20,7 @@
                     <span class="mat-caption">Optional friendly name for this downstream.</span>
                 </p>
                 <mat-form-field floatLabel="auto">
-                    <input type="text" matInput formControlName="name" placeholder="Name (optional)">
+                    <input type="text" matInput formControlName="name" placeholder="Name (optional)" autocomplete="off">
                 </mat-form-field>
             </div>
             <div class="row">
@@ -38,7 +38,7 @@
                     <span class="mat-caption">Api key of the remote instance.</span>
                 </p>
                 <mat-form-field floatLabel="auto">
-                    <input #key type="text" matInput formControlName="apikey" placeholder="API key">
+                    <input #key type="text" matInput formControlName="apikey" placeholder="API key" autocomplete="off">
                     <mat-error *ngIf="downstream.get('apikey')?.hasError('duplicate')">
                         API key is already defined
                     </mat-error>
@@ -53,7 +53,7 @@
                     <span class="mat-caption">URL of the remote instance.</span>
                 </p>
                 <mat-form-field floatLabel="auto">
-                    <input type="text" matInput formControlName="url" placeholder="URL">
+                    <input type="text" matInput formControlName="url" placeholder="URL" autocomplete="off">
                     <mat-error *ngIf="downstream.get('url')?.hasError('required')">
                         URL is required
                     </mat-error>

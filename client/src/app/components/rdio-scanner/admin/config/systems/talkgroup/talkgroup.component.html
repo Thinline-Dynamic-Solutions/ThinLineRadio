@@ -5,7 +5,7 @@
             <span class="mat-caption">Talkgroup identifier in decimal format.</span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="number" min="1" step="1" matInput formControlName="talkgroupRef" placeholder="Id">
+            <input type="number" min="1" step="1" matInput formControlName="talkgroupRef" placeholder="Id" autocomplete="off">
             <mat-error *ngIf="form?.get('talkgroupRef')?.hasError('duplicate')">
                 Id is already defined
             </mat-error>
@@ -23,7 +23,7 @@
             <span class="mat-caption">Talkgroup label displayed on the main screen and on buttons.</span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="label" placeholder="Label">
+            <input type="text" matInput formControlName="label" placeholder="Label" autocomplete="off">
             <mat-error *ngIf="form?.get('label')?.hasError('required')">
                 Label is required
             </mat-error>
@@ -35,7 +35,7 @@
             <span class="mat-caption">Talkgroup name displayed on the main screen.</span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="name" placeholder="Name">
+            <input type="text" matInput formControlName="name" placeholder="Name" autocomplete="off">
             <mat-error *ngIf="form?.get('name')?.hasError('required')">
                 Name is required
             </mat-error>
@@ -81,7 +81,7 @@
             </span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="delay" placeholder="Minutes">
+            <input type="number" min="0" step="1" matInput formControlName="delay" placeholder="Minutes" autocomplete="off">
         </mat-form-field>
     </div>
     <div class="row">
@@ -93,7 +93,7 @@
             </span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="alertCooldownSeconds" placeholder="Seconds">
+            <input type="number" min="0" step="1" matInput formControlName="alertCooldownSeconds" placeholder="Seconds" autocomplete="off">
         </mat-form-field>
     </div>
     <div class="row">
@@ -123,7 +123,7 @@
             </span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="linkedVoiceTalkgroupRef" placeholder="Talkgroup ID (0 = off)">
+            <input type="number" min="0" step="1" matInput formControlName="linkedVoiceTalkgroupRef" placeholder="Talkgroup ID (0 = off)" autocomplete="off">
         </mat-form-field>
     </div>
     <div class="row" *ngIf="form?.get('linkedVoiceTalkgroupRef')?.value > 0">
@@ -135,7 +135,7 @@
             </span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="linkedVoiceWindowSeconds" placeholder="Seconds (0 = 30s default)">
+            <input type="number" min="0" step="1" matInput formControlName="linkedVoiceWindowSeconds" placeholder="Seconds (0 = 30s default)" autocomplete="off">
         </mat-form-field>
     </div>
     <div class="row" *ngIf="form?.get('linkedVoiceTalkgroupRef')?.value > 0">
@@ -147,7 +147,7 @@
             </span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="linkedVoiceMinDurationSeconds" placeholder="Seconds (0 = no minimum)">
+            <input type="number" min="0" step="1" matInput formControlName="linkedVoiceMinDurationSeconds" placeholder="Seconds (0 = no minimum)" autocomplete="off">
         </mat-form-field>
     </div>
     <div class="row">
@@ -156,7 +156,7 @@
             <span class="mat-caption">Fake frequency in hertz displayed on the main screen.</span>
         </p>
         <mat-form-field floatLabel="auto">
-            <input type="number" min="0" matInput formControlName="frequency" placeholder="Frequency">
+            <input type="number" min="0" matInput formControlName="frequency" placeholder="Frequency" autocomplete="off">
             <mat-error *ngIf="form?.get('frequency')?.errors">
                 Invalid frequency
             </mat-error>
@@ -272,12 +272,12 @@
                 <mat-form-field floatLabel="auto" style="width: 100%;">
                     <mat-label>Destination URL</mat-label>
                     <input type="url" matInput formControlName="toneDownstreamURL"
-                           placeholder="http://localhost:8888/api/tone-alert">
+                           placeholder="http://localhost:8888/api/tone-alert" autocomplete="off">
                     <mat-hint>Full URL of the TonesToActive <code>/api/tone-alert</code> endpoint</mat-hint>
                 </mat-form-field>
                 <mat-form-field floatLabel="auto" style="width: 100%;">
                     <mat-label>API Key</mat-label>
-                    <input type="password" matInput formControlName="toneDownstreamAPIKey"
+                    <input type="text" class="masked-pw" autocomplete="new-password" matInput formControlName="toneDownstreamAPIKey"
                            placeholder="Shared API key (sent as X-API-Key header)">
                 </mat-form-field>
                 <!-- Enable / Disable all tone set forwarding -->
@@ -357,7 +357,7 @@
             <div *ngFor="let toneSet of getToneSets().controls; let i = index" [formGroupName]="i" class="tone-set-item">
                 <div class="tone-set-header">
                     <mat-form-field floatLabel="auto" style="flex: 1;">
-                        <input type="text" matInput formControlName="label" placeholder="Label (e.g., Fire Dept)">
+                        <input type="text" matInput formControlName="label" placeholder="Label (e.g., Fire Dept)" autocomplete="off">
                     </mat-form-field>
                     <button type="button" mat-icon-button color="warn" (click)="removeToneSet(i)" style="margin-left: 8px;">
                         <mat-icon>delete</mat-icon>
@@ -369,13 +369,13 @@
                         <strong>A-Tone:</strong>
                         <div class="tone-spec-row">
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="aToneFrequency" placeholder="Frequency (Hz)" min="0" step="0.1">
+                                <input type="number" matInput formControlName="aToneFrequency" placeholder="Frequency (Hz)" min="0" step="0.1" autocomplete="off">
                             </mat-form-field>
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="aToneMinDuration" placeholder="Min Duration (s)" min="0" step="0.01">
+                                <input type="number" matInput formControlName="aToneMinDuration" placeholder="Min Duration (s)" min="0" step="0.01" autocomplete="off">
                             </mat-form-field>
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="aToneMaxDuration" placeholder="Max Duration (s)" min="0" step="0.01">
+                                <input type="number" matInput formControlName="aToneMaxDuration" placeholder="Max Duration (s)" min="0" step="0.01" autocomplete="off">
                             </mat-form-field>
                         </div>
                     </div>
@@ -384,13 +384,13 @@
                         <strong>B-Tone:</strong>
                         <div class="tone-spec-row">
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="bToneFrequency" placeholder="Frequency (Hz)" min="0" step="0.1">
+                                <input type="number" matInput formControlName="bToneFrequency" placeholder="Frequency (Hz)" min="0" step="0.1" autocomplete="off">
                             </mat-form-field>
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="bToneMinDuration" placeholder="Min Duration (s)" min="0" step="0.01">
+                                <input type="number" matInput formControlName="bToneMinDuration" placeholder="Min Duration (s)" min="0" step="0.01" autocomplete="off">
                             </mat-form-field>
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="bToneMaxDuration" placeholder="Max Duration (s)" min="0" step="0.01">
+                                <input type="number" matInput formControlName="bToneMaxDuration" placeholder="Max Duration (s)" min="0" step="0.01" autocomplete="off">
                             </mat-form-field>
                         </div>
                     </div>
@@ -399,13 +399,13 @@
                         <strong>Long Tone:</strong>
                         <div class="tone-spec-row">
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="longToneFrequency" placeholder="Frequency (Hz)" min="0" step="0.1">
+                                <input type="number" matInput formControlName="longToneFrequency" placeholder="Frequency (Hz)" min="0" step="0.1" autocomplete="off">
                             </mat-form-field>
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="longToneMinDuration" placeholder="Min Duration (s)" min="0" step="0.01">
+                                <input type="number" matInput formControlName="longToneMinDuration" placeholder="Min Duration (s)" min="0" step="0.01" autocomplete="off">
                             </mat-form-field>
                             <mat-form-field floatLabel="auto">
-                                <input type="number" matInput formControlName="longToneMaxDuration" placeholder="Max Duration (s)" min="0" step="0.01">
+                                <input type="number" matInput formControlName="longToneMaxDuration" placeholder="Max Duration (s)" min="0" step="0.01" autocomplete="off">
                             </mat-form-field>
                         </div>
                     </div>
@@ -413,7 +413,7 @@
                     <div class="tone-spec-section tone-tolerance-section">
                         <strong>Tone Tolerance:</strong>
                         <mat-form-field floatLabel="auto">
-                            <input type="number" matInput formControlName="tolerance" placeholder="Ratio (e.g., 0.03) or absolute Hz" min="0" step="0.01">
+                            <input type="number" matInput formControlName="tolerance" placeholder="Ratio (e.g., 0.03) or absolute Hz" min="0" step="0.01" autocomplete="off">
                             <mat-hint>Use 0.03 for ±3% or enter absolute Hz. Default: 10 Hz</mat-hint>
                         </mat-form-field>
                     </div>
@@ -421,7 +421,7 @@
                     <div class="tone-set-advanced">
                         <strong>Sequence Min Duration:</strong>
                         <mat-form-field floatLabel="auto">
-                            <input type="number" matInput formControlName="minDuration" placeholder="Minimum Duration (s)" min="0" step="0.01">
+                            <input type="number" matInput formControlName="minDuration" placeholder="Minimum Duration (s)" min="0" step="0.01" autocomplete="off">
                         </mat-form-field>
                     </div>
 

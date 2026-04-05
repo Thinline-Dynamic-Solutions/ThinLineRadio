@@ -302,9 +302,49 @@
           </div>
         </div>
       </div>
+
+      <!-- Signup step 1: email only (when server requires email verification) -->
+      <form [formGroup]="registerForm" *ngIf="registrationSettingsLoaded && !success && emailVerificationRequired && !signupEmailCodeConfirmed && !emailVerificationStep && (!isInviteOnlyMode || codeValidated)">
+        <p style="margin-bottom: 16px; color: #bbb;">Enter your email to receive a verification code.</p>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" required autocomplete="email">
+          <mat-error *ngIf="registerForm.get('email')?.hasError('required')">Email is required</mat-error>
+          <mat-error *ngIf="registerForm.get('email')?.hasError('email')">Please enter a valid email address</mat-error>
+        </mat-form-field>
+        <div class="error-message" *ngIf="error" style="margin-bottom: 12px;">{{ error }}</div>
+        <button mat-raised-button color="primary" type="button" class="full-width"
+                (click)="requestSignupEmailVerification()"
+                [disabled]="registerForm.get('email')?.invalid || loading">
+          <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
+          <span *ngIf="!loading">Continue</span>
+        </button>
+      </form>
+
+      <!-- Signup step 2: enter 6-digit code -->
+      <div *ngIf="registrationSettingsLoaded && !success && emailVerificationRequired && !signupEmailCodeConfirmed && emailVerificationStep">
+        <p style="margin-bottom: 8px; color: #bbb;">We sent a code to:</p>
+        <p style="margin-bottom: 16px;"><strong>{{ pendingEmail }}</strong></p>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Verification code</mat-label>
+          <input matInput type="text" name="signupVerificationCode" [(ngModel)]="verificationCode"
+                 [ngModelOptions]="{standalone: true}" maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+                 placeholder="6-digit code">
+        </mat-form-field>
+        <div class="error-message" *ngIf="emailVerificationError" style="margin-bottom: 12px;">{{ emailVerificationError }}</div>
+        <button mat-raised-button color="primary" type="button" class="full-width"
+                (click)="verifySignupCodeAndContinue()"
+                [disabled]="!verificationCode || verificationCode.length !== 6 || verifyingEmail">
+          <mat-spinner diameter="20" *ngIf="verifyingEmail"></mat-spinner>
+          <span *ngIf="!verifyingEmail">Verify code</span>
+        </button>
+        <button mat-button type="button" class="full-width" style="margin-top: 8px;" (click)="backSignupEmailEntry()">
+          Change email
+        </button>
+      </div>
       
-      <!-- Registration Form (shown after code validation in invite-only, or immediately in public mode) -->
-      <form [formGroup]="registerForm" (ngSubmit)="onRegister()" *ngIf="!success && (!isInviteOnlyMode || codeValidated)">
+      <!-- Registration Form (after invite code / public gate; after email+code when verification required) -->
+      <form [formGroup]="registerForm" (ngSubmit)="onRegister()" *ngIf="!success && (!isInviteOnlyMode || codeValidated) && (!emailVerificationRequired || signupEmailCodeConfirmed)">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>First Name</mat-label>
           <input matInput type="text" formControlName="firstName" required>
@@ -334,7 +374,8 @@
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" required>
+          <input matInput type="email" formControlName="email" required [readonly]="emailVerificationRequired && signupEmailCodeConfirmed">
+          <mat-hint *ngIf="emailVerificationRequired && signupEmailCodeConfirmed">Verified</mat-hint>
           <mat-error *ngIf="registerForm.get('email')?.hasError('required')">
             Email is required
           </mat-error>
@@ -409,8 +450,21 @@
         <mat-icon>check_circle</mat-icon>
         <h3>Account Created Successfully!</h3>
 
-        <!-- Email verification notice — shown when enabled OR when config isn't loaded yet (safe default) -->
-        <div *ngIf="config?.options?.emailServiceEnabled !== false"
+        <!-- Auto-verified notice — when registered via invite/access code -->
+        <div *ngIf="registeredWithCode"
+             class="verification-notice"
+             style="padding: 20px; background-color: #1a2a1a; border: 2px solid #4caf50; border-radius: 8px; margin: 20px 0;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+            <mat-icon style="color: #4caf50; font-size: 32px; width: 32px; height: 32px;">verified_user</mat-icon>
+            <h4 style="margin: 0; color: #f0f0f0; font-size: 18px;">Account Verified</h4>
+          </div>
+          <p style="margin: 0; color: #bbb; font-size: 15px; line-height: 1.6;">
+            Your account is ready. You can sign in now.
+          </p>
+        </div>
+
+        <!-- Email verification notice — shown when NOT registered via code -->
+        <div *ngIf="!registeredWithCode && config?.options?.emailServiceEnabled !== false"
              class="verification-notice"
              style="padding: 20px; background-color: #1e2a35; border: 2px solid #cc0000; border-radius: 8px; margin: 20px 0;">
           <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">

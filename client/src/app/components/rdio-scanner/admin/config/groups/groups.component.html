@@ -60,7 +60,7 @@
             <td mat-cell *matCellDef="let group" (mousedown)="$event.stopPropagation()">
                 <ng-container [formGroup]="group">
                     <mat-form-field appearance="outline" class="label-field">
-                        <input matInput formControlName="label" placeholder="e.g. Fire, Law, EMS">
+                        <input matInput formControlName="label" placeholder="e.g. Fire, Law, EMS" autocomplete="off">
                         <mat-error *ngIf="group.get('label')?.hasError('required')">Label is required</mat-error>
                     </mat-form-field>
                 </ng-container>

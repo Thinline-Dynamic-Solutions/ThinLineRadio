@@ -155,7 +155,7 @@
                             type="datetime-local" 
                             formControlName="date" 
                             placeholder="YYYY-MM-DDTHH:MM"
-                            (change)="reloadLogs()">
+                            (change)="reloadLogs()" autocomplete="off">
                     </mat-form-field>
                     <mat-form-field>
                         <mat-label>Level</mat-label>
@@ -280,7 +280,7 @@
                             type="datetime-local" 
                             formControlName="date" 
                             placeholder="YYYY-MM-DDTHH:MM"
-                            (change)="reloadCalls()">
+                            (change)="reloadCalls()" autocomplete="off">
                     </mat-form-field>
                     <mat-form-field>
                         <mat-label>System</mat-label>

@@ -354,6 +354,7 @@ func main() {
 	http.HandleFunc("/api/admin/hallucinations/reject", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.HallucinationRejectHandler)).ServeHTTP)
 
 	// User registration and authentication routes
+	http.HandleFunc("/api/user/request-signup-verification", wrapHandler(http.HandlerFunc(controller.Api.RequestSignupVerificationHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/register", wrapHandler(http.HandlerFunc(controller.Api.UserRegisterHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/validate-invitation", wrapHandler(http.HandlerFunc(controller.Api.ValidateInvitationHandler)).ServeHTTP)
 	// User login with rate limiting and login attempt tracking

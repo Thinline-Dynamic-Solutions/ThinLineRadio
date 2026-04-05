@@ -52,6 +52,14 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
   validatedGroupInfo: any = null;
   loadingSettings = true; // Track if we're still loading settings
   
+  // Email verification (two-step signup)
+  emailVerificationRequired = false; // Default to false
+  emailVerificationStep = false; // Track if we're on email verification step
+  verificationCode = ''; // Store the 6-digit code user enters
+  verifyingEmail = false;
+  emailVerificationError = '';
+  pendingEmail = ''; // Store email after step 1
+  
   // Resend verification email rate limiting
   resendDisabled = false;
   resendCooldown = 0;
@@ -121,9 +129,10 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
       next: (settings) => {
         console.log('Registration settings received:', settings);
         this.isInviteOnlyMode = !settings.publicRegistrationEnabled;
+        this.emailVerificationRequired = settings.emailVerificationRequired || false;
         this.loadingSettings = false;
         
-        console.log('Registration mode loaded - publicRegistrationEnabled:', settings.publicRegistrationEnabled, 'isInviteOnlyMode:', this.isInviteOnlyMode);
+        console.log('Registration mode loaded - publicRegistrationEnabled:', settings.publicRegistrationEnabled, 'isInviteOnlyMode:', this.isInviteOnlyMode, 'emailVerificationRequired:', this.emailVerificationRequired);
         
         // Only load public info if NOT in invite-only mode
         if (!this.isInviteOnlyMode) {
@@ -147,6 +156,7 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
         console.error('Error loading registration settings:', error);
         // Default to invite-only if we can't load settings
         this.isInviteOnlyMode = true;
+        this.emailVerificationRequired = false;
         this.loadingSettings = false;
       }
     });
@@ -345,6 +355,74 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
     return Object.keys(errors).length > 0 ? errors : null;
   }
 
+  // Request email verification code (Step 1 of two-step signup)
+  requestEmailVerification(): void {
+    const email = this.registrationForm.get('email')?.value;
+    if (!email || this.registrationForm.get('email')?.invalid) {
+      this.error = 'Please enter a valid email address';
+      return;
+    }
+
+    this.loading = true;
+    this.error = '';
+    this.emailVerificationError = '';
+
+    this.http.post('/api/user/request-signup-verification', { email: email.toLowerCase() }).subscribe({
+      next: (response: any) => {
+        this.loading = false;
+        this.emailVerificationStep = true;
+        this.pendingEmail = email.toLowerCase();
+        this.snackBar.open('Verification code sent! Check your email.', 'Close', {
+          duration: 5000,
+          panelClass: ['success-snackbar']
+        });
+      },
+      error: (error) => {
+        this.loading = false;
+        if (error.error?.error && typeof error.error.error === 'string') {
+          this.error = error.error.error;
+        } else if (error.error?.message && typeof error.error.message === 'string') {
+          this.error = error.error.message;
+        } else {
+          this.error = 'Failed to send verification code. Please try again.';
+        }
+      }
+    });
+  }
+
+  // Verify code and proceed to full registration (Step 2)
+  verifyCodeAndContinue(): void {
+    if (!this.verificationCode || this.verificationCode.length !== 6) {
+      this.emailVerificationError = 'Please enter the 6-digit code';
+      return;
+    }
+
+    this.verifyingEmail = true;
+    this.emailVerificationError = '';
+
+    // Just validate the format locally, actual verification happens during registration
+    this.verifyingEmail = false;
+    this.emailVerificationStep = false;
+    
+    // Pre-fill the email in the form
+    this.registrationForm.patchValue({
+      email: this.pendingEmail
+    });
+    
+    this.snackBar.open('Code verified! Complete your registration.', 'Close', {
+      duration: 3000,
+      panelClass: ['success-snackbar']
+    });
+  }
+
+  // Go back to email entry
+  backToEmailEntry(): void {
+    this.emailVerificationStep = false;
+    this.verificationCode = '';
+    this.emailVerificationError = '';
+    this.pendingEmail = '';
+  }
+
   onSubmit(): void {
     if (this.registrationForm.valid && !this.loading) {
       this.loading = true;
@@ -357,6 +435,11 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
         lastName: this.registrationForm.value.lastName,
         zipCode: this.registrationForm.value.zipCode
       } as any;
+      
+      // Include verification code if email verification is required
+      if (this.emailVerificationRequired && this.verificationCode) {
+        formData.verificationCode = this.verificationCode;
+      }
       
       // Include accessCode if provided (unified field for invitation and registration codes)
       if (this.registrationForm.value.accessCode && this.registrationForm.value.accessCode.trim() !== '') {

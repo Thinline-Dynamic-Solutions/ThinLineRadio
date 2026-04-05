@@ -73,6 +73,18 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   pendingAccessCode = '';
   validatingCode = false;
   codeValidationError = '';
+
+  /** When true, signup is email → 6-digit code → full form (from `/api/registration-settings`). */
+  emailVerificationRequired = false;
+  emailVerificationStep = false;
+  verificationCode = '';
+  verifyingEmail = false;
+  emailVerificationError = '';
+  pendingEmail = '';
+  /** True after user enters the 6-digit signup code (email-verification-required flow only). */
+  signupEmailCodeConfirmed = false;
+  /** True when registration completed via an access/invitation code — user is auto-verified, no email check needed. */
+  registeredWithCode = false;
   
   private connectionLimitAlertShown = false;
   private eventSubscription: Subscription | undefined;
@@ -341,10 +353,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
           
           // Mark code as validated so form shows
           this.codeValidated = true;
+          // Invitation link counts as email verification — skip the email code step
+          this.signupEmailCodeConfirmed = true;
           
           // Pre-fill email if provided in invitation
           if (response.email) {
             this.registerForm.patchValue({ email: response.email });
+            this.pendingEmail = response.email;
           }
           
           // Set invitation code as accessCode
@@ -465,6 +480,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     }
     
     this.authMode = mode;
+    if (mode === 'register') {
+      this.emailVerificationStep = false;
+      this.verificationCode = '';
+      this.pendingEmail = '';
+      this.emailVerificationError = '';
+      this.signupEmailCodeConfirmed = false;
+    }
     // Clear errors when switching modes
     if (mode !== 'group-admin') {
       this.groupAdminError = '';
@@ -722,6 +744,10 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         lastName: this.registerForm.get('lastName')?.value,
         zipCode: this.registerForm.get('zipCode')?.value
       };
+
+      if (this.emailVerificationRequired && this.verificationCode && this.verificationCode.length === 6) {
+        formData.verificationCode = this.verificationCode;
+      }
       
       // Include accessCode if provided (unified field for invitation and registration codes)
       const accessCode = this.registerForm.get('accessCode')?.value;
@@ -749,10 +775,11 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
       this.http.post('/api/user/register', formData).subscribe({
         next: async (response: any) => {
           this.loading = false;
-          
-          // Email is sent by the server-side EmailService
+          this.registeredWithCode = hasAccessCode;
           this.success = true;
-          this.successMessage = 'Registration successful! Please check your email to verify your account.';
+          this.successMessage = hasAccessCode
+            ? 'Registration successful! You can now sign in.'
+            : 'Registration successful! Please check your email to verify your account.';
           const pin = response?.pin;
           if (typeof pin === 'string' && pin.length > 0) {
             this.rdioScannerService.savePin(pin);
@@ -776,6 +803,67 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         }
       });
     }
+  }
+
+  requestSignupEmailVerification(): void {
+    const email = this.registerForm.get('email')?.value;
+    if (!email || this.registerForm.get('email')?.invalid) {
+      this.error = 'Please enter a valid email address';
+      return;
+    }
+
+    this.loading = true;
+    this.error = '';
+    this.emailVerificationError = '';
+
+    this.http.post('/api/user/request-signup-verification', { email: email.toLowerCase() }).subscribe({
+      next: () => {
+        this.loading = false;
+        this.pendingEmail = email.toLowerCase();
+        this.emailVerificationStep = true;
+        this.cdr.markForCheck();
+        this.snackBar.open('Verification code sent. Check your email.', 'Close', {
+          duration: 5000,
+          panelClass: ['success-snackbar']
+        });
+      },
+      error: (err) => {
+        this.loading = false;
+        if (err.error?.error && typeof err.error.error === 'string') {
+          this.error = err.error.error;
+        } else if (err.error?.message && typeof err.error.message === 'string') {
+          this.error = err.error.message;
+        } else {
+          this.error = 'Failed to send verification code. Please try again.';
+        }
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  verifySignupCodeAndContinue(): void {
+    if (!this.verificationCode || this.verificationCode.length !== 6) {
+      this.emailVerificationError = 'Please enter the 6-digit code';
+      return;
+    }
+    this.emailVerificationError = '';
+    this.emailVerificationStep = false;
+    this.signupEmailCodeConfirmed = true;
+    this.registerForm.patchValue({ email: this.pendingEmail });
+    this.cdr.markForCheck();
+    this.snackBar.open('Code accepted. Complete your registration below.', 'Close', {
+      duration: 4000,
+      panelClass: ['success-snackbar']
+    });
+  }
+
+  backSignupEmailEntry(): void {
+    this.emailVerificationStep = false;
+    this.verificationCode = '';
+    this.emailVerificationError = '';
+    this.pendingEmail = '';
+    this.signupEmailCodeConfirmed = false;
+    this.cdr.markForCheck();
   }
 
   resendVerification(): void {
@@ -860,6 +948,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
       next: (settings) => {
         console.log('[AUTH-SCREEN] Registration settings received:', settings);
         this.isInviteOnlyMode = !settings.publicRegistrationEnabled;
+        this.emailVerificationRequired = !!settings.emailVerificationRequired;
         console.log('[AUTH-SCREEN] isInviteOnlyMode set to:', this.isInviteOnlyMode);
         
         // Only load public info if NOT in invite-only mode
@@ -877,6 +966,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         console.error('[AUTH-SCREEN] Error loading registration settings:', error);
         // Default to invite-only if we can't load settings
         this.isInviteOnlyMode = true;
+        this.emailVerificationRequired = false;
         this.registrationSettingsLoaded = true;
         this.cdr.markForCheck();
       }
@@ -974,6 +1064,8 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         this.validatingCode = false;
         if (response.valid) {
           this.codeValidated = true;
+          // A validated access/invitation code counts as email verification — skip the email code step
+          this.signupEmailCodeConfirmed = true;
           
           // Set the code in the form
           this.registerForm.patchValue({
@@ -985,6 +1077,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
             this.registerForm.patchValue({
               email: response.email
             });
+            this.pendingEmail = response.email;
           }
           
           this.snackBar.open('Code validated successfully!', 'Close', {

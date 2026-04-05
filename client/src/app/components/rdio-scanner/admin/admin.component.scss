@@ -19,28 +19,151 @@
 rdio-scanner-admin {
     display: block;
 
-    /* ── Warning bar ─────────────────────────── */
-    .admin-warning-bar {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        background: rgba(255, 152, 0, 0.08);
-        border: 1px solid rgba(255, 152, 0, 0.25);
-        border-left: 4px solid #f57c00;
-        border-radius: 6px;
-        padding: 10px 14px;
-        margin-bottom: 20px;
-        font-size: 13px;
-        color: #ffa726;
-        line-height: 1.5;
+    /* ── Master Search Bar ───────────────────── */
+    .admin-search-wrap {
+        position: relative;
+        margin-bottom: 16px;
 
-        mat-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-            margin-top: 1px;
-            color: #f57c00;
+        .admin-search-input-wrap {
+            display: flex;
+            align-items: center;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 0 12px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            gap: 8px;
+
+            &:focus-within {
+                border-color: #cc0000;
+                box-shadow: 0 0 0 2px rgba(204, 0, 0, 0.15);
+            }
+
+            .search-icon {
+                font-size: 18px;
+                width: 18px;
+                height: 18px;
+                color: #666;
+                flex-shrink: 0;
+            }
+
+            .admin-search-input {
+                flex: 1;
+                height: 40px;
+                background: transparent;
+                border: none;
+                outline: none;
+                color: #eee;
+                font-size: 14px;
+                font-family: inherit;
+
+                &::placeholder { color: #555; }
+            }
+
+            .search-clear-btn {
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 0;
+                display: flex;
+                align-items: center;
+                color: #555;
+                transition: color 0.15s;
+
+                mat-icon { font-size: 18px; width: 18px; height: 18px; }
+                &:hover { color: #aaa; }
+            }
+        }
+
+        .admin-search-results {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            max-height: 380px;
+            overflow-y: auto;
+
+            .search-result-item {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 14px;
+                border: none;
+                background: transparent;
+                cursor: pointer;
+                text-align: left;
+                border-bottom: 1px solid #2a2a2a;
+                transition: background 0.12s;
+
+                &:last-child { border-bottom: none; }
+
+                &:hover, &.active {
+                    background: rgba(204, 0, 0, 0.1);
+
+                    .result-arrow { opacity: 1; }
+                }
+
+                .result-icon {
+                    font-size: 20px;
+                    width: 20px;
+                    height: 20px;
+                    color: #cc0000;
+                    flex-shrink: 0;
+                }
+
+                .result-body {
+                    flex: 1;
+                    min-width: 0;
+                    display: flex;
+                    flex-direction: column;
+
+                    .result-label {
+                        font-size: 14px;
+                        color: #eee;
+                        font-weight: 500;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+
+                    .result-breadcrumb {
+                        font-size: 11px;
+                        color: #666;
+                        margin-top: 1px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                }
+
+                .result-arrow {
+                    font-size: 18px;
+                    width: 18px;
+                    height: 18px;
+                    color: #555;
+                    opacity: 0;
+                    flex-shrink: 0;
+                    transition: opacity 0.12s;
+                }
+            }
+
+            &.admin-search-empty {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 14px 16px;
+                color: #555;
+                font-size: 13px;
+
+                mat-icon { font-size: 18px; width: 18px; height: 18px; }
+            }
         }
     }
 

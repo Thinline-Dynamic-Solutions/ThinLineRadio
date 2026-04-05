@@ -19,7 +19,7 @@
         </mat-slide-toggle>
     </div>
 
-    <form [formGroup]="form" *ngIf="configSyncEnabled">
+    <form [formGroup]="form" *ngIf="configSyncEnabled" autocomplete="off">
         <mat-form-field style="width: 100%;">
             <mat-label>Sync Folder Path</mat-label>
             <input 
@@ -27,7 +27,7 @@
                 matInput 
                 formControlName="configSyncPath" 
                 placeholder="C:\Users\YourName\Google Drive\rdio-scanner or /path/to/sync/folder"
-                required>
+                required autocomplete="off">
             <mat-hint>Absolute path to the folder where config will be synced (e.g., Google Drive folder)</mat-hint>
             <mat-error *ngIf="form.get('configSyncPath')?.hasError('required')">
                 Sync path is required

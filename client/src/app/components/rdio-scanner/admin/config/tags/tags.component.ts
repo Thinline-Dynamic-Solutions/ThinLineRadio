@@ -30,6 +30,7 @@ import { RdioScannerAdminService } from '../../admin.service';
 })
 export class RdioScannerAdminTagsComponent {
     @Input() form: FormArray | undefined;
+    @Input() originalConfig: any;
 
     displayedColumns = ['drag', 'color', 'label', 'usage', 'delete'];
 
@@ -56,17 +57,19 @@ export class RdioScannerAdminTagsComponent {
     }
 
     isTagUnused(tagId: number): boolean {
-        if (!this.form) return false;
-        const systemsArray = this.form.root.get('systems') as FormArray;
-        if (!systemsArray) return true;
-        for (const sys of systemsArray.controls) {
-            const tgs = sys.get('talkgroups') as FormArray;
-            if (tgs) {
-                for (const tg of tgs.controls) {
-                    if (tg.get('tagId')?.value === tagId) return false;
+        if (!this.originalConfig || !this.originalConfig.systems) return false;
+
+        // Check original config data instead of FormArray
+        for (const system of this.originalConfig.systems) {
+            if (system.talkgroups && Array.isArray(system.talkgroups)) {
+                for (const talkgroup of system.talkgroups) {
+                    if (talkgroup.tagId === tagId || talkgroup.tag === tagId) {
+                        return false;
+                    }
                 }
             }
         }
+
         return true;
     }
 

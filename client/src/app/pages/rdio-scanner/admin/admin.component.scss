@@ -80,7 +80,66 @@
     .header-right {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 10px;
+    }
+
+    .unsaved-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(204, 0, 0, 0.12);
+        border: 1px solid rgba(204, 0, 0, 0.35);
+        border-radius: 20px;
+        padding: 3px 10px;
+        font-size: 12px;
+        color: #ff6b6b;
+        font-weight: 500;
+
+        .unsaved-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #cc0000;
+            flex-shrink: 0;
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+    }
+
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%       { opacity: 0.35; transform: scale(0.7); }
+    }
+
+    .header-action-btn {
+        height: 32px;
+        font-size: 13px;
+        padding: 0 12px;
+
+        mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+        }
+    }
+
+    .header-reset-btn {
+        color: #aaa;
+        border-color: #444;
+
+        &:not([disabled]):hover {
+            color: #fff;
+            border-color: #666;
+        }
+
+        &[disabled] { opacity: 0.35; }
+    }
+
+    .header-save-btn {
+        background: #cc0000 !important;
+        color: #fff !important;
+
+        &[disabled] { opacity: 0.4; }
     }
 
     .header-badge {
@@ -139,9 +198,11 @@
     .admin-header {
         padding: 10px 14px;
 
-        .header-badge {
-            display: none;
-        }
+        .header-badge { display: none; }
+        .unsaved-label { display: none; }
+        .btn-label { display: none; }
+
+        .header-action-btn mat-icon { margin-right: 0; }
 
         .header-radio-icon {
             font-size: 28px;

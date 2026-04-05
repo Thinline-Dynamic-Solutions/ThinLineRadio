@@ -18,9 +18,9 @@
  */
 
 import { DOCUMENT } from '@angular/common';
-import { EventEmitter, Inject, Injectable, OnDestroy } from '@angular/core';
+import { EventEmitter, Inject, Injectable, NgZone, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import { interval, Subscription, timer } from 'rxjs';
+import { Subscription, timer } from 'rxjs';
 import { takeWhile } from 'rxjs/operators';
 import { AppUpdateService } from '../../shared/update/update.service';
 import {
@@ -77,6 +77,11 @@ export class RdioScannerService implements OnDestroy {
 
     event = new EventEmitter<RdioScannerEvent>();
 
+    /** Web Audio, decode callbacks, and RxJS timers often run outside Angular's zone; without this, Now Playing can lag ~500ms behind audio. */
+    private emitEvent(payload: RdioScannerEvent): void {
+        this.ngZone.run(() => this.event.emit(payload));
+    }
+
     private pinExpired: boolean = false;
 
     private audioContext: AudioContext | undefined;
@@ -93,7 +98,6 @@ export class RdioScannerService implements OnDestroy {
     private categories: RdioScannerCategory[] = [];
 
     private config: RdioScannerConfig = {
-        dimmerDelay: false,
         groups: {},
         groupsData: [],
         keypadBeeps: undefined,
@@ -149,6 +153,7 @@ export class RdioScannerService implements OnDestroy {
     constructor(
         appUpdateService: AppUpdateService,
         private router: Router,
+        private ngZone: NgZone,
         @Inject(DOCUMENT) private document: Document,
     ) {
         if (router.url.endsWith('/reset')) {
@@ -197,7 +202,7 @@ export class RdioScannerService implements OnDestroy {
                 this.rebuildCategories();
                 this.saveLivefeedMap();
 
-                this.event.emit({
+                this.emitEvent({
                     categories: this.categories,
                     map: this.livefeedMap,
                 });
@@ -266,13 +271,52 @@ export class RdioScannerService implements OnDestroy {
             this.startLivefeed();
         }
 
-        this.event.emit({
+        this.emitEvent({
             categories: this.categories,
             holdSys: false,
             holdTg: false,
             map: this.livefeedMap,
             queue: this.callQueue.length,
         });
+    }
+
+    /**
+     * Enable only talkgroups that appear in the scan list with isEnabled true; all others off.
+     * Updates localStorage and notifies the UI; if live feed is online, resubscribes with the new map.
+     */
+    applyScanListChannelsToLivefeed(channels: { systemId: string; talkgroupId: string; isEnabled: boolean }[]): void {
+        if (!this.config?.systems?.length) {
+            return;
+        }
+
+        const allowed = new Set(
+            channels.filter((c) => c.isEnabled).map((c) => `${c.systemId}:${c.talkgroupId}`),
+        );
+
+        for (const sys of this.config.systems) {
+            const sid = String(sys.id);
+            if (!this.livefeedMap[sys.id]) {
+                this.livefeedMap[sys.id] = {};
+            }
+            for (const tg of sys.talkgroups) {
+                if (!this.livefeedMap[sys.id][tg.id]) {
+                    this.livefeedMap[sys.id][tg.id] = {} as RdioScannerLivefeed;
+                }
+                this.livefeedMap[sys.id][tg.id].active = allowed.has(`${sid}:${String(tg.id)}`);
+            }
+        }
+
+        this.rebuildCategories();
+        this.saveLivefeedMap();
+
+        this.emitEvent({
+            categories: this.categories,
+            map: this.livefeedMap,
+        });
+
+        if (this.livefeedMode === RdioScannerLivefeedMode.Online) {
+            this.startLivefeed();
+        }
     }
 
     async beep(style = RdioScannerBeepStyle.Activate): Promise<void> {
@@ -378,7 +422,7 @@ export class RdioScannerService implements OnDestroy {
                 }
             }
 
-            this.event.emit({
+            this.emitEvent({
                 categories: this.categories,
                 holdSys: !!this.livefeedMapPriorToHoldSystem,
                 holdTg: false,
@@ -434,7 +478,7 @@ export class RdioScannerService implements OnDestroy {
                 }
             }
 
-            this.event.emit({
+            this.emitEvent({
                 categories: this.categories,
                 holdSys: false,
                 holdTg: !!this.livefeedMapPriorToHoldTalkgroup,
@@ -508,7 +552,7 @@ export class RdioScannerService implements OnDestroy {
         if (this.isOneOffPlayback) {
             this.clearQueue();
             // Emit queue update to reflect cleared queue in UI
-            this.event.emit({ queue: 0 });
+            this.emitEvent({ queue: 0 });
         }
         
         if (this.livefeedMode === RdioScannerLivefeedMode.Offline) {
@@ -528,7 +572,7 @@ export class RdioScannerService implements OnDestroy {
                 this.holdTalkgroup({ resubscribe: false });
             }
 
-            this.event.emit({ livefeedMode: this.livefeedMode, playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
+            this.emitEvent({ livefeedMode: this.livefeedMode, playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
         } else if (this.livefeedMode === RdioScannerLivefeedMode.Online) {
             // Keep live feed on - don't switch to Playback mode if live feed is already running
             // Just play the call while live feed continues in the background
@@ -537,7 +581,7 @@ export class RdioScannerService implements OnDestroy {
                 this.playbackList = undefined;
             }
 
-            this.event.emit({ livefeedMode: this.livefeedMode, playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
+            this.emitEvent({ livefeedMode: this.livefeedMode, playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
 
         } else if (this.livefeedMode === RdioScannerLivefeedMode.Playback) {
             // If we're already in playback mode but don't have a playbackList, 
@@ -545,7 +589,7 @@ export class RdioScannerService implements OnDestroy {
             if (this.isOneOffPlayback) {
                 this.playbackList = undefined;
             }
-            this.event.emit({ playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
+            this.emitEvent({ playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
         }
 
         this.getCall(id, WebsocketCallFlag.Play);
@@ -570,7 +614,7 @@ export class RdioScannerService implements OnDestroy {
             this.play();
         }
 
-        this.event.emit({ pause: this.livefeedPaused });
+        this.emitEvent({ pause: this.livefeedPaused });
     }
 
     async play(call?: RdioScannerCall | undefined): Promise<void> {
@@ -602,7 +646,7 @@ export class RdioScannerService implements OnDestroy {
         // Emit the call immediately so Now Playing updates as soon as the call is
         // dequeued — before decoding starts. This eliminates the blank gap between
         // transmissions caused by the async decode + skipDelay timer.
-        this.event.emit({ call: this.call, queue });
+        this.emitEvent({ call: this.call, queue });
 
         // If the audio is encrypted, decrypt it first before building the ArrayBuffer.
         let audioBytes: Uint8Array;
@@ -643,14 +687,14 @@ export class RdioScannerService implements OnDestroy {
             this.audioSource.onended = () => this.skip({ delay: true });
             this.audioSource.start();
 
-            interval(500).pipe(takeWhile(() => !!this.call)).subscribe(() => {
+            timer(0, 500).pipe(takeWhile(() => !!this.call)).subscribe(() => {
                 if (this.audioContext && !isNaN(this.audioContext.currentTime)) {
                     if (isNaN(this.audioSourceStartTime)) {
                         this.audioSourceStartTime = this.audioContext.currentTime;
                     }
 
                     if (!this.livefeedPaused) {
-                        this.event.emit({ time: this.audioContext.currentTime - this.audioSourceStartTime });
+                        this.emitEvent({ time: this.audioContext.currentTime - this.audioSourceStartTime });
                     }
                 }
             });
@@ -672,7 +716,7 @@ export class RdioScannerService implements OnDestroy {
         }
 
         if (this.audioSource || this.call || this.livefeedPaused || this.skipDelay) {
-            this.event.emit({
+            this.emitEvent({
                 queue: this.livefeedMode === RdioScannerLivefeedMode.Online ? this.callQueue.length : this.getPlaybackQueueCount(),
             });
 
@@ -727,19 +771,25 @@ export class RdioScannerService implements OnDestroy {
             }
         };
 
-        this.stop();
-
         if (options?.delay) {
-            this.skipDelay = timer(1000).subscribe(() => {
+            // Natural end: emit stop so the UI moves the call into history and clears
+            // Now Playing immediately. Previously we used emit:false to avoid a blank
+            // row between calls, but that left history and metadata out of sync until
+            // the next call decoded (timer + decode latency).
+            this.stop({ emit: true });
+
+            this.skipDelay = timer(350).subscribe(() => {
                 this.skipDelay = undefined;
 
                 play();
             });
 
         } else {
+            // Immediate skip (user action or decode error) — clear the display now.
+            this.stop();
+
             if (this.skipDelay) {
                 this.skipDelay?.unsubscribe();
-
                 this.skipDelay = undefined;
             }
 
@@ -777,7 +827,7 @@ export class RdioScannerService implements OnDestroy {
 
         this.livefeedMode = RdioScannerLivefeedMode.Online;
 
-        this.event.emit({ livefeedMode: this.livefeedMode });
+        this.emitEvent({ livefeedMode: this.livefeedMode });
 
         this.sendtoWebsocket(WebsocketCommand.LivefeedMap, lfm);
     }
@@ -798,7 +848,7 @@ export class RdioScannerService implements OnDestroy {
         }
 
         if (typeof options?.emit !== 'boolean' || options.emit) {
-            this.event.emit({ call: this.call });
+            this.emitEvent({ call: this.call });
         }
     }
 
@@ -807,7 +857,7 @@ export class RdioScannerService implements OnDestroy {
 
         this.clearQueue();
 
-        this.event.emit({ livefeedMode: this.livefeedMode, queue: 0 });
+        this.emitEvent({ livefeedMode: this.livefeedMode, queue: 0 });
 
         this.stop();
 
@@ -846,7 +896,7 @@ export class RdioScannerService implements OnDestroy {
 
         this.clearQueue();
 
-        this.event.emit({ livefeedMode: this.livefeedMode, queue: 0, playbackList: undefined });
+        this.emitEvent({ livefeedMode: this.livefeedMode, queue: 0, playbackList: undefined });
 
         this.stop();
     }
@@ -902,7 +952,7 @@ export class RdioScannerService implements OnDestroy {
 
             this.cleanQueue();
 
-            this.event.emit({
+            this.emitEvent({
                 categories: this.categories,
                 holdSys: false,
                 holdTg: false,
@@ -1181,7 +1231,7 @@ export class RdioScannerService implements OnDestroy {
 
             this.websocket.onclose = (ev: CloseEvent) => {
                 this.linked = false;
-                this.event.emit({ linked: this.linked });
+                this.emitEvent({ linked: this.linked });
 
                 // Only reconnect if it wasn't a clean close (code 1000)
                 // Note: We allow reconnection even if isReconnecting is true, because the previous reconnect attempt failed
@@ -1201,7 +1251,7 @@ export class RdioScannerService implements OnDestroy {
                 this.linked = true;
                 this.isReconnecting = false;
                 this.reconnectAttempts = 0; // Reset on successful connection
-                this.event.emit({ linked: this.linked });
+                this.emitEvent({ linked: this.linked });
 
             if (this.websocket instanceof WebSocket) {
                 this.websocket.onmessage = (ev: MessageEvent) => {
@@ -1219,7 +1269,7 @@ export class RdioScannerService implements OnDestroy {
         } catch (error) {
             this.linked = false;
             this.isReconnecting = false;
-            this.event.emit({ linked: this.linked });
+            this.emitEvent({ linked: this.linked });
             // Schedule reconnect on error (keep trying every 2 seconds)
             this.reconnectAttempts++;
             timer(this.reconnectDelay).subscribe(() => this.reconnectWebsocket());
@@ -1240,7 +1290,7 @@ export class RdioScannerService implements OnDestroy {
                 case WebsocketCommand.Alert:
                     if (message[1] !== null) {
                         const alertData = message[1];
-                        this.event.emit({ alert: alertData });
+                        this.emitEvent({ alert: alertData });
                     }
                     break;
                 case WebsocketCommand.Call:
@@ -1275,7 +1325,7 @@ export class RdioScannerService implements OnDestroy {
                     
                     // Emit error event for UI to display
                     this.linked = true;
-                    this.event.emit({
+                    this.emitEvent({
                         error: errorMessage,
                         linked: this.linked
                     });
@@ -1293,7 +1343,6 @@ export class RdioScannerService implements OnDestroy {
                         this.config = {
                         alerts: config.alerts,
                         branding: typeof config.branding === 'string' ? config.branding : '',
-                        dimmerDelay: typeof config.dimmerDelay === 'number' ? config.dimmerDelay : 5000,
                         email: typeof config.email === 'string' ? config.email : '',
                         groups: typeof config.groups !== null && typeof config.groups === 'object' ? config.groups : {},
                         groupsData: Array.isArray(config.groupsData) ? config.groupsData : [],
@@ -1322,7 +1371,7 @@ export class RdioScannerService implements OnDestroy {
 
                         this.linked = true;
                         this.pinExpired = false; // Reset expired flag on successful config
-                        this.event.emit({
+                        this.emitEvent({
                             auth: false,
                             categories: this.categories,
                             config: this.config,
@@ -1340,7 +1389,7 @@ export class RdioScannerService implements OnDestroy {
 
                 case WebsocketCommand.Expired:
                     this.pinExpired = true;
-                    this.event.emit({ auth: true, expired: true });
+                    this.emitEvent({ auth: true, expired: true });
 
                     break;
 
@@ -1350,7 +1399,7 @@ export class RdioScannerService implements OnDestroy {
                     if (this.playbackList) {
                         this.playbackList.results = this.playbackList.results.map((call) => this.transformCall(call));
 
-                        this.event.emit({ playbackList: this.playbackList });
+                        this.emitEvent({ playbackList: this.playbackList });
 
                         // Only auto-advance if we're in playback mode AND this is NOT a one-off playback
                         // This prevents auto-advancing when a ListCall arrives during a one-off playback from alerts
@@ -1362,7 +1411,7 @@ export class RdioScannerService implements OnDestroy {
                     break;
 
                 case WebsocketCommand.ListenersCount:
-                    this.event.emit({ listeners: message[1] });
+                    this.emitEvent({ listeners: message[1] });
 
                     break;
 
@@ -1378,7 +1427,7 @@ export class RdioScannerService implements OnDestroy {
                 case WebsocketCommand.Max:
                     // message[1] contains the connection limit
                     const connectionLimit = message[1] || 0;
-                    this.event.emit({ auth: true, tooMany: true, connectionLimit: connectionLimit });
+                    this.emitEvent({ auth: true, tooMany: true, connectionLimit: connectionLimit });
 
                     break;
 
@@ -1386,7 +1435,7 @@ export class RdioScannerService implements OnDestroy {
                     // Server is requesting PIN authentication - try to authenticate automatically with stored PIN
                     // BUT: Don't send PIN if it's expired (to prevent loop)
                     if (this.pinExpired) {
-                        this.event.emit({ auth: true, expired: true });
+                        this.emitEvent({ auth: true, expired: true });
                         break;
                     }
                     
@@ -1395,7 +1444,7 @@ export class RdioScannerService implements OnDestroy {
                         this.authenticate(storedPin);
                         // Don't emit auth event here - wait for server response (either success or MAX)
                     } else {
-                        this.event.emit({ auth: true });
+                        this.emitEvent({ auth: true });
                     }
 
                     break;
@@ -1416,7 +1465,7 @@ export class RdioScannerService implements OnDestroy {
                         }
 
                         if (this.config.branding || this.config.email) {
-                            this.event.emit({ config: this.config });
+                            this.emitEvent({ config: this.config });
                         }
                     }
 

@@ -18,11 +18,12 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, ViewChild, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnDestroy, OnInit, ViewChild, ViewEncapsulation } from '@angular/core';
 import { FormArray, FormControl, FormGroup } from '@angular/forms';
 import { AdminEvent, RdioScannerAdminService, Config, Group, Tag } from '../admin.service';
 import { RdioScannerAdminUsersComponent } from './users/users.component';
 import { RdioScannerAdminUserGroupsComponent } from './user-groups/user-groups.component';
+import { RdioScannerAdminOptionsComponent } from './options/options.component';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -33,6 +34,9 @@ import { Subscription } from 'rxjs';
     templateUrl: './config.component.html',
 })
 export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
+    /** When true the sidebar save/reset buttons are hidden (header bar owns them). */
+    @Input() hideActions = false;
+
     docker = false;
 
     /** Currently active section in the sidebar nav */
@@ -42,6 +46,12 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
 
     /** True while the initial config is being fetched / form being built */
     loading = true;
+
+    /** Store original config for lazy loading */
+    originalConfig: Config = {};
+
+    /** Track which systems have had their talkgroups loaded */
+    private systemsWithLoadedTalkgroups = new Set<number>();
 
     // ─── Systems sidebar nav state ────────────────────────────────────────────
     /** Whether the systems sub-nav is expanded in the sidebar */
@@ -130,12 +140,28 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         return (this.form?.get('keywordLists') as FormArray) || new FormArray([]);
     }
 
-    private config: Config | undefined;
+    private set config(val: Config | undefined) {
+        if (val) {
+            this.originalConfig = val;
+        }
+    }
+
+    private get config(): Config | undefined {
+        return this.originalConfig;
+    }
 
     private eventSubscription;
 
     @ViewChild(RdioScannerAdminUsersComponent) private usersComponent: RdioScannerAdminUsersComponent | undefined;
     @ViewChild(RdioScannerAdminUserGroupsComponent) private userGroupsComponent: RdioScannerAdminUserGroupsComponent | undefined;
+    @ViewChild(RdioScannerAdminOptionsComponent) private optionsComponent: RdioScannerAdminOptionsComponent | undefined;
+
+    /** Navigate to a specific options panel (called by the global search bar). */
+    navigateToOption(panelName: string): void {
+        this.setSection('options');
+        // Defer so the options component is rendered before we try to open the panel
+        setTimeout(() => this.optionsComponent?.openPanel(panelName), 80);
+    }
 
     constructor(
         private adminService: RdioScannerAdminService,
@@ -256,6 +282,30 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         this.ngChangeDetectorRef.markForCheck();
     }
 
+    /** Get the original system data for lazy loading */
+    getSystemData(systemForm: FormGroup): any {
+        if (!this.originalConfig.systems) return null;
+        const systemId = systemForm.value.id;
+        if (systemId) {
+            return this.originalConfig.systems.find(s => s.id === systemId);
+        }
+        return null;
+    }
+
+    /** Mark that a system has loaded its talkgroups */
+    markSystemTalkgroupsLoaded(systemForm: FormGroup): void {
+        const systemId = systemForm.value.id;
+        if (systemId) {
+            this.systemsWithLoadedTalkgroups.add(systemId);
+        }
+    }
+
+    /** Check if a system has loaded its talkgroups */
+    hasSystemLoadedTalkgroups(systemForm: FormGroup): boolean {
+        const systemId = systemForm.value.id;
+        return systemId ? this.systemsWithLoadedTalkgroups.has(systemId) : false;
+    }
+
     // ─── Form lifecycle ───────────────────────────────────────────────────────
 
     reset(config = this.config, options?: { dirty?: boolean, isImport?: boolean }): void {
@@ -271,6 +321,9 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         // Clear systems nav state since form is being rebuilt
         this.activeSystemForm = null;
         this.activeSection = this.activeSection === 'system-detail' ? 'systems' : this.activeSection;
+
+        // Clear tracking of loaded talkgroups
+        this.systemsWithLoadedTalkgroups.clear();
 
         this.form = this.adminService.newConfigForm(config);
         
@@ -388,6 +441,15 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         // Convert tone sets from flat form structure to nested structure
         if (formValue?.systems) {
             formValue.systems = formValue.systems.map((system: any) => {
+                // Restore talkgroups from original config if they weren't loaded
+                if (system.id && !this.systemsWithLoadedTalkgroups.has(system.id)) {
+                    const originalSystem = this.originalConfig.systems?.find(s => s.id === system.id);
+                    if (originalSystem?.talkgroups) {
+                        system.talkgroups = originalSystem.talkgroups;
+                        return system;
+                    }
+                }
+                
                 if (system.talkgroups) {
                     system.talkgroups = system.talkgroups.map((talkgroup: any) => {
                         if (talkgroup.toneSets && Array.isArray(talkgroup.toneSets)) {

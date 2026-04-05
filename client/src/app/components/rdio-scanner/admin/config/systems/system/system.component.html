@@ -49,7 +49,7 @@
         <div class="settings-field">
             <label class="field-label">System ID</label>
             <mat-form-field appearance="outline" class="compact-field">
-                <input type="number" min="1" step="1" matInput formControlName="systemRef" placeholder="e.g. 100">
+                <input type="number" min="1" step="1" matInput formControlName="systemRef" placeholder="e.g. 100" autocomplete="off">
                 <mat-error *ngIf="form.get('systemRef')?.hasError('duplicate')">ID already defined</mat-error>
                 <mat-error *ngIf="form.get('systemRef')?.hasError('min')">ID is invalid</mat-error>
                 <mat-error *ngIf="form.get('systemRef')?.hasError('required')">ID is required</mat-error>
@@ -59,7 +59,7 @@
         <div class="settings-field">
             <label class="field-label">Label</label>
             <mat-form-field appearance="outline" class="compact-field">
-                <input type="text" matInput formControlName="label" placeholder="System name">
+                <input type="text" matInput formControlName="label" placeholder="System name" autocomplete="off">
                 <mat-error *ngIf="form.get('label')?.hasError('required')">Label is required</mat-error>
             </mat-form-field>
         </div>
@@ -85,7 +85,7 @@
         <div class="settings-field">
             <label class="field-label">Delay (min)</label>
             <mat-form-field appearance="outline" class="compact-field">
-                <input type="number" min="0" step="1" matInput formControlName="delay" placeholder="0">
+                <input type="number" min="0" step="1" matInput formControlName="delay" placeholder="0" autocomplete="off">
             </mat-form-field>
         </div>
 
@@ -93,6 +93,12 @@
             <label class="field-label">Auto Populate</label>
             <mat-slide-toggle color="primary" formControlName="autoPopulate"></mat-slide-toggle>
             <span class="mat-caption toggle-hint">Auto-create unconfigured talkgroups</span>
+        </div>
+
+        <div *ngIf="form.get('autoPopulate')?.value" class="settings-field settings-field--toggle">
+            <label class="field-label">Autopop alerts</label>
+            <mat-slide-toggle color="primary" formControlName="autoPopulateAlertsEnabled"></mat-slide-toggle>
+            <span class="mat-caption toggle-hint">New auto-populated talkgroups start with alerts enabled (you can still change each talkgroup later)</span>
         </div>
 
         <div class="settings-field settings-field--toggle">
@@ -151,28 +157,34 @@
         <div class="sub-section-title">
             <mat-icon>record_voice_over</mat-icon>
             <h4>Talkgroups</h4>
-            <span class="count-chip">{{ talkgroups.length }}</span>
+            <span class="count-chip">{{ getTalkgroupArrayLength() }}</span>
             <mat-icon *ngIf="form.get('talkgroups')?.invalid" color="warn" class="section-error"
                       [matTooltip]="getTalkgroupsErrorSummary()">error</mat-icon>
         </div>
         <div class="sub-section-actions">
-            <button type="button" mat-raised-button color="primary" (click)="addTalkgroup()">
+            <button type="button" mat-raised-button color="primary" (click)="addTalkgroup()" [disabled]="!talkgroupsLoaded">
                 <mat-icon>add</mat-icon> Add Talkgroup
             </button>
             <button type="button" mat-stroked-button (click)="sortTalkgroupsAlphabetically()"
-                    [disabled]="talkgroups.length === 0" matTooltip="Sort talkgroups A–Z">
+                    [disabled]="!talkgroupsLoaded" matTooltip="Sort talkgroups A–Z">
                 <mat-icon>sort_by_alpha</mat-icon> Sort A–Z
             </button>
         </div>
     </div>
 
+    <!-- Loading Indicator -->
+    <div *ngIf="!talkgroupsLoaded" class="load-prompt">
+        <p class="mat-body">Loading {{ getTalkgroupArrayLength() }} talkgroups...</p>
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    </div>
+
     <!-- Search -->
-    <div class="table-search-bar" *ngIf="talkgroups.length > 5">
+    <div class="table-search-bar" *ngIf="talkgroupsLoaded && talkgroups.length > 5">
         <mat-form-field appearance="outline" class="search-field">
             <mat-label>Search talkgroups</mat-label>
             <input matInput [value]="talkgroupsSearchTerm"
                    (input)="onTalkgroupsSearchChange($any($event.target).value)"
-                   placeholder="ID, label, or name">
+                   placeholder="ID, label, or name" autocomplete="off">
             <mat-icon matSuffix>search</mat-icon>
         </mat-form-field>
         <span *ngIf="talkgroupsSearchTerm" class="mat-caption search-count">
@@ -181,7 +193,7 @@
     </div>
 
     <!-- Bulk Actions -->
-    <div class="bulk-toolbar" *ngIf="talkgroups.length > 0">
+    <div class="bulk-toolbar" *ngIf="talkgroupsLoaded && talkgroups.length > 0">
         <button type="button" mat-button (click)="selectAllTalkgroups()" [disabled]="allTalkgroupsSelected">
             Select All
         </button>
@@ -213,17 +225,35 @@
     </div>
 
     <!-- Empty State -->
-    <div *ngIf="talkgroups.length === 0" class="sub-empty">
+    <div *ngIf="talkgroupsLoaded && talkgroups.length === 0" class="sub-empty">
         <mat-icon>record_voice_over</mat-icon>
         <p>No talkgroups defined for this system.</p>
     </div>
 
     <!-- Talkgroups Table -->
-    <div class="table-wrapper" *ngIf="talkgroups.length > 0">
-        <mat-table [dataSource]="filteredTalkgroups"
+    <div class="table-wrapper" *ngIf="talkgroupsLoaded && talkgroups.length > 0">
+        
+        <!-- Pagination Controls (Top) -->
+        <div class="pagination-controls" *ngIf="talkgroupTotalPages > 1">
+            <button type="button" mat-icon-button 
+                    [disabled]="talkgroupCurrentPage === 0"
+                    (click)="prevTalkgroupPage()"
+                    matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+            </button>
+            <span class="page-info">{{ talkgroupPageInfo }}</span>
+            <button type="button" mat-icon-button 
+                    [disabled]="talkgroupCurrentPage >= talkgroupTotalPages - 1"
+                    (click)="nextTalkgroupPage()"
+                    matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+            </button>
+        </div>
+
+        <mat-table [dataSource]="paginatedTalkgroups"
                    multiTemplateDataRows
                    cdkDropList
-                   [cdkDropListData]="filteredTalkgroups"
+                   [cdkDropListData]="paginatedTalkgroups"
                    (cdkDropListDropped)="dropTalkgroup($event)"
                    class="data-table talkgroups-table">
 
@@ -354,6 +384,23 @@
             </tr>
 
         </mat-table>
+
+        <!-- Pagination Controls (Bottom) -->
+        <div class="pagination-controls bottom" *ngIf="talkgroupTotalPages > 1">
+            <button type="button" mat-icon-button 
+                    [disabled]="talkgroupCurrentPage === 0"
+                    (click)="prevTalkgroupPage()"
+                    matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+            </button>
+            <span class="page-info">Page {{ talkgroupCurrentPage + 1 }} of {{ talkgroupTotalPages }}</span>
+            <button type="button" mat-icon-button 
+                    [disabled]="talkgroupCurrentPage >= talkgroupTotalPages - 1"
+                    (click)="nextTalkgroupPage()"
+                    matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+            </button>
+        </div>
 
     </div>
 </div>

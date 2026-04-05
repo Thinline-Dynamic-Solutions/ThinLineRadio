@@ -236,7 +236,6 @@ export interface Options {
 	autoPopulate?: boolean;
 	branding?: string;
 	defaultSystemDelay?: number;
-	dimmerDelay?: number;
 	disableDuplicateDetection?: boolean;
 	duplicateDetectionMode?: string;
 	duplicateDetectionTimeFrame?: number;
@@ -259,6 +258,7 @@ export interface Options {
     userRegistrationEnabled?: boolean;
     publicRegistrationEnabled?: boolean;
     publicRegistrationMode?: string;
+    emailVerificationRequired?: boolean;
     stripePaywallEnabled?: boolean;
     emailServiceEnabled?: boolean;
     emailProvider?: string;
@@ -281,7 +281,6 @@ export interface Options {
     stripeSecretKey?: string;
     stripeWebhookSecret?: string;
     stripeGracePeriodDays?: number;
-    stripePriceId?: string;
     baseUrl?: string;
     transcriptionEnabled?: boolean;
     transcriptionEnhancement?: boolean;
@@ -308,6 +307,21 @@ export interface Options {
         timeoutSeconds?: number;
     };
     alertRetentionDays?: number;
+    systemHealthAlertsEnabled?: boolean;
+    transcriptionFailureAlertsEnabled?: boolean;
+    transcriptionFailureThreshold?: number;
+    transcriptionFailureTimeWindow?: number;
+    transcriptionFailureRepeatMinutes?: number;
+    toneDetectionAlertsEnabled?: boolean;
+    toneDetectionIssueThreshold?: number;
+    toneDetectionTimeWindow?: number;
+    toneDetectionRepeatMinutes?: number;
+    noAudioAlertsEnabled?: boolean;
+    noAudioThresholdMinutes?: number;
+    noAudioMultiplier?: number;
+    noAudioHistoricalDataDays?: number;
+    noAudioTimeWindow?: number;
+    noAudioRepeatMinutes?: number;
     relayServerURL?: string;
     relayServerAPIKey?: string;
   audioEncryptionEnabled?: boolean;
@@ -365,6 +379,8 @@ export interface System {
     noAudioAlertsEnabled?: boolean;     // Enable no-audio alerts for this system
     noAudioThresholdMinutes?: number;   // Minutes without audio before alerting
     alertsEnabled?: boolean;            // Admin toggle: false disables all alerts & transcription for this system
+    /** When true (default), auto-populated talkgroups are created with alerts enabled */
+    autoPopulateAlertsEnabled?: boolean;
     transcriptionPrompt?: string;       // Custom Whisper/AssemblyAI prompt; overrides global when non-empty
 }
 
@@ -1084,7 +1100,7 @@ export class RdioScannerAdminService implements OnDestroy {
             downstreams: this.ngFormBuilder.array(config?.downstreams?.map((downstream) => this.newDownstreamForm(downstream)) || []),
             groups: this.ngFormBuilder.array(config?.groups?.map((group) => this.newGroupForm(group)) || []),
             options: this.newOptionsForm(config?.options),
-            systems: this.ngFormBuilder.array(config?.systems?.map((system) => this.newSystemForm(system)) || []),
+            systems: this.ngFormBuilder.array(config?.systems?.map((system) => this.newSystemForm(system, true)) || []),
             tags: this.ngFormBuilder.array(config?.tags?.map((tag) => this.newTagForm(tag)) || []),
             users: this.ngFormBuilder.array(config?.users?.map((user) => this.newUserForm(user)) || []),
             userGroups: this.ngFormBuilder.array(config?.userGroups?.map((userGroup) => this.newUserGroupForm(userGroup)) || []),
@@ -1224,7 +1240,6 @@ export class RdioScannerAdminService implements OnDestroy {
 		autoPopulate: this.ngFormBuilder.control(options?.autoPopulate),
 		branding: this.ngFormBuilder.control(options?.branding),
 			defaultSystemDelay: this.ngFormBuilder.control(options?.defaultSystemDelay ?? 0, [Validators.required, Validators.min(0)]),
-			dimmerDelay: this.ngFormBuilder.control(options?.dimmerDelay ?? 5000, [Validators.required, Validators.min(0)]),
             disableDuplicateDetection: this.ngFormBuilder.control(options?.disableDuplicateDetection ?? false),
             duplicateDetectionMode: this.ngFormBuilder.control(options?.duplicateDetectionMode || 'legacy'),
             duplicateDetectionTimeFrame: this.ngFormBuilder.control(options?.duplicateDetectionTimeFrame ?? 1000, [Validators.required, Validators.min(0)]),
@@ -1249,6 +1264,7 @@ export class RdioScannerAdminService implements OnDestroy {
             userRegistrationEnabled: this.ngFormBuilder.control(options?.userRegistrationEnabled),
             publicRegistrationEnabled: this.ngFormBuilder.control(options?.publicRegistrationEnabled ?? true),
             publicRegistrationMode: this.ngFormBuilder.control(options?.publicRegistrationMode || 'both'),
+            emailVerificationRequired: this.ngFormBuilder.control(options?.emailVerificationRequired ?? false),
             stripePaywallEnabled: this.ngFormBuilder.control(options?.stripePaywallEnabled),
             emailServiceEnabled: this.ngFormBuilder.control(options?.emailServiceEnabled),
             emailProvider: this.ngFormBuilder.control(options?.emailProvider || 'sendgrid'),
@@ -1271,7 +1287,6 @@ export class RdioScannerAdminService implements OnDestroy {
             stripeSecretKey: this.ngFormBuilder.control(options?.stripeSecretKey),
             stripeWebhookSecret: this.ngFormBuilder.control(options?.stripeWebhookSecret),
             stripeGracePeriodDays: this.ngFormBuilder.control(options?.stripeGracePeriodDays || 0, [Validators.min(0)]),
-            stripePriceId: this.ngFormBuilder.control(options?.stripePriceId),
             baseUrl: this.ngFormBuilder.control(options?.baseUrl),
             adminLocalhostOnly: this.ngFormBuilder.control(options?.adminLocalhostOnly ?? false),
             adminPasswordLoginDisabled: this.ngFormBuilder.control(options?.adminPasswordLoginDisabled ?? false),
@@ -1304,6 +1319,21 @@ export class RdioScannerAdminService implements OnDestroy {
                 hallucinationMinOccurrences: this.ngFormBuilder.control(transcriptionConfig?.hallucinationMinOccurrences || 5, [Validators.min(1)]),
             }),
             alertRetentionDays: this.ngFormBuilder.control(options?.alertRetentionDays || 30, [Validators.min(0)]),
+            systemHealthAlertsEnabled: this.ngFormBuilder.control(options?.systemHealthAlertsEnabled ?? false),
+            transcriptionFailureAlertsEnabled: this.ngFormBuilder.control(options?.transcriptionFailureAlertsEnabled ?? false),
+            transcriptionFailureThreshold: this.ngFormBuilder.control(options?.transcriptionFailureThreshold || 5, [Validators.min(1)]),
+            transcriptionFailureTimeWindow: this.ngFormBuilder.control(options?.transcriptionFailureTimeWindow || 24, [Validators.min(1)]),
+            transcriptionFailureRepeatMinutes: this.ngFormBuilder.control(options?.transcriptionFailureRepeatMinutes || 60, [Validators.min(15)]),
+            toneDetectionAlertsEnabled: this.ngFormBuilder.control(options?.toneDetectionAlertsEnabled ?? false),
+            toneDetectionIssueThreshold: this.ngFormBuilder.control(options?.toneDetectionIssueThreshold || 10, [Validators.min(1)]),
+            toneDetectionTimeWindow: this.ngFormBuilder.control(options?.toneDetectionTimeWindow || 24, [Validators.min(1)]),
+            toneDetectionRepeatMinutes: this.ngFormBuilder.control(options?.toneDetectionRepeatMinutes || 60, [Validators.min(15)]),
+            noAudioAlertsEnabled: this.ngFormBuilder.control(options?.noAudioAlertsEnabled ?? false),
+            noAudioThresholdMinutes: this.ngFormBuilder.control(options?.noAudioThresholdMinutes || 60, [Validators.min(5)]),
+            noAudioMultiplier: this.ngFormBuilder.control(options?.noAudioMultiplier || 3.0, [Validators.min(1.1), Validators.max(10)]),
+            noAudioHistoricalDataDays: this.ngFormBuilder.control(options?.noAudioHistoricalDataDays || 7, [Validators.min(1), Validators.max(90)]),
+            noAudioTimeWindow: this.ngFormBuilder.control(options?.noAudioTimeWindow || 12, [Validators.min(1)]),
+            noAudioRepeatMinutes: this.ngFormBuilder.control(options?.noAudioRepeatMinutes || 120, [Validators.min(15)]),
             relayServerURL: this.ngFormBuilder.control('https://tlradioserver.thinlineds.com'), // Hardcoded
             relayServerAPIKey: this.ngFormBuilder.control(options?.relayServerAPIKey || ''),
             audioEncryptionEnabled: this.ngFormBuilder.control(options?.audioEncryptionEnabled ?? false),
@@ -1336,7 +1366,7 @@ export class RdioScannerAdminService implements OnDestroy {
         });
     }
 
-    newSystemForm(system?: System): FormGroup {
+    newSystemForm(system?: System, skipTalkgroups = false): FormGroup {
         return this.ngFormBuilder.group({
             id: this.ngFormBuilder.control(system?.id),
             alert: this.ngFormBuilder.control(system?.alert),
@@ -1348,13 +1378,14 @@ export class RdioScannerAdminService implements OnDestroy {
             order: this.ngFormBuilder.control(system?.order),
             sites: this.ngFormBuilder.array(system?.sites?.map((site) => this.newSiteForm(site)) || []),
             systemRef: this.ngFormBuilder.control(system?.systemRef, [Validators.required, Validators.min(1), this.validateSystemRef()]),
-            talkgroups: this.ngFormBuilder.array(system?.talkgroups?.map((talkgroup) => this.newTalkgroupForm(talkgroup)) || []),
+            talkgroups: skipTalkgroups ? this.ngFormBuilder.array([]) : this.ngFormBuilder.array(system?.talkgroups?.map((talkgroup) => this.newTalkgroupForm(talkgroup)) || []),
             type: this.ngFormBuilder.control(system?.type || ''),
             units: this.ngFormBuilder.array(system?.units?.map((unit) => this.newUnitForm(unit)) || []),
             preferredApiKeyId: this.ngFormBuilder.control(system?.preferredApiKeyId),
-            noAudioAlertsEnabled: this.ngFormBuilder.control(system?.noAudioAlertsEnabled !== false), // Default to true
-            noAudioThresholdMinutes: this.ngFormBuilder.control(system?.noAudioThresholdMinutes || 30), // Default to 30
-            alertsEnabled: this.ngFormBuilder.control(system?.alertsEnabled !== false), // Default to true
+            noAudioAlertsEnabled: this.ngFormBuilder.control(system?.noAudioAlertsEnabled !== false),
+            noAudioThresholdMinutes: this.ngFormBuilder.control(system?.noAudioThresholdMinutes || 30),
+            alertsEnabled: this.ngFormBuilder.control(system?.alertsEnabled !== false),
+            autoPopulateAlertsEnabled: this.ngFormBuilder.control(system?.autoPopulateAlertsEnabled !== false),
             transcriptionPrompt: this.ngFormBuilder.control(system?.transcriptionPrompt || ''),
         });
     }

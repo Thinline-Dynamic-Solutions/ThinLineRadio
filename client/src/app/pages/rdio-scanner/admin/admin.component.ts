@@ -18,10 +18,11 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
 import { RdioScannerAdminService, AdminEvent } from '../../../components/rdio-scanner/admin/admin.service';
+import { RdioScannerAdminComponent } from '../../../components/rdio-scanner/admin/admin.component';
 
 @Component({
     selector: 'rdio-scanner-admin-page',
@@ -31,6 +32,16 @@ import { RdioScannerAdminService, AdminEvent } from '../../../components/rdio-sc
 export class RdioScannerAdminPageComponent implements OnInit, OnDestroy {
     version = '';
     authenticated = false;
+
+    @ViewChild('adminComponent') private adminComponent: RdioScannerAdminComponent | undefined;
+
+    get formDirty(): boolean { return !!(this.adminComponent?.formDirty); }
+    get formValid(): boolean { return !!(this.adminComponent?.formValid); }
+    get configLoading(): boolean { return !!(this.adminComponent?.configLoading); }
+    get onConfigTab(): boolean { return this.adminComponent?.selectedTabIndex === 0; }
+
+    saveConfig(): void { this.adminComponent?.saveConfig(); }
+    resetConfig(): void { window.location.reload(); }
 
     private eventSubscription: Subscription | undefined;
 

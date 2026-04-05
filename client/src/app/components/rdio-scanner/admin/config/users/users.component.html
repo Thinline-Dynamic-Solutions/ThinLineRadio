@@ -38,7 +38,7 @@
     <div class="search-bar" *ngIf="!loading && !error && users.length > 0">
         <mat-form-field appearance="outline" class="search-field">
             <mat-label>Search by name, email, or group</mat-label>
-            <input matInput type="text" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Enter name, email, or group...">
+            <input matInput type="text" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Enter name, email, or group..." autocomplete="off">
             <mat-icon matPrefix>search</mat-icon>
             <button mat-icon-button matSuffix *ngIf="searchText" (click)="clearSearch()" type="button">
                 <mat-icon>clear</mat-icon>
@@ -248,13 +248,13 @@
                         </div>
 
                         <!-- Edit Form -->
-                        <form [formGroup]="editForm" class="edit-form">
+                        <form [formGroup]="editForm" class="edit-form" autocomplete="off">
                             <h5 class="section-label"><mat-icon>edit</mat-icon> Edit User</h5>
 
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="full-width">
                                     <mat-label>Email</mat-label>
-                                    <input matInput type="email" formControlName="email" required>
+                                    <input matInput type="email" formControlName="email" required autocomplete="off">
                                     <mat-error *ngIf="editForm.get('email')?.hasError('required')">Email is required</mat-error>
                                     <mat-error *ngIf="editForm.get('email')?.hasError('email')">Please enter a valid email</mat-error>
                                 </mat-form-field>
@@ -263,12 +263,12 @@
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>First Name</mat-label>
-                                    <input matInput type="text" formControlName="firstName" required>
+                                    <input matInput type="text" formControlName="firstName" required autocomplete="off">
                                     <mat-error *ngIf="editForm.get('firstName')?.hasError('required')">Required</mat-error>
                                 </mat-form-field>
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>Last Name</mat-label>
-                                    <input matInput type="text" formControlName="lastName" required>
+                                    <input matInput type="text" formControlName="lastName" required autocomplete="off">
                                     <mat-error *ngIf="editForm.get('lastName')?.hasError('required')">Required</mat-error>
                                 </mat-form-field>
                             </div>
@@ -276,13 +276,13 @@
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>ZIP Code</mat-label>
-                                    <input matInput type="text" formControlName="zipCode" placeholder="12345" required>
+                                    <input matInput type="text" formControlName="zipCode" placeholder="12345" required autocomplete="off">
                                     <mat-error *ngIf="editForm.get('zipCode')?.hasError('required')">Required</mat-error>
                                     <mat-error *ngIf="editForm.get('zipCode')?.hasError('pattern')">Invalid ZIP</mat-error>
                                 </mat-form-field>
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>Delay (minutes)</mat-label>
-                                    <input matInput type="number" formControlName="delay" min="0"
+                                    <input matInput type="number" formControlName="delay" min="0" autocomplete="off"
                                            [disabled]="editingUser ? (editingUser.userGroupId || 0) > 0 : false">
                                     <mat-hint *ngIf="editingUser && editingUser.userGroupId">Managed by group</mat-hint>
                                 </mat-form-field>
@@ -304,7 +304,7 @@
                             <div class="form-row pin-row">
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>PIN</mat-label>
-                                    <input matInput type="text" formControlName="pin" placeholder="Leave blank to keep current">
+                                    <input matInput type="text" formControlName="pin" placeholder="Leave blank to keep current" autocomplete="off">
                                 </mat-form-field>
                                 <div class="pin-actions">
                                     <button mat-stroked-button color="primary" type="button" (click)="requestPinRegeneration()" [disabled]="saving">
@@ -317,7 +317,7 @@
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>Connection Limit</mat-label>
-                                    <input matInput type="number" min="0" formControlName="connectionLimit" placeholder="0 for unlimited">
+                                    <input matInput type="number" min="0" formControlName="connectionLimit" placeholder="0 for unlimited" autocomplete="off">
                                     <mat-hint *ngIf="editingUser && editingUser.userGroupId && editingUser.effectiveConnectionLimit">
                                         Group limit: {{ editingUser.effectiveConnectionLimit }}
                                     </mat-hint>
@@ -327,7 +327,7 @@
                                 </mat-form-field>
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>PIN Expiration</mat-label>
-                                    <input matInput type="datetime-local" formControlName="pinExpiresAt">
+                                    <input matInput type="datetime-local" formControlName="pinExpiresAt" autocomplete="off">
                                     <mat-hint>Leave blank for no expiration</mat-hint>
                                 </mat-form-field>
                             </div>
@@ -358,7 +358,7 @@
                                     </mat-form-field>
                                     <mat-form-field appearance="outline" class="delay-input">
                                         <mat-label>Delay (min)</mat-label>
-                                        <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
+                                        <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
                                     </mat-form-field>
                                     <button mat-icon-button type="button" (click)="removeSystemDelay(i)" color="warn">
                                         <mat-icon>delete</mat-icon>
@@ -390,7 +390,7 @@
                                     </mat-form-field>
                                     <mat-form-field appearance="outline" class="delay-input">
                                         <mat-label>Delay (min)</mat-label>
-                                        <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
+                                        <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
                                     </mat-form-field>
                                     <button mat-icon-button type="button" (click)="removeTalkgroupDelay(i)" color="warn">
                                         <mat-icon>delete</mat-icon>
@@ -411,14 +411,14 @@
                                 <div class="form-row">
                                     <mat-form-field appearance="outline" class="full-width">
                                         <mat-label>Stripe Customer ID</mat-label>
-                                        <input matInput type="text" formControlName="stripeCustomerId" placeholder="cus_...">
+                                        <input matInput type="text" formControlName="stripeCustomerId" placeholder="cus_..." autocomplete="off">
                                         <mat-hint>e.g. cus_abc123</mat-hint>
                                     </mat-form-field>
                                 </div>
                                 <div class="form-row">
                                     <mat-form-field appearance="outline" class="half-width">
                                         <mat-label>Stripe Subscription ID</mat-label>
-                                        <input matInput type="text" formControlName="stripeSubscriptionId" placeholder="sub_...">
+                                        <input matInput type="text" formControlName="stripeSubscriptionId" placeholder="sub_..." autocomplete="off">
                                     </mat-form-field>
                                     <mat-form-field appearance="outline" class="half-width">
                                         <mat-label>Subscription Status</mat-label>

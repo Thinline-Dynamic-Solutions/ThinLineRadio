@@ -101,7 +101,7 @@
                 <div class="cell-content" [formGroup]="tag">
                     <mat-form-field appearance="outline" class="label-field" subscriptSizing="dynamic">
                         <input matInput formControlName="label"
-                               [placeholder]="tag.get('label')?.invalid && tag.get('label')?.touched ? '⚠ Required' : 'Tag label'">
+                               [placeholder]="tag.get('label')?.invalid && tag.get('label')?.touched ? '⚠ Required' : 'Tag label'" autocomplete="off">
                     </mat-form-field>
                     <mat-icon *ngIf="tag.get('label')?.invalid && tag.get('label')?.touched"
                               color="warn" class="row-error"

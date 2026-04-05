@@ -95,6 +95,14 @@
           </div>
           <span class="scan-list-name">{{ list.name }}</span>
           <span class="scan-list-count">{{ getScanListEnabledCount(list) }} / {{ list.channels.length }}</span>
+          <div *ngIf="list.channels.length > 0" class="scan-list-livefeed-toggle" (click)="$event.stopPropagation()"
+               matTooltip="When on, enabled channels in this list are included in the live feed. You can turn on several lists; channels are combined (union). Turn all off to stop using scan lists for scanning.">
+            <mat-slide-toggle color="primary"
+                              [checked]="isScanListDrivingLivefeed(list)"
+                              (change)="onScanListDriveToggle(list, $event)">
+            </mat-slide-toggle>
+            <span class="scan-toggle-label">Use for scanning</span>
+          </div>
           <div class="scan-list-actions" (click)="$event.stopPropagation()">
             <button *ngIf="!list.isFavoritesSource" class="icon-action sm" title="Rename" (click)="renameScanList(list)">
               <mat-icon>edit</mat-icon>
@@ -127,10 +135,10 @@
                 <div *ngIf="isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag)" class="talkgroup-list">
                   <div *ngFor="let ch of tagGroup.channels"
                        class="talkgroup-row"
-                       [class.enabled]="isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId)"
-                       (click)="toggleTalkgroup(+ch.systemId, +ch.talkgroupId)">
+                       [class.enabled]="ch.isEnabled"
+                       (click)="toggleScanListRowEnabled(ch, $event)">
                     <mat-icon class="row-radio-icon">
-                      {{ isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                      {{ ch.isEnabled ? 'radio_button_checked' : 'radio_button_unchecked' }}
                     </mat-icon>
                     <div class="row-text">
                       <span class="row-label">{{ ch.talkgroupLabel }}</span>
@@ -258,6 +266,37 @@
                 <button class="favorite-toggle" (click)="toggleFavoriteTag(ds.id, tagGroup.tag, $event)">
                   <mat-icon>{{ isTagFavorite(ds.id, tagGroup.tag) ? 'star' : 'star_border' }}</mat-icon>
                 </button>
+                <div class="scan-list-menu-wrap" (click)="$event.stopPropagation()">
+                  <button class="favorite-toggle" title="Add tag to scan list"
+                          (click)="openScanListMenuForTag(ds.id, tagGroup.tag || '', $event)">
+                    <mat-icon>playlist_add</mat-icon>
+                  </button>
+                  <div *ngIf="isScanListTagMenuOpen(ds.id, tagGroup.tag || '')"
+                       class="scan-list-dropdown scan-list-dropdown--fixed scan-list-dropdown--tag"
+                       [ngStyle]="scanListDropdownStyle"
+                       (click)="$event.stopPropagation()">
+                    <div class="scan-list-dropdown-tag-hint">
+                      Tag · {{ tagGroup.tag || 'Untagged' }} ({{ tagGroup.talkgroups.length }} ch)
+                    </div>
+                    <div *ngIf="getEditableScanLists().length === 0" class="scan-list-dropdown-empty">
+                      No scan lists — create one in Scan Lists
+                    </div>
+                    <div *ngFor="let list of getEditableScanLists()"
+                         class="scan-list-dropdown-item"
+                         (click)="toggleTagInScanList(list, ds, tagGroup, $event)">
+                      <mat-icon class="dropdown-check" [class.partial]="getTagScanListInclusionState(list, ds, tagGroup.talkgroups) === 'some'">
+                        {{ tagScanListMenuIcon(list, ds, tagGroup.talkgroups) }}
+                      </mat-icon>
+                      <span>{{ list.name }}</span>
+                    </div>
+                    <div class="scan-list-dropdown-divider"></div>
+                    <div class="scan-list-dropdown-item create"
+                         (click)="createScanListAndAddTag(ds, tagGroup, $event)">
+                      <mat-icon>add</mat-icon>
+                      <span>New list…</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <mat-icon class="expand-icon">{{ isTagExpanded(ds.id, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
             </div>
@@ -284,7 +323,10 @@
                             (click)="openScanListMenu(ds.id, talkgroup.id, $event)">
                       <mat-icon>playlist_add</mat-icon>
                     </button>
-                    <div *ngIf="isScanListMenuOpen(ds.id, talkgroup.id)" class="scan-list-dropdown">
+                    <div *ngIf="isScanListMenuOpen(ds.id, talkgroup.id)"
+                         class="scan-list-dropdown scan-list-dropdown--fixed"
+                         [ngStyle]="scanListDropdownStyle"
+                         (click)="$event.stopPropagation()">
                       <div *ngIf="getEditableScanLists().length === 0" class="scan-list-dropdown-empty">
                         No scan lists — create one below
                       </div>

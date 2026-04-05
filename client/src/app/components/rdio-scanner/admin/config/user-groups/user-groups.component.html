@@ -11,10 +11,10 @@
 
   <div *ngIf="showCreateForm" class="create-form">
     <h4>{{ editingGroup ? 'Edit Group' : 'Create New Group' }}</h4>
-    <form [formGroup]="groupForm" (ngSubmit)="saveGroup()">
+    <form [formGroup]="groupForm" (ngSubmit)="saveGroup()" autocomplete="off">
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Group Name</mat-label>
-        <input matInput formControlName="name" required>
+        <input matInput formControlName="name" required autocomplete="off">
         <mat-error *ngIf="groupForm.get('name')?.hasError('required')">
           Name is required
         </mat-error>
@@ -72,7 +72,7 @@
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Default Delay (minutes)</mat-label>
-        <input matInput type="number" formControlName="delay" min="0">
+        <input matInput type="number" formControlName="delay" min="0" autocomplete="off">
         <mat-hint>Default delay for all systems and talkgroups. Set to 0 to disable.</mat-hint>
       </mat-form-field>
 
@@ -90,7 +90,7 @@
           </mat-form-field>
           <mat-form-field appearance="outline" class="delay-input">
             <mat-label>Delay (minutes)</mat-label>
-            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
+            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
           </mat-form-field>
           <button mat-icon-button type="button" (click)="removeSystemDelay(i)" color="warn">
             <mat-icon>delete</mat-icon>
@@ -124,7 +124,7 @@
           </mat-form-field>
           <mat-form-field appearance="outline" class="delay-input">
             <mat-label>Delay (minutes)</mat-label>
-            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0">
+            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
           </mat-form-field>
           <button mat-icon-button type="button" (click)="removeTalkgroupDelay(i)" color="warn">
             <mat-icon>delete</mat-icon>
@@ -138,13 +138,13 @@
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Connection Limit</mat-label>
-        <input matInput type="number" formControlName="connectionLimit" min="0">
+        <input matInput type="number" formControlName="connectionLimit" min="0" autocomplete="off">
         <mat-hint>Per-user connection limit (0 = unlimited)</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Max Users</mat-label>
-        <input matInput type="number" formControlName="maxUsers" min="0">
+        <input matInput type="number" formControlName="maxUsers" min="0" autocomplete="off">
         <mat-hint>Maximum number of users allowed in this group (0 = unlimited). Only system admin can modify.</mat-hint>
       </mat-form-field>
 
@@ -177,21 +177,21 @@
             
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Stripe Price ID</mat-label>
-              <input matInput type="text" formControlName="priceId" placeholder="price_1234567890">
+              <input matInput type="text" formControlName="priceId" placeholder="price_1234567890" autocomplete="off">
               <mat-hint>Stripe Price ID from your Stripe Dashboard</mat-hint>
               <mat-error *ngIf="option.get('priceId')?.hasError('required')">Price ID is required</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Label</mat-label>
-              <input matInput type="text" formControlName="label" placeholder="e.g., Monthly, Yearly">
+              <input matInput type="text" formControlName="label" placeholder="e.g., Monthly, Yearly" autocomplete="off">
               <mat-hint>Display label for this pricing option</mat-hint>
               <mat-error *ngIf="option.get('label')?.hasError('required')">Label is required</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Display Amount</mat-label>
-              <input matInput type="text" formControlName="amount" placeholder="e.g., $10/month, $100/year">
+              <input matInput type="text" formControlName="amount" placeholder="e.g., $10/month, $100/year" autocomplete="off">
               <mat-hint>Price to display to users (e.g., "$10/month")</mat-hint>
               <mat-error *ngIf="option.get('amount')?.hasError('required')">Amount is required</mat-error>
             </mat-form-field>
@@ -230,7 +230,7 @@
 
         <mat-form-field appearance="outline" class="full-width" *ngIf="groupForm.get('taxMode')?.value === 'fixed'" style="margin-top: 10px;">
           <mat-label>Stripe Tax Rate ID</mat-label>
-          <input matInput formControlName="stripeTaxRateId" placeholder="txr_xxxxxxxxxxxxxxxx">
+          <input matInput formControlName="stripeTaxRateId" placeholder="txr_xxxxxxxxxxxxxxxx" autocomplete="off">
           <mat-hint>Enter the Tax Rate ID from your Stripe Dashboard (Products → Tax rates). No customer address required.</mat-hint>
         </mat-form-field>
         <p class="mat-caption" *ngIf="groupForm.get('taxMode')?.value === 'automatic'" style="margin-top: 5px; margin-bottom: 15px;">
@@ -273,7 +273,7 @@
                      [ngModelOptions]="{standalone: true}"
                      placeholder="Search by email or name…"
                      (keydown)="$event.stopPropagation()"
-                     (ngModelChange)="onUserSearchChange()">
+                     (ngModelChange)="onUserSearchChange()" autocomplete="off">
             </div>
             <mat-option [value]="0">— None —</mat-option>
             <mat-option *ngFor="let user of filteredUsers" [value]="user.id">
@@ -287,7 +287,7 @@
       <div *ngIf="!editingGroup && groupAdminMode === 'new'" class="form-section admin-option">
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Email</mat-label>
-            <input matInput type="email" formControlName="newGroupAdminEmail" required>
+            <input matInput type="email" formControlName="newGroupAdminEmail" required autocomplete="off">
             <mat-error *ngIf="groupForm.get('newGroupAdminEmail')?.hasError('required')">
               Email is required
             </mat-error>
@@ -298,7 +298,7 @@
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Password</mat-label>
-            <input matInput type="password" formControlName="newGroupAdminPassword" required minlength="6">
+            <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="newGroupAdminPassword" required minlength="6">
             <mat-error *ngIf="groupForm.get('newGroupAdminPassword')?.hasError('required')">
               Password is required
             </mat-error>
@@ -310,7 +310,7 @@
           <div class="form-row">
             <mat-form-field appearance="outline" class="half-width">
               <mat-label>First Name</mat-label>
-              <input matInput type="text" formControlName="newGroupAdminFirstName" required>
+              <input matInput type="text" formControlName="newGroupAdminFirstName" required autocomplete="off">
               <mat-error *ngIf="groupForm.get('newGroupAdminFirstName')?.hasError('required')">
                 First name is required
               </mat-error>
@@ -318,7 +318,7 @@
 
             <mat-form-field appearance="outline" class="half-width">
               <mat-label>Last Name</mat-label>
-              <input matInput type="text" formControlName="newGroupAdminLastName" required>
+              <input matInput type="text" formControlName="newGroupAdminLastName" required autocomplete="off">
               <mat-error *ngIf="groupForm.get('newGroupAdminLastName')?.hasError('required')">
                 Last name is required
               </mat-error>
@@ -327,7 +327,7 @@
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>ZIP Code</mat-label>
-            <input matInput type="text" formControlName="newGroupAdminZipCode" required pattern="^\d{5}(-\d{4})?$">
+            <input matInput type="text" formControlName="newGroupAdminZipCode" required pattern="^\d{5}(-\d{4})?$" autocomplete="off">
             <mat-error *ngIf="groupForm.get('newGroupAdminZipCode')?.hasError('required')">
               ZIP code is required
             </mat-error>
@@ -468,24 +468,24 @@
         <div class="form-row">
           <mat-form-field appearance="outline">
             <mat-label>Code</mat-label>
-            <input matInput [(ngModel)]="newCodeForm.code" placeholder="Leave blank to auto-generate" style="text-transform: uppercase;">
+            <input matInput [(ngModel)]="newCodeForm.code" placeholder="Leave blank to auto-generate" style="text-transform: uppercase;" autocomplete="off">
             <mat-hint>Custom code or leave blank to auto-generate</mat-hint>
           </mat-form-field>
           <mat-form-field appearance="outline">
             <mat-label>Label (Optional)</mat-label>
-            <input matInput [(ngModel)]="newCodeForm.label" placeholder="e.g. Fire Dept, Station 4">
+            <input matInput [(ngModel)]="newCodeForm.label" placeholder="e.g. Fire Dept, Station 4" autocomplete="off">
             <mat-hint>A name to help identify this code</mat-hint>
           </mat-form-field>
           <mat-form-field appearance="outline">
             <mat-label>Expiration Date</mat-label>
-            <input matInput [matDatepicker]="expirationPicker" [(ngModel)]="newCodeForm.expiresAt" placeholder="Leave empty for no expiration">
+            <input matInput [matDatepicker]="expirationPicker" [(ngModel)]="newCodeForm.expiresAt" placeholder="Leave empty for no expiration" autocomplete="off">
             <mat-datepicker-toggle matSuffix [for]="expirationPicker"></mat-datepicker-toggle>
             <mat-datepicker #expirationPicker></mat-datepicker>
             <mat-hint>Leave empty for no expiration</mat-hint>
           </mat-form-field>
           <mat-form-field appearance="outline">
             <mat-label>Max Uses</mat-label>
-            <input matInput type="number" [(ngModel)]="newCodeForm.maxUses" placeholder="0 for unlimited">
+            <input matInput type="number" [(ngModel)]="newCodeForm.maxUses" placeholder="0 for unlimited" autocomplete="off">
             <mat-hint>0 for unlimited</mat-hint>
           </mat-form-field>
         </div>
@@ -619,7 +619,7 @@
                [(ngModel)]="assignAdminSearchQuery"
                placeholder="Search by email or name…"
                (ngModelChange)="onAssignAdminSearchChange()"
-               autofocus>
+               autofocus autocomplete="off">
         <button *ngIf="assignAdminSearchQuery" mat-icon-button class="clear-btn" (click)="assignAdminSearchQuery=''; onAssignAdminSearchChange()">
           <mat-icon>close</mat-icon>
         </button>

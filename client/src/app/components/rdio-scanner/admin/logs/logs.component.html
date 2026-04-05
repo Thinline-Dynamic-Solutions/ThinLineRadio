@@ -62,7 +62,7 @@
             Date
         </mat-label>
         <input matInput type="datetime-local" formControlName="date" [max]="logsQuery?.dateStop"
-            [min]="logsQuery?.dateStart" placeholder="Choose a date" (change)="formHandler()">
+            [min]="logsQuery?.dateStart" placeholder="Choose a date" (change)="formHandler()" autocomplete="off">
     </mat-form-field>
     <mat-form-field>
         <mat-label>

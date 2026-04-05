@@ -94,12 +94,12 @@
                 <div class="kw-edit-row">
                     <mat-form-field appearance="outline" class="kw-field-label">
                         <mat-label>Label</mat-label>
-                        <input matInput formControlName="label" placeholder="e.g. Fire Keywords">
+                        <input matInput formControlName="label" placeholder="e.g. Fire Keywords" autocomplete="off">
                         <mat-error *ngIf="editingForm.get('label')?.hasError('required')">Required</mat-error>
                     </mat-form-field>
                     <mat-form-field appearance="outline" class="kw-field-order">
                         <mat-label>Order</mat-label>
-                        <input type="number" matInput formControlName="order" min="0">
+                        <input type="number" matInput formControlName="order" min="0" autocomplete="off">
                     </mat-form-field>
                 </div>
 
@@ -140,7 +140,7 @@
                                    [(ngModel)]="newKeywordText"
                                    [ngModelOptions]="{standalone: true}"
                                    placeholder="Type and press Enter…"
-                                   (keydown.enter)="addKeywordFromInput(); $event.preventDefault()">
+                                   (keydown.enter)="addKeywordFromInput(); $event.preventDefault()" autocomplete="off">
                         </mat-form-field>
                         <button type="button" mat-flat-button color="primary"
                                 class="kw-add-btn"

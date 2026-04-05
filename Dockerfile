@@ -69,10 +69,12 @@ FROM alpine:3.19
 # - ffprobe: Required for audio duration calculation
 # - ca-certificates: Required for HTTPS API calls (transcription services, etc.)
 # - tzdata: Required for proper timezone handling
+# - curl: Required for healthcheck (avoids BusyBox wget ssl_client zombie bug)
 RUN apk add --no-cache \
     ffmpeg \
     ca-certificates \
     tzdata \
+    curl \
     && rm -rf /var/cache/apk/*
 
 # Create non-root user for security
@@ -111,8 +113,10 @@ EXPOSE 3000 3443
 
 # Health check
 # Checks if the server is responding on the main port
+# Using curl instead of wget to avoid BusyBox wget ssl_client zombie process bug
+# (https://bugs.busybox.net/show_bug.cgi?id=15967)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+    CMD curl -f http://localhost:3000/ || exit 1
 
 # Environment variables (can be overridden)
 ENV DB_TYPE=postgresql \

@@ -20,6 +20,7 @@
 import { ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSlideToggleChange } from '@angular/material/slide-toggle';
 import { Subscription } from 'rxjs';
 import {
     RdioScannerAvoidOptions,
@@ -65,6 +66,8 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     private expandedScanListTags = new Set<string>();
     private scanListsSubscription?: Subscription;
     scanListMenuKey: string | null = null;
+    /** Fixed viewport position for the add-to-scan-list menu (avoids clipping by overflow:hidden parents). */
+    scanListDropdownStyle: Record<string, string> | null = null;
     detailSystemId: number | null = null;
     expandedTags: Map<string, boolean> = new Map();
     hiddenSystems: Set<number> = new Set();
@@ -279,23 +282,70 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         this.scanListsService.removeChannel(list.id, ch.systemId, ch.talkgroupId);
     }
 
-    @HostListener('document:click')
-    closeScanListMenu(): void {
+    @HostListener('document:click', ['$event'])
+    closeScanListMenu(ev: MouseEvent): void {
+        const t = ev.target as HTMLElement;
+        if (t.closest('.scan-list-dropdown') || t.closest('.scan-list-menu-wrap')) {
+            return;
+        }
         if (this.scanListMenuKey !== null) {
             this.scanListMenuKey = null;
+            this.scanListDropdownStyle = null;
             this.cdRef.markForCheck();
         }
     }
 
-    openScanListMenu(systemId: number, talkgroupId: number, event: Event): void {
+    private scanListTagMenuKey(systemId: number, tag: string): string {
+        return `t:${systemId}:${encodeURIComponent(tag)}`;
+    }
+
+    openScanListMenu(systemId: number, talkgroupId: number, event: MouseEvent): void {
         event.stopPropagation();
         const key = `${systemId}-${talkgroupId}`;
-        this.scanListMenuKey = this.scanListMenuKey === key ? null : key;
+        const closing = this.scanListMenuKey === key;
+        this.scanListMenuKey = closing ? null : key;
+        this.scanListDropdownStyle = null;
+        if (!closing && event.currentTarget instanceof HTMLElement) {
+            this.positionScanListDropdown(event.currentTarget);
+        }
         this.cdRef.markForCheck();
+    }
+
+    openScanListMenuForTag(systemId: number, tag: string, event: MouseEvent): void {
+        event.stopPropagation();
+        const key = this.scanListTagMenuKey(systemId, tag);
+        const closing = this.scanListMenuKey === key;
+        this.scanListMenuKey = closing ? null : key;
+        this.scanListDropdownStyle = null;
+        if (!closing && event.currentTarget instanceof HTMLElement) {
+            this.positionScanListDropdown(event.currentTarget);
+        }
+        this.cdRef.markForCheck();
+    }
+
+    private positionScanListDropdown(anchor: HTMLElement): void {
+        const r = anchor.getBoundingClientRect();
+        const width = Math.min(280, window.innerWidth - 16);
+        let left = r.right - width;
+        left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+        const spaceBelow = window.innerHeight - r.bottom - 12;
+        const maxHeight = Math.max(140, Math.min(360, spaceBelow));
+        this.scanListDropdownStyle = {
+            position: 'fixed',
+            top: `${r.bottom + 4}px`,
+            left: `${left}px`,
+            width: `${width}px`,
+            'max-height': `${maxHeight}px`,
+            'z-index': '10000',
+        };
     }
 
     isScanListMenuOpen(systemId: number, talkgroupId: number): boolean {
         return this.scanListMenuKey === `${systemId}-${talkgroupId}`;
+    }
+
+    isScanListTagMenuOpen(systemId: number, tag: string): boolean {
+        return this.scanListMenuKey === this.scanListTagMenuKey(systemId, tag);
     }
 
     getEditableScanLists(): ScanList[] {
@@ -342,6 +392,112 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
             });
         }
         this.scanListMenuKey = null;
+        this.scanListDropdownStyle = null;
+        this.cdRef.markForCheck();
+    }
+
+    getTagScanListInclusionState(
+        list: ScanList,
+        system: RdioScannerSystem,
+        talkgroups: RdioScannerTalkgroup[],
+    ): 'all' | 'some' | 'none' {
+        if (!talkgroups.length) {
+            return 'none';
+        }
+        let n = 0;
+        for (const tg of talkgroups) {
+            if (this.isTalkgroupInScanList(list, system.id, tg.id)) {
+                n++;
+            }
+        }
+        if (n === 0) {
+            return 'none';
+        }
+        if (n === talkgroups.length) {
+            return 'all';
+        }
+        return 'some';
+    }
+
+    tagScanListMenuIcon(list: ScanList, system: RdioScannerSystem, talkgroups: RdioScannerTalkgroup[]): string {
+        const s = this.getTagScanListInclusionState(list, system, talkgroups);
+        if (s === 'all') {
+            return 'check_box';
+        }
+        if (s === 'some') {
+            return 'indeterminate_check_box';
+        }
+        return 'check_box_outline_blank';
+    }
+
+    toggleTagInScanList(
+        list: ScanList,
+        system: RdioScannerSystem,
+        tagGroup: { tag: string; talkgroups: RdioScannerTalkgroup[] },
+        event: Event,
+    ): void {
+        event.stopPropagation();
+        const state = this.getTagScanListInclusionState(list, system, tagGroup.talkgroups);
+        const refs = tagGroup.talkgroups.map((tg) => ({
+            systemId: system.id.toString(),
+            talkgroupId: tg.id.toString(),
+        }));
+        if (state === 'all') {
+            this.scanListsService.removeChannelsByRefs(list.id, refs);
+        } else {
+            const toAdd: ScanListChannel[] = tagGroup.talkgroups
+                .filter((tg) => !this.isTalkgroupInScanList(list, system.id, tg.id))
+                .map((tg) => ({
+                    systemId: system.id.toString(),
+                    talkgroupId: tg.id.toString(),
+                    talkgroupLabel: tg.label || '',
+                    talkgroupName: tg.name || '',
+                    systemLabel: system.label || '',
+                    tag: tg.tag || tagGroup.tag || 'Untagged',
+                    isEnabled: true,
+                }));
+            this.scanListsService.addChannels(list.id, toAdd);
+        }
+        this.cdRef.markForCheck();
+    }
+
+    createScanListAndAddTag(
+        system: RdioScannerSystem,
+        tagGroup: { tag: string; talkgroups: RdioScannerTalkgroup[] },
+        event: Event,
+    ): void {
+        event.stopPropagation();
+        const name = prompt('New list name:');
+        if (name?.trim()) {
+            const list = this.scanListsService.createList(name.trim());
+            const channels: ScanListChannel[] = tagGroup.talkgroups.map((tg) => ({
+                systemId: system.id.toString(),
+                talkgroupId: tg.id.toString(),
+                talkgroupLabel: tg.label || '',
+                talkgroupName: tg.name || '',
+                systemLabel: system.label || '',
+                tag: tg.tag || tagGroup.tag || 'Untagged',
+                isEnabled: true,
+            }));
+            this.scanListsService.addChannels(list.id, channels);
+        }
+        this.scanListMenuKey = null;
+        this.scanListDropdownStyle = null;
+        this.cdRef.markForCheck();
+    }
+
+    isScanListDrivingLivefeed(list: ScanList): boolean {
+        return this.scanListsService.isActiveScanList(list.id);
+    }
+
+    onScanListDriveToggle(list: ScanList, ev: MatSlideToggleChange): void {
+        this.scanListsService.setScanListScanningEnabled(list.id, ev.checked);
+        this.cdRef.markForCheck();
+    }
+
+    toggleScanListRowEnabled(ch: ScanListChannel, event: Event): void {
+        event.stopPropagation();
+        this.scanListsService.updateChannelEnabled(ch.systemId, ch.talkgroupId, !ch.isEnabled);
         this.cdRef.markForCheck();
     }
 

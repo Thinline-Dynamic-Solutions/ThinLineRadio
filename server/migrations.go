@@ -2574,3 +2574,13 @@ func migrateTranscriptionPrompt(db *Database) error {
 	}
 	return nil
 }
+
+// migrateAutoPopulateAlertsEnabled adds per-system control for alertsEnabled on auto-populated talkgroups.
+// Default true matches prior expectation that new autopop TGs participate in alerts when the system allows it.
+func migrateAutoPopulateAlertsEnabled(db *Database) error {
+	q := `ALTER TABLE "systems" ADD COLUMN IF NOT EXISTS "autoPopulateAlertsEnabled" boolean NOT NULL DEFAULT true`
+	if _, err := db.Sql.Exec(q); err != nil {
+		return fmt.Errorf("migrateAutoPopulateAlertsEnabled: %w", err)
+	}
+	return nil
+}

@@ -234,3 +234,11 @@ html,
 body {
 	height: 100%;
 }
+
+/* Mask admin API key / secret fields without using type="password"
+   so Chrome's password-save detector never triggers outside the login form */
+input.masked-pw {
+    -webkit-text-security: disc;
+    text-security: disc;
+    font-family: monospace;
+}

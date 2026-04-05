@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -32,6 +33,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/stripe/stripe-go/v76"
@@ -41,6 +43,49 @@ import (
 	"github.com/stripe/stripe-go/v76/subscription"
 	"github.com/stripe/stripe-go/v76/webhook"
 )
+
+// Temporary storage for signup verification codes
+type signupVerificationCache struct {
+	mu     sync.RWMutex
+	codes  map[string]string // email -> code
+	expiry map[string]int64  // email -> unix timestamp
+}
+
+var signupVerifications = &signupVerificationCache{
+	codes:  make(map[string]string),
+	expiry: make(map[string]int64),
+}
+
+func (c *signupVerificationCache) Set(email, code string, expiryTime int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.codes[email] = code
+	c.expiry[email] = expiryTime
+}
+
+func (c *signupVerificationCache) Get(email string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	
+	code, exists := c.codes[email]
+	if !exists {
+		return "", false
+	}
+	
+	// Check if expired
+	if expiry, ok := c.expiry[email]; ok && time.Now().Unix() > expiry {
+		return "", false
+	}
+	
+	return code, true
+}
+
+func (c *signupVerificationCache) Delete(email string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.codes, email)
+	delete(c.expiry, email)
+}
 
 type Api struct {
 	Controller *Controller
@@ -495,20 +540,51 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		FirstName        string `json:"firstName"`
-		LastName         string `json:"lastName"`
-		ZipCode          string `json:"zipCode"`
-		RegistrationCode string `json:"registrationCode"` // Deprecated: use accessCode
-		InvitationCode   string `json:"invitationCode"`   // Deprecated: use accessCode
-		AccessCode       string `json:"accessCode"`       // Unified field for both invitation and registration codes
-		TurnstileToken   string `json:"turnstile_token"`
+		Email              string `json:"email"`
+		Password           string `json:"password"`
+		FirstName          string `json:"firstName"`
+		LastName           string `json:"lastName"`
+		ZipCode            string `json:"zipCode"`
+		RegistrationCode   string `json:"registrationCode"` // Deprecated: use accessCode
+		InvitationCode     string `json:"invitationCode"`   // Deprecated: use accessCode
+		AccessCode         string `json:"accessCode"`       // Unified field for both invitation and registration codes
+		TurnstileToken     string `json:"turnstile_token"`
+		VerificationCode   string `json:"verificationCode"` // Email verification code (if emailVerificationRequired)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		api.exitWithError(w, http.StatusBadRequest, "Invalid JSON")
 		return
+	}
+
+	// Normalize email first
+	if request.Email != "" {
+		request.Email = NormalizeEmail(request.Email)
+	}
+
+	// If email verification is required, validate the verification code
+	// Skip this check if an access/invitation code was provided — the code itself proves identity
+	if api.Controller.Options.EmailVerificationRequired && request.AccessCode == "" {
+		if request.VerificationCode == "" {
+			api.exitWithError(w, http.StatusBadRequest, "Email verification code is required")
+			return
+		}
+
+		// Get stored code
+		storedCode, exists := signupVerifications.Get(request.Email)
+		if !exists {
+			api.exitWithError(w, http.StatusBadRequest, "Invalid or expired verification code. Please request a new code.")
+			return
+		}
+
+		// Validate code
+		if storedCode != request.VerificationCode {
+			api.exitWithError(w, http.StatusBadRequest, "Incorrect verification code")
+			return
+		}
+
+		// Code is valid - delete it from cache
+		signupVerifications.Delete(request.Email)
 	}
 
 	// Backward compatibility: if accessCode is provided, it takes precedence
@@ -551,14 +627,11 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Validate email format
+	// Validate email format (if not already validated)
 	if err := ValidateEmail(request.Email); err != nil {
 		api.exitWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	// Normalize email to lowercase
-	request.Email = NormalizeEmail(request.Email)
 
 	// Validate password strength
 	if err := ValidatePassword(request.Password); err != nil {
@@ -846,8 +919,15 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Send verification email
-	if api.Controller.Options.EmailServiceEnabled {
+	// If user registered via an access/invitation code, mark them as already verified
+	if request.AccessCode != "" {
+		user.Verified = true
+		api.Controller.Users.Update(user)
+		api.Controller.Users.Write(api.Controller.Database)
+		api.Controller.SyncConfigToFile()
+		log.Printf("Auto-verified user %s - registered via access/invitation code", user.Email)
+	} else if api.Controller.Options.EmailServiceEnabled {
+		// Only send verification email for non-code registrations
 		if err := api.Controller.EmailService.SendVerificationEmail(user); err != nil {
 			api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("Failed to send verification email: %v", err))
 		}
@@ -859,6 +939,90 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		"message":           "User registered successfully. Please check your email for verification.",
 		"verificationToken": user.VerificationToken,
 		"pin":               user.Pin,
+	})
+}
+
+// RequestSignupVerificationHandler sends a verification code to a new user's email during signup
+func (api *Api) RequestSignupVerificationHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	if !api.Controller.Options.UserRegistrationEnabled {
+		api.exitWithError(w, http.StatusForbidden, "User registration is disabled")
+		return
+	}
+
+	// Only send verification codes if email verification is required
+	if !api.Controller.Options.EmailVerificationRequired {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":              "Email verification not required",
+			"verificationRequired": false,
+		})
+		return
+	}
+
+	var request struct {
+		Email string `json:"email"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	// Validate email
+	if request.Email == "" {
+		api.exitWithError(w, http.StatusBadRequest, "Email is required")
+		return
+	}
+
+	if err := ValidateEmail(request.Email); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Normalize email
+	request.Email = NormalizeEmail(request.Email)
+
+	// Check if user already exists
+	if existingUser := api.Controller.Users.GetUserByEmail(request.Email); existingUser != nil {
+		api.exitWithError(w, http.StatusConflict, "User already exists")
+		return
+	}
+
+	// Generate verification code (6 digits)
+	n, err := rand.Int(rand.Reader, big.NewInt(900000))
+	if err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, "Failed to generate code")
+		return
+	}
+	verificationCode := fmt.Sprintf("%06d", n.Int64()+100000)
+
+	// Store code in cache with 15 minute expiration
+	expiryTime := time.Now().Add(15 * time.Minute).Unix()
+	signupVerifications.Set(request.Email, verificationCode, expiryTime)
+
+	// Send verification email
+	if api.Controller.Options.EmailServiceEnabled {
+		if err := api.Controller.EmailService.SendSignupVerificationEmail(request.Email, verificationCode); err != nil {
+			log.Printf("Failed to send signup verification email: %v", err)
+			api.exitWithError(w, http.StatusInternalServerError, "Failed to send verification email")
+			return
+		}
+	} else {
+		api.exitWithError(w, http.StatusServiceUnavailable, "Email service is not configured")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":              "Verification code sent to your email",
+		"verificationRequired": true,
 	})
 }
 
@@ -931,9 +1095,10 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Login successful - reset failed attempts
 	api.Controller.LoginAttemptTracker.RecordSuccess(clientIP)
 
-	// Allow login even if not verified - email verification is optional
-	if !user.Verified {
-		log.Printf("User %s logged in without email verification", user.Email)
+	// Check if email verification is required
+	if api.Controller.Options.EmailVerificationRequired && !user.Verified {
+		api.exitWithError(w, http.StatusForbidden, "Email verification required. Please check your email and verify your account before logging in.")
+		return
 	}
 
 	// Note: We don't check subscription status here - users should be able to log in
@@ -1016,12 +1181,6 @@ func (api *Api) RequestPasswordResetHandler(w http.ResponseWriter, r *http.Reque
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message": "If an account with that email exists, a password reset code has been sent.",
 		})
-		return
-	}
-
-	// Check if user is verified
-	if !user.Verified {
-		api.exitWithError(w, http.StatusForbidden, "Account not verified. Please verify your email first.")
 		return
 	}
 
@@ -2511,16 +2670,7 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Get user's alert preferences, excluding any that an admin has disabled at system/talkgroup level
-		prefsQuery := fmt.Sprintf(`SELECT p."systemId", p."talkgroupId", p."alertEnabled", p."toneAlerts", p."keywordAlerts", p."toneSetIds", p."keywords", p."keywordListIds" FROM "userAlertPreferences" p LEFT JOIN "talkgroups" t ON t."talkgroupId" = p."talkgroupId" LEFT JOIN "systems" s ON s."systemId" = p."systemId" WHERE p."userId" = %d AND COALESCE(t."alertsEnabled", true) = true AND COALESCE(s."alertsEnabled", true) = true`, client.User.Id)
-		prefsRows, err := api.Controller.Database.Sql.Query(prefsQuery)
-		if err != nil {
-			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to query preferences: %v", err))
-			return
-		}
-		defer prefsRows.Close()
-
-		// Build preference map for efficient lookup
+		// Get user's alert preferences from cache
 		type userPref struct {
 			systemId       uint64
 			talkgroupId    uint64
@@ -2533,51 +2683,21 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		preferences := make(map[string]*userPref) // Key: "systemId-talkgroupId"
 
-		for prefsRows.Next() {
-			var (
-				systemId          uint64
-				talkgroupId       uint64
-				alertEnabled      bool
-				toneAlerts        bool
-				keywordAlerts     bool
-				toneSetIdsRaw     string
-				keywordsRaw       string
-				keywordListIdsRaw string
-			)
-			if err := prefsRows.Scan(&systemId, &talkgroupId, &alertEnabled, &toneAlerts, &keywordAlerts, &toneSetIdsRaw, &keywordsRaw, &keywordListIdsRaw); err != nil {
-				continue
+		// Load from cache instead of database
+		cachedPrefs := api.Controller.PreferencesCache.GetUserPreferences(client.User.Id)
+		for _, cachePref := range cachedPrefs {
+			// Convert numeric cache key back to string format for API compatibility
+			key := fmt.Sprintf("%d-%d", cachePref.SystemId, cachePref.TalkgroupId)
+			preferences[key] = &userPref{
+				systemId:       cachePref.SystemId,
+				talkgroupId:    cachePref.TalkgroupId,
+				alertEnabled:   cachePref.AlertEnabled,
+				toneAlerts:     cachePref.ToneAlerts,
+				keywordAlerts:  cachePref.KeywordAlerts,
+				toneSetIds:     cachePref.ToneSetIds,
+				keywords:       cachePref.Keywords,
+				keywordListIds: cachePref.KeywordListIds,
 			}
-
-			key := fmt.Sprintf("%d-%d", systemId, talkgroupId)
-			pref := &userPref{
-				systemId:       systemId,
-				talkgroupId:    talkgroupId,
-				alertEnabled:   alertEnabled,
-				toneAlerts:     toneAlerts,
-				keywordAlerts:  keywordAlerts,
-				toneSetIds:     []string{},
-				keywords:       []string{},
-				keywordListIds: []uint64{},
-			}
-
-			// Parse toneSetIds
-			if toneSetIdsRaw != "" && toneSetIdsRaw != "[]" {
-				json.Unmarshal([]byte(toneSetIdsRaw), &pref.toneSetIds)
-			}
-
-			// Parse keywords
-			if keywordsRaw != "" && keywordsRaw != "[]" {
-				json.Unmarshal([]byte(keywordsRaw), &pref.keywords)
-			}
-
-			// Parse keywordListIds
-			if keywordListIdsRaw != "" && keywordListIdsRaw != "[]" {
-				var listIds []uint64
-				json.Unmarshal([]byte(keywordListIdsRaw), &listIds)
-				pref.keywordListIds = listIds
-			}
-
-			preferences[key] = pref
 		}
 
 		// Fetch all alerts (no pagination - client will display in scrollable view)
@@ -2796,18 +2916,13 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 
 					// If no direct keyword match, check keyword lists
 					if !matchesKeywords && len(pref.keywordListIds) > 0 {
-						// Load keyword lists and check if alert keywords match
+						// Load keyword lists from cache and check if alert keywords match
 						for _, listId := range pref.keywordListIds {
-							listQuery := fmt.Sprintf(`SELECT "keywords" FROM "keywordLists" WHERE "keywordListId" = %d`, listId)
-							var listKeywordsJson string
-							if err := api.Controller.Database.Sql.QueryRow(listQuery).Scan(&listKeywordsJson); err == nil {
-								var listKeywords []string
-								if listKeywordsJson != "" && listKeywordsJson != "[]" {
-									json.Unmarshal([]byte(listKeywordsJson), &listKeywords)
-								}
+							list := api.Controller.KeywordListsCache.GetList(listId)
+							if list != nil {
 								// Check if any alert keyword matches list keywords
 								for _, alertKw := range alertKeywords {
-									for _, listKw := range listKeywords {
+									for _, listKw := range list.Keywords {
 										if strings.EqualFold(alertKw, listKw) {
 											matchesKeywords = true
 											break
@@ -2865,18 +2980,14 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 
-					// Check keyword lists
+					// Check keyword lists using cache
 					if !keywordMatches && len(pref.keywordListIds) > 0 {
 						for _, listId := range pref.keywordListIds {
-							listQuery := fmt.Sprintf(`SELECT "keywords" FROM "keywordLists" WHERE "keywordListId" = %d`, listId)
-							var listKeywordsJson string
-							if err := api.Controller.Database.Sql.QueryRow(listQuery).Scan(&listKeywordsJson); err == nil {
-								var listKeywords []string
-								if listKeywordsJson != "" && listKeywordsJson != "[]" {
-									json.Unmarshal([]byte(listKeywordsJson), &listKeywords)
-								}
+							// Get from cache instead of database
+							list := api.Controller.KeywordListsCache.GetList(listId)
+							if list != nil {
 								for _, alertKw := range alertKeywords {
-									for _, listKw := range listKeywords {
+									for _, listKw := range list.Keywords {
 										if strings.EqualFold(alertKw, listKw) {
 											keywordMatches = true
 											break
@@ -3244,77 +3355,40 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 
 	switch r.Method {
 	case http.MethodGet:
-		// Get preferences with talkgroupRef (for frontend matching)
-		query := fmt.Sprintf(`SELECT p."userId", p."systemId", p."talkgroupId", p."alertEnabled", p."toneAlerts", p."keywordAlerts", p."keywords", p."keywordListIds", p."toneSetIds", p."notificationSound", p."toneSetSounds", t."talkgroupRef", s."systemRef" FROM "userAlertPreferences" p LEFT JOIN "talkgroups" t ON t."talkgroupId" = p."talkgroupId" LEFT JOIN "systems" s ON s."systemId" = p."systemId" WHERE p."userId" = %d AND COALESCE(t."alertsEnabled", true) = true AND COALESCE(s."alertsEnabled", true) = true`, client.User.Id)
-		rows, err := api.Controller.Database.Sql.Query(query)
-		if err != nil {
-			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to query preferences: %v", err))
-			return
-		}
-		defer rows.Close()
-
+		// Get preferences from cache
+		cachedPrefs := api.Controller.PreferencesCache.GetUserPreferences(client.User.Id)
+		
 		preferences := []map[string]any{}
-		for rows.Next() {
-			var (
-				userId            uint64
-				systemId          uint64
-				talkgroupId       uint64
-				alertEnabled      bool
-				toneAlerts        bool
-				keywordAlerts     bool
-				keywordsJson      string
-				keywordListIds    string
-				toneSetIdsJson    string
-				notificationSound string
-				toneSetSoundsJson string
-				talkgroupRef      sql.NullInt32
-				systemRef         sql.NullInt32
-			)
-
-			if err := rows.Scan(&userId, &systemId, &talkgroupId, &alertEnabled, &toneAlerts, &keywordAlerts, &keywordsJson, &keywordListIds, &toneSetIdsJson, &notificationSound, &toneSetSoundsJson, &talkgroupRef, &systemRef); err != nil {
-				continue
-			}
-
-			var keywords []string
-			if keywordsJson != "" && keywordsJson != "[]" {
-				json.Unmarshal([]byte(keywordsJson), &keywords)
-			}
-
-			var keywordListIdsList []uint64
-			if keywordListIds != "" && keywordListIds != "[]" {
-				json.Unmarshal([]byte(keywordListIds), &keywordListIdsList)
-			}
-
-			var toneSetIdsList []string
-			if toneSetIdsJson != "" && toneSetIdsJson != "[]" {
-				json.Unmarshal([]byte(toneSetIdsJson), &toneSetIdsList)
-			}
-
-			var toneSetSoundsMap map[string]string
-			if toneSetSoundsJson != "" && toneSetSoundsJson != "{}" {
-				json.Unmarshal([]byte(toneSetSoundsJson), &toneSetSoundsMap)
+		for _, pref := range cachedPrefs {
+			// Look up systemRef and talkgroupRef from in-memory Systems
+			var systemRef, talkgroupRef uint
+			if system, ok := api.Controller.Systems.GetSystemById(pref.SystemId); ok {
+				systemRef = system.SystemRef
+				if talkgroup, ok := system.Talkgroups.GetTalkgroupById(pref.TalkgroupId); ok {
+					talkgroupRef = talkgroup.TalkgroupRef
+				}
 			}
 
 			prefMap := map[string]any{
-				"userId":            userId,
-				"systemId":          systemId,
-				"talkgroupId":       talkgroupId,
-				"alertEnabled":      alertEnabled,
-				"toneAlerts":        toneAlerts,
-				"keywordAlerts":     keywordAlerts,
-				"keywords":          keywords,
-				"keywordListIds":    keywordListIdsList,
-				"toneSetIds":        toneSetIdsList,
-				"notificationSound": notificationSound,
-				"toneSetSounds":     toneSetSoundsMap,
+				"userId":            pref.UserId,
+				"systemId":          pref.SystemId,
+				"talkgroupId":       pref.TalkgroupId,
+				"alertEnabled":      pref.AlertEnabled,
+				"toneAlerts":        pref.ToneAlerts,
+				"keywordAlerts":     pref.KeywordAlerts,
+				"keywords":          pref.Keywords,
+				"keywordListIds":    pref.KeywordListIds,
+				"toneSetIds":        pref.ToneSetIds,
+				"notificationSound": pref.NotificationSound,
+				"toneSetSounds":     pref.ToneSetSounds,
 			}
 
-			// Also include talkgroupRef and systemRef if available (for frontend matching)
-			if talkgroupRef.Valid {
-				prefMap["talkgroupRef"] = talkgroupRef.Int32
+			// Include systemRef and talkgroupRef for frontend matching
+			if systemRef > 0 {
+				prefMap["systemRef"] = systemRef
 			}
-			if systemRef.Valid {
-				prefMap["systemRef"] = systemRef.Int32
+			if talkgroupRef > 0 {
+				prefMap["talkgroupRef"] = talkgroupRef
 			}
 
 			preferences = append(preferences, prefMap)
@@ -3499,6 +3573,12 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
+		// Reload preferences cache after save
+		if err := api.Controller.PreferencesCache.Read(api.Controller.Database); err != nil {
+			api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload preferences cache after save: %v", err))
+			// Don't fail the request - cache will be stale but functional
+		}
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"success": true}`))
 
@@ -3523,42 +3603,18 @@ func (api *Api) KeywordListsHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// Get all keyword lists (admin can see all, users see available lists)
-		query := `SELECT "keywordListId", "label", "description", "keywords", "order", "createdAt" FROM "keywordLists" ORDER BY "order" ASC, "createdAt" DESC`
-		rows, err := api.Controller.Database.Sql.Query(query)
-		if err != nil {
-			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to query keyword lists: %v", err))
-			return
-		}
-		defer rows.Close()
-
+		// Get all keyword lists from cache
+		cachedLists := api.Controller.KeywordListsCache.GetAllLists()
+		
 		lists := []map[string]any{}
-		for rows.Next() {
-			var (
-				listId       uint64
-				label        string
-				description  string
-				keywordsJson string
-				order        uint
-				createdAt    int64
-			)
-
-			if err := rows.Scan(&listId, &label, &description, &keywordsJson, &order, &createdAt); err != nil {
-				continue
-			}
-
-			var keywords []string
-			if keywordsJson != "" && keywordsJson != "[]" {
-				json.Unmarshal([]byte(keywordsJson), &keywords)
-			}
-
+		for _, list := range cachedLists {
 			lists = append(lists, map[string]any{
-				"id":          listId,
-				"label":       label,
-				"description": description,
-				"keywords":    keywords,
-				"order":       order,
-				"createdAt":   createdAt,
+				"id":          list.Id,
+				"label":       list.Label,
+				"description": list.Description,
+				"keywords":    list.Keywords,
+				"order":       list.Order,
+				"createdAt":   list.CreatedAt,
 			})
 		}
 
@@ -3615,6 +3671,12 @@ func (api *Api) KeywordListsHandler(w http.ResponseWriter, r *http.Request) {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create keyword list: %v", err))
 			return
 		}
+		
+		// Reload keyword lists cache after creation
+		if err := api.Controller.KeywordListsCache.Read(api.Controller.Database); err != nil {
+			api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload keyword lists cache after create: %v", err))
+		}
+		
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(fmt.Sprintf(`{"id": %d, "success": true}`, listId)))
 
@@ -3691,6 +3753,11 @@ func (api *Api) KeywordListHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Reload keyword lists cache after update
+		if err := api.Controller.KeywordListsCache.Read(api.Controller.Database); err != nil {
+			api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload keyword lists cache after update: %v", err))
+		}
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"success": true}`))
 
@@ -3741,6 +3808,14 @@ func (api *Api) KeywordListHandler(w http.ResponseWriter, r *http.Request) {
 		if _, err := api.Controller.Database.Sql.Exec(query); err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete keyword list: %v", err))
 			return
+		}
+
+		// Reload both caches after deletion
+		if err := api.Controller.KeywordListsCache.Read(api.Controller.Database); err != nil {
+			api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload keyword lists cache after delete: %v", err))
+		}
+		if err := api.Controller.PreferencesCache.Read(api.Controller.Database); err != nil {
+			api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload preferences cache after keyword list delete: %v", err))
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -4706,9 +4781,10 @@ func (api *Api) GroupAdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Login successful - reset failed attempts
 	api.Controller.LoginAttemptTracker.RecordSuccess(clientIP)
 
-	// Allow login even if not verified - email verification is optional
-	if !user.Verified {
-		log.Printf("Group admin %s logged in without email verification", user.Email)
+	// Check if email verification is required
+	if api.Controller.Options.EmailVerificationRequired && !user.Verified {
+		api.exitWithError(w, http.StatusForbidden, "Email verification required. Please check your email and verify your account before logging in.")
+		return
 	}
 
 	if !user.IsGroupAdmin {
@@ -8267,6 +8343,7 @@ func (api *Api) RegistrationSettingsHandler(w http.ResponseWriter, r *http.Reque
 
 	response := map[string]interface{}{
 		"publicRegistrationEnabled": api.Controller.Options.PublicRegistrationEnabled,
+		"emailVerificationRequired": api.Controller.Options.EmailVerificationRequired,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -18,7 +18,7 @@
  * ****************************************************************************
  */
 
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { FormArray, FormGroup } from '@angular/forms';
 
@@ -26,6 +26,7 @@ import { FormArray, FormGroup } from '@angular/forms';
     selector: 'rdio-scanner-admin-systems',
     templateUrl: './systems.component.html',
     styleUrls: ['./systems.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class RdioScannerAdminSystemsComponent {
     @Input() form: FormArray | undefined;
@@ -62,13 +63,13 @@ export class RdioScannerAdminSystemsComponent {
     }
 
     getTalkgroupCount(system: FormGroup): number {
-        const talkgroups = system.get('talkgroups') as FormArray;
-        return talkgroups ? talkgroups.length : 0;
+        const talkgroups = system.get('talkgroups');
+        return talkgroups ? (talkgroups as any).length : 0;
     }
 
     getSiteCount(system: FormGroup): number {
-        const sites = system.get('sites') as FormArray;
-        return sites ? sites.length : 0;
+        const sites = system.get('sites');
+        return sites ? (sites as any).length : 0;
     }
 
     removeAll(): void {

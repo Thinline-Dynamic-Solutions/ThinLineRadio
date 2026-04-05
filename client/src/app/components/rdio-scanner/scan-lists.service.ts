@@ -36,6 +36,8 @@ export interface ScanList {
 export class ScanListsService implements OnDestroy {
     private lists$ = new BehaviorSubject<ScanList[]>([]);
     private lists: ScanList[] = [];
+    /** Lists whose enabled channels are unioned to drive the live feed (web client). */
+    private activeScanListIds = new Set<string>();
     private configSubscription?: Subscription;
     private saveDebounceTimer?: ReturnType<typeof setTimeout>;
 
@@ -50,7 +52,32 @@ export class ScanListsService implements OnDestroy {
                 const serverLists = event.config.userSettings['scanLists'] as ScanList[];
                 this.mergeLists(serverLists);
             }
+            if (event.config?.userSettings && this.userSettingsHasActiveScanKeys(event.config.userSettings)) {
+                this.parseActiveScanListIdsFromUserSettings(event.config.userSettings);
+                this.pruneActiveScanListIds();
+                this.tryApplyActiveScanList();
+            }
         });
+    }
+
+    private userSettingsHasActiveScanKeys(us: Record<string, unknown>): boolean {
+        return 'activeScanListIds' in us || 'activeScanListId' in us;
+    }
+
+    private parseActiveScanListIdsFromUserSettings(us: Record<string, unknown>): void {
+        const ids = us['activeScanListIds'];
+        const legacy = us['activeScanListId'];
+        if (Array.isArray(ids)) {
+            this.activeScanListIds = new Set(
+                ids.filter((x): x is string => typeof x === 'string' && x.length > 0),
+            );
+            return;
+        }
+        if (typeof legacy === 'string' && legacy !== '') {
+            this.activeScanListIds = new Set([legacy]);
+            return;
+        }
+        this.activeScanListIds = new Set();
     }
 
     ngOnDestroy(): void {
@@ -64,6 +91,32 @@ export class ScanListsService implements OnDestroy {
 
     getListsSnapshot(): ScanList[] {
         return [...this.lists];
+    }
+
+    getActiveScanListIds(): string[] {
+        return [...this.activeScanListIds];
+    }
+
+    /**
+     * Include or exclude one list from the live-feed scan set. Multiple lists can be on; enabled
+     * channels are unioned (a talkgroup is on if it is enabled in any active list).
+     */
+    setScanListScanningEnabled(listId: string, enabled: boolean): void {
+        const had = this.activeScanListIds.has(listId);
+        if (enabled === had) {
+            return;
+        }
+        if (enabled) {
+            this.activeScanListIds.add(listId);
+        } else {
+            this.activeScanListIds.delete(listId);
+        }
+        this.scheduleSave();
+        this.tryApplyActiveScanList();
+    }
+
+    isActiveScanList(listId: string): boolean {
+        return this.activeScanListIds.has(listId);
     }
 
     createList(name: string): ScanList {
@@ -95,8 +148,10 @@ export class ScanListsService implements OnDestroy {
 
     deleteList(listId: string): void {
         this.lists = this.lists.filter(l => l.id !== listId);
+        this.activeScanListIds.delete(listId);
         this.lists$.next([...this.lists]);
         this.scheduleSave();
+        this.tryApplyActiveScanList();
     }
 
     addChannel(listId: string, channel: ScanListChannel): void {
@@ -107,6 +162,9 @@ export class ScanListsService implements OnDestroy {
         });
         this.lists$.next([...this.lists]);
         this.scheduleSave();
+        if (this.activeScanListIds.size > 0) {
+            this.tryApplyActiveScanList();
+        }
     }
 
     removeChannel(listId: string, systemId: string, talkgroupId: string): void {
@@ -116,6 +174,58 @@ export class ScanListsService implements OnDestroy {
         });
         this.lists$.next([...this.lists]);
         this.scheduleSave();
+        if (this.activeScanListIds.size > 0) {
+            this.tryApplyActiveScanList();
+        }
+    }
+
+    /** Add many channels in one update (e.g. whole tag from Channels UI). Skips duplicates. */
+    addChannels(listId: string, channels: ScanListChannel[]): void {
+        if (channels.length === 0) {
+            return;
+        }
+        this.lists = this.lists.map((l) => {
+            if (l.id !== listId) {
+                return l;
+            }
+            const existing = new Set(l.channels.map((c) => `${c.systemId}:${c.talkgroupId}`));
+            const merged = [...l.channels];
+            for (const c of channels) {
+                const k = `${c.systemId}:${c.talkgroupId}`;
+                if (!existing.has(k)) {
+                    existing.add(k);
+                    merged.push(c);
+                }
+            }
+            return { ...l, channels: merged };
+        });
+        this.lists$.next([...this.lists]);
+        this.scheduleSave();
+        if (this.activeScanListIds.size > 0) {
+            this.tryApplyActiveScanList();
+        }
+    }
+
+    /** Remove many channels by system/talkgroup ref (e.g. clear a tag from a list). */
+    removeChannelsByRefs(listId: string, refs: { systemId: string; talkgroupId: string }[]): void {
+        if (refs.length === 0) {
+            return;
+        }
+        const rset = new Set(refs.map((r) => `${r.systemId}:${r.talkgroupId}`));
+        this.lists = this.lists.map((l) => {
+            if (l.id !== listId) {
+                return l;
+            }
+            return {
+                ...l,
+                channels: l.channels.filter((c) => !rset.has(`${c.systemId}:${c.talkgroupId}`)),
+            };
+        });
+        this.lists$.next([...this.lists]);
+        this.scheduleSave();
+        if (this.activeScanListIds.size > 0) {
+            this.tryApplyActiveScanList();
+        }
     }
 
     updateChannelEnabled(systemId: string, talkgroupId: string, isEnabled: boolean): void {
@@ -126,6 +236,8 @@ export class ScanListsService implements OnDestroy {
             ),
         }));
         this.lists$.next([...this.lists]);
+        this.scheduleSave();
+        this.tryApplyActiveScanList();
     }
 
     private mergeLists(serverLists: ScanList[]): void {
@@ -133,14 +245,75 @@ export class ScanListsService implements OnDestroy {
         const favorites = this.lists.find(l => l.isFavoritesSource);
         const serverNonFav = serverLists.filter(l => !l.isFavoritesSource);
         this.lists = [...(favorites ? [favorites] : []), ...serverNonFav];
+        this.pruneActiveScanListIds();
         this.lists$.next([...this.lists]);
+        this.tryApplyActiveScanList();
+    }
+
+    private pruneActiveScanListIds(): void {
+        const valid = new Set(this.lists.map((l) => l.id));
+        this.activeScanListIds = new Set([...this.activeScanListIds].filter((id) => valid.has(id)));
+    }
+
+    private tryApplyActiveScanList(): void {
+        if (!this.rdioScannerService.getConfig()?.systems?.length) {
+            return;
+        }
+        if (this.activeScanListIds.size === 0) {
+            return;
+        }
+
+        const onKeys = new Set<string>();
+        for (const listId of this.activeScanListIds) {
+            const list = this.lists.find((l) => l.id === listId);
+            if (!list) {
+                continue;
+            }
+            for (const ch of list.channels) {
+                if (ch.isEnabled) {
+                    onKeys.add(`${ch.systemId}:${ch.talkgroupId}`);
+                }
+            }
+        }
+
+        const merged: ScanListChannel[] = [];
+        for (const k of onKeys) {
+            let sample: ScanListChannel | undefined;
+            for (const listId of this.activeScanListIds) {
+                const list = this.lists.find((l) => l.id === listId);
+                const ch = list?.channels.find(
+                    (c) => `${c.systemId}:${c.talkgroupId}` === k,
+                );
+                if (ch) {
+                    sample = ch;
+                    break;
+                }
+            }
+            const [systemId, talkgroupId] = k.split(':');
+            merged.push(
+                sample ?? {
+                    systemId,
+                    talkgroupId,
+                    talkgroupLabel: '',
+                    talkgroupName: '',
+                    systemLabel: '',
+                    tag: '',
+                    isEnabled: true,
+                },
+            );
+        }
+
+        this.rdioScannerService.applyScanListChannelsToLivefeed(merged);
     }
 
     private loadLists(): void {
         const currentConfig = this.rdioScannerService.getConfig();
         if (currentConfig?.userSettings?.['scanLists']) {
             this.lists = currentConfig.userSettings['scanLists'] as ScanList[];
+            this.parseActiveScanListIdsFromUserSettings(currentConfig.userSettings as Record<string, unknown>);
+            this.pruneActiveScanListIds();
             this.lists$.next([...this.lists]);
+            this.tryApplyActiveScanList();
             return;
         }
 
@@ -151,10 +324,14 @@ export class ScanListsService implements OnDestroy {
                 } else {
                     this.lists = [];
                 }
+                this.parseActiveScanListIdsFromUserSettings(settings as Record<string, unknown>);
+                this.pruneActiveScanListIds();
                 this.lists$.next([...this.lists]);
+                this.tryApplyActiveScanList();
             },
             error: () => {
                 this.lists = [];
+                this.activeScanListIds = new Set();
                 this.lists$.next([]);
             },
         });
@@ -170,7 +347,12 @@ export class ScanListsService implements OnDestroy {
 
         this.settingsService.getSettings().subscribe({
             next: (current) => {
-                const updated = { ...current, scanLists: toSave };
+                const updated = {
+                    ...current,
+                    scanLists: toSave,
+                    activeScanListIds: [...this.activeScanListIds],
+                    activeScanListId: null,
+                };
                 this.settingsService.saveSettings(updated).subscribe({
                     error: (e) => console.error('Error saving scan lists:', e),
                 });

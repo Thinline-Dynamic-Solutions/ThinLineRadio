@@ -1,5 +1,109 @@
 # Change log
 
+## Version 26.04.017 - Released Apr 5, 2026
+
+### New
+
+- **Admin — Master settings search bar**
+  - Added a global search bar above the tab group on the admin panel
+  - Searches across all Options panels, all Config sections (Systems, Users, API Keys, Groups, Tags, etc.), and all Tools by label, keywords, and breadcrumb path
+  - Clicking a result switches to the correct tab, navigates to the matching section, and auto-opens and scrolls to the relevant Options expansion panel
+  - Results capped at 10, shown in a floating dropdown with icon, label, and breadcrumb (e.g. "Config → Options → Email")
+  - Press `Escape` or click away to dismiss; `×` button clears the query
+
+- **Admin — Unsaved changes indicator and header save/reset buttons**
+  - "Unsaved changes" badge with pulsing red dot appears in the top header when the config form is dirty
+  - Save and Reset buttons added to the top header bar, visible only on the Config tab
+  - Reset now performs a full `window.location.reload()` to guarantee a clean state without any flicker
+  - Buttons and badge are hidden on smaller screens (icon-only mode on mobile)
+
+- **Admin — Options page collapsible sections**
+  - All settings panels are collapsed by default and sorted A–Z: Alert & Health Monitoring, Audio Settings, Branding, Email, External Integrations, General Settings, Stripe Payments, Transcription Settings, User Registration
+  - `panelsReady` guard with forced `cdr.detectChanges()` prevents the expanded-then-collapsed flicker on initial load and after reset
+  - All panel expanded flags are explicitly reset to `false` before hiding so panels never flash open on re-render
+
+- **Admin — Per-system no-audio alert settings in Options**
+  - Moved all System Health Alert settings (master toggle, transcription failure alerts, tone detection alerts, no-audio alerts, alert retention) from the System Health page into Options → Alert & Health Monitoring
+  - Added per-system no-audio threshold table under Alert & Health Monitoring, allowing per-system enable/disable and custom threshold minutes
+  - System Health page now shows only live stats with a banner directing users to Options for configuration
+
+- **Admin — Email verification option for user registration**
+  - Added `EmailVerificationRequired` option under User Registration in Options
+  - When enabled, signup uses a two-step flow: user enters email → receives 6-digit code → completes registration form
+  - Users registering via invitation or access code are automatically marked as verified; no verification email is sent
+  - Password reset now works regardless of email verification status
+  - New `RequestSignupVerificationHandler` API endpoint sends a 6-digit code email using a dedicated `SendSignupVerificationEmail` method
+
+- **Admin — Reconnection Manager always enabled**
+  - Reconnection Manager is now always on server-side
+  - Grace period and max buffer size settings remain configurable
+
+- **Server — No-audio monitoring improvements**
+  - Per-system no-audio monitoring goroutines now use dedicated stop channels for clean restart/shutdown without goroutine leaks
+  - `StartNoAudioMonitoringForAllSystems` stops existing goroutines before spawning new ones
+  - Monitoring automatically restarts when options are saved from the admin panel
+  - `StartSystemHealthMonitoring` now performs immediate startup checks for transcription failures and tone detection issues in addition to the hourly ticker
+
+### Changed
+
+- **Admin — Options UI reorganisation**
+  - Renamed "Security & Access Control" panel to "Audio Settings"; moved audio conversion and duplicate detection settings into it
+  - Renamed "Push Notifications & Email" panel to "Email"; updated icon from bell to envelope
+  - Moved Stripe Payments and User Registration into their own top-level expansion panels
+  - Added Branding as a top-level expansion panel (Branding Label, Base URL, Server Logo, Favicon)
+  - Renamed "Email Logo" to "Server Logo"
+
+- **Admin — Search index coverage**
+  - Added dedicated entries for Relay Server, Relay Server API Key, and Push Notifications
+  - "Push notifications" keyword now maps to the Email panel (where relay server toggle lives)
+
+### Fixed
+
+- **Admin — Options page loading expanded (flicker bug)**
+  - Root cause: `panelsReady = false` was set but change detection was not forced immediately, so the `setTimeout(0)` re-showed panels before they had actually hidden
+  - Fixed by calling `cdr.detectChanges()` immediately after setting `panelsReady = false`, explicitly collapsing all nine panel flags first, and increasing the reveal delay to 80 ms
+
+- **Admin — Tags and Groups showing "Unused" until talkgroups loaded**
+  - Fixed by checking usage against the full `originalConfig` instead of the lazy-loaded FormArray
+
+- **Admin — Chrome/Edge "Save password?" prompt on settings fields**
+  - All non-login `type="password"` inputs converted to `type="text" class="masked-pw"` so Chrome's password detector never triggers outside the login form
+  - `.masked-pw` class uses `-webkit-text-security: disc` to visually render as bullet characters, identical in appearance to a password field
+  - `autocomplete="off"` added to all admin `<form>` elements and all text inputs
+  - `autocomplete="new-password"` applied to remaining password-typed inputs (login form excluded)
+  - Global `MutationObserver` in `index.html` stamps autocomplete attributes on any inputs Angular renders dynamically after boot
+  - `navigator.credentials.preventSilentAccess()` called on page load to opt the admin panel out of the browser credential manager
+
+- **Web Client — Live feed: Now Playing and call history out of sync**
+  - Natural end of a transmission used `stop({ emit: false })` during the inter-call delay, so the UI never learned the call had finished until the next call was decoded — finished calls appeared late in “Call history (last hour)” and Now Playing could still show the previous transmission
+  - Natural end now emits `stop({ emit: true })` so the finished call moves into history and Now Playing clears as soon as audio ends
+  - Inter-call delay before dequeuing the next call reduced from 1000 ms to 350 ms
+  - Now Playing “Source” only uses live `callUnit` when it matches a source/tag on the current call; otherwise it falls back to call metadata so a leftover unit ID from the prior transmission cannot display on the new row
+
+### Performance
+
+- **Server — In-memory duplicate call detection cache**
+  - Added a mutex-protected in-memory cache that catches duplicate calls before they reach the database, closing the race window where two identical calls arrive simultaneously and both pass the DB check because neither has been written yet
+  - Keyed by `systemId + talkgroupId` (bit-shifted composite key), each entry stores the most recent call timestamp; an incoming call is rejected if an entry exists within the configured detection timeframe
+  - Background eviction goroutine runs every 30 seconds and removes entries older than 2× the detection timeframe, preventing unbounded memory growth — the map holds at most one entry per active talkgroup
+  - Cache is checked before the legacy database query; rejected calls are logged as `"duplicate (legacy/cache)"` to distinguish from DB-level catches (`"duplicate (legacy)"`)
+  - Graceful shutdown stops the eviction goroutine; cache is initialized at startup with the configured `duplicateDetectionTimeFrame`
+
+- **Server — RAM caching for high-impact database queries**
+  - Implemented in-memory caching for user alert preferences, keyword lists, system/talkgroup ID lookups, and recent alerts (1-hour window)
+  - All caches use `sync.RWMutex` for thread-safe concurrent access
+  - Composite keys (systemId, talkgroupId) now use bit-shifting for efficient numeric map keys instead of string concatenation
+  - Database queries replaced with cache lookups in `alert_engine.go`, `api.go`, `controller.go`, and `transcription_queue.go`
+  - Caches automatically reload after database writes to maintain consistency
+
+- **Admin — Lazy loading for talkgroups in Systems configuration**
+  - Systems overview page now loads instantly without instantiating thousands of FormControls
+  - Talkgroups load progressively in the background when a system is opened, keeping initial paint low
+  - Implemented per-system tracking to ensure only loaded systems have talkgroups included in saves
+  - Systems that weren't opened retain their original talkgroup data from the backend
+  - Optimized FormArray getters to return sorted cached views instead of clearing/repopulating on every access
+  - Fixed critical bug where FormArray getters were destroying and recreating thousands of FormControls on every interaction
+
 ## Version 26.04.016 - Released Apr 1, 2026
 
 ### Fixed

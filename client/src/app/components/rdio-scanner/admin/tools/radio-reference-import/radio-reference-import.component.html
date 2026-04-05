@@ -193,20 +193,20 @@
             <mat-form-field appearance="outline" floatLabel="auto" style="width: 300px;">
                 <mat-label>Search</mat-label>
                 <input matInput [(ngModel)]="searchTerm" (ngModelChange)="onSearchChange()" 
-                       placeholder="Search by ID, alpha tag, description, group, or tag">
+                       placeholder="Search by ID, alpha tag, description, group, or tag" autocomplete="off">
                 <mat-icon matSuffix>search</mat-icon>
             </mat-form-field>
 
             <mat-form-field appearance="outline" floatLabel="auto" style="width: 200px;">
                 <mat-label>Group Filter</mat-label>
                 <input matInput [(ngModel)]="groupFilter" (ngModelChange)="onGroupFilterChange()" 
-                       placeholder="Filter by group">
+                       placeholder="Filter by group" autocomplete="off">
             </mat-form-field>
 
             <mat-form-field appearance="outline" floatLabel="auto" style="width: 200px;">
                 <mat-label>Tag Filter</mat-label>
                 <input matInput [(ngModel)]="tagFilter" (ngModelChange)="onTagFilterChange()" 
-                       placeholder="Filter by tag">
+                       placeholder="Filter by tag" autocomplete="off">
             </mat-form-field>
 
             <mat-form-field appearance="outline" floatLabel="auto" style="width: 150px;">
@@ -407,7 +407,7 @@
             <mat-form-field appearance="outline" floatLabel="auto" style="width: 300px;">
                 <mat-label>Search</mat-label>
                 <input matInput [(ngModel)]="searchTerm" (ngModelChange)="onSearchChange()" 
-                       placeholder="Search by ID, name, or description">
+                       placeholder="Search by ID, name, or description" autocomplete="off">
                 <mat-icon matSuffix>search</mat-icon>
             </mat-form-field>
 

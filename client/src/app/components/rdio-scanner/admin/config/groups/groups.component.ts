@@ -30,6 +30,7 @@ import { RdioScannerAdminService } from '../../admin.service';
 })
 export class RdioScannerAdminGroupsComponent {
     @Input() form: FormArray | undefined;
+    @Input() originalConfig: any;
 
     displayedColumns: string[] = ['drag', 'label', 'usage', 'id', 'actions'];
 
@@ -41,16 +42,13 @@ export class RdioScannerAdminGroupsComponent {
     constructor(private adminService: RdioScannerAdminService) { }
 
     isGroupUnused(groupId: number): boolean {
-        if (!this.form) return false;
+        if (!this.originalConfig || !this.originalConfig.systems) return false;
 
-        const systemsArray = this.form.root.get('systems') as FormArray;
-        if (!systemsArray) return true;
-
-        for (const systemControl of systemsArray.controls) {
-            const talkgroupsArray = systemControl.get('talkgroups') as FormArray;
-            if (talkgroupsArray) {
-                for (const talkgroupControl of talkgroupsArray.controls) {
-                    const groupIds = talkgroupControl.get('groupIds')?.value;
+        // Check original config data instead of FormArray
+        for (const system of this.originalConfig.systems) {
+            if (system.talkgroups && Array.isArray(system.talkgroups)) {
+                for (const talkgroup of system.talkgroups) {
+                    const groupIds = talkgroup.groupIds || talkgroup.group;
                     if (Array.isArray(groupIds) && groupIds.includes(groupId)) {
                         return false;
                     }

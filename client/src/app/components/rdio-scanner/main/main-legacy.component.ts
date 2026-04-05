@@ -1525,20 +1525,7 @@ export class RdioScannerMainLegacyComponent implements OnDestroy, OnInit {
     }
 
     private updateDimmer(): void {
-        // Only update dimmer if we have a config with dimmerDelay
-        if (typeof this.config?.dimmerDelay !== 'number') {
-            return;
-        }
-
-        // Clear any existing timer
-        this.dimmerTimer?.unsubscribe();
-        this.dimmerTimer = undefined;
-
-        // Dimmer should be ON when audio is actually playing (call exists)
-        // It will be turned OFF when call becomes undefined
-        this.dimmer = !!this.call;
-
-        this.ngChangeDetectorRef.detectChanges();
+        // Dimmer functionality removed - was not actually implemented
     }
 
     private updateDisplay(time = this.callTime): void {
