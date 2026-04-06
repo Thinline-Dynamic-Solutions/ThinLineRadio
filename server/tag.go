@@ -276,6 +276,7 @@ func (tags *Tags) Write(db *Database) error {
 	var (
 		err    error
 		query  string
+		res    sql.Result
 		rows   *sql.Rows
 		tagIds = []uint64{}
 		tx     *sql.Tx
@@ -357,14 +358,27 @@ func (tags *Tags) Write(db *Database) error {
 
 		if count == 0 {
 			if tag.Id > 0 {
-				// Preserve the explicit ID when inserting
+				// Preserve the explicit ID when inserting.
 				query = fmt.Sprintf(`INSERT INTO "tags" ("tagId", "label", "order", "color") VALUES (%d, '%s', %d, '%s')`, tag.Id, escapeQuotes(tag.Label), tag.Order, escapeQuotes(tag.Color))
+				if _, err = tx.Exec(query); err != nil {
+					break
+				}
 			} else {
-				// Let database assign auto-increment ID
+				// Let the database assign an auto-increment ID and immediately capture it
+				// so the in-memory tag pointer gets the real Id before Write() returns.
 				query = fmt.Sprintf(`INSERT INTO "tags" ("label", "order", "color") VALUES ('%s', %d, '%s')`, escapeQuotes(tag.Label), tag.Order, escapeQuotes(tag.Color))
-			}
-			if _, err = tx.Exec(query); err != nil {
-				break
+				if db.Config.DbType == DbTypePostgresql {
+					if err = tx.QueryRow(query + ` RETURNING "tagId"`).Scan(&tag.Id); err != nil {
+						break
+					}
+				} else {
+					if res, err = tx.Exec(query); err != nil {
+						break
+					}
+					if id, err2 := res.LastInsertId(); err2 == nil {
+						tag.Id = uint64(id)
+					}
+				}
 			}
 		} else {
 			query = fmt.Sprintf(`UPDATE "tags" SET "label" = '%s', "order" = %d, "color" = '%s' WHERE "tagId" = %d`, escapeQuotes(tag.Label), tag.Order, escapeQuotes(tag.Color), tag.Id)

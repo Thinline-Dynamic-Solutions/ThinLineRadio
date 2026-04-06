@@ -51,7 +51,9 @@ export class RdioScannerAdminSystemsSelectComponent {
     select: FormGroup;
 
     configTalkgroups: FormGroup[][];
-    
+
+    access!: FormGroup;
+
     // Track which systems are expanded (all collapsed by default for performance)
     expandedSystems: boolean[] = [];
 
@@ -106,14 +108,42 @@ export class RdioScannerAdminSystemsSelectComponent {
     }
 
     constructor(
-        @Inject(MAT_DIALOG_DATA) public access: FormGroup,
+        @Inject(MAT_DIALOG_DATA) dialogData: { access: FormGroup; rawSystems?: any[] } | FormGroup,
         private matDialogRef: MatDialogRef<RdioScannerAdminSystemsSelectComponent>,
         private ngFormBuilder: FormBuilder,
     ) {
+        // Support both legacy callers (passing FormGroup directly) and new callers
+        // (passing { access, rawSystems }) so all dialog callers work correctly.
+        const rawSystems: any[] | undefined = (dialogData as any)?.rawSystems;
+        this.access = (dialogData as any)?.access instanceof FormGroup
+            ? (dialogData as any).access
+            : dialogData as FormGroup;
+
         this.configTalkgroups = this.configSystems.map((fgSystem) => {
             const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
 
-            return faTalkgroups.controls as FormGroup[];
+            if ((faTalkgroups?.length ?? 0) > 0) {
+                return faTalkgroups.controls as FormGroup[];
+            }
+
+            // Talkgroups were skipped at config load time for performance.
+            // Use the raw systems data when available to populate the list.
+            if (rawSystems) {
+                const systemRef = fgSystem.get('systemRef')?.value;
+                const rawSystem = rawSystems.find((s: any) => s.systemRef === systemRef);
+                if (rawSystem?.talkgroups?.length) {
+                    return (rawSystem.talkgroups as any[]).map((tg: any) =>
+                        this.ngFormBuilder.group({
+                            groupIds: this.ngFormBuilder.control(tg.groupIds || []),
+                            label: this.ngFormBuilder.control(tg.label || ''),
+                            talkgroupRef: this.ngFormBuilder.control(tg.talkgroupRef),
+                            tagId: this.ngFormBuilder.control(tg.tagId),
+                        })
+                    );
+                }
+            }
+
+            return [];
         });
 
         // Initialize all systems as collapsed for better performance

@@ -185,7 +185,7 @@
                     <mat-icon>vpn_key</mat-icon>
                     <h3>API Keys</h3>
                 </div>
-                <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys"></rdio-scanner-admin-apikeys>
+                <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys" [rawSystems]="originalConfig?.systems"></rdio-scanner-admin-apikeys>
             </ng-container>
 
             <ng-container *ngSwitchCase="'dirwatch'">
@@ -201,7 +201,7 @@
                     <mat-icon>share</mat-icon>
                     <h3>Downstreams</h3>
                 </div>
-                <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams"></rdio-scanner-admin-downstreams>
+                <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams" [rawSystems]="originalConfig?.systems"></rdio-scanner-admin-downstreams>
             </ng-container>
 
             <ng-container *ngSwitchCase="'groups'">

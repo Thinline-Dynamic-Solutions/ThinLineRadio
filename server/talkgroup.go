@@ -641,6 +641,12 @@ func (talkgroups *Talkgroups) WriteTx(tx *sql.Tx, systemId uint64, dbType string
 		}
 
 		for _, groupId := range talkgroup.GroupIds {
+			// groupId == 0 means the group was not yet persisted (race during auto-populate).
+			// Skip it to avoid a foreign-key violation; the next call will write it correctly.
+			if groupId == 0 {
+				continue
+			}
+
 			query = fmt.Sprintf(`SELECT COUNT(*) FROM "talkgroupGroups" WHERE "talkgroupId" = %d AND "groupId" = %d`, talkgroup.Id, groupId)
 			if err = tx.QueryRow(query).Scan(&count); err != nil {
 				break

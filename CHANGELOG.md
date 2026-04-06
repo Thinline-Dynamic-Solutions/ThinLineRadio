@@ -1,5 +1,23 @@
 # Change log
 
+## Version 26.04.018 - Released Apr 6, 2026
+
+### Fixed
+
+- **Admin — API key / downstream "Choose Systems" dialog shows 0 talkgroups**
+  - Systems in the root config form are built with talkgroups skipped for performance (lazy-loaded only when a system is opened)
+  - The systems-selection dialog now receives `rawSystems` (the original config data with full talkgroup lists) via the `apikeys` and `downstreams` components
+  - When the form's talkgroup array is empty the dialog falls back to the raw data, so all talkgroup counts and checkboxes display correctly without any change to load-time performance
+  - `downstreams` component receives the same fix; users and user-groups were already unaffected (they build their own forms or use a separate UI)
+
+- **Server — Auto-populate race condition causes FK violation on `talkgroupGroups`**
+  - When two calls arrived simultaneously for the same new talkgroup, a second goroutine could read a group or tag from the in-memory list before its DB-assigned ID was written back, resulting in `groupId = 0` being persisted
+  - `talkgroup.WriteTx()` now skips any `groupId == 0` entry in the `GroupIds` slice instead of attempting the `talkgroupGroups` INSERT, eliminating the `SQLSTATE 23503` foreign-key violations
+  - `group.Write()` now captures the database-assigned ID immediately after INSERT using `RETURNING "groupId"` (PostgreSQL) or `LastInsertId` (SQLite/other), so the in-memory group pointer carries its real ID before the write lock is released
+  - `tag.Write()` receives the same fix (`RETURNING "tagId"` / `LastInsertId`), closing the equivalent race for tags
+
+---
+
 ## Version 26.04.017 - Released Apr 5, 2026
 
 ### New

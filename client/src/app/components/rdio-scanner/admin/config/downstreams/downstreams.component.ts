@@ -31,6 +31,7 @@ import { RdioScannerAdminSystemsSelectComponent } from '../systems/select/select
 })
 export class RdioScannerAdminDownstreamsComponent {
     @Input() form: FormArray | undefined;
+    @Input() rawSystems: any[] | undefined;
 
     get downstreams(): FormGroup[] {
         return this.form?.controls
@@ -72,7 +73,9 @@ export class RdioScannerAdminDownstreamsComponent {
     }
 
     select(access: FormGroup): void {
-        const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, { data: access });
+        const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, {
+            data: { access, rawSystems: this.rawSystems },
+        });
 
         matDialogRef.afterClosed().subscribe((data) => {
             if (data) {

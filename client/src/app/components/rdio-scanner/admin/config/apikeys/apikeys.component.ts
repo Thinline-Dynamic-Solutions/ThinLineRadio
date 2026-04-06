@@ -33,6 +33,7 @@ import { RdioScannerAdminSystemsSelectComponent } from '../systems/select/select
 })
 export class RdioScannerAdminApikeysComponent {
     @Input() form: FormArray | undefined;
+    @Input() rawSystems: any[] | undefined;
 
     displayedColumns: string[] = ['drag', 'status', 'ident', 'key', 'access', 'actions'];
 
@@ -98,7 +99,9 @@ export class RdioScannerAdminApikeysComponent {
     }
 
     select(access: FormGroup): void {
-        const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, { data: access });
+        const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, {
+            data: { access, rawSystems: this.rawSystems },
+        });
 
         matDialogRef.afterClosed().subscribe((data) => {
             if (data) {

@@ -282,6 +282,7 @@ func (groups *Groups) Write(db *Database) error {
 		err      error
 		groupIds = []uint64{}
 		query    string
+		res      sql.Result
 		rows     *sql.Rows
 		tx       *sql.Tx
 	)
@@ -362,14 +363,28 @@ func (groups *Groups) Write(db *Database) error {
 
 		if count == 0 {
 			if group.Id > 0 {
-				// Preserve the explicit ID when inserting
+				// Preserve the explicit ID when inserting.
 				query = fmt.Sprintf(`INSERT INTO "groups" ("groupId", "label", "order") VALUES (%d, '%s', %d)`, group.Id, escapeQuotes(group.Label), group.Order)
+				if _, err = tx.Exec(query); err != nil {
+					break
+				}
 			} else {
-				// Let database assign auto-increment ID
+				// Let the database assign an auto-increment ID and immediately capture it
+				// so the in-memory group pointer gets the real Id before Write() returns.
+				// This closes the race window where another goroutine could read Id == 0.
 				query = fmt.Sprintf(`INSERT INTO "groups" ("label", "order") VALUES ('%s', %d)`, escapeQuotes(group.Label), group.Order)
-			}
-			if _, err = tx.Exec(query); err != nil {
-				break
+				if db.Config.DbType == DbTypePostgresql {
+					if err = tx.QueryRow(query + ` RETURNING "groupId"`).Scan(&group.Id); err != nil {
+						break
+					}
+				} else {
+					if res, err = tx.Exec(query); err != nil {
+						break
+					}
+					if id, err2 := res.LastInsertId(); err2 == nil {
+						group.Id = uint64(id)
+					}
+				}
 			}
 
 		} else {
