@@ -366,6 +366,17 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Add pagerAlert to userAlertPreferences for server-side persistence of the
+	// pager-style alert playback toggle
+	if err := migratePagerAlert(db); err != nil {
+		return formatError(err, "")
+	}
+
+	// Add toneSetPagerAlerts JSON column for per-tone-set pager-alert toggles
+	if err := migrateToneSetPagerAlerts(db); err != nil {
+		return formatError(err, "")
+	}
+
 	return nil
 }
 

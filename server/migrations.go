@@ -2584,3 +2584,23 @@ func migrateAutoPopulateAlertsEnabled(db *Database) error {
 	}
 	return nil
 }
+
+// migratePagerAlert adds the pagerAlert column to userAlertPreferences so the
+// pager-style alert playback toggle is persisted server-side.
+func migratePagerAlert(db *Database) error {
+	q := `ALTER TABLE "userAlertPreferences" ADD COLUMN IF NOT EXISTS "pagerAlert" boolean NOT NULL DEFAULT false`
+	if _, err := db.Sql.Exec(q); err != nil {
+		return fmt.Errorf("migratePagerAlert: %w", err)
+	}
+	return nil
+}
+
+// migrateToneSetPagerAlerts adds the toneSetPagerAlerts JSON column to
+// userAlertPreferences so per-tone-set pager-alert toggles are persisted.
+func migrateToneSetPagerAlerts(db *Database) error {
+	q := `ALTER TABLE "userAlertPreferences" ADD COLUMN IF NOT EXISTS "toneSetPagerAlerts" text NOT NULL DEFAULT '{}'`
+	if _, err := db.Sql.Exec(q); err != nil {
+		return fmt.Errorf("migrateToneSetPagerAlerts: %w", err)
+	}
+	return nil
+}

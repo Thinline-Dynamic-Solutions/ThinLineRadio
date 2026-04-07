@@ -130,24 +130,14 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 					if err := json.Unmarshal([]byte(user.Settings), &userSettings); err == nil {
 						if enabled, ok := userSettings["disconnectAlertPushEnabled"].(bool); ok && enabled {
 							userId := user.Id
-							go func() {
-								time.Sleep(10 * time.Second)
-								// Skip if the user still has another active connection with live
-								// feed running — e.g. a web browser that is still listening.
-								// Only send when they truly have no live audio anymore.
-								hasActiveLivefeed := false
-								ctrl.Clients.mutex.Lock()
-								for c := range ctrl.Clients.Map {
-									if c.User != nil && c.User.Id == userId && c.Send != nil && !c.Livefeed.IsAllOff() {
-										hasActiveLivefeed = true
-										break
-									}
-								}
-								ctrl.Clients.mutex.Unlock()
-								if !hasActiveLivefeed {
-									ctrl.sendDisconnectPushNotification(user)
-								}
-							}()
+					go func() {
+										// 10-second grace period lets transient reconnects suppress
+										// the notification without needing to check other sessions.
+										// FCM tokens are mobile-only so the push only reaches mobile
+										// devices regardless of any concurrent web sessions.
+										time.Sleep(10 * time.Second)
+										ctrl.sendDisconnectPushNotification(user)
+									}()
 						}
 					}
 				}

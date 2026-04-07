@@ -217,6 +217,7 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 	// Legacy OneSignal tokens are deleted on the spot and the user is emailed once.
 	androidDevices := []string{}
 	iosDevices := []string{}
+	iosVoIPDevices := []string{} // PushKit VoIP tokens — only sent for pager-alert calls
 	androidSound := "startup.wav"
 	iosSound := "startup.wav"
 	notifiedUsers := make(map[uint64]struct{})
@@ -236,13 +237,24 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 			effectiveSound = "startup.wav"
 		}
 
-		if device.Platform == "ios" {
+		if device.PushType == "voip" {
+			// VoIP (PushKit) tokens must only be sent for real call alerts so the
+			// CallKit UI is never triggered by test or keyword-only pushes.
+			iosVoIPDevices = append(iosVoIPDevices, device.FCMToken)
+		} else if device.Platform == "ios" {
 			iosDevices = append(iosDevices, device.FCMToken)
 			iosSound = effectiveSound
 		} else {
 			androidDevices = append(androidDevices, device.FCMToken)
 			androidSound = effectiveSound
 		}
+	}
+
+	// Only include VoIP tokens when this is a real call notification — that is
+	// the only case where PushKit is needed to wake a killed iOS app for audio
+	// playback. Test pushes, disconnect alerts, etc. must NOT trigger CallKit.
+	if call != nil {
+		iosDevices = append(iosDevices, iosVoIPDevices...)
 	}
 
 	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: grouped devices for user %d - Android: %d, iOS: %d", userId, len(androidDevices), len(iosDevices)))
@@ -300,6 +312,13 @@ func (controller *Controller) sendNotificationBatch(playerIDs []string, title, s
 				talkgroupLabel = call.Talkgroup.Label
 			}
 		}
+		// Pager-alert fields: mobile app uses these to fetch audio for background playback.
+		// scanner_url lets the app construct the audio endpoint without any prior knowledge.
+		// pager_alert is a string ("true"/"false") because FCM data values must be strings.
+		if controller.Options.BaseUrl != "" {
+			data["scanner_url"] = controller.Options.BaseUrl
+		}
+		data["pager_alert"] = "true"
 	}
 
 	if systemLabel != "" {
@@ -625,12 +644,12 @@ func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []u
 			if group != nil && group.BillingEnabled {
 				var subscriptionStatus string
 
-			if group.BillingMode == "group_admin" {
-				// O(1) lookup via pre-built index instead of scanning all users.
-				if admin := controller.Users.GetGroupAdmin(group.Id); admin != nil {
-					subscriptionStatus = admin.SubscriptionStatus
-				}
-				// If no admin found, leave empty → grace period (allow notification)
+				if group.BillingMode == "group_admin" {
+					// O(1) lookup via pre-built index instead of scanning all users.
+					if admin := controller.Users.GetGroupAdmin(group.Id); admin != nil {
+						subscriptionStatus = admin.SubscriptionStatus
+					}
+					// If no admin found, leave empty → grace period (allow notification)
 				} else {
 					// For all_users mode, check the user's own subscription status
 					subscriptionStatus = user.SubscriptionStatus

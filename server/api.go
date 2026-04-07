@@ -3369,19 +3369,21 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				}
 			}
 
-			prefMap := map[string]any{
-				"userId":            pref.UserId,
-				"systemId":          pref.SystemId,
-				"talkgroupId":       pref.TalkgroupId,
-				"alertEnabled":      pref.AlertEnabled,
-				"toneAlerts":        pref.ToneAlerts,
-				"keywordAlerts":     pref.KeywordAlerts,
-				"keywords":          pref.Keywords,
-				"keywordListIds":    pref.KeywordListIds,
-				"toneSetIds":        pref.ToneSetIds,
-				"notificationSound": pref.NotificationSound,
-				"toneSetSounds":     pref.ToneSetSounds,
-			}
+		prefMap := map[string]any{
+			"userId":               pref.UserId,
+			"systemId":             pref.SystemId,
+			"talkgroupId":          pref.TalkgroupId,
+			"alertEnabled":         pref.AlertEnabled,
+			"toneAlerts":           pref.ToneAlerts,
+			"keywordAlerts":        pref.KeywordAlerts,
+			"keywords":             pref.Keywords,
+			"keywordListIds":       pref.KeywordListIds,
+			"toneSetIds":           pref.ToneSetIds,
+			"notificationSound":    pref.NotificationSound,
+			"toneSetSounds":        pref.ToneSetSounds,
+			"pagerAlert":           pref.PagerAlert,
+			"toneSetPagerAlerts":   pref.ToneSetPagerAlerts,
+		}
 
 			// Include systemRef and talkgroupRef for frontend matching
 			if systemRef > 0 {
@@ -3417,19 +3419,21 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 		defer tx.Rollback()
 
 		for _, pref := range preferences {
-			var (
-				requestSystem     uint64
-				requestTg         uint64
-				systemId          uint64
-				alertEnabled      bool
-				toneAlerts        bool = true
-				keywordAlerts     bool = true
-				keywords          []string
-				keywordListIds    []uint64
-				toneSetIds        []string
-				notificationSound string
-				toneSetSounds     map[string]string
-			)
+		var (
+			requestSystem      uint64
+			requestTg          uint64
+			systemId           uint64
+			alertEnabled       bool
+			toneAlerts         bool = true
+			keywordAlerts      bool = true
+			keywords           []string
+			keywordListIds     []uint64
+			toneSetIds         []string
+			notificationSound  string
+			toneSetSounds      map[string]string
+			pagerAlert         bool
+			toneSetPagerAlerts map[string]bool
+		)
 
 			// Accept either systemId or systemRef field names
 			if v, ok := pref["systemId"].(float64); ok {
@@ -3494,6 +3498,17 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 					}
 				}
 			}
+			if v, ok := pref["pagerAlert"].(bool); ok {
+				pagerAlert = v
+			}
+			if v, ok := pref["toneSetPagerAlerts"].(map[string]any); ok {
+				toneSetPagerAlerts = make(map[string]bool)
+				for k, val := range v {
+					if b, ok := val.(bool); ok {
+						toneSetPagerAlerts[k] = b
+					}
+				}
+			}
 
 			// Resolve systemId: prefer systemRef, fallback to systemId
 			systemId = 0
@@ -3528,24 +3543,28 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				toneAlerts = false
 			}
 
-			keywordsJson, _ := json.Marshal(keywords)
-			keywordListIdsJson, _ := json.Marshal(keywordListIds)
-			toneSetIdsJson, _ := json.Marshal(toneSetIds)
-			toneSetSoundsJson, _ := json.Marshal(toneSetSounds)
+		keywordsJson, _ := json.Marshal(keywords)
+		keywordListIdsJson, _ := json.Marshal(keywordListIds)
+		toneSetIdsJson, _ := json.Marshal(toneSetIds)
+		toneSetSoundsJson, _ := json.Marshal(toneSetSounds)
+		toneSetPagerAlertsJson, _ := json.Marshal(toneSetPagerAlerts)
 
-			// Ensure we never store "null" for arrays/objects
-			if string(keywordsJson) == "null" {
-				keywordsJson = []byte("[]")
-			}
-			if string(keywordListIdsJson) == "null" {
-				keywordListIdsJson = []byte("[]")
-			}
-			if string(toneSetIdsJson) == "null" {
-				toneSetIdsJson = []byte("[]")
-			}
-			if string(toneSetSoundsJson) == "null" {
-				toneSetSoundsJson = []byte("{}")
-			}
+		// Ensure we never store "null" for arrays/objects
+		if string(keywordsJson) == "null" {
+			keywordsJson = []byte("[]")
+		}
+		if string(keywordListIdsJson) == "null" {
+			keywordListIdsJson = []byte("[]")
+		}
+		if string(toneSetIdsJson) == "null" {
+			toneSetIdsJson = []byte("[]")
+		}
+		if string(toneSetSoundsJson) == "null" {
+			toneSetSoundsJson = []byte("{}")
+		}
+		if string(toneSetPagerAlertsJson) == "null" {
+			toneSetPagerAlertsJson = []byte("{}")
+		}
 
 			// DEBUG: Log tone set preferences being saved
 			if toneAlerts {
@@ -3559,10 +3578,10 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				api.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("💾 [TONE SET DEBUG] Saving preference for user %d, system %d, talkgroup %d: toneAlerts=false (only keyword alerts)", client.User.Id, systemId, dbTalkgroupId))
 			}
 
-			// Upsert preference using verified database talkgroupId
-			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, alertEnabled, toneAlerts, keywordAlerts)
+		// Upsert preference using verified database talkgroupId
+		query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds", "pagerAlert", "toneSetPagerAlerts") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5, %t, $6) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5, "pagerAlert" = %t, "toneSetPagerAlerts" = $6`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, pagerAlert, alertEnabled, toneAlerts, keywordAlerts, pagerAlert)
 
-			if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson)); err != nil {
+		if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson), string(toneSetPagerAlertsJson)); err != nil {
 				api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update preference: %v", err))
 				return
 			}
@@ -8024,11 +8043,12 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		// Register or update device token
 		var request struct {
-			Token    string `json:"token"`     // Legacy field, ignored for new registrations
-			FCMToken string `json:"fcm_token"` // Firebase Cloud Messaging token
-			PushType string `json:"push_type"` // "fcm" (legacy: "onesignal")
-			Platform string `json:"platform"`  // "ios" or "android"
-			Sound    string `json:"sound"`     // Notification sound preference
+			Token     string `json:"token"`      // Legacy field, ignored for new registrations
+			FCMToken  string `json:"fcm_token"`  // Firebase Cloud Messaging token
+			VoIPToken string `json:"voip_token"` // iOS PushKit VoIP token (prefixed "voip:…" stored as FCMToken for VoIP records)
+			PushType  string `json:"push_type"`  // "fcm" or "voip"
+			Platform  string `json:"platform"`   // "ios" or "android"
+			Sound     string `json:"sound"`      // Notification sound preference
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -8036,8 +8056,8 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Only FCM registrations are accepted. Reject anything that doesn't provide an FCM token.
-		if request.FCMToken == "" {
+		// Accept either FCM token or VoIP token.
+		if request.FCMToken == "" && request.VoIPToken == "" {
 			api.exitWithError(w, http.StatusBadRequest, "fcm_token is required")
 			return
 		}
@@ -8085,6 +8105,39 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 			if err := api.Controller.DeviceTokens.Add(deviceToken, api.Controller.Database); err != nil {
 				api.exitWithError(w, http.StatusInternalServerError, "Failed to register device token")
 				return
+			}
+		}
+
+		// Register VoIP token as a separate device token record if provided.
+		// The token is stored as FCMToken with value "voip:{rawToken}" so it flows
+		// naturally through the push notification batch to the relay server, which
+		// then routes it to APNs based on the "voip:" prefix.
+		if request.VoIPToken != "" {
+			var voipRaw string
+			if len(request.VoIPToken) > 5 && request.VoIPToken[:5] == "voip:" {
+				voipRaw = request.VoIPToken
+			} else {
+				voipRaw = "voip:" + request.VoIPToken
+			}
+
+			existingVoIP := api.Controller.DeviceTokens.FindByUserAndToken(client.User.Id, voipRaw)
+			if existingVoIP != nil {
+				existingVoIP.Platform = "ios"
+				existingVoIP.PushType = "voip"
+				existingVoIP.FCMToken = voipRaw
+				api.Controller.DeviceTokens.Update(existingVoIP, api.Controller.Database) //nolint:errcheck
+			} else {
+				voipDeviceToken := &DeviceToken{
+					UserId:    client.User.Id,
+					Token:     voipRaw,
+					FCMToken:  voipRaw,
+					PushType:  "voip",
+					Platform:  "ios",
+					Sound:     request.Sound,
+					CreatedAt: time.Now().Unix(),
+					LastUsed:  time.Now().Unix(),
+				}
+				api.Controller.DeviceTokens.Add(voipDeviceToken, api.Controller.Database) //nolint:errcheck
 			}
 		}
 

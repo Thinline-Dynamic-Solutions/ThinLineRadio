@@ -272,7 +272,7 @@ func (dt *DeviceTokens) FindByUserAndToken(userId uint64, token string) *DeviceT
 	defer dt.mutex.RUnlock()
 
 	for _, t := range dt.userTokens[userId] {
-		if t.Token == token {
+		if t.Token == token || t.FCMToken == token {
 			return t
 		}
 	}

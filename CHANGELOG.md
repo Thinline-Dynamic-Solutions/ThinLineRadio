@@ -1,5 +1,29 @@
 # Change log
 
+## Version 26.04.019 - Released Apr 7, 2026
+
+### New
+
+- **Mobile — Pager-style alert playback**
+  - Per-talkgroup and per-tone-set toggle to enable pager-style audio playback when the app is backgrounded
+  - When enabled, the app fetches and plays the call audio natively in the background after the push notification arrives — no app interaction needed
+  - Uses a native serial audio queue on both Android (`MediaPlayer` via `SingleThreadExecutor`) and iOS (`AVAudioPlayer` via a serial `DispatchQueue`): multiple simultaneous alerts are queued and played one after another rather than overlapping or cutting each other off
+  - Duplicate callId deduplication in the native queue: if tone-alert and keyword-alert fire for the same call at the same time, only one playback is queued
+
+- **Server — Pager-alert preference persistence**
+  - `pagerAlert` and `toneSetPagerAlerts` columns added to `userAlertPreferences` (auto-migrated on startup)
+  - `GET /api/alerts/preferences` now returns both fields; `PUT /api/alerts/preferences` saves them — toggles now survive app restarts and preference reloads from the server
+
+- **Server — VoIP/PushKit push gating**
+  - APNs VoIP pushes are now only sent when the notification is a real pager-alert call (`pager_alert: true` in the payload)
+  - Regular test pushes, disconnect alerts, and keyword-only alerts no longer trigger the CallKit UI on iOS
+  - Fix applied at both the TLR Scanner Server (excludes VoIP tokens when `call == nil`) and the Relay Server (checks `pager_alert` flag before sending APNs VoIP)
+
+- **Server — Pager-alert test endpoint respects user toggles**
+  - Removed the `pager_force` bypass from `TestPagerAlertHandler` — the admin test endpoint now respects each device's per-talkgroup pager-alert setting, consistent with real alert behaviour
+
+---
+
 ## Version 26.04.018 - Released Apr 6, 2026
 
 ### Fixed

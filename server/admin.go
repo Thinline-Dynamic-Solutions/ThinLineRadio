@@ -5369,6 +5369,127 @@ func (admin *Admin) UserTestPushHandler(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// TestPagerAlertHandler sends a real pager-alert push for a specific call
+// (or the most recent call with audio if no callId is supplied).
+//
+// POST /api/admin/test-pager-alert
+// Body (all fields optional):
+//
+//	{ "callId": 123, "userId": 456 }
+//
+// If userId is omitted the alert is sent to every registered user.
+// Requires admin JWT.
+func (admin *Admin) TestPagerAlertHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		CallID uint64 `json:"callId"`
+		UserID uint64 `json:"userId"`
+	}
+	json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck — body is optional
+
+	// Resolve call -------------------------------------------------------
+	var call *Call
+	var err error
+
+	if req.CallID != 0 {
+		call, err = admin.Controller.Calls.GetCall(req.CallID)
+		if err != nil || call == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "call not found"})
+			return
+		}
+	} else {
+		// Find the most recent call that has audio stored.
+		var latestID uint64
+		row := admin.Controller.Database.Sql.QueryRow(
+			`SELECT "callId" FROM "calls" WHERE "audio" IS NOT NULL ORDER BY "timestamp" DESC LIMIT 1`,
+		)
+		if err := row.Scan(&latestID); err != nil || latestID == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "no call with audio found — upload a call first"})
+			return
+		}
+		call, err = admin.Controller.Calls.GetCall(latestID)
+		if err != nil || call == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "failed to load call"})
+			return
+		}
+	}
+
+	// Resolve target users -----------------------------------------------
+	var targetUserIDs []uint64
+	if req.UserID != 0 {
+		targetUserIDs = []uint64{req.UserID}
+	} else {
+		for _, u := range admin.Controller.Users.GetAllUsers() {
+			targetUserIDs = append(targetUserIDs, u.Id)
+		}
+	}
+
+	if len(targetUserIDs) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "no users found"})
+		return
+	}
+
+	systemLabel := ""
+	talkgroupLabel := ""
+	if call.System != nil {
+		systemLabel = call.System.Label
+	}
+	if call.Talkgroup != nil {
+		talkgroupLabel = call.Talkgroup.Label
+	}
+
+	sent := 0
+	for _, uid := range targetUserIDs {
+		tokens := admin.Controller.DeviceTokens.GetByUser(uid)
+		if len(tokens) == 0 {
+			continue
+		}
+
+		android := []string{}
+		ios := []string{}
+		for _, tok := range tokens {
+			if tok.FCMToken == "" {
+				continue
+			}
+			if tok.Platform == "ios" {
+				ios = append(ios, tok.FCMToken)
+			} else {
+				android = append(android, tok.FCMToken)
+			}
+		}
+
+		title := "🚨 Pager Alert Test"
+		body := fmt.Sprintf("Call #%d — %s / %s", call.Id, systemLabel, talkgroupLabel)
+
+		if len(android) > 0 {
+			go admin.Controller.sendNotificationBatch(android, title, "", body, "android", "startup.wav", call, systemLabel, talkgroupLabel, nil)
+			sent += len(android)
+		}
+		if len(ios) > 0 {
+			go admin.Controller.sendNotificationBatch(ios, title, "", body, "ios", "startup", call, systemLabel, talkgroupLabel, nil)
+			sent += len(ios)
+		}
+	}
+
+	log.Printf("test-pager-alert: sent to %d token(s) for call #%d", sent, call.Id)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":        "pager alert test sent",
+		"callId":         call.Id,
+		"tokensSent":     sent,
+		"systemLabel":    systemLabel,
+		"talkgroupLabel": talkgroupLabel,
+	})
+}
+
 // UserDeleteHandler handles DELETE requests to delete a user
 func (admin *Admin) UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {

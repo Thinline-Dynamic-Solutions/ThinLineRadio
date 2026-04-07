@@ -27,17 +27,19 @@ import (
 // ============================================================================
 
 type UserAlertPreference struct {
-	UserId              uint64
-	SystemId            uint64
-	TalkgroupId         uint64
-	AlertEnabled        bool
-	ToneAlerts          bool
-	KeywordAlerts       bool
-	Keywords            []string
-	KeywordListIds      []uint64
-	ToneSetIds          []string
-	NotificationSound   string
-	ToneSetSounds       map[string]string
+	UserId               uint64
+	SystemId             uint64
+	TalkgroupId          uint64
+	AlertEnabled         bool
+	ToneAlerts           bool
+	KeywordAlerts        bool
+	Keywords             []string
+	KeywordListIds       []uint64
+	ToneSetIds           []string
+	NotificationSound    string
+	ToneSetSounds        map[string]string
+	PagerAlert           bool
+	ToneSetPagerAlerts   map[string]bool
 	ToneDetectionEnabled bool // From talkgroup config
 }
 
@@ -76,6 +78,7 @@ func (cache *PreferencesCache) Read(db *Database) error {
 	query := `SELECT p."userId", p."systemId", p."talkgroupId", p."alertEnabled", 
 	          p."toneAlerts", p."keywordAlerts", p."keywords", p."keywordListIds", 
 	          p."toneSetIds", p."notificationSound", p."toneSetSounds",
+	          p."pagerAlert", p."toneSetPagerAlerts",
 	          COALESCE(t."toneDetectionEnabled", false) as "toneDetectionEnabled"
 	          FROM "userAlertPreferences" p
 	          LEFT JOIN "talkgroups" t ON t."talkgroupId" = p."talkgroupId"
@@ -92,7 +95,7 @@ func (cache *PreferencesCache) Read(db *Database) error {
 	for rows.Next() {
 		pref := &UserAlertPreference{}
 		var keywordsJson, keywordListIdsJson, toneSetIdsJson string
-		var notificationSound, toneSetSoundsJson string
+		var notificationSound, toneSetSoundsJson, toneSetPagerAlertsJson string
 
 		if err := rows.Scan(
 			&pref.UserId,
@@ -106,6 +109,8 @@ func (cache *PreferencesCache) Read(db *Database) error {
 			&toneSetIdsJson,
 			&notificationSound,
 			&toneSetSoundsJson,
+			&pref.PagerAlert,
+			&toneSetPagerAlertsJson,
 			&pref.ToneDetectionEnabled,
 		); err != nil {
 			continue
@@ -130,6 +135,11 @@ func (cache *PreferencesCache) Read(db *Database) error {
 		if toneSetSoundsJson != "" && toneSetSoundsJson != "{}" {
 			if err := json.Unmarshal([]byte(toneSetSoundsJson), &pref.ToneSetSounds); err != nil {
 				pref.ToneSetSounds = nil
+			}
+		}
+		if toneSetPagerAlertsJson != "" && toneSetPagerAlertsJson != "{}" {
+			if err := json.Unmarshal([]byte(toneSetPagerAlertsJson), &pref.ToneSetPagerAlerts); err != nil {
+				pref.ToneSetPagerAlerts = nil
 			}
 		}
 		pref.NotificationSound = notificationSound

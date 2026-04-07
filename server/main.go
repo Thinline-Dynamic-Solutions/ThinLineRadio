@@ -254,6 +254,8 @@ func main() {
 	http.HandleFunc("/api/admin/favicon/delete", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.FaviconDeleteHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/email-test", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.EmailTestHandler)).ServeHTTP)
 
+	http.HandleFunc("/api/admin/test-pager-alert", wrapHandler(http.HandlerFunc(controller.Admin.TestPagerAlertHandler)).ServeHTTP)
+
 	http.HandleFunc("/api/admin/stripe-sync", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.StripeSyncHandler)).ServeHTTP)
 
 	// Serve email logo file - register before root handler to ensure it's handled
@@ -513,6 +515,10 @@ func main() {
 	http.HandleFunc("/api/call-upload", controller.Api.CallUploadHandler)
 
 	http.HandleFunc("/api/trunk-recorder-call-upload", controller.Api.TrunkRecorderCallUploadHandler)
+
+	// Pager-alert audio download — authenticated by admin PIN.
+	// Pattern /api/calls/ also covers /api/calls/{id}/audio.
+	http.HandleFunc("/api/calls/", controller.Api.CallAudioDownloadHandler)
 
 	// Performance monitoring endpoint
 	http.HandleFunc("/api/status/performance", wrapHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
