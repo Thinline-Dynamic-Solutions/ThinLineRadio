@@ -5445,36 +5445,82 @@ func (admin *Admin) TestPagerAlertHandler(w http.ResponseWriter, r *http.Request
 		talkgroupLabel = call.Talkgroup.Label
 	}
 
+	var systemId, talkgroupID uint64
+	if call.System != nil {
+		systemId = call.System.Id
+	}
+	if call.Talkgroup != nil {
+		talkgroupID = call.Talkgroup.Id
+	}
+
 	sent := 0
 	for _, uid := range targetUserIDs {
-		tokens := admin.Controller.DeviceTokens.GetByUser(uid)
-		if len(tokens) == 0 {
+		deviceTokens := admin.Controller.DeviceTokens.GetByUser(uid)
+		if len(deviceTokens) == 0 {
 			continue
 		}
 
-		android := []string{}
-		ios := []string{}
-		for _, tok := range tokens {
-			if tok.FCMToken == "" {
+		// Match sendPushNotification: pager_alert + VoIP tokens only when the user
+		// has pager-style playback enabled for this talkgroup. The test handler
+		// previously passed extraData=nil, so the app never saw pager_alert and
+		// skipped background audio; the relay never set content-available either.
+		userPagerEnabled := admin.Controller.resolveUserPagerAlert(uid, systemId, talkgroupID, "")
+		channelSound := admin.Controller.resolveUserAlertSound(uid, systemId, talkgroupID, "")
+
+		androidDevices := []string{}
+		iosDevices := []string{}
+		androidSound := "startup.wav"
+		iosSound := "startup.wav"
+		notifiedUsers := make(map[uint64]struct{})
+
+		for _, device := range deviceTokens {
+			if isLegacyOneSignalToken(device) {
+				admin.Controller.handleLegacyOneSignalToken(device, notifiedUsers)
 				continue
 			}
-			if tok.Platform == "ios" {
-				ios = append(ios, tok.FCMToken)
+			if device.FCMToken == "" {
+				continue
+			}
+			effectiveSound := channelSound
+			if effectiveSound == "" {
+				effectiveSound = device.Sound
+			}
+			if effectiveSound == "" {
+				effectiveSound = "startup.wav"
+			}
+			if device.PushType == "voip" {
+				if userPagerEnabled {
+					iosDevices = append(iosDevices, device.FCMToken)
+				}
+			} else if device.Platform == "ios" {
+				iosDevices = append(iosDevices, device.FCMToken)
+				iosSound = effectiveSound
 			} else {
-				android = append(android, tok.FCMToken)
+				androidDevices = append(androidDevices, device.FCMToken)
+				androidSound = effectiveSound
+			}
+		}
+
+		var callExtraData map[string]interface{}
+		if userPagerEnabled {
+			callExtraData = map[string]interface{}{
+				"pager_alert": "true",
 			}
 		}
 
 		title := "🚨 Pager Alert Test"
 		body := fmt.Sprintf("Call #%d — %s / %s", call.Id, systemLabel, talkgroupLabel)
 
-		if len(android) > 0 {
-			go admin.Controller.sendNotificationBatch(android, title, "", body, "android", "startup.wav", call, systemLabel, talkgroupLabel, nil)
-			sent += len(android)
+		if len(androidDevices) > 0 {
+			go admin.Controller.sendNotificationBatch(androidDevices, title, "", body, "android", androidSound, call, systemLabel, talkgroupLabel, callExtraData)
+			sent += len(androidDevices)
 		}
-		if len(ios) > 0 {
-			go admin.Controller.sendNotificationBatch(ios, title, "", body, "ios", "startup", call, systemLabel, talkgroupLabel, nil)
-			sent += len(ios)
+		if len(iosDevices) > 0 {
+			iosSoundStripped := strings.TrimSuffix(iosSound, ".wav")
+			iosSoundStripped = strings.TrimSuffix(iosSoundStripped, ".mp3")
+			iosSoundStripped = strings.TrimSuffix(iosSoundStripped, ".m4a")
+			go admin.Controller.sendNotificationBatch(iosDevices, title, "", body, "ios", iosSoundStripped, call, systemLabel, talkgroupLabel, callExtraData)
+			sent += len(iosDevices)
 		}
 	}
 

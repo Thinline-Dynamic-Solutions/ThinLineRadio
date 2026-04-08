@@ -754,29 +754,45 @@ func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []u
 			if sound == "" {
 				sound = "startup.wav"
 			}
-			key := fmt.Sprintf("%s:%s", device.Platform, sound)
+			// Users with pager-style playback need pager_alert on *FCM* payloads too.
+			// Previously only the separate VoIP batch had pager_alert; iOS FCM had nil extras,
+			// so the Flutter background handler never ran and no audio played — only PushKit
+			// (CallKit flash) fired. Tag keys as platform+pager so those batches include extras.
+			platformKey := device.Platform
+			if userPagerEnabled && call != nil && (device.Platform == "ios" || device.Platform == "android") {
+				platformKey = device.Platform + "+pager"
+			}
+			key := fmt.Sprintf("%s:%s", platformKey, sound)
 			deviceGroups[key] = append(deviceGroups[key], device.FCMToken)
 		}
 	}
 
 	// Send batched notifications for each platform/sound combination.
-	// Regular alert notifications carry no pager_alert flag — that is only
-	// added for the separate VoIP batch below.
+	// Batches keyed with "+pager" include pager_alert so FCM background audio runs.
+	// The VoIP batch below still fires PushKit for killed-app wake on iOS.
 	batchIndex := 0
 	for key, playerIDs := range deviceGroups {
 		if len(playerIDs) == 0 {
 			continue
 		}
 
-		// Parse platform and sound from key
-		parts := strings.Split(key, ":")
+		// Parse "ios+pager:startup.wav" / "android:foo.wav" (SplitN: sound may contain ":" in theory)
+		parts := strings.SplitN(key, ":", 2)
 		if len(parts) != 2 {
 			continue
 		}
 		platform := parts[0]
 		sound := parts[1]
 
-		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification (batched): sending batch with %d player ID(s) for %s platform, sound: %s", len(playerIDs), platform, sound))
+		var batchExtra map[string]interface{}
+		if strings.HasSuffix(platform, "+pager") {
+			platform = strings.TrimSuffix(platform, "+pager")
+			batchExtra = map[string]interface{}{
+				"pager_alert": "true",
+			}
+		}
+
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification (batched): sending batch with %d player ID(s) for %s platform, sound: %s, pagerAlertInPayload: %v", len(playerIDs), platform, sound, batchExtra != nil))
 
 		// iOS requires sound name without extension (e.g., "startup" not "startup.wav")
 		finalSound := sound
@@ -789,12 +805,12 @@ func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []u
 		// Send each platform/sound batch independently so failures don't affect others.
 		// Stagger batches slightly to avoid relay-server rate limiting.
 		delay := time.Duration(batchIndex) * 200 * time.Millisecond
-		go func(ids []string, plat string, snd string, d time.Duration) {
+		go func(ids []string, plat string, snd string, extra map[string]interface{}, d time.Duration) {
 			if d > 0 {
 				time.Sleep(d)
 			}
-			controller.sendNotificationBatch(ids, title, "", message, plat, snd, call, systemLabel, talkgroupLabel, nil)
-		}(playerIDs, platform, finalSound, delay)
+			controller.sendNotificationBatch(ids, title, "", message, plat, snd, call, systemLabel, talkgroupLabel, extra)
+		}(playerIDs, platform, finalSound, batchExtra, delay)
 		batchIndex++
 	}
 

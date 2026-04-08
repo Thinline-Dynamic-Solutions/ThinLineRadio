@@ -1,5 +1,19 @@
 # Change log
 
+## Version 26.04.021 - Released Apr 9, 2026
+
+### Fixed
+
+- **Server — Batched live alerts had no pager audio (CallKit only on iOS)**
+  - `sendBatchedPushNotificationWithToneSet` sent all FCM batches with `pager_alert` omitted; only the separate VoIP batch included it, so PushKit/CallKit fired but the Flutter FCM background handler never ran (it requires `pager_alert` in the FCM data)
+  - For users with pager-style playback enabled for the talkgroup, iOS and Android FCM tokens are now bucketed under keys `ios+pager:…` / `android+pager:…` and those batches include `pager_alert: "true"`, matching behaviour of the single-user `sendPushNotification` path
+
+- **Server — Admin `POST /api/admin/test-pager-alert` did not trigger pager playback**
+  - The handler called `sendNotificationBatch` with `extraData` always `nil` and grouped devices with a naive `platform == "ios"` check, so `pager_alert` was never set and VoIP tokens were mishandled
+  - The test path now mirrors `sendPushNotification`: `resolveUserPagerAlert`, `resolveUserAlertSound`, legacy OneSignal handling, VoIP-only-when-enabled, and `pager_alert` in extras when appropriate
+
+---
+
 ## Version 26.04.020 - Released Apr 8, 2026
 
 ### Fixed
