@@ -1,5 +1,15 @@
 # Change log
 
+## Version 26.04.025 - Released Apr 8, 2026
+
+### Security
+
+- **Server — Removed open test-pager-alert endpoint**
+  - `POST /api/admin/test-pager-alert` was unauthenticated and publicly accessible — any caller could trigger push notifications to any user
+  - The route and handler have been removed entirely
+
+---
+
 ## Version 26.04.024 - Released Apr 8, 2026
 
 ### Fixed

@@ -254,8 +254,6 @@ func main() {
 	http.HandleFunc("/api/admin/favicon/delete", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.FaviconDeleteHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/email-test", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.EmailTestHandler)).ServeHTTP)
 
-	http.HandleFunc("/api/admin/test-pager-alert", wrapHandler(http.HandlerFunc(controller.Admin.TestPagerAlertHandler)).ServeHTTP)
-
 	http.HandleFunc("/api/admin/stripe-sync", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.StripeSyncHandler)).ServeHTTP)
 
 	// Serve email logo file - register before root handler to ensure it's handled
