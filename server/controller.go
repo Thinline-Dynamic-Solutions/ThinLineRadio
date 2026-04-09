@@ -1166,7 +1166,19 @@ func (controller *Controller) getAudioDuration(audio []byte, audioMime string) (
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", tempFile)
+	// Read both stream-level and format-level duration. Stream duration is derived
+	// from the actual audio frames and is accurate even for SDR Trunk M4A files
+	// whose container header (mvhd atom) contains a pre-allocated placeholder
+	// duration that doesn't match the real recording length. Format duration is
+	// kept as a fallback for formats where stream duration is not reported.
+	cmd := exec.CommandContext(ctx, "ffprobe",
+		"-v", "error",
+		"-select_streams", "a:0",
+		"-show_entries", "stream=duration",
+		"-show_entries", "format=duration",
+		"-of", "json",
+		tempFile,
+	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -1178,8 +1190,11 @@ func (controller *Controller) getAudioDuration(audio []byte, audioMime string) (
 		return 0.0, fmt.Errorf("ffprobe failed to get duration: %v, stderr: %s (make sure ffprobe is installed and in PATH)", err, stderr.String())
 	}
 
-	// Parse JSON output
+	// Parse JSON output — prefer stream duration over format duration.
 	var result struct {
+		Streams []struct {
+			Duration string `json:"duration"`
+		} `json:"streams"`
 		Format struct {
 			Duration string `json:"duration"`
 		} `json:"format"`
@@ -1189,14 +1204,21 @@ func (controller *Controller) getAudioDuration(audio []byte, audioMime string) (
 		return 0.0, fmt.Errorf("failed to parse ffprobe JSON output: %v, stdout: %s", err, stdout.String())
 	}
 
-	// Parse duration string to float64
-	if result.Format.Duration == "" {
+	// Use stream duration when available (more accurate for M4A/SDR Trunk files).
+	durationStr := ""
+	if len(result.Streams) > 0 && result.Streams[0].Duration != "" && result.Streams[0].Duration != "N/A" {
+		durationStr = result.Streams[0].Duration
+	} else {
+		durationStr = result.Format.Duration
+	}
+
+	if durationStr == "" {
 		return 0.0, fmt.Errorf("ffprobe returned empty duration field, stdout: %s", stdout.String())
 	}
 
-	duration, err := strconv.ParseFloat(result.Format.Duration, 64)
+	duration, err := strconv.ParseFloat(durationStr, 64)
 	if err != nil {
-		return 0.0, fmt.Errorf("failed to parse duration '%s' from ffprobe: %v", result.Format.Duration, err)
+		return 0.0, fmt.Errorf("failed to parse duration '%s' from ffprobe: %v", durationStr, err)
 	}
 
 	return duration, nil

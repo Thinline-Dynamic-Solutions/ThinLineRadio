@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.04.027 - Released Apr 9, 2026
+
+### Fixed
+
+- **Server — ffprobe returning incorrect audio duration for SDR Trunk M4A files**
+  - ffprobe was reading duration from the container header (`format=duration`) which for SDR Trunk M4A files contains a pre-allocated placeholder rather than the actual recording length, causing durations like `1.008s` to be stored for calls that were actually `6s`
+  - ffprobe now reads both stream-level duration (`stream=duration`, derived from actual audio frames) and format-level duration, preferring stream duration when available
+  - This affects all files where conversion is disabled — converted files were already unaffected as re-encoding rebuilds the container with the correct duration
+
+---
+
 ## Version 26.04.026 - Released Apr 9, 2026
 
 ### Fixed
