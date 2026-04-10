@@ -383,6 +383,9 @@ docker-compose up -d
 # Pull latest changes (if using Git)
 git pull origin main
 
+# Change to the Docker directory
+cd docker
+
 # Rebuild containers
 docker-compose build --no-cache
 
