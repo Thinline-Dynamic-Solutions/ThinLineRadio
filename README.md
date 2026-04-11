@@ -100,7 +100,7 @@ cd ThinLineRadio
 - ✅ Health checks and automatic restarts
 - ✅ Volume persistence for data
 
-📖 **Full Docker documentation:** [DOCKER.md](DOCKER.md) | [docker/README.md](docker/README.md)
+📖 **Full Docker documentation:** [docker/README.md](docker/README.md)
 
 ## Manual Installation
 
