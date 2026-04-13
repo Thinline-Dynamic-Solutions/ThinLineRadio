@@ -38,13 +38,13 @@ type TranscriptionJob struct {
 
 // TranscriptionQueue manages transcription jobs with a worker pool
 type TranscriptionQueue struct {
-	jobs            chan TranscriptionJob
-	workers         int
-	provider        TranscriptionProvider
-	controller      *Controller
-	mutex           sync.Mutex
-	running         bool
-	processedCount  atomic.Uint64 // total transcriptions completed since startup
+	jobs           chan TranscriptionJob
+	workers        int
+	provider       TranscriptionProvider
+	controller     *Controller
+	mutex          sync.Mutex
+	running        bool
+	processedCount atomic.Uint64 // total transcriptions completed since startup
 }
 
 // NewTranscriptionQueue creates a new transcription queue with worker pool

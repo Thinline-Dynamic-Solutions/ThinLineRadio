@@ -298,8 +298,8 @@ func (cache *KeywordListsCache) GetAllLists() []*KeywordList {
 // ============================================================================
 
 type IdLookupsCache struct {
-	systemRefToId    map[uint]uint64    // systemRef -> systemId
-	talkgroupRefToId map[uint64]uint64  // composite key -> talkgroupId
+	systemRefToId    map[uint]uint64   // systemRef -> systemId
+	talkgroupRefToId map[uint64]uint64 // composite key -> talkgroupId
 	mutex            sync.RWMutex
 	controller       *Controller
 }
@@ -366,7 +366,7 @@ func (cache *IdLookupsCache) Read(db *Database) error {
 	}
 
 	if cache.controller != nil && cache.controller.Logs != nil {
-		cache.controller.Logs.LogEvent(LogLevelInfo, 
+		cache.controller.Logs.LogEvent(LogLevelInfo,
 			fmt.Sprintf("✅ Loaded %d system and %d talkgroup ID mappings into cache", systemCount, talkgroupCount))
 	}
 
@@ -417,10 +417,10 @@ func NewRecentAlertsCache(controller *Controller) *RecentAlertsCache {
 		alerts:     make(map[string]*AlertCacheEntry),
 		controller: controller,
 	}
-	
+
 	// Start cleanup goroutine to remove old entries
 	go cache.cleanup()
-	
+
 	return cache
 }
 

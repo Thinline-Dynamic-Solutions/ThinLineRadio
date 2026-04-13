@@ -66,17 +66,17 @@ func (c *signupVerificationCache) Set(email, code string, expiryTime int64) {
 func (c *signupVerificationCache) Get(email string) (string, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	code, exists := c.codes[email]
 	if !exists {
 		return "", false
 	}
-	
+
 	// Check if expired
 	if expiry, ok := c.expiry[email]; ok && time.Now().Unix() > expiry {
 		return "", false
 	}
-	
+
 	return code, true
 }
 
@@ -540,16 +540,16 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request struct {
-		Email              string `json:"email"`
-		Password           string `json:"password"`
-		FirstName          string `json:"firstName"`
-		LastName           string `json:"lastName"`
-		ZipCode            string `json:"zipCode"`
-		RegistrationCode   string `json:"registrationCode"` // Deprecated: use accessCode
-		InvitationCode     string `json:"invitationCode"`   // Deprecated: use accessCode
-		AccessCode         string `json:"accessCode"`       // Unified field for both invitation and registration codes
-		TurnstileToken     string `json:"turnstile_token"`
-		VerificationCode   string `json:"verificationCode"` // Email verification code (if emailVerificationRequired)
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		FirstName        string `json:"firstName"`
+		LastName         string `json:"lastName"`
+		ZipCode          string `json:"zipCode"`
+		RegistrationCode string `json:"registrationCode"` // Deprecated: use accessCode
+		InvitationCode   string `json:"invitationCode"`   // Deprecated: use accessCode
+		AccessCode       string `json:"accessCode"`       // Unified field for both invitation and registration codes
+		TurnstileToken   string `json:"turnstile_token"`
+		VerificationCode string `json:"verificationCode"` // Email verification code (if emailVerificationRequired)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -3357,7 +3357,7 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 	case http.MethodGet:
 		// Get preferences from cache
 		cachedPrefs := api.Controller.PreferencesCache.GetUserPreferences(client.User.Id)
-		
+
 		preferences := []map[string]any{}
 		for _, pref := range cachedPrefs {
 			// Look up systemRef and talkgroupRef from in-memory Systems
@@ -3369,21 +3369,21 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				}
 			}
 
-		prefMap := map[string]any{
-			"userId":               pref.UserId,
-			"systemId":             pref.SystemId,
-			"talkgroupId":          pref.TalkgroupId,
-			"alertEnabled":         pref.AlertEnabled,
-			"toneAlerts":           pref.ToneAlerts,
-			"keywordAlerts":        pref.KeywordAlerts,
-			"keywords":             pref.Keywords,
-			"keywordListIds":       pref.KeywordListIds,
-			"toneSetIds":           pref.ToneSetIds,
-			"notificationSound":    pref.NotificationSound,
-			"toneSetSounds":        pref.ToneSetSounds,
-			"pagerAlert":           pref.PagerAlert,
-			"toneSetPagerAlerts":   pref.ToneSetPagerAlerts,
-		}
+			prefMap := map[string]any{
+				"userId":             pref.UserId,
+				"systemId":           pref.SystemId,
+				"talkgroupId":        pref.TalkgroupId,
+				"alertEnabled":       pref.AlertEnabled,
+				"toneAlerts":         pref.ToneAlerts,
+				"keywordAlerts":      pref.KeywordAlerts,
+				"keywords":           pref.Keywords,
+				"keywordListIds":     pref.KeywordListIds,
+				"toneSetIds":         pref.ToneSetIds,
+				"notificationSound":  pref.NotificationSound,
+				"toneSetSounds":      pref.ToneSetSounds,
+				"pagerAlert":         pref.PagerAlert,
+				"toneSetPagerAlerts": pref.ToneSetPagerAlerts,
+			}
 
 			// Include systemRef and talkgroupRef for frontend matching
 			if systemRef > 0 {
@@ -3419,21 +3419,21 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 		defer tx.Rollback()
 
 		for _, pref := range preferences {
-		var (
-			requestSystem      uint64
-			requestTg          uint64
-			systemId           uint64
-			alertEnabled       bool
-			toneAlerts         bool = true
-			keywordAlerts      bool = true
-			keywords           []string
-			keywordListIds     []uint64
-			toneSetIds         []string
-			notificationSound  string
-			toneSetSounds      map[string]string
-			pagerAlert         bool
-			toneSetPagerAlerts map[string]bool
-		)
+			var (
+				requestSystem      uint64
+				requestTg          uint64
+				systemId           uint64
+				alertEnabled       bool
+				toneAlerts         bool = true
+				keywordAlerts      bool = true
+				keywords           []string
+				keywordListIds     []uint64
+				toneSetIds         []string
+				notificationSound  string
+				toneSetSounds      map[string]string
+				pagerAlert         bool
+				toneSetPagerAlerts map[string]bool
+			)
 
 			// Accept either systemRef or systemId field names — prefer systemRef
 			// since the resolution logic queries by systemRef column first,
@@ -3546,28 +3546,28 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				toneAlerts = false
 			}
 
-		keywordsJson, _ := json.Marshal(keywords)
-		keywordListIdsJson, _ := json.Marshal(keywordListIds)
-		toneSetIdsJson, _ := json.Marshal(toneSetIds)
-		toneSetSoundsJson, _ := json.Marshal(toneSetSounds)
-		toneSetPagerAlertsJson, _ := json.Marshal(toneSetPagerAlerts)
+			keywordsJson, _ := json.Marshal(keywords)
+			keywordListIdsJson, _ := json.Marshal(keywordListIds)
+			toneSetIdsJson, _ := json.Marshal(toneSetIds)
+			toneSetSoundsJson, _ := json.Marshal(toneSetSounds)
+			toneSetPagerAlertsJson, _ := json.Marshal(toneSetPagerAlerts)
 
-		// Ensure we never store "null" for arrays/objects
-		if string(keywordsJson) == "null" {
-			keywordsJson = []byte("[]")
-		}
-		if string(keywordListIdsJson) == "null" {
-			keywordListIdsJson = []byte("[]")
-		}
-		if string(toneSetIdsJson) == "null" {
-			toneSetIdsJson = []byte("[]")
-		}
-		if string(toneSetSoundsJson) == "null" {
-			toneSetSoundsJson = []byte("{}")
-		}
-		if string(toneSetPagerAlertsJson) == "null" {
-			toneSetPagerAlertsJson = []byte("{}")
-		}
+			// Ensure we never store "null" for arrays/objects
+			if string(keywordsJson) == "null" {
+				keywordsJson = []byte("[]")
+			}
+			if string(keywordListIdsJson) == "null" {
+				keywordListIdsJson = []byte("[]")
+			}
+			if string(toneSetIdsJson) == "null" {
+				toneSetIdsJson = []byte("[]")
+			}
+			if string(toneSetSoundsJson) == "null" {
+				toneSetSoundsJson = []byte("{}")
+			}
+			if string(toneSetPagerAlertsJson) == "null" {
+				toneSetPagerAlertsJson = []byte("{}")
+			}
 
 			// DEBUG: Log tone set preferences being saved
 			if toneAlerts {
@@ -3581,10 +3581,10 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				api.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("💾 [TONE SET DEBUG] Saving preference for user %d, system %d, talkgroup %d: toneAlerts=false (only keyword alerts)", client.User.Id, systemId, dbTalkgroupId))
 			}
 
-		// Upsert preference using verified database talkgroupId
-		query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds", "pagerAlert", "toneSetPagerAlerts") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5, %t, $6) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5, "pagerAlert" = %t, "toneSetPagerAlerts" = $6`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, pagerAlert, alertEnabled, toneAlerts, keywordAlerts, pagerAlert)
+			// Upsert preference using verified database talkgroupId
+			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds", "pagerAlert", "toneSetPagerAlerts") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5, %t, $6) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5, "pagerAlert" = %t, "toneSetPagerAlerts" = $6`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, pagerAlert, alertEnabled, toneAlerts, keywordAlerts, pagerAlert)
 
-		if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson), string(toneSetPagerAlertsJson)); err != nil {
+			if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson), string(toneSetPagerAlertsJson)); err != nil {
 				api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update preference: %v", err))
 				return
 			}
@@ -3627,7 +3627,7 @@ func (api *Api) KeywordListsHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		// Get all keyword lists from cache
 		cachedLists := api.Controller.KeywordListsCache.GetAllLists()
-		
+
 		lists := []map[string]any{}
 		for _, list := range cachedLists {
 			lists = append(lists, map[string]any{
@@ -3693,12 +3693,12 @@ func (api *Api) KeywordListsHandler(w http.ResponseWriter, r *http.Request) {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create keyword list: %v", err))
 			return
 		}
-		
+
 		// Reload keyword lists cache after creation
 		if err := api.Controller.KeywordListsCache.Read(api.Controller.Database); err != nil {
 			api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload keyword lists cache after create: %v", err))
 		}
-		
+
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(fmt.Sprintf(`{"id": %d, "success": true}`, listId)))
 

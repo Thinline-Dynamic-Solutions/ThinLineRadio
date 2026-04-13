@@ -33,12 +33,12 @@ type DisconnectedClientState struct {
 
 // ReconnectionManager manages reconnection states for disconnected clients
 type ReconnectionManager struct {
-	States       map[string]*DisconnectedClientState // Key: User ID or PIN
-	mutex        sync.RWMutex
-	HoldDuration time.Duration // How long to hold buffers
-	MaxBufferSize int          // Maximum calls to buffer per user
-	Enabled      bool
-	controller   *Controller
+	States        map[string]*DisconnectedClientState // Key: User ID or PIN
+	mutex         sync.RWMutex
+	HoldDuration  time.Duration // How long to hold buffers
+	MaxBufferSize int           // Maximum calls to buffer per user
+	Enabled       bool
+	controller    *Controller
 }
 
 // NewReconnectionManager creates a new reconnection manager
@@ -63,12 +63,12 @@ func (rm *ReconnectionManager) SaveDisconnectedState(client *Client) {
 	defer rm.mutex.Unlock()
 
 	userKey := rm.getUserKey(client.User)
-	
+
 	// Create a deep copy of the livefeed matrix to preserve filter state
 	livefeedCopy := &Livefeed{
 		Matrix: make(map[uint]map[uint]bool),
 	}
-	
+
 	// Copy the matrix
 	for sysId, talkgroups := range client.Livefeed.Matrix {
 		livefeedCopy.Matrix[sysId] = make(map[uint]bool)
@@ -98,7 +98,7 @@ func (rm *ReconnectionManager) BufferCallForDisconnected(call *Call) {
 	defer rm.mutex.Unlock()
 
 	now := time.Now()
-	
+
 	for _, state := range rm.States {
 		// Skip if grace period expired
 		if now.Sub(state.LastSeen) > rm.HoldDuration {
@@ -134,10 +134,10 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 	}
 
 	rm.mutex.Lock()
-	
+
 	userKey := rm.getUserKey(client.User)
 	state, exists := rm.States[userKey]
-	
+
 	if !exists {
 		rm.mutex.Unlock()
 		return false
@@ -155,7 +155,7 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 	missedCalls := state.MissedCalls
 	missedCount := len(missedCalls)
 	disconnectDuration := time.Since(state.LastSeen)
-	
+
 	// Restore livefeed state
 	client.Livefeed = state.Livefeed
 
@@ -164,7 +164,7 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 	rm.mutex.Unlock()
 
 	if missedCount == 0 {
-		log.Printf("[ReconnectionManager] User %s (PIN: %s) reconnected after %.1fs - no missed calls", 
+		log.Printf("[ReconnectionManager] User %s (PIN: %s) reconnected after %.1fs - no missed calls",
 			userKey, client.User.Pin, disconnectDuration.Seconds())
 		return true
 	}
@@ -174,7 +174,7 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 		successCount := 0
 		for _, call := range missedCalls {
 			msg := &Message{Command: MessageCommandCall, Payload: call}
-			
+
 			select {
 			case client.Send <- msg:
 				successCount++
@@ -182,13 +182,13 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 				time.Sleep(5 * time.Millisecond)
 			default:
 				// Channel full, stop trying to avoid blocking
-				log.Printf("[ReconnectionManager] Channel full while sending buffered calls to user %s (sent %d/%d)", 
+				log.Printf("[ReconnectionManager] Channel full while sending buffered calls to user %s (sent %d/%d)",
 					userKey, successCount, missedCount)
 				return
 			}
 		}
-		
-		log.Printf("[ReconnectionManager] Successfully sent %d buffered calls to user %s (PIN: %s) after %.1fs disconnect", 
+
+		log.Printf("[ReconnectionManager] Successfully sent %d buffered calls to user %s (PIN: %s) after %.1fs disconnect",
 			successCount, userKey, client.User.Pin, disconnectDuration.Seconds())
 	}()
 
@@ -205,7 +205,7 @@ func (rm *ReconnectionManager) StartCleanup() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 
-		log.Printf("[ReconnectionManager] Cleanup routine started (grace period: %v, max buffer: %d)", 
+		log.Printf("[ReconnectionManager] Cleanup routine started (grace period: %v, max buffer: %d)",
 			rm.HoldDuration, rm.MaxBufferSize)
 
 		for range ticker.C {
@@ -221,11 +221,11 @@ func (rm *ReconnectionManager) StartCleanup() {
 					expiredCount++
 				}
 			}
-			
+
 			rm.mutex.Unlock()
 
 			if expiredCount > 0 {
-				log.Printf("[ReconnectionManager] Cleaned up %d expired states (%d calls dropped)", 
+				log.Printf("[ReconnectionManager] Cleaned up %d expired states (%d calls dropped)",
 					expiredCount, totalDroppedCalls)
 			}
 		}
@@ -258,4 +258,3 @@ func (rm *ReconnectionManager) getUserKey(user *User) string {
 	}
 	return fmt.Sprintf("pin:%s", user.Pin)
 }
-

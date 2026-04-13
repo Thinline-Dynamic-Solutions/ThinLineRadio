@@ -24,8 +24,8 @@ import (
 // DedupEntry caches metadata for a recently seen call to catch simultaneous
 // duplicate arrivals before either has been written to the DB.
 type DedupEntry struct {
-	Duration      float64   // Audio duration in seconds (for ratio guard)
-	CallTimestamp int64     // P25 call timestamp in milliseconds
+	Duration      float64 // Audio duration in seconds (for ratio guard)
+	CallTimestamp int64   // P25 call timestamp in milliseconds
 	SeenAt        time.Time
 }
 
@@ -34,9 +34,10 @@ type DedupEntry struct {
 // before either has been written.
 //
 // Key prefixes:
-//   "ep:systemId:talkgroupId" — energy profile entry
-//   "ah:systemId:talkgroupId:hash" — PCM content hash entry
-//   "ts:systemId:talkgroupId" — timestamp fallback entry
+//
+//	"ep:systemId:talkgroupId" — energy profile entry
+//	"ah:systemId:talkgroupId:hash" — PCM content hash entry
+//	"ts:systemId:talkgroupId" — timestamp fallback entry
 //
 // A background goroutine evicts stale entries every 30 seconds.
 type DedupCache struct {
@@ -59,7 +60,6 @@ func NewDedupCache(timeframeMs uint) *DedupCache {
 	go dc.evictionLoop()
 	return dc
 }
-
 
 // CheckAndMarkHash checks a PCM content hash against the cache. Returns true if
 // an identical hash was already seen for this system+talkgroup (exact duplicate).

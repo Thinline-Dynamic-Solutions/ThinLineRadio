@@ -180,10 +180,10 @@ func (d *DebugLogger) Close() {
 	d.mutex.Lock()
 	d.closed = true
 	d.mutex.Unlock()
-	
+
 	// Small delay to let any in-flight writes complete
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Write final message and close file (no mutex needed, writes will be rejected now)
 	if d.file != nil {
 		timestamp := time.Now().Format("2006-01-02 15:04:05.000")
@@ -244,10 +244,10 @@ func (t *TranscriptionDebugLogger) Close() {
 	t.mutex.Lock()
 	t.closed = true
 	t.mutex.Unlock()
-	
+
 	// Small delay to let any in-flight writes complete
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Write final message and close file
 	if t.file != nil {
 		timestamp := time.Now().Format("2006-01-02 15:04:05.000")

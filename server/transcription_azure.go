@@ -177,4 +177,3 @@ func (azure *AzureTranscription) GetSupportedLanguages() []string {
 
 // Note: convertToWAV function is shared with AssemblyAI transcription provider
 // It's defined in transcription_assemblyai.go since both are in the same package
-

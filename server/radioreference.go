@@ -88,9 +88,9 @@ type RadioReferenceSite struct {
 	Name        string    `xml:"name" json:"name"` // This will store siteDescr
 	Latitude    float64   `xml:"latitude" json:"latitude"`
 	Longitude   float64   `xml:"longitude" json:"longitude"`
-	CountyID    int       `xml:"countyId" json:"countyId"`     // This will store siteCtid
-	CountyName  string    `xml:"countyName" json:"countyName"` // This will store countyName
-	RFSS        int       `xml:"rfss" json:"rfss"`             // This will store rfss
+	CountyID    int       `xml:"countyId" json:"countyId"`       // This will store siteCtid
+	CountyName  string    `xml:"countyName" json:"countyName"`   // This will store countyName
+	RFSS        int       `xml:"rfss" json:"rfss"`               // This will store rfss
 	Frequencies []float64 `xml:"frequencies" json:"frequencies"` // Site frequencies
 }
 
@@ -1200,7 +1200,7 @@ func parseSiteList(bodyContent []byte) ([]RadioReferenceSite, error) {
 		if siteFreqsNode != nil {
 			freqItems := xmlquery.Find(siteFreqsNode, "item")
 			log.Printf("Site %s: Found %d frequency items", site.Name, len(freqItems))
-			
+
 			for _, freqItem := range freqItems {
 				// Each item contains lcn, freq, use, colorCode, ch_id
 				if freqValueNode := xmlquery.FindOne(freqItem, "freq"); freqValueNode != nil {

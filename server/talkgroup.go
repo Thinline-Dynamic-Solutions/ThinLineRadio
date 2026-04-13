@@ -26,18 +26,18 @@ import (
 )
 
 type Talkgroup struct {
-	Id                      uint64
-	Delay                   uint
-	Frequency               uint
-	GroupIds                []uint64
-	Kind                    string
-	Label                   string
-	Name                    string
-	Order                   uint
-	TagId                   uint64
-	TalkgroupRef            uint
-	ToneDetectionEnabled     bool
-	ToneSets                 []ToneSet
+	Id                   uint64
+	Delay                uint
+	Frequency            uint
+	GroupIds             []uint64
+	Kind                 string
+	Label                string
+	Name                 string
+	Order                uint
+	TagId                uint64
+	TalkgroupRef         uint
+	ToneDetectionEnabled bool
+	ToneSets             []ToneSet
 	// Per-channel TonesToActive forwarding (forwards all tone sets for this talkgroup)
 	ToneDownstreamEnabled bool   `json:"toneDownstreamEnabled"`
 	ToneDownstreamURL     string `json:"toneDownstreamURL"`
@@ -51,8 +51,8 @@ type Talkgroup struct {
 	// voice call within LinkedVoiceWindowSeconds. Useful when an agency pages on a dedicated signalling
 	// channel (TGID A) but dispatches voice on a separate tactical channel (TGID B).
 	// 0 values disable the feature (default, fully backward compatible).
-	LinkedVoiceTalkgroupRef      uint `json:"linkedVoiceTalkgroupRef"`
-	LinkedVoiceWindowSeconds     uint `json:"linkedVoiceWindowSeconds"`
+	LinkedVoiceTalkgroupRef       uint `json:"linkedVoiceTalkgroupRef"`
+	LinkedVoiceWindowSeconds      uint `json:"linkedVoiceWindowSeconds"`
 	LinkedVoiceMinDurationSeconds uint `json:"linkedVoiceMinDurationSeconds"`
 
 	// Admin toggle: false suppresses all alerts & transcription for this talkgroup regardless of user prefs.

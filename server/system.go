@@ -38,11 +38,11 @@ type System struct {
 	SystemRef               uint
 	Talkgroups              *Talkgroups
 	Units                   *Units
-	NoAudioAlertsEnabled    bool    // Enable no-audio alerts for this system
-	NoAudioThresholdMinutes uint    // Minutes without audio before alerting
-	AlertsEnabled           bool    // Admin toggle: false suppresses all alerts & transcription for this system
+	NoAudioAlertsEnabled    bool // Enable no-audio alerts for this system
+	NoAudioThresholdMinutes uint // Minutes without audio before alerting
+	AlertsEnabled           bool // Admin toggle: false suppresses all alerts & transcription for this system
 	// When true (default), talkgroups created by auto-populate get alertsEnabled true; when false, they are created with alerts off.
-	AutoPopulateAlertsEnabled bool `json:"autoPopulateAlertsEnabled"`
+	AutoPopulateAlertsEnabled bool   `json:"autoPopulateAlertsEnabled"`
 	TranscriptionPrompt       string // Custom Whisper/AssemblyAI prompt; overrides the global prompt when non-empty
 }
 
@@ -388,46 +388,46 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 						continue
 					}
 
-				system, ok := systems.GetSystemByRef(systemId)
-				if !ok {
-					continue
-				}
-
-				// Check group access first - if group doesn't allow this system, skip it
-				if !isSystemAllowed(system.SystemRef) {
-					continue
-				}
-
-				switch v := mTalkgroups.(type) {
-				case string:
-					if mTalkgroups == "*" {
-						// User allows all talkgroups, but filter by group restrictions
-						filteredSystem := filterTalkgroupsByGroup(system)
-						rawSystems = append(rawSystems, *filteredSystem)
+					system, ok := systems.GetSystemByRef(systemId)
+					if !ok {
 						continue
 					}
 
-				case []any:
-					rawSystem := *system
-					rawSystem.Talkgroups = NewTalkgroups()
-					for _, fTalkgroupId := range v {
-						switch v := fTalkgroupId.(type) {
-						case float64:
-							rawTalkgroup, ok := system.Talkgroups.GetTalkgroupByRef(uint(v))
-							if !ok {
-								continue
-							}
-							// Check group access for this talkgroup
-							if userGroup != nil && !userGroup.HasTalkgroupAccess(uint64(system.SystemRef), rawTalkgroup.TalkgroupRef) {
-								continue
-							}
-							rawSystem.Talkgroups.List = append(rawSystem.Talkgroups.List, rawTalkgroup)
-						default:
+					// Check group access first - if group doesn't allow this system, skip it
+					if !isSystemAllowed(system.SystemRef) {
+						continue
+					}
+
+					switch v := mTalkgroups.(type) {
+					case string:
+						if mTalkgroups == "*" {
+							// User allows all talkgroups, but filter by group restrictions
+							filteredSystem := filterTalkgroupsByGroup(system)
+							rawSystems = append(rawSystems, *filteredSystem)
 							continue
 						}
+
+					case []any:
+						rawSystem := *system
+						rawSystem.Talkgroups = NewTalkgroups()
+						for _, fTalkgroupId := range v {
+							switch v := fTalkgroupId.(type) {
+							case float64:
+								rawTalkgroup, ok := system.Talkgroups.GetTalkgroupByRef(uint(v))
+								if !ok {
+									continue
+								}
+								// Check group access for this talkgroup
+								if userGroup != nil && !userGroup.HasTalkgroupAccess(uint64(system.SystemRef), rawTalkgroup.TalkgroupRef) {
+									continue
+								}
+								rawSystem.Talkgroups.List = append(rawSystem.Talkgroups.List, rawTalkgroup)
+							default:
+								continue
+							}
+						}
+						rawSystems = append(rawSystems, rawSystem)
 					}
-					rawSystems = append(rawSystems, rawSystem)
-				}
 				}
 			}
 		}
@@ -458,22 +458,22 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 			}
 
 			talkgroupMap := TalkgroupMap{
-				"id":                      rawTalkgroup.TalkgroupRef,
-				"talkgroupId":             rawTalkgroup.Id,           // Database ID for admin/backend use
-				"talkgroupRef":            rawTalkgroup.TalkgroupRef, // Radio reference ID
-				"frequency":               rawTalkgroup.Frequency,
-				"group":                   groupLabel,
-				"groups":                  groupLabels,
-				"label":                   rawTalkgroup.Label,
-				"name":                    rawTalkgroup.Name,
-				"order":                   rawTalkgroup.Order,
-				"tag":                     tag.Label,
-				"type":                    rawTalkgroup.Kind,
-				"toneDetectionEnabled":    rawTalkgroup.ToneDetectionEnabled,
-				"toneDownstreamEnabled":   rawTalkgroup.ToneDownstreamEnabled,
-				"toneDownstreamURL":       rawTalkgroup.ToneDownstreamURL,
-				"toneDownstreamAPIKey":    rawTalkgroup.ToneDownstreamAPIKey,
-				"alertsEnabled":           rawTalkgroup.AlertsEnabled,
+				"id":                    rawTalkgroup.TalkgroupRef,
+				"talkgroupId":           rawTalkgroup.Id,           // Database ID for admin/backend use
+				"talkgroupRef":          rawTalkgroup.TalkgroupRef, // Radio reference ID
+				"frequency":             rawTalkgroup.Frequency,
+				"group":                 groupLabel,
+				"groups":                groupLabels,
+				"label":                 rawTalkgroup.Label,
+				"name":                  rawTalkgroup.Name,
+				"order":                 rawTalkgroup.Order,
+				"tag":                   tag.Label,
+				"type":                  rawTalkgroup.Kind,
+				"toneDetectionEnabled":  rawTalkgroup.ToneDetectionEnabled,
+				"toneDownstreamEnabled": rawTalkgroup.ToneDownstreamEnabled,
+				"toneDownstreamURL":     rawTalkgroup.ToneDownstreamURL,
+				"toneDownstreamAPIKey":  rawTalkgroup.ToneDownstreamAPIKey,
+				"alertsEnabled":         rawTalkgroup.AlertsEnabled,
 			}
 
 			if len(rawTalkgroup.ToneSets) > 0 {

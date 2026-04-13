@@ -196,24 +196,24 @@ func (dirwatch *Dirwatch) ingestDefault(p string) error {
 			return err
 		}
 
-	dirwatch.parseMask(call)
+		dirwatch.parseMask(call)
 
-	if dirwatch.SystemId > 0 {
-		call.Meta.SystemId = dirwatch.SystemId
-		// Dirwatch uses Meta.* for labels/refs, but validation expects top-level ids.
-		// Keep both in sync.
-		if dirwatch.SystemId <= uint64(^uint(0)) {
-			call.SystemId = uint(dirwatch.SystemId)
+		if dirwatch.SystemId > 0 {
+			call.Meta.SystemId = dirwatch.SystemId
+			// Dirwatch uses Meta.* for labels/refs, but validation expects top-level ids.
+			// Keep both in sync.
+			if dirwatch.SystemId <= uint64(^uint(0)) {
+				call.SystemId = uint(dirwatch.SystemId)
+			}
 		}
-	}
 
-	if dirwatch.TalkgroupId > 0 {
-		call.Meta.TalkgroupId = dirwatch.TalkgroupId
-		// Keep top-level talkgroup id in sync for validation.
-		if dirwatch.TalkgroupId <= uint64(^uint(0)) {
-			call.TalkgroupId = uint(dirwatch.TalkgroupId)
+		if dirwatch.TalkgroupId > 0 {
+			call.Meta.TalkgroupId = dirwatch.TalkgroupId
+			// Keep top-level talkgroup id in sync for validation.
+			if dirwatch.TalkgroupId <= uint64(^uint(0)) {
+				call.TalkgroupId = uint(dirwatch.TalkgroupId)
+			}
 		}
-	}
 
 		if ok, err := call.IsValid(); ok {
 			dirwatch.controller.Ingest <- call
