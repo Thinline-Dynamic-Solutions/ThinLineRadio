@@ -28,7 +28,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-
 type Client struct {
 	User        *User
 	AuthCount   int
@@ -131,12 +130,12 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 				var userSettings map[string]interface{}
 				if user.Settings != "" {
 					if err := json.Unmarshal([]byte(user.Settings), &userSettings); err == nil {
-					if enabled, ok := userSettings["disconnectAlertPushEnabled"].(bool); ok && enabled {
-						go func() {
-							time.Sleep(10 * time.Second)
-							ctrl.sendDisconnectPushNotificationToDevice(user, fcmToken)
-						}()
-					}
+						if enabled, ok := userSettings["disconnectAlertPushEnabled"].(bool); ok && enabled {
+							go func() {
+								time.Sleep(10 * time.Second)
+								ctrl.sendDisconnectPushNotificationToDevice(user, fcmToken)
+							}()
+						}
 					}
 				}
 			}
@@ -222,36 +221,36 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 					}
 				}
 
-			var b []byte
-			var jsonErr error
+				var b []byte
+				var jsonErr error
 
-			// When audio encryption is enabled and this is a call message, encrypt
-			// the audio exactly once (sync.Once guards concurrent client goroutines)
-			// and cache the wire bytes on the message so every listener reuses the
-			// same ciphertext. Memory is freed when the last channel reference drops.
-			if message.Command == MessageCommandCall && len(controller.AudioKey) == 32 {
-				if call, ok := message.Payload.(*Call); ok {
-					audioKey := controller.AudioKey
-					message.encryptOnce.Do(func() {
-						var enc []byte
-						enc, jsonErr = call.MarshalJSONWithEncryption(audioKey)
-						if jsonErr == nil {
-							envelope := []any{message.Command, json.RawMessage(enc)}
-							if message.Flag != nil && message.Flag != "" {
-								envelope = append(envelope, message.Flag)
+				// When audio encryption is enabled and this is a call message, encrypt
+				// the audio exactly once (sync.Once guards concurrent client goroutines)
+				// and cache the wire bytes on the message so every listener reuses the
+				// same ciphertext. Memory is freed when the last channel reference drops.
+				if message.Command == MessageCommandCall && len(controller.AudioKey) == 32 {
+					if call, ok := message.Payload.(*Call); ok {
+						audioKey := controller.AudioKey
+						message.encryptOnce.Do(func() {
+							var enc []byte
+							enc, jsonErr = call.MarshalJSONWithEncryption(audioKey)
+							if jsonErr == nil {
+								envelope := []any{message.Command, json.RawMessage(enc)}
+								if message.Flag != nil && message.Flag != "" {
+									envelope = append(envelope, message.Flag)
+								}
+								enc, jsonErr = json.Marshal(envelope)
 							}
-							enc, jsonErr = json.Marshal(envelope)
-						}
-						if jsonErr == nil {
-							message.encryptedJSON = enc
-						}
-					})
-					b = message.encryptedJSON
+							if jsonErr == nil {
+								message.encryptedJSON = enc
+							}
+						})
+						b = message.encryptedJSON
+					}
 				}
-			}
-			if b == nil && jsonErr == nil {
-				b, jsonErr = message.ToJson()
-			}
+				if b == nil && jsonErr == nil {
+					b, jsonErr = message.ToJson()
+				}
 
 				if jsonErr != nil {
 					controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("client.message.tojson error for ip %s: %v", client.GetRemoteAddr(), jsonErr))

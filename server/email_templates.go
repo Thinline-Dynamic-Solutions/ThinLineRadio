@@ -23,9 +23,9 @@ import (
 
 // EmailTemplateData holds the data for email templates
 type EmailTemplateData struct {
-	UserEmail        string
-	VerificationURL  string
-	BaseURL          string
+	UserEmail       string
+	VerificationURL string
+	BaseURL         string
 }
 
 // EmailTemplates manages email templates
@@ -37,21 +37,21 @@ type EmailTemplates struct {
 // NewEmailTemplates creates a new EmailTemplates instance
 func NewEmailTemplates() (*EmailTemplates, error) {
 	et := &EmailTemplates{}
-	
+
 	// Load HTML template
 	htmlTmpl, err := template.ParseFiles("templates/email_verification.html")
 	if err != nil {
 		return nil, err
 	}
 	et.verificationHTML = htmlTmpl
-	
+
 	// Load text template
 	textTmpl, err := texttemplate.ParseFiles("templates/email_verification.txt")
 	if err != nil {
 		return nil, err
 	}
 	et.verificationText = textTmpl
-	
+
 	return et, nil
 }
 
@@ -63,14 +63,14 @@ func (et *EmailTemplates) GenerateVerificationEmail(data EmailTemplateData) (htm
 		return "", "", err
 	}
 	htmlContent = htmlBuf.String()
-	
+
 	// Generate text content
 	var textBuf bytes.Buffer
 	if err := et.verificationText.Execute(&textBuf, data); err != nil {
 		return "", "", err
 	}
 	textContent = textBuf.String()
-	
+
 	return htmlContent, textContent, nil
 }
 

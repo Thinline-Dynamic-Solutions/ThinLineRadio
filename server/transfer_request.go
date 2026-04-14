@@ -38,7 +38,7 @@ type TransferRequest struct {
 }
 
 type TransferRequests struct {
-	mutex sync.RWMutex
+	mutex    sync.RWMutex
 	requests map[uint64]*TransferRequest
 }
 
@@ -198,4 +198,3 @@ func (trs *TransferRequests) Delete(id uint64, db *Database) error {
 
 	return nil
 }
-

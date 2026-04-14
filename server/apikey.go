@@ -222,7 +222,7 @@ func (apikeys *Apikeys) Read(db *Database) error {
 			enabledCount++
 		}
 	}
-	fmt.Printf("Apikeys.Read: loaded %d total API keys (%d enabled, %d disabled)\n", 
+	fmt.Printf("Apikeys.Read: loaded %d total API keys (%d enabled, %d disabled)\n",
 		len(apikeys.List), enabledCount, disabledCount)
 	if len(apikeys.List) == 0 {
 		fmt.Printf("Apikeys.Read: WARNING - No API keys found in database. Upload sources (SDRTrunk, etc.) will not be able to connect.\n")

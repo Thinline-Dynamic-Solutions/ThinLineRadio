@@ -10,7 +10,7 @@ import (
 var (
 	// Email regex pattern - RFC 5322 compliant (simplified but practical)
 	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
-	
+
 	// Max email length per RFC 5321
 	maxEmailLength = 254
 )
@@ -21,40 +21,40 @@ func ValidateEmail(email string) error {
 	if email == "" {
 		return fmt.Errorf("email is required")
 	}
-	
+
 	// Trim whitespace
 	email = strings.TrimSpace(email)
-	
+
 	// Check length
 	if len(email) > maxEmailLength {
 		return fmt.Errorf("email must be 254 characters or less")
 	}
-	
+
 	// Check format
 	if !emailRegex.MatchString(email) {
 		return fmt.Errorf("invalid email format")
 	}
-	
+
 	// Additional checks
 	if strings.HasPrefix(email, ".") || strings.HasPrefix(email, "@") {
 		return fmt.Errorf("invalid email format")
 	}
-	
+
 	if strings.Contains(email, "..") {
 		return fmt.Errorf("invalid email format")
 	}
-	
+
 	// Split to check domain
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid email format")
 	}
-	
+
 	domain := parts[1]
 	if len(domain) == 0 || !strings.Contains(domain, ".") {
 		return fmt.Errorf("invalid email format")
 	}
-	
+
 	return nil
 }
 
@@ -89,24 +89,24 @@ func ValidatePasswordStrength(password string, strength PasswordStrength) error 
 	if password == "" {
 		return fmt.Errorf("password is required")
 	}
-	
+
 	// Check minimum length
 	if len(password) < strength.MinLength {
 		return fmt.Errorf("password must be at least %d characters", strength.MinLength)
 	}
-	
+
 	// Check maximum length (prevent DoS)
 	if len(password) > 128 {
 		return fmt.Errorf("password must be 128 characters or less")
 	}
-	
+
 	var (
 		hasUpper   = false
 		hasLower   = false
 		hasNumber  = false
 		hasSpecial = false
 	)
-	
+
 	// Check character requirements
 	for _, char := range password {
 		switch {
@@ -120,10 +120,10 @@ func ValidatePasswordStrength(password string, strength PasswordStrength) error 
 			hasSpecial = true
 		}
 	}
-	
+
 	// Build error message for missing requirements
 	var missing []string
-	
+
 	if strength.RequireUpper && !hasUpper {
 		missing = append(missing, "uppercase letter")
 	}
@@ -136,11 +136,11 @@ func ValidatePasswordStrength(password string, strength PasswordStrength) error 
 	if strength.RequireSpecial && !hasSpecial {
 		missing = append(missing, "special character")
 	}
-	
+
 	if len(missing) > 0 {
 		return fmt.Errorf("password must contain at least one %s", strings.Join(missing, ", "))
 	}
-	
+
 	return nil
 }
 
@@ -148,4 +148,3 @@ func ValidatePasswordStrength(password string, strength PasswordStrength) error 
 func ValidatePassword(password string) error {
 	return ValidatePasswordStrength(password, DefaultPasswordStrength())
 }
-

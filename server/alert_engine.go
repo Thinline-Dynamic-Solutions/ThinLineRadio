@@ -268,7 +268,7 @@ func (engine *AlertEngine) TriggerToneAlerts(call *Call) {
 		// This prevents duplicate alerts if the function is called multiple times
 		_, alertExists := engine.controller.RecentAlertsCache.AlertExists(
 			call.Id, call.System.Id, call.Talkgroup.Id, "tone", matchedToneSet.Id, "")
-		
+
 		if !alertExists {
 			// Create alert once for this tone set
 			engine.createAlert(&AlertRecord{
@@ -597,7 +597,7 @@ func (engine *AlertEngine) TriggerToneAndKeywordAlerts(call *Call, userId uint64
 		// Check if alert already exists for this call + tone set + keyword combination using cache
 		_, alertExists := engine.controller.RecentAlertsCache.AlertExists(
 			call.Id, call.System.Id, call.Talkgroup.Id, "tone+keyword", matchedToneSet.Id, keywordsJsonStr)
-		
+
 		if !alertExists {
 			// Create alert once for this tone set + keywords combination
 			engine.createAlert(&AlertRecord{
@@ -700,7 +700,7 @@ func (engine *AlertEngine) createAlert(alert *AlertRecord) {
 
 	// Add alert to cache for duplicate prevention
 	engine.controller.RecentAlertsCache.AddAlert(
-		alert.AlertId, alert.CallId, alert.SystemId, alert.TalkgroupId, 
+		alert.AlertId, alert.CallId, alert.SystemId, alert.TalkgroupId,
 		alert.AlertType, alert.ToneSetId, alert.KeywordsMatched)
 
 	// Debug log

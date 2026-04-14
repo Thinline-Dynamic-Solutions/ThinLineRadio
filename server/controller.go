@@ -71,18 +71,18 @@ type Controller struct {
 	HallucinationDetector            *HallucinationDetector
 	CentralManagement                *CentralManagementService
 	// Performance caches
-	PreferencesCache                 *PreferencesCache
-	KeywordListsCache                *KeywordListsCache
-	IdLookupsCache                   *IdLookupsCache
-	RecentAlertsCache                *RecentAlertsCache
-	DedupCache                       *DedupCache
-	Register                         chan *Client
-	Unregister                       chan *Client
-	Ingest                           chan *Call
-	running                          bool
-	workerCancel                     context.CancelFunc // Function to cancel worker context
-	workersWg                        sync.WaitGroup     // WaitGroup to track worker goroutines
-	workerStats                      struct {
+	PreferencesCache  *PreferencesCache
+	KeywordListsCache *KeywordListsCache
+	IdLookupsCache    *IdLookupsCache
+	RecentAlertsCache *RecentAlertsCache
+	DedupCache        *DedupCache
+	Register          chan *Client
+	Unregister        chan *Client
+	Ingest            chan *Call
+	running           bool
+	workerCancel      context.CancelFunc // Function to cancel worker context
+	workersWg         sync.WaitGroup     // WaitGroup to track worker goroutines
+	workerStats       struct {
 		sync.Mutex
 		activeWorkers  int
 		totalCalls     int64
@@ -505,13 +505,13 @@ func (controller *Controller) IngestCall(call *Call) {
 			}
 
 			talkgroup = &Talkgroup{
-				GroupIds:        []uint64{groupId},
-				Label:           fmt.Sprintf("%d", talkgroupId),
-				Name:            fmt.Sprintf("%d", talkgroupId),
-				TalkgroupRef:    talkgroupId,
-				TagId:           tagId,
-				Order:           maxOrder + 1, // Assign order at the end of the list
-				AlertsEnabled:   system.AutoPopulateAlertsEnabled,
+				GroupIds:      []uint64{groupId},
+				Label:         fmt.Sprintf("%d", talkgroupId),
+				Name:          fmt.Sprintf("%d", talkgroupId),
+				TalkgroupRef:  talkgroupId,
+				TagId:         tagId,
+				Order:         maxOrder + 1, // Assign order at the end of the list
+				AlertsEnabled: system.AutoPopulateAlertsEnabled,
 			}
 
 			// Update label and name if provided (v6 style)
@@ -863,7 +863,6 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 				})
 			}
 		}
-
 
 		if !call.IsDuplicate {
 			// IMMEDIATE: Emit call to clients (users can play NOW - zero delay)

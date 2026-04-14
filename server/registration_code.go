@@ -59,14 +59,14 @@ func NewRegistrationCodes() *RegistrationCodes {
 func generateRegistrationCode() (string, error) {
 	// Generate a 12-character code with alphanumeric and at least one special character
 	buf := make([]byte, registrationCodeLength)
-	
+
 	// First, ensure we have at least one special character
 	specialBuf := make([]byte, 1)
 	if _, err := rand.Read(specialBuf); err != nil {
 		return "", err
 	}
 	specialPos := int(specialBuf[0]) % registrationCodeLength
-	
+
 	// Fill the rest with alphanumeric or special characters
 	allChars := alphanumericChars + specialChars
 	for i := 0; i < registrationCodeLength; i++ {
@@ -86,9 +86,9 @@ func generateRegistrationCode() (string, error) {
 			buf[i] = allChars[int(charBuf[0])%len(allChars)]
 		}
 	}
-	
+
 	code := string(buf)
-	
+
 	// Verify we have at least one special character (should always be true, but double-check)
 	hasSpecial := false
 	for _, char := range code {
@@ -97,7 +97,7 @@ func generateRegistrationCode() (string, error) {
 			break
 		}
 	}
-	
+
 	if !hasSpecial {
 		// If somehow we don't have a special char, replace a random position
 		replacePos := int(buf[0]) % registrationCodeLength
@@ -107,7 +107,7 @@ func generateRegistrationCode() (string, error) {
 		}
 		code = code[:replacePos] + string(specialChars[int(specialBuf[0])%len(specialChars)]) + code[replacePos+1:]
 	}
-	
+
 	return code, nil
 }
 
@@ -192,7 +192,7 @@ func (rcs *RegistrationCodes) Load(db *Database) error {
 		} else {
 			code.CreatedBy = 0 // System admin created
 		}
-		
+
 		if expiresAt.Valid {
 			code.ExpiresAt = expiresAt.Int64
 		}
@@ -266,14 +266,14 @@ func (rcs *RegistrationCodes) Use(code string, db *Database) error {
 func (rcs *RegistrationCodes) Add(code *RegistrationCode, db *Database) error {
 	var id int64
 	var createdBy interface{}
-	
+
 	// Use NULL if createdBy is 0 (system admin), otherwise use the user ID
 	if code.CreatedBy == 0 {
 		createdBy = nil
 	} else {
 		createdBy = code.CreatedBy
 	}
-	
+
 	err := db.Sql.QueryRow(
 		`INSERT INTO "registrationCodes" ("code", "label", "userGroupId", "createdBy", "expiresAt", "maxUses", "currentUses", "isOneTime", "isActive", "createdAt") 
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "registrationCodeId"`,
@@ -327,4 +327,3 @@ func (rcs *RegistrationCodes) GetAll() []*RegistrationCode {
 	}
 	return codes
 }
-

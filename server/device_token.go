@@ -36,8 +36,8 @@ type DeviceToken struct {
 
 type DeviceTokens struct {
 	mutex      sync.RWMutex
-	tokens     map[uint64]*DeviceToken    // by device token ID
-	userTokens map[uint64][]*DeviceToken  // by user ID
+	tokens     map[uint64]*DeviceToken   // by device token ID
+	userTokens map[uint64][]*DeviceToken // by user ID
 	// tokenIndex provides O(1) lookup by FCM token string.
 	// Used to efficiently clean up invalid tokens reported by the relay server
 	// without scanning all users.
@@ -94,7 +94,7 @@ func (dt *DeviceTokens) Load(db *Database) error {
 		if err != nil {
 			continue
 		}
-		
+
 		// Handle nullable fields
 		if fcmToken != nil {
 			token.FCMToken = *fcmToken
@@ -154,7 +154,7 @@ func (dt *DeviceTokens) Add(token *DeviceToken, db *Database) error {
 	if token.PushType != "" {
 		pushType = &token.PushType
 	}
-	
+
 	var tokenId int64
 	err := db.Sql.QueryRow(
 		`INSERT INTO "deviceTokens" ("userId", "token", "fcmToken", "pushType", "platform", "sound", "createdAt", "lastUsed") 
@@ -269,7 +269,7 @@ func (dt *DeviceTokens) GetByUser(userId uint64) []*DeviceToken {
 	if tokens == nil {
 		return []*DeviceToken{} // Return empty slice instead of nil
 	}
-	
+
 	// Return a copy to prevent external modification
 	result := make([]*DeviceToken, len(tokens))
 	copy(result, tokens)
@@ -355,4 +355,3 @@ func (dt *DeviceTokens) RemoveAllLegacyTokensForUser(userId uint64, db *Database
 
 	return nil
 }
-
