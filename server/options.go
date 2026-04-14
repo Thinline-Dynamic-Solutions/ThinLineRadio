@@ -87,6 +87,7 @@ type Options struct {
 	TranscriptionConfig           TranscriptionConfig `json:"transcriptionConfig"`
 	TranscriptionEnhancement      bool                `json:"transcriptionEnhancement"`
 	TranscriptionFailureThreshold uint                `json:"transcriptionFailureThreshold"`
+	TranscriptParserConfig        TranscriptConfig    `json:"transcriptParserConfig"`
 	ToneDetectionIssueThreshold   uint                `json:"toneDetectionIssueThreshold"`
 	AlertRetentionDays            uint                `json:"alertRetentionDays"`
 	NoAudioThresholdMinutes       uint                `json:"noAudioThresholdMinutes"`
@@ -118,10 +119,10 @@ type Options struct {
 	AudioEncryptionEnabled bool `json:"audioEncryptionEnabled"`
 	// Download rate limiting — applied per WebSocket connection.
 	// Set MaxDownloadsPerWindow to 0 to disable.
-	MaxDownloadsPerWindow uint `json:"maxDownloadsPerWindow"` // max download requests in the window
-	DownloadWindowMinutes uint `json:"downloadWindowMinutes"` // rolling window size in minutes (1–60)
-	RadioReferenceAPIKey              string `json:"radioReferenceAPIKey"`
-	AdminLocalhostOnly                bool   `json:"adminLocalhostOnly"`
+	MaxDownloadsPerWindow uint   `json:"maxDownloadsPerWindow"` // max download requests in the window
+	DownloadWindowMinutes uint   `json:"downloadWindowMinutes"` // rolling window size in minutes (1–60)
+	RadioReferenceAPIKey  string `json:"radioReferenceAPIKey"`
+	AdminLocalhostOnly    bool   `json:"adminLocalhostOnly"`
 	// When true, the traditional admin password login form is disabled. Admin access is only
 	// possible via system admin user SSO or Central Management one-click login.
 	// Guard: the server refuses to set this if no SystemAdmin user exists.
@@ -1391,6 +1392,11 @@ func (options *Options) Read(db *Database) error {
 			if err := json.Unmarshal([]byte(value.String), &cfg); err == nil {
 				options.TranscriptionConfig = cfg
 			}
+		case "transcriptParserConfig":
+			var cfg TranscriptConfig
+			if err := json.Unmarshal([]byte(value.String), &cfg); err == nil {
+				options.TranscriptParserConfig = cfg
+			}
 		case "transcriptionEnhancement":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -1517,35 +1523,35 @@ func (options *Options) Read(db *Database) error {
 					options.RelayServerURL = v
 				}
 			}
-	case "relayServerAPIKey":
-		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-			switch v := f.(type) {
-			case string:
-				options.RelayServerAPIKey = v
+		case "relayServerAPIKey":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.RelayServerAPIKey = v
+				}
 			}
-		}
-	case "audioEncryptionEnabled":
-		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-			switch v := f.(type) {
-			case bool:
-				options.AudioEncryptionEnabled = v
+		case "audioEncryptionEnabled":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.AudioEncryptionEnabled = v
+				}
 			}
-		}
-	case "maxDownloadsPerWindow":
-		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-			switch v := f.(type) {
-			case float64:
-				options.MaxDownloadsPerWindow = uint(v)
+		case "maxDownloadsPerWindow":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.MaxDownloadsPerWindow = uint(v)
+				}
 			}
-		}
-	case "downloadWindowMinutes":
-		if err = json.Unmarshal([]byte(value.String), &f); err == nil {
-			switch v := f.(type) {
-			case float64:
-				options.DownloadWindowMinutes = uint(v)
+		case "downloadWindowMinutes":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.DownloadWindowMinutes = uint(v)
+				}
 			}
-		}
-	case "hydraAPIKey":
+		case "hydraAPIKey":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
 				case string:
@@ -1783,6 +1789,7 @@ func (options *Options) Write(db *Database) error {
 	// Persist entire transcription config as a single JSON blob
 	set("transcriptionConfig", options.TranscriptionConfig)
 	set("transcriptionEnhancement", options.TranscriptionEnhancement)
+	set("transcriptParserConfig", options.TranscriptParserConfig)
 
 	if setErr != nil {
 		tx.Rollback()

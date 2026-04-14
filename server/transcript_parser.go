@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 )
 
 //! Important Note: This parser is optimized for Fire Department dispatches
@@ -76,6 +77,27 @@ type ParsedChannel struct {
 	Raw       []string `json:"raw"`
 	Fuzzy     bool     `json:"fuzzy"`
 }
+
+// TranscriptAnnotation describes a recognized unit or channel at a specific
+// byte range within the corrected transcript string returned by AnnotateTranscript.
+type TranscriptAnnotation struct {
+	Type      string `json:"type"`                // "unit" or "channel"
+	Text      string `json:"text"`                // raw text as found in transcript
+	Start     int    `json:"start"`               // byte offset in corrected transcript (inclusive)
+	End       int    `json:"end"`                 // byte offset in corrected transcript (exclusive)
+	Prefix    string `json:"prefix,omitempty"`    // unit prefix, e.g. "MEDIC"
+	Apparatus string `json:"apparatus,omitempty"` // unit type, e.g. "ENGINE"
+	Number    string `json:"number,omitempty"`    // unit or channel number
+	Dispatch  string `json:"dispatch,omitempty"`  // channel dispatch name
+	Separator string `json:"separator,omitempty"` // channel separator word
+	Channel   string `json:"channel,omitempty"`   // channel number
+	Fuzzy     bool   `json:"fuzzy"`               // true if fuzzy-matched
+}
+
+// activeTranscriptParser is the live parser instance, updated whenever the
+// admin saves a new TranscriptParserConfig. Package-level so MarshalJSON
+// methods can access it without holding a controller reference.
+var activeTranscriptParser atomic.Pointer[TranscriptParser]
 
 // Candidate represents a possible fuzzy or exact match at a token position.
 type Candidate struct {
@@ -746,6 +768,87 @@ func (p *TranscriptParser) ParseUnits(transcript string) []ParsedUnit {
 	}
 
 	return results
+}
+
+// AnnotateTranscript applies corrections to transcript, parses units and channels,
+// and returns the corrected string along with position-annotated results.
+// The corrected string is always uppercase (normalized by CorrectTranscript).
+// Start/End offsets reference byte positions in the returned corrected string.
+// Returns ("", nil) for empty input. Safe to call on a nil parser.
+func (p *TranscriptParser) AnnotateTranscript(transcript string) (string, []TranscriptAnnotation) {
+	if p == nil || transcript == "" {
+		return transcript, nil
+	}
+
+	corrected := p.CorrectTranscript(transcript)
+	units := p.ParseUnits(corrected)
+	channels := p.ParseChannels(corrected)
+
+	if len(units) == 0 && len(channels) == 0 {
+		return corrected, nil
+	}
+
+	var annotations []TranscriptAnnotation
+
+	for _, unit := range units {
+		for _, raw := range unit.Raw {
+			offset := 0
+			for {
+				idx := strings.Index(corrected[offset:], raw)
+				if idx == -1 {
+					break
+				}
+				start := offset + idx
+				end := start + len(raw)
+				annotations = append(annotations, TranscriptAnnotation{
+					Type:      "unit",
+					Text:      raw,
+					Start:     start,
+					End:       end,
+					Prefix:    unit.Prefix,
+					Apparatus: unit.Apparatus,
+					Number:    unit.Number,
+					Fuzzy:     unit.Fuzzy,
+				})
+				offset = end
+			}
+		}
+	}
+
+	for _, ch := range channels {
+		for _, raw := range ch.Raw {
+			offset := 0
+			for {
+				idx := strings.Index(corrected[offset:], raw)
+				if idx == -1 {
+					break
+				}
+				start := offset + idx
+				end := start + len(raw)
+				annotations = append(annotations, TranscriptAnnotation{
+					Type:      "channel",
+					Text:      raw,
+					Start:     start,
+					End:       end,
+					Dispatch:  ch.Dispatch,
+					Separator: ch.Separator,
+					Channel:   ch.Channel,
+					Fuzzy:     ch.Fuzzy,
+				})
+				offset = end
+			}
+		}
+	}
+
+	if len(annotations) == 0 {
+		return corrected, nil
+	}
+
+	sort.Slice(annotations, func(i, j int) bool {
+		return annotations[i].Start < annotations[j].Start
+	})
+
+	return corrected, annotations
 }
 
 // ParseChannels extracts dispatch channels from transcript using the configured

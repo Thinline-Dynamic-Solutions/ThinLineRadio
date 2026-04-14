@@ -16,6 +16,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -944,5 +945,151 @@ func TestParseTranscriptShorthandWithUnits(t *testing.T) {
 	}
 	if channels[0].Dispatch != "SANDY" || channels[0].Channel != "3" {
 		t.Errorf("channel = %+v, want SANDY/FIRE/3", channels[0])
+	}
+}
+
+// --- AnnotateTranscript ---
+
+func TestAnnotateTranscriptBasic(t *testing.T) {
+	corrected, annotations := testParser.AnnotateTranscript("ENGINE 5 RESPONDING ON CITY FIRE 3")
+	if corrected == "" {
+		t.Fatal("expected non-empty corrected string")
+	}
+	if len(annotations) != 2 {
+		t.Fatalf("expected 2 annotations (1 unit + 1 channel), got %d: %+v", len(annotations), annotations)
+	}
+
+	unitAnn := annotations[0]
+	if unitAnn.Type != "unit" || unitAnn.Apparatus != "ENGINE" || unitAnn.Number != "5" {
+		t.Errorf("annotation[0] = %+v, want unit ENGINE 5", unitAnn)
+	}
+	if unitAnn.Start < 0 || unitAnn.End <= unitAnn.Start {
+		t.Errorf("unit annotation has invalid offsets: start=%d end=%d", unitAnn.Start, unitAnn.End)
+	}
+	if corrected[unitAnn.Start:unitAnn.End] != unitAnn.Text {
+		t.Errorf("unit annotation text %q does not match corrected[%d:%d] = %q",
+			unitAnn.Text, unitAnn.Start, unitAnn.End, corrected[unitAnn.Start:unitAnn.End])
+	}
+
+	chanAnn := annotations[1]
+	if chanAnn.Type != "channel" || chanAnn.Dispatch != "CITY" || chanAnn.Channel != "3" {
+		t.Errorf("annotation[1] = %+v, want channel CITY/FIRE/3", chanAnn)
+	}
+	if corrected[chanAnn.Start:chanAnn.End] != chanAnn.Text {
+		t.Errorf("channel annotation text %q does not match corrected[%d:%d] = %q",
+			chanAnn.Text, chanAnn.Start, chanAnn.End, corrected[chanAnn.Start:chanAnn.End])
+	}
+}
+
+func TestAnnotateTranscriptFuzzy(t *testing.T) {
+	// "ENGNE" is fuzzy ENGINE; "CITI" is fuzzy CITY
+	_, annotations := testParser.AnnotateTranscript("ENGNE 5 ON CITI FIRE 3")
+	if len(annotations) < 2 {
+		t.Fatalf("expected at least 2 annotations, got %d: %+v", len(annotations), annotations)
+	}
+
+	var unitAnn, chanAnn *TranscriptAnnotation
+	for i := range annotations {
+		switch annotations[i].Type {
+		case "unit":
+			unitAnn = &annotations[i]
+		case "channel":
+			chanAnn = &annotations[i]
+		}
+	}
+
+	if unitAnn == nil {
+		t.Fatal("no unit annotation found")
+	}
+	if !unitAnn.Fuzzy || unitAnn.Apparatus != "ENGINE" {
+		t.Errorf("unit annotation = %+v, want fuzzy ENGINE", unitAnn)
+	}
+
+	if chanAnn == nil {
+		t.Fatal("no channel annotation found")
+	}
+	if !chanAnn.Fuzzy || chanAnn.Dispatch != "CITY" {
+		t.Errorf("channel annotation = %+v, want fuzzy CITY", chanAnn)
+	}
+}
+
+func TestAnnotateTranscriptCorrections(t *testing.T) {
+	// "A KNOWN MEDICAL" should be corrected to "UNKNOWN MEDICAL" before parsing
+	p := NewTranscriptParser(TranscriptConfig{
+		Corrections: []FuzzyWord{
+			{Word: "UNKNOWN MEDICAL", MaxDistance: 1, Aliases: []string{"A KNOWN MEDICAL"}},
+		},
+		UnitTypes: []FuzzyWord{
+			{Word: "ENGINE", MaxDistance: 1},
+		},
+	})
+
+	corrected, _ := p.AnnotateTranscript("a known medical ENGINE 5")
+	if !strings.Contains(corrected, "UNKNOWN MEDICAL") {
+		t.Errorf("expected correction in output, got %q", corrected)
+	}
+	if strings.Contains(corrected, "A KNOWN MEDICAL") {
+		t.Errorf("expected original mis-transcription to be corrected, got %q", corrected)
+	}
+
+	// Annotation offsets must reference the corrected string, not the original
+	_, annotations := p.AnnotateTranscript("a known medical ENGINE 5")
+	for _, ann := range annotations {
+		if ann.Type == "unit" {
+			if corrected[ann.Start:ann.End] != ann.Text {
+				t.Errorf("annotation offset mismatch: corrected[%d:%d]=%q but Text=%q",
+					ann.Start, ann.End, corrected[ann.Start:ann.End], ann.Text)
+			}
+		}
+	}
+}
+
+func TestAnnotateTranscriptEmpty(t *testing.T) {
+	corrected, annotations := testParser.AnnotateTranscript("")
+	if corrected != "" {
+		t.Errorf("expected empty corrected string, got %q", corrected)
+	}
+	if annotations != nil {
+		t.Errorf("expected nil annotations for empty input, got %v", annotations)
+	}
+}
+
+func TestAnnotateTranscriptNoParser(t *testing.T) {
+	var p *TranscriptParser
+	corrected, annotations := p.AnnotateTranscript("ENGINE 5 RESPONDING")
+	if corrected != "ENGINE 5 RESPONDING" {
+		t.Errorf("nil parser should pass transcript through, got %q", corrected)
+	}
+	if annotations != nil {
+		t.Errorf("nil parser should return nil annotations, got %v", annotations)
+	}
+}
+
+func TestAnnotateTranscriptSortedByStart(t *testing.T) {
+	// Two units: ENGINE 5 at start, LADDER 3 later — annotations must be in order
+	corrected, annotations := testParser.AnnotateTranscript("ENGINE 5 AND LADDER 3")
+	if len(annotations) != 2 {
+		t.Fatalf("expected 2 annotations, got %d: %+v", len(annotations), annotations)
+	}
+	if annotations[0].Start > annotations[1].Start {
+		t.Errorf("annotations not sorted: [0].Start=%d [1].Start=%d", annotations[0].Start, annotations[1].Start)
+	}
+	// Verify offsets are correct
+	for i, ann := range annotations {
+		if corrected[ann.Start:ann.End] != ann.Text {
+			t.Errorf("annotation[%d] offset mismatch: corrected[%d:%d]=%q Text=%q",
+				i, ann.Start, ann.End, corrected[ann.Start:ann.End], ann.Text)
+		}
+	}
+}
+
+func TestAnnotateTranscriptNoMatches(t *testing.T) {
+	// A transcript with no recognizable units or channels returns nil annotations
+	corrected, annotations := testParser.AnnotateTranscript("RESPOND TO THE SCENE IMMEDIATELY")
+	if corrected == "" {
+		t.Error("corrected string should not be empty")
+	}
+	if annotations != nil {
+		t.Errorf("expected nil annotations when nothing recognized, got %v", annotations)
 	}
 }

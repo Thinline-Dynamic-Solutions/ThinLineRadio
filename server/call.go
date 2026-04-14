@@ -173,9 +173,17 @@ func (call *Call) MarshalJSON() ([]byte, error) {
 	}
 
 	if call.Transcript != "" {
-		callMap["transcript"] = call.Transcript
+		transcript := call.Transcript
 		callMap["transcriptConfidence"] = call.TranscriptConfidence
 		callMap["transcriptionStatus"] = call.TranscriptionStatus
+		if p := activeTranscriptParser.Load(); p != nil {
+			corrected, annotations := p.AnnotateTranscript(call.Transcript)
+			transcript = corrected
+			if len(annotations) > 0 {
+				callMap["transcriptAnnotations"] = annotations
+			}
+		}
+		callMap["transcript"] = transcript
 	}
 	if call.AlertSummary != "" {
 		callMap["alertSummary"] = call.AlertSummary
@@ -301,9 +309,17 @@ func (call *Call) MarshalJSONWithEncryption(key []byte) ([]byte, error) {
 		callMap["toneSequence"] = call.ToneSequence
 	}
 	if call.Transcript != "" {
-		callMap["transcript"] = call.Transcript
+		transcript := call.Transcript
 		callMap["transcriptConfidence"] = call.TranscriptConfidence
 		callMap["transcriptionStatus"] = call.TranscriptionStatus
+		if p := activeTranscriptParser.Load(); p != nil {
+			corrected, annotations := p.AnnotateTranscript(call.Transcript)
+			transcript = corrected
+			if len(annotations) > 0 {
+				callMap["transcriptAnnotations"] = annotations
+			}
+		}
+		callMap["transcript"] = transcript
 	}
 	if call.AlertSummary != "" {
 		callMap["alertSummary"] = call.AlertSummary
@@ -397,8 +413,6 @@ const audioFingerprintWindow = 120 * time.Second
 // duplicate detection when the admin has not configured DuplicateTimestampWindow.
 const defaultTimestampFallbackWindow = 800 * time.Millisecond
 
-
-
 // CheckDuplicateByHash queries the DB for any call on the same system+talkgroup
 // whose PCM content hash matches this call's hash. A hash match means the decoded
 // audio samples are bit-identical — a guaranteed duplicate regardless of how far
@@ -476,7 +490,6 @@ func (calls *Calls) CheckDuplicateByTimestamp(call *Call, db *Database, windowMs
 
 	return false, nil
 }
-
 
 func (calls *Calls) GetCall(id uint64) (*Call, error) {
 	var (
@@ -618,12 +631,12 @@ func (calls *Calls) GetCall(id uint64) (*Call, error) {
 
 // GetCallsBulk fetches multiple calls in 3 queries instead of N×2 round-trips.
 //
-//  Query 1 — metadata + patches (no audio blob; avoids GROUP BY on blobs):
-//            callId, timestamp, patches, systemId, talkgroupId, frequency,
-//            toneSequence, hasTones, transcript, transcriptConfidence,
-//            transcriptionStatus, alertSummary
-//  Query 2 — audio bytes + filenames: callId, audio, audioFilename, audioMime, siteRef
-//  Query 3 — units:                   callId, offset, unitRef, label
+//	Query 1 — metadata + patches (no audio blob; avoids GROUP BY on blobs):
+//	          callId, timestamp, patches, systemId, talkgroupId, frequency,
+//	          toneSequence, hasTones, transcript, transcriptConfidence,
+//	          transcriptionStatus, alertSummary
+//	Query 2 — audio bytes + filenames: callId, audio, audioFilename, audioMime, siteRef
+//	Query 3 — units:                   callId, offset, unitRef, label
 //
 // Any IDs currently in the delay queue are silently skipped.
 func (calls *Calls) GetCallsBulk(ids []uint64) []*Call {
@@ -740,7 +753,7 @@ func (calls *Calls) GetCallsBulk(ids []uint64) []*Call {
 
 	// --- Query 2: audio blobs ---
 	audioRows, err := calls.controller.Database.Sql.Query(
-		`SELECT "callId", "audio", "audioFilename", "audioMime", "siteRef" FROM "calls" WHERE "callId" IN (`+inClause+`)`)
+		`SELECT "callId", "audio", "audioFilename", "audioMime", "siteRef" FROM "calls" WHERE "callId" IN (` + inClause + `)`)
 	if err == nil {
 		defer audioRows.Close()
 		for audioRows.Next() {
@@ -760,7 +773,7 @@ func (calls *Calls) GetCallsBulk(ids []uint64) []*Call {
 
 	// --- Query 3: units ---
 	unitRows, err := calls.controller.Database.Sql.Query(
-		`SELECT "callId", "offset", "unitRef", COALESCE("label", '') FROM "callUnits" WHERE "callId" IN (`+inClause+`) ORDER BY "callId", "offset" ASC`)
+		`SELECT "callId", "offset", "unitRef", COALESCE("label", '') FROM "callUnits" WHERE "callId" IN (` + inClause + `) ORDER BY "callId", "offset" ASC`)
 	if err == nil {
 		defer unitRows.Close()
 		for unitRows.Next() {
