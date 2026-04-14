@@ -1,0 +1,373 @@
+<div class="tp-container">
+
+    <!-- Top action bar -->
+    <div class="tp-actions">
+        <button mat-raised-button color="primary" (click)="save()" [disabled]="saving || loading">
+            <mat-icon>save</mat-icon>
+            {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+        <button mat-stroked-button (click)="reset()" [disabled]="saving || loading">
+            <mat-icon>refresh</mat-icon>
+            Reset
+        </button>
+    </div>
+
+    <mat-spinner *ngIf="loading" diameter="40" class="tp-spinner"></mat-spinner>
+
+    <div *ngIf="!loading" class="tp-intro">
+        <button mat-button class="tp-docs-toggle" (click)="showDocs = !showDocs">
+            <mat-icon>{{ showDocs ? 'expand_less' : 'help_outline' }}</mat-icon>
+            {{ showDocs ? 'Hide documentation' : 'How does this work?' }}
+        </button>
+
+        <div *ngIf="showDocs" class="tp-docs">
+            <p>Note: This is optimized for fire department dispatches</p>
+
+            <p>
+                The transcript parser identifies apparatus units and dispatch channels in
+                call transcripts and highlights them in the UI. Configure the word lists
+                below to match the terminology used in your area, then click <strong>Save</strong>.
+                Changes apply retroactively; past calls are re-annotated on the next view.
+            </p>
+
+            <div class="tp-how-it-works">
+                <strong>How it works</strong>
+                <ol>
+                    <li>
+                        <strong>Corrections</strong> are applied first: common STT mis-transcriptions
+                        (e.g. <code>SHORT HALL</code> → <code>SHORT FALL</code>) are fixed before any
+                        parsing runs.
+                    </li>
+                    <li>
+                        <strong>Units</strong> are matched as <em>[Prefix] Unit# Number</em>.
+                        An optional prefix (e.g. <code>MEDIC</code>, <code>BRUSH</code>) can precede
+                        the unit type. Examples: <code>ENGINE 5</code>, <code>MEDIC LADDER 3</code>,
+                        <code>BRUSH ENGINE 2</code>.
+                    </li>
+                    <li>
+                        <strong>Channels</strong> are matched as <em>Dispatch [Separator] Number</em>.
+                        If channel separators are configured the format is
+                        <code>CITY FIRE 3</code>; without separators it is <code>CITY 3</code>.
+                        Shorthands let abbreviated labels like <code>CF 3</code> map to a full
+                        dispatch name.
+                    </li>
+                    <li>
+                        All matching supports <strong>fuzzy</strong> recognition. Set Max Distance
+                        to 1 or 2 to catch common STT mishearings like <code>ENGNE</code> for
+                        <code>ENGINE</code>. Set it to 0 for exact-only matching.
+                        <strong>Aliases</strong> are alternative spellings that are treated as exact
+                        matches regardless of distance.
+                    </li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <mat-accordion *ngIf="!loading" multi>
+
+        <!-- ── Unit Types ──────────────────────────────────────────────────── -->
+        <mat-expansion-panel>
+            <mat-expansion-panel-header>
+                <mat-panel-title>Unit Types</mat-panel-title>
+                <mat-panel-description>{{ config.unitTypes.length }} configured</mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <p class="tp-section-desc">
+                The apparatus type portion of a unit identifier, the word that comes before
+                the unit number (and after the optional prefix).
+                <br>
+                <strong>Examples:</strong> <code>ENGINE</code>, <code>TRUCK</code>,
+                <code>LADDER</code>, <code>RESCUE</code>, <code>BATTALION</code>,
+                <code>HAZMAT</code>, <code>MEDIC</code>.
+                <br>
+                Use <em>Aliases</em> for alternate spellings the STT engine produces
+                (<code>TREK</code> → <code>TRUCK</code>).
+                Use <em>Reject if preceded by</em> to avoid false positives, e.g. add
+                <code>ELEVATOR</code> to prevent matching <code>RESCUE 160</code> in
+                "ELEVATOR RESCUE 160 SOUTH MAIN ST".
+            </p>
+
+            <ng-container *ngTemplateOutlet="fuzzyTable; context: { listKey: 'unitTypes', showReject: true }">
+            </ng-container>
+        </mat-expansion-panel>
+
+        <!-- ── Unit Prefixes ──────────────────────────────────────────────── -->
+        <mat-expansion-panel>
+            <mat-expansion-panel-header>
+                <mat-panel-title>Unit Prefixes</mat-panel-title>
+                <mat-panel-description>{{ config.unitPrefixes.length }} configured</mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <p class="tp-section-desc">
+                Optional words that appear <em>before</em> a unit type and are included
+                in the highlighted span. Multi-word prefixes are supported.
+                <br>
+                <strong>Examples:</strong> <code>MEDIC</code> (as in <code>MEDIC ENGINE 5</code>),
+                <code>HEAVY</code>, <code>TACTICAL</code>.
+            </p>
+
+            <ng-container *ngTemplateOutlet="fuzzyTable; context: { listKey: 'unitPrefixes', showReject: false }">
+            </ng-container>
+        </mat-expansion-panel>
+
+        <!-- ── Dispatch Names ─────────────────────────────────────────────── -->
+        <mat-expansion-panel>
+            <mat-expansion-panel-header>
+                <mat-panel-title>Dispatch Names</mat-panel-title>
+                <mat-panel-description>{{ config.dispatchNames.length }} configured</mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <p class="tp-section-desc">
+                The agency or zone name that starts a channel reference.
+                <br>
+                <strong>Examples:</strong> <code>CITY</code>, <code>OPS</code>,
+                <code>COUNTY</code>, <code>METRO</code>.
+                <br>
+                Use aliases for common mis-transcriptions of the agency name
+                (<code>VEC</code>, <code>DECK</code> → <code>VECC</code>).
+            </p>
+
+            <ng-container *ngTemplateOutlet="fuzzyTable; context: { listKey: 'dispatchNames', showReject: false }">
+            </ng-container>
+        </mat-expansion-panel>
+
+        <!-- ── Channel Separators ─────────────────────────────────────────── -->
+        <mat-expansion-panel>
+            <mat-expansion-panel-header>
+                <mat-panel-title>Channel Separators</mat-panel-title>
+                <mat-panel-description>{{ config.channelSeparators.length }} configured</mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <p class="tp-section-desc">
+                The word between a dispatch name and a channel number.
+                Leave this list <em>empty</em> if your channels are formatted
+                as <code>DISPATCH NUMBER</code> (e.g. <code>CITY 3</code>).
+                When configured the expected format is
+                <code>DISPATCH SEPARATOR NUMBER</code>.
+                <br>
+                <strong>Examples:</strong> <code>FIRE</code> (→ <code>CITY FIRE 3</code>),
+                <code>POLICE</code> (→ <code>METRO POLICE 2</code>),
+                <code>EMS</code>, <code>OPS</code>.
+            </p>
+
+            <ng-container *ngTemplateOutlet="fuzzyTable; context: { listKey: 'channelSeparators', showReject: false }">
+            </ng-container>
+        </mat-expansion-panel>
+
+        <!-- ── Channel Shorthands ─────────────────────────────────────────── -->
+        <mat-expansion-panel>
+            <mat-expansion-panel-header>
+                <mat-panel-title>Channel Shorthands</mat-panel-title>
+                <mat-panel-description>{{ config.channelShorthands.length }} configured</mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <p class="tp-section-desc">
+                Abbreviated channel labels that map to a full dispatch name. Shorthands
+                are matched exactly and support space, dash, or no separator before the
+                number (<code>SF 3</code>, <code>SF-3</code>, and <code>SF3</code> all work).
+                <br>
+                <strong>Label:</strong> the short text as spoken/transcribed
+                (e.g. <code>SF</code>, <code>BACKFIRE</code>, <code>X-FIRE</code>).
+                <br>
+                <strong>Dispatch:</strong> the canonical agency name to store
+                (e.g. <code>SANDY</code>, <code>VECC</code>).
+                <br>
+                <strong>Separator</strong> (optional): the separator word to record alongside
+                the channel (e.g. <code>FIRE</code>). Leave blank if not applicable.
+            </p>
+
+            <div class="tp-table-wrap">
+                <div class="tp-header-row tp-sh-row">
+                    <span>Label</span>
+                    <span>Dispatch</span>
+                    <span>Separator</span>
+                    <span></span>
+                </div>
+
+                <ng-container *ngFor="let sh of config.channelShorthands; let i = index">
+                    <!-- Display row -->
+                    <div class="tp-row tp-sh-row" *ngIf="editingShorthand !== i">
+                        <span class="tp-word">{{ sh.label }}</span>
+                        <span>{{ sh.dispatch }}</span>
+                        <span>{{ sh.separator || '—' }}</span>
+                        <span class="tp-row-actions">
+                            <button mat-icon-button (click)="editShorthand(i)" title="Edit">
+                                <mat-icon>edit</mat-icon>
+                            </button>
+                            <button mat-icon-button color="warn" (click)="deleteShorthand(i)" title="Delete">
+                                <mat-icon>delete</mat-icon>
+                            </button>
+                        </span>
+                    </div>
+
+                    <!-- Inline edit form -->
+                    <div class="tp-edit-block" *ngIf="editingShorthand === i && editingShorthandData">
+                        <div class="tp-edit-fields-row">
+                            <mat-form-field appearance="outline" class="tp-field-word">
+                                <mat-label>Label</mat-label>
+                                <input matInput [(ngModel)]="editingShorthandData.label" placeholder="SF">
+                            </mat-form-field>
+                            <mat-form-field appearance="outline" class="tp-field-word">
+                                <mat-label>Dispatch</mat-label>
+                                <input matInput [(ngModel)]="editingShorthandData.dispatch" placeholder="SANDY">
+                            </mat-form-field>
+                            <mat-form-field appearance="outline" class="tp-field-dist">
+                                <mat-label>Separator</mat-label>
+                                <input matInput [(ngModel)]="editingShorthandData.separator" placeholder="FIRE">
+                            </mat-form-field>
+                        </div>
+                        <div class="tp-edit-btns">
+                            <button mat-button (click)="cancelShorthand()">Cancel</button>
+                            <button mat-raised-button color="primary"
+                                    (click)="saveShorthand()"
+                                    [disabled]="!editingShorthandData.label || !editingShorthandData.dispatch">
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </ng-container>
+
+                <div class="tp-add-row">
+                    <button mat-stroked-button (click)="addShorthand()">
+                        <mat-icon>add</mat-icon> Add Shorthand
+                    </button>
+                </div>
+            </div>
+        </mat-expansion-panel>
+
+        <!-- ── Corrections ────────────────────────────────────────────────── -->
+        <mat-expansion-panel>
+            <mat-expansion-panel-header>
+                <mat-panel-title>Corrections</mat-panel-title>
+                <mat-panel-description>Common mis-transcriptions to fix before parsing</mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <p class="tp-section-desc">
+                Plain-text replacements applied to the raw transcript <em>before</em> any
+                unit or channel parsing runs. The corrected text is what gets stored and
+                displayed to clients.
+                Use <em>Aliases</em> for the wrong forms; the <em>Word</em> field is the
+                correct replacement.
+                <br>
+                <strong>Examples:</strong>
+                <code>SHORT HALL</code> → <code>SHORT FALL</code>;
+                <code>A KNOWN MEDICAL</code> → <code>UNKNOWN MEDICAL</code> (common
+                mishearing of "an unknown medical").
+                <br>
+                Max Distance works here too: set it to 1–2 to catch slight variations of
+                the wrong form without needing to list every typo as an alias.
+            </p>
+
+            <ng-container *ngTemplateOutlet="fuzzyTable; context: { listKey: 'corrections', showReject: false }">
+            </ng-container>
+        </mat-expansion-panel>
+
+    </mat-accordion>
+
+</div>
+
+<!-- ── Shared FuzzyWord table template ──────────────────────────────────── -->
+<ng-template #fuzzyTable let-listKey="listKey" let-showReject="showReject">
+    <div class="tp-table-wrap">
+        <div class="tp-header-row tp-fw-row">
+            <span>Word</span>
+            <span>Max Distance</span>
+            <span>Aliases</span>
+            <span></span>
+        </div>
+
+        <ng-container *ngFor="let fw of getFuzzyList(listKey); let i = index">
+            <!-- Display row -->
+            <div class="tp-row tp-fw-row" *ngIf="!isEditingFuzzy(listKey, i)">
+                <span class="tp-word">{{ fw.word }}</span>
+                <span>
+                    <span class="tp-dist-badge" [class.tp-dist-exact]="fw.maxDistance === 0">
+                        {{ fw.maxDistance === 0 ? 'exact' : fw.maxDistance }}
+                    </span>
+                </span>
+                <span class="tp-alias-preview">{{ aliasPreview(fw) }}</span>
+                <span class="tp-row-actions">
+                    <button mat-icon-button (click)="editFuzzy(listKey, i)" title="Edit">
+                        <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="deleteFuzzy(listKey, i)" title="Delete">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </span>
+            </div>
+
+            <!-- Inline edit form -->
+            <div class="tp-edit-block" *ngIf="isEditingFuzzy(listKey, i) && editingFuzzyData">
+                <div class="tp-edit-fields-row">
+                    <mat-form-field appearance="outline" class="tp-field-word">
+                        <mat-label>Word</mat-label>
+                        <input matInput [(ngModel)]="editingFuzzyData.word" placeholder="ENGINE">
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="tp-field-dist">
+                        <mat-label>Max Distance</mat-label>
+                        <input matInput type="number" min="0" max="3"
+                               [(ngModel)]="editingFuzzyData.maxDistance">
+                        <mat-hint>0 = exact match</mat-hint>
+                    </mat-form-field>
+                </div>
+
+                <!-- Aliases chip input -->
+                <div class="tp-chip-section">
+                    <span class="tp-chip-label">Aliases</span>
+                    <div class="tp-chip-row">
+                        <span *ngFor="let alias of editingFuzzyData.aliases; let ai = index" class="tp-chip">
+                            {{ alias }}
+                            <button mat-icon-button class="tp-chip-remove" (click)="removeAlias(ai)">
+                                <mat-icon>close</mat-icon>
+                            </button>
+                        </span>
+                        <mat-form-field appearance="outline" class="tp-chip-input">
+                            <input matInput [(ngModel)]="newAliasText"
+                                   placeholder="Add alias…"
+                                   (keydown)="onAliasKeydown($event)">
+                        </mat-form-field>
+                        <button mat-icon-button (click)="addAlias()" [disabled]="!newAliasText" title="Add alias">
+                            <mat-icon>add</mat-icon>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Reject chip input (unit types and corrections only) -->
+                <div class="tp-chip-section" *ngIf="showReject">
+                    <span class="tp-chip-label">Reject if preceded by</span>
+                    <div class="tp-chip-row">
+                        <span *ngFor="let rw of editingFuzzyData.reject; let ri = index" class="tp-chip tp-chip-reject">
+                            {{ rw }}
+                            <button mat-icon-button class="tp-chip-remove" (click)="removeReject(ri)">
+                                <mat-icon>close</mat-icon>
+                            </button>
+                        </span>
+                        <mat-form-field appearance="outline" class="tp-chip-input">
+                            <input matInput [(ngModel)]="newRejectText"
+                                   placeholder="Add word…"
+                                   (keydown)="onRejectKeydown($event)">
+                        </mat-form-field>
+                        <button mat-icon-button (click)="addReject()" [disabled]="!newRejectText" title="Add reject word">
+                            <mat-icon>add</mat-icon>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tp-edit-btns">
+                    <button mat-button (click)="cancelFuzzy()">Cancel</button>
+                    <button mat-raised-button color="primary"
+                            (click)="saveFuzzy()"
+                            [disabled]="!editingFuzzyData.word">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </ng-container>
+
+        <div class="tp-add-row">
+            <button mat-stroked-button (click)="addFuzzy(listKey)">
+                <mat-icon>add</mat-icon> Add Word
+            </button>
+        </div>
+    </div>
+</ng-template>

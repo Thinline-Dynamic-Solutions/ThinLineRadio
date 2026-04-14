@@ -132,6 +132,13 @@
             <span>Keyword Lists</span>
         </button>
 
+        <button type="button" class="sidebar-item"
+                [class.active]="activeSection === 'transcript-parser'"
+                (click)="setSection('transcript-parser')">
+            <mat-icon>record_voice_over</mat-icon>
+            <span>Transcript Parser</span>
+        </button>
+
         <!-- Save / Reset at bottom of sidebar (hidden when header bar owns them) -->
         <div class="sidebar-actions" *ngIf="!hideActions">
             <button type="button" mat-raised-button class="btn-reset"
@@ -262,6 +269,14 @@
                     <h3>Keyword Lists</h3>
                 </div>
                 <rdio-scanner-admin-keyword-lists></rdio-scanner-admin-keyword-lists>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'transcript-parser'">
+                <div class="section-header">
+                    <mat-icon>record_voice_over</mat-icon>
+                    <h3>Transcript Parser</h3>
+                </div>
+                <rdio-scanner-admin-transcript-parser></rdio-scanner-admin-transcript-parser>
             </ng-container>
 
         </ng-container>

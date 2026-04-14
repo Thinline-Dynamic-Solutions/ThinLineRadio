@@ -1,0 +1,245 @@
+.tp-container {
+    padding: 16px 0;
+}
+
+// ── Intro / documentation ─────────────────────────────────────────────────────
+
+.tp-intro {
+    margin-bottom: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    opacity: 0.85;
+
+    p {
+        margin: 0 0 12px;
+    }
+}
+
+.tp-how-it-works {
+    padding: 12px 16px;
+    border-left: 3px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 0 4px 4px 0;
+
+    > strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.7;
+    }
+
+    ol {
+        margin: 0;
+        padding-left: 20px;
+
+        li {
+            margin-bottom: 6px;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
+
+    code {
+        font-family: monospace;
+        font-size: 12px;
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.tp-section-desc {
+    font-size: 13px;
+    line-height: 1.6;
+    opacity: 0.75;
+    margin: 0 0 14px;
+
+    code {
+        font-family: monospace;
+        font-size: 12px;
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.tp-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.tp-spinner {
+    margin: 32px auto;
+    display: block;
+}
+
+// ── Table layout ──────────────────────────────────────────────────────────────
+
+.tp-table-wrap {
+    width: 100%;
+}
+
+.tp-fw-row {
+    display: grid;
+    grid-template-columns: 1fr 120px 1fr 80px;
+    align-items: center;
+    gap: 8px;
+}
+
+.tp-sh-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 80px;
+    align-items: center;
+    gap: 8px;
+}
+
+.tp-header-row {
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tp-row {
+    padding: 8px;
+    border-radius: 4px;
+
+    &:hover {
+        background-color: rgba(255, 255, 255, 0.04);
+    }
+}
+
+.tp-word {
+    font-family: monospace;
+    font-size: 14px;
+}
+
+.tp-dist-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    background-color: rgba(33, 150, 243, 0.2);
+    color: #90caf9;
+}
+
+.tp-dist-exact {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #a5d6a7;
+}
+
+.tp-alias-preview {
+    font-size: 13px;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tp-row-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+// ── Inline edit block ─────────────────────────────────────────────────────────
+
+.tp-edit-block {
+    margin: 4px 0 8px 0;
+    padding: 12px 16px;
+    border-left: 3px solid #2196f3;
+    background: rgba(33, 150, 243, 0.05);
+    border-radius: 0 4px 4px 0;
+}
+
+.tp-edit-fields-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.tp-field-word {
+    flex: 1 1 180px;
+}
+
+.tp-field-dist {
+    flex: 0 0 140px;
+}
+
+// ── Chip rows ─────────────────────────────────────────────────────────────────
+
+.tp-chip-section {
+    margin-bottom: 10px;
+}
+
+.tp-chip-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.7;
+    margin-bottom: 6px;
+}
+
+.tp-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.tp-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 4px 2px 10px;
+    border-radius: 16px;
+    background: rgba(33, 150, 243, 0.2);
+    font-size: 13px;
+    font-family: monospace;
+    gap: 2px;
+}
+
+.tp-chip-reject {
+    background: rgba(244, 67, 54, 0.15);
+}
+
+.tp-chip-remove {
+    width: 20px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+
+    mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+    }
+}
+
+.tp-chip-input {
+    flex: 0 0 160px;
+
+    ::ng-deep .mat-form-field-wrapper {
+        padding-bottom: 0;
+    }
+}
+
+// ── Edit action buttons ───────────────────────────────────────────────────────
+
+.tp-edit-btns {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+// ── Add row ───────────────────────────────────────────────────────────────────
+
+.tp-add-row {
+    padding: 8px 0 4px;
+}

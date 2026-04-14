@@ -2155,3 +2155,23 @@
     color: #64b5f6;
   }
 }
+
+::ng-deep .transcript-annotation {
+  border-radius: 2px;
+  cursor: default;
+  padding: 0 1px;
+}
+
+::ng-deep .transcript-annotation--unit {
+  background-color: rgba(33, 150, 243, 0.15);
+  border-bottom: 2px solid #2196f3;
+}
+
+::ng-deep .transcript-annotation--channel {
+  background-color: rgba(76, 175, 80, 0.15);
+  border-bottom: 2px solid #4caf50;
+}
+
+::ng-deep .transcript-annotation--fuzzy {
+  border-bottom-style: dashed;
+}

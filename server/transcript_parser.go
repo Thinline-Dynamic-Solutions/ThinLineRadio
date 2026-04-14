@@ -848,6 +848,61 @@ func (p *TranscriptParser) AnnotateTranscript(transcript string) (string, []Tran
 		return annotations[i].Start < annotations[j].Start
 	})
 
+	// Substitute canonical forms into the corrected transcript string so that
+	// the returned text reflects what was recognized (e.g. alias "DECK, FIRE 3"
+	// becomes "VECC FIRE 3", fuzzy "ENGNE 5" becomes "ENGINE 5").
+	// Process left-to-right with a cumulative delta so that each annotation's
+	// Start/End is adjusted for all prior substitutions before use.
+	delta := 0
+	for i := range annotations {
+		ann := &annotations[i]
+		ann.Start += delta
+		ann.End += delta
+
+		var canonical string
+		if ann.Type == "unit" {
+			parts := make([]string, 0, 3)
+			if ann.Prefix != "" {
+				parts = append(parts, ann.Prefix)
+			}
+			parts = append(parts, ann.Apparatus, ann.Number)
+			canonical = strings.Join(parts, " ")
+		} else {
+			parts := make([]string, 0, 3)
+			parts = append(parts, ann.Dispatch)
+			if ann.Separator != "" {
+				parts = append(parts, ann.Separator)
+			}
+			parts = append(parts, ann.Channel)
+			canonical = strings.Join(parts, " ")
+		}
+		if canonical == ann.Text {
+			continue
+		}
+		origLen := ann.End - ann.Start
+		corrected = corrected[:ann.Start] + canonical + corrected[ann.End:]
+		ann.End = ann.Start + len(canonical)
+		ann.Text = canonical
+		delta += len(canonical) - origLen
+	}
+
+	// Convert byte offsets to Unicode code-point (rune) offsets.
+	// Go strings are UTF-8 (byte-indexed); JavaScript strings are UTF-16
+	// (character-indexed). They differ when the transcript contains multi-byte
+	// characters such as an em-dash "—" (3 bytes in UTF-8, 1 char in JS).
+	// Build a byte→rune index map so annotation positions are valid in JS.
+	byteToRune := make([]int, len(corrected)+1)
+	ri := 0
+	for bi := range corrected {
+		byteToRune[bi] = ri
+		ri++
+	}
+	byteToRune[len(corrected)] = ri
+	for i := range annotations {
+		annotations[i].Start = byteToRune[annotations[i].Start]
+		annotations[i].End = byteToRune[annotations[i].End]
+	}
+
 	return corrected, annotations
 }
 

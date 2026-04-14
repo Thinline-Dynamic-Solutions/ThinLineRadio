@@ -92,7 +92,8 @@
                         <p class="summary-text">{{ alert.alertSummary }}</p>
                     </div>
                     <div *ngIf="alert.transcript || alert.transcriptSnippet" class="alert-transcript">
-                        <p class="transcript-text">{{ alert.transcript || alert.transcriptSnippet }}</p>
+                        <p class="transcript-text"
+                           [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations)"></p>
                     </div>
                 </div>
                 <div class="alert-actions">
@@ -183,7 +184,8 @@
                                 </div>
                                 <div *ngIf="alert.transcript || alert.transcriptSnippet" class="alert-transcript">
                                     <strong>Transcript:</strong>
-                                    <p class="transcript-text">{{ alert.transcript || alert.transcriptSnippet }}</p>
+                                    <p class="transcript-text"
+                                       [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations)"></p>
                                 </div>
                             </div>
                         </div>
@@ -267,7 +269,7 @@
                         <strong>Summary:</strong>
                         <p class="summary-text">{{ transcript.alertSummary }}</p>
                     </div>
-                    <p [innerHTML]="highlightSearchText(transcript.transcript, filterSearch)"></p>
+                    <p [innerHTML]="renderTranscript(transcript.transcript, transcript.transcriptAnnotations, filterSearch)"></p>
                 </div>
                 <div class="transcript-footer">
                     <span>{{ transcript.timestamp ? formatTimestamp(transcript.timestamp) : '' }}</span>
