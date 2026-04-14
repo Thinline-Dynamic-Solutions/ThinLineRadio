@@ -26,23 +26,24 @@ For those who want to get started immediately:
 git clone https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio.git
 cd ThinLineRadio
 
-# 2. Copy and configure environment file
-cp .env.docker.example .env
-nano .env  # Edit DB_PASS and other settings
+# 2. Run the helper (creates docker/.env, directories, starts Compose)
+./docker/docker-deploy.sh
+# From repo root you can also use: ./docker-deploy.sh
 
-# 3. Create data directories
-mkdir -p docker/data/postgres docker/data/thinline docker/data/logs
-mkdir -p docker/config docker/init-db
-
-# 4. Build and start containers
-docker-compose up -d
-
-# 5. View logs
-docker-compose logs -f
-
-# 6. Access the admin dashboard
+# 3. Access the admin dashboard
 # Open http://localhost:3000/admin
 # Default password: admin (change immediately!)
+```
+
+Manual alternative (same result):
+
+```bash
+cd ThinLineRadio/docker
+cp env.docker.example .env
+nano .env   # required: set DB_PASS
+mkdir -p data/postgres data/thinline data/logs config/ssl config/credentials init-db
+docker compose up -d
+docker compose logs -f
 ```
 
 ---
@@ -142,18 +143,18 @@ chmod -R 755 docker/
 
 ### 3. Configure Environment
 
-```bash
-# Copy example environment file
-cp .env.docker.example .env
+Environment variables live in **`docker/.env`** (next to `docker-compose.yml` so Compose loads them automatically).
 
-# Edit with your settings
-nano .env  # or use your preferred editor
+```bash
+cd docker
+cp env.docker.example .env
+nano .env   # or use your preferred editor
 ```
 
-**At minimum, change these values in `.env`:**
-- `DB_PASS`: Set a strong database password
+**At minimum, change these values in `docker/.env`:**
+- `DB_PASS`: Set a strong database password (required; Compose will fail if empty)
 - `TZ`: Set your timezone
-- `DATA_PATH`: Verify the path is correct
+- `DATA_PATH`: Default `./data` is relative to the `docker/` directory
 
 ---
 
@@ -210,12 +211,14 @@ See [Transcription Configuration](#transcription-configuration) below.
 
 ### Start Services
 
+Run from the **`docker/`** directory (where `docker-compose.yml` is):
+
 ```bash
-# Start in detached mode (background)
-docker-compose up -d
+cd docker
+docker compose up -d
 
 # Or start with logs visible
-docker-compose up
+docker compose up
 ```
 
 ### View Logs
@@ -270,10 +273,11 @@ docker-compose restart thinline-radio
    
 3. **IMPORTANT:** Change the admin password immediately:
    - Go to Admin → Settings → Security
-   - Or use command line:
+   - Or use command line (use the **entrypoint** so `DB_*` env vars from Compose become `-db_*` flags; the binary alone does not read Docker env):
      ```bash
-     docker-compose exec thinline-radio /app/thinline-radio -admin_password new_secure_password
+     docker compose exec thinline-radio /app/docker-entrypoint.sh -admin_password 'new_secure_password'
      ```
+     (`docker-compose` with a hyphen also works on older installs.)
 
 ### Web Application
 

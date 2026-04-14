@@ -11,29 +11,28 @@ Get ThinLine Radio running with Docker in 5 minutes!
 
 ## Quick Start
 
-```bash
-# 1. Copy environment template
-cp env.docker.example .env
+From the **repository root**:
 
-# 2. Edit .env and set your database password
+```bash
+./docker/docker-deploy.sh
+# or: ./docker-deploy.sh
+```
+
+Or manually (run these from the **`docker/`** folder):
+
+```bash
+cd docker
+cp env.docker.example .env
 nano .env
 # Change: DB_PASS=change_this_password_immediately
 
-# 3. Create data directories
-mkdir -p docker/data/postgres docker/data/thinline docker/data/logs
-mkdir -p docker/config docker/init-db
+mkdir -p data/postgres data/thinline data/logs config/ssl config/credentials init-db
 
-# 4. Start Docker containers
-docker-compose up -d
-
-# 5. View logs
-docker-compose logs -f thinline-radio
-
-# 6. Access admin dashboard
-# Open: http://localhost:3000/admin
-# Default password: admin
-# CHANGE THIS IMMEDIATELY!
+docker compose up -d
+docker compose logs -f thinline-radio
 ```
+
+Then open **http://localhost:3000/admin** (default password: `admin` — change immediately).
 
 ## What's Included
 
@@ -47,21 +46,25 @@ docker-compose logs -f thinline-radio
 
 ## Common Commands
 
+Run from the **`docker/`** directory (or pass `-f docker/docker-compose.yml` and `--env-file docker/.env` from the repo root).
+
 ```bash
+cd docker
+
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop containers
-docker-compose down
+docker compose down
 
 # Restart containers
-docker-compose restart
+docker compose restart
 
 # Rebuild after updates
-docker-compose up -d --build
+docker compose up -d --build
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # Check resource usage
 docker stats

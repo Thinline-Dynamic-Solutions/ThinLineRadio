@@ -26,6 +26,34 @@ import { firstValueFrom, timer, timeout, Observable, race } from 'rxjs';
 import { AppUpdateService } from '../../../shared/update/update.service';
 import { RdioScannerToneSet } from '../rdio-scanner';
 
+/** Align duplicate-detection ms values with admin form validators (min 100 / 1000). */
+function normalizedDuplicateTimestampWindowMs(value: unknown): number {
+    const n = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+    if (!Number.isFinite(n)) {
+        return 800;
+    }
+    const r = Math.round(n);
+    if (r < 100) {
+        return 800;
+    }
+    if (r > 30000) {
+        return 30000;
+    }
+    return r;
+}
+
+function normalizedDuplicateDetectionTimeFrameMs(value: unknown): number {
+    const n = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+    if (!Number.isFinite(n)) {
+        return 30000;
+    }
+    const r = Math.round(n);
+    if (r < 1000) {
+        return 30000;
+    }
+    return r;
+}
+
 export interface Alert {
     begin: number;
     end: number;
@@ -667,7 +695,7 @@ export class RdioScannerAdminService implements OnDestroy {
     async getSystemHealth(limit: number = 100, includeDismissed: boolean = false): Promise<{ alerts: any[], count: number }> {
         try {
             const res = await firstValueFrom(this.ngHttpClient.get<{ alerts: any[], count: number }>(
-                this.getUrl(url.systemhealth) + `?limit=${limit}&includeDismissed=${includeDismissed}`,
+                `${this.getUrl(url.systemhealth)}&limit=${limit}&includeDismissed=${includeDismissed}`,
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
             return res;
@@ -1236,8 +1264,14 @@ export class RdioScannerAdminService implements OnDestroy {
 		branding: this.ngFormBuilder.control(options?.branding),
 			defaultSystemDelay: this.ngFormBuilder.control(options?.defaultSystemDelay ?? 0, [Validators.required, Validators.min(0)]),
             disableDuplicateDetection: this.ngFormBuilder.control(options?.disableDuplicateDetection ?? false),
-            duplicateDetectionTimeFrame: this.ngFormBuilder.control(options?.duplicateDetectionTimeFrame ?? 30000, [Validators.required, Validators.min(1000)]),
-            duplicateTimestampWindow: this.ngFormBuilder.control(options?.duplicateTimestampWindow ?? 800, [Validators.required, Validators.min(100), Validators.max(30000)]),
+            duplicateDetectionTimeFrame: this.ngFormBuilder.control(
+                normalizedDuplicateDetectionTimeFrameMs(options?.duplicateDetectionTimeFrame),
+                [Validators.required, Validators.min(1000)],
+            ),
+            duplicateTimestampWindow: this.ngFormBuilder.control(
+                normalizedDuplicateTimestampWindowMs(options?.duplicateTimestampWindow),
+                [Validators.required, Validators.min(100), Validators.max(30000)],
+            ),
             audioFingerprintEnabled: this.ngFormBuilder.control(options?.audioFingerprintEnabled ?? false),
             audioFingerprintThreshold: this.ngFormBuilder.control(options?.audioFingerprintThreshold ?? 0.25, [Validators.required, Validators.min(0), Validators.max(1)]),
             audioFingerprintTimeFrame: this.ngFormBuilder.control(options?.audioFingerprintTimeFrame ?? 5000, [Validators.required, Validators.min(0)]),

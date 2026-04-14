@@ -412,6 +412,24 @@ func (clients *Clients) IsDeviceLiveFeedActive(fcmToken string) bool {
 	return false
 }
 
+// ClearSessionsForPushToken clears the in-memory FCM / push link on any
+// WebSocket client that was associated with this token (same string as stored
+// in deviceTokens.fcmToken and sent to the relay). Call after removing the
+// token from the database so live-feed and disconnect logic do not treat the
+// session as still bound to a registered device.
+func (clients *Clients) ClearSessionsForPushToken(pushToken string) {
+	if clients == nil || pushToken == "" {
+		return
+	}
+	clients.mutex.Lock()
+	defer clients.mutex.Unlock()
+	for c := range clients.Map {
+		if c.FCMToken == pushToken {
+			c.FCMToken = ""
+		}
+	}
+}
+
 // IsUserLiveFeedActive returns true if any connected client for the given
 // user ID has an active live feed. Used to skip VoIP pushes when the user
 // is already listening via WebSocket on any device.

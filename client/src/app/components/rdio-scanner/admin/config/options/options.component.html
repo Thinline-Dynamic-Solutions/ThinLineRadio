@@ -1182,8 +1182,8 @@
 
         <div class="row" *ngIf="form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai'">
           <p>
-            <span class="mat-body">Word Boost / Key Terms</span><br>
-            <span class="mat-caption">Comma-separated list of terms to boost recognition accuracy (e.g., "ENGINE,LADDER,MEDIC"). Max 100 terms, 50 chars each.</span>
+            <span class="mat-body">Keyterms</span><br>
+            <span class="mat-caption">Comma-separated terms sent to AssemblyAI as keyterms_prompt (replaces deprecated word_boost). Example: ENGINE,LADDER,MEDIC. Max 100 terms, 50 chars each.</span>
           </p>
           <mat-form-field floatLabel="auto">
             <input type="text" matInput [value]="getAssemblyAIWordBoostDisplay()"

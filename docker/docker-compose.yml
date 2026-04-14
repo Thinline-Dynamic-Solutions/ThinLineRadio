@@ -8,9 +8,9 @@
 #   Rebuild:  docker-compose up -d --build
 #
 # Before starting:
-#   1. Copy .env.docker.example to .env
-#   2. Edit .env with your configuration
-#   3. Review and adjust volume paths below if needed
+#   1. From repo root: ./docker/docker-deploy.sh   OR   cd docker && cp env.docker.example .env
+#   2. Edit docker/.env (set DB_PASS at minimum)
+#   3. docker compose up -d (run from this directory)
 
 version: '3.8'
 

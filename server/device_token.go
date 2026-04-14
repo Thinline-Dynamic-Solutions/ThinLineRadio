@@ -210,13 +210,16 @@ func (dt *DeviceTokens) Update(token *DeviceToken, db *Database) error {
 	return nil
 }
 
-func (dt *DeviceTokens) Delete(id uint64, db *Database) error {
+func (dt *DeviceTokens) Delete(id uint64, db *Database, clients *Clients) error {
 	dt.mutex.Lock()
-	defer dt.mutex.Unlock()
-
 	token, exists := dt.tokens[id]
 	if !exists {
+		dt.mutex.Unlock()
 		return fmt.Errorf("device token not found")
+	}
+	pushKey := token.FCMToken
+	if pushKey == "" {
+		pushKey = token.Token
 	}
 
 	// Log deletion with truncated token for security
@@ -224,11 +227,12 @@ func (dt *DeviceTokens) Delete(id uint64, db *Database) error {
 	if len(truncatedToken) > 10 {
 		truncatedToken = truncatedToken[:10] + "..."
 	}
-	log.Printf("DeviceTokens.Delete: removing device token ID %d for user %d (token: %s, platform: %s)", 
+	log.Printf("DeviceTokens.Delete: removing device token ID %d for user %d (token: %s, platform: %s)",
 		id, token.UserId, truncatedToken, token.Platform)
 
 	_, err := db.Sql.Exec(`DELETE FROM "deviceTokens" WHERE "deviceTokenId" = $1`, id)
 	if err != nil {
+		dt.mutex.Unlock()
 		return err
 	}
 
@@ -247,6 +251,11 @@ func (dt *DeviceTokens) Delete(id uint64, db *Database) error {
 			dt.userTokens[token.UserId] = append(userTokens[:i], userTokens[i+1:]...)
 			break
 		}
+	}
+	dt.mutex.Unlock()
+
+	if clients != nil && pushKey != "" {
+		clients.ClearSessionsForPushToken(pushKey)
 	}
 
 	return nil
@@ -282,12 +291,12 @@ func (dt *DeviceTokens) FindByUserAndToken(userId uint64, token string) *DeviceT
 // RemoveAllLegacyTokensForUser removes all device tokens that do not have an FCM token
 // (i.e. old OneSignal registrations). Called when a user successfully registers via FCM
 // so stale tokens are not left in the database.
-func (dt *DeviceTokens) RemoveAllLegacyTokensForUser(userId uint64, db *Database) error {
+func (dt *DeviceTokens) RemoveAllLegacyTokensForUser(userId uint64, db *Database, clients *Clients) error {
 	dt.mutex.Lock()
-	defer dt.mutex.Unlock()
 
 	userTokens := dt.userTokens[userId]
 	if len(userTokens) == 0 {
+		dt.mutex.Unlock()
 		return nil
 	}
 
@@ -298,11 +307,13 @@ func (dt *DeviceTokens) RemoveAllLegacyTokensForUser(userId uint64, db *Database
 		}
 	}
 	if len(toDelete) == 0 {
+		dt.mutex.Unlock()
 		return nil
 	}
 
 	log.Printf("DeviceTokens.RemoveAllLegacyTokensForUser: removing %d legacy token(s) for user %d", len(toDelete), userId)
 
+	var clearedKeys []string
 	for _, id := range toDelete {
 		if _, err := db.Sql.Exec(`DELETE FROM "deviceTokens" WHERE "deviceTokenId" = $1`, id); err != nil {
 			log.Printf("DeviceTokens.RemoveAllLegacyTokensForUser: error deleting token %d: %v", id, err)
@@ -310,6 +321,13 @@ func (dt *DeviceTokens) RemoveAllLegacyTokensForUser(userId uint64, db *Database
 		}
 
 		if token := dt.tokens[id]; token != nil {
+			pushKey := token.FCMToken
+			if pushKey == "" {
+				pushKey = token.Token
+			}
+			if pushKey != "" {
+				clearedKeys = append(clearedKeys, pushKey)
+			}
 			delete(dt.tokens, id)
 			if token.Token != "" {
 				delete(dt.tokenIndex, token.Token)
@@ -325,6 +343,13 @@ func (dt *DeviceTokens) RemoveAllLegacyTokensForUser(userId uint64, db *Database
 			}
 			dt.userTokens[userId] = updated
 			log.Printf("DeviceTokens.RemoveAllLegacyTokensForUser: removed token ID %d (platform: %s)", id, token.Platform)
+		}
+	}
+
+	dt.mutex.Unlock()
+	if clients != nil {
+		for _, k := range clearedKeys {
+			clients.ClearSessionsForPushToken(k)
 		}
 	}
 

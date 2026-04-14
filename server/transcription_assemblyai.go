@@ -155,11 +155,8 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 		"speech_models": []string{speechModel},
 	}
 
-	// Add word boost/keyterms if provided.
-	// universal-3-pro does not support word_boost; it uses keyterms_prompt instead.
-	// All other models (e.g. universal-2) use word_boost.
+	// Keyterms for under-represented vocabulary (AssemblyAI; replaces deprecated word_boost for all models).
 	if len(options.WordBoost) > 0 {
-		// Filter and validate keyterms (max 100, each max 50 chars)
 		validKeyterms := []string{}
 		for _, term := range options.WordBoost {
 			trimmed := strings.TrimSpace(term)
@@ -171,11 +168,7 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 			}
 		}
 		if len(validKeyterms) > 0 {
-			if speechModel == "universal-3-pro" {
-				transcriptBody["keyterms_prompt"] = validKeyterms
-			} else {
-				transcriptBody["word_boost"] = validKeyterms
-			}
+			transcriptBody["keyterms_prompt"] = validKeyterms
 		}
 	}
 

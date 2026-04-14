@@ -76,6 +76,78 @@ func loadDotEnv(candidates ...string) {
 	}
 }
 
+// writeInjectedWebappIndexHTML serves the Angular SPA shell with the same transforms for every
+// entry path: absolute <base href> (uses X-Forwarded-* behind reverse proxies) and
+// window.initialConfig. Without this, deep links such as /admin receive raw index.html; the
+// default <base href="./"> then mis-resolves scripts and assets on public URLs while localhost
+// often still works when users only open "/".
+func writeInjectedWebappIndexHTML(w http.ResponseWriter, r *http.Request, controller *Controller) bool {
+	b, err := webapp.ReadFile("webapp/index.html")
+	if err != nil {
+		return false
+	}
+	html := string(b)
+
+	scheme, host := getSchemeAndHost(r)
+	baseURL := fmt.Sprintf("%s://%s/", scheme, host)
+	html = strings.Replace(html, `<base href="./">`, fmt.Sprintf(`<base href="%s">`, baseURL), 1)
+
+	branding := controller.Options.Branding
+	if branding == "" {
+		branding = "Thinline Radio"
+	}
+	email := controller.Options.Email
+
+	configScript := fmt.Sprintf(`
+<script>
+window.initialConfig = {
+	"branding": %q,
+	"email": %q,
+	"options": {
+		"userRegistrationEnabled": %t,
+		"stripePaywallEnabled": %t,
+		"stripePublishableKey": %q,
+		"stripePriceId": %q,
+		"baseUrl": %q,
+		"emailLogoFilename": %q,
+		"emailLogoBorderRadius": %q,
+		"turnstileEnabled": %t,
+		"turnstileSiteKey": %q
+	}
+};
+</script>`, branding, email, controller.Options.UserRegistrationEnabled, controller.Options.StripePaywallEnabled, controller.Options.StripePublishableKey, controller.Options.StripePriceId, controller.Options.BaseUrl, controller.Options.EmailLogoFilename, controller.Options.EmailLogoBorderRadius, controller.Options.TurnstileEnabled, controller.Options.TurnstileSiteKey)
+
+	injected := false
+	if strings.Contains(html, "</head>") {
+		html = strings.Replace(html, "</head>", configScript+"</head>", 1)
+		injected = true
+	} else if strings.Contains(html, "</HEAD>") {
+		html = strings.Replace(html, "</HEAD>", configScript+"</HEAD>", 1)
+		injected = true
+	} else if strings.Contains(html, "<head>") {
+		html = strings.Replace(html, "<head>", "<head>"+configScript, 1)
+		injected = true
+	} else if strings.Contains(html, "<HEAD>") {
+		html = strings.Replace(html, "<HEAD>", "<HEAD>"+configScript, 1)
+		injected = true
+	} else if strings.Contains(html, "</body>") {
+		html = strings.Replace(html, "</body>", configScript+"</body>", 1)
+		injected = true
+	} else if strings.Contains(html, "</BODY>") {
+		html = strings.Replace(html, "</BODY>", configScript+"</BODY>", 1)
+		injected = true
+	}
+	if !injected {
+		html = configScript + html
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Write([]byte(html))
+	return true
+}
+
 func main() {
 	// Enable multi-core processing
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -804,74 +876,7 @@ func main() {
 
 		} else {
 			if url == "" {
-				// Serve index.html with injected initial config
-				if b, err := webapp.ReadFile("webapp/index.html"); err == nil {
-					html := string(b)
-
-					// Fix base href to be absolute with full domain
-					// Check reverse proxy headers for correct scheme/host
-					scheme, host := getSchemeAndHost(r)
-					baseUrl := fmt.Sprintf("%s://%s/", scheme, host)
-					html = strings.Replace(html, `<base href="./">`, fmt.Sprintf(`<base href="%s">`, baseUrl), 1)
-
-					// Get initial config data
-					branding := controller.Options.Branding
-					if branding == "" {
-						branding = "Thinline Radio"
-					}
-					email := controller.Options.Email
-
-					// Inject config into HTML
-					configScript := fmt.Sprintf(`
-<script>
-window.initialConfig = {
-	"branding": %q,
-	"email": %q,
-	"options": {
-		"userRegistrationEnabled": %t,
-		"stripePaywallEnabled": %t,
-		"stripePublishableKey": %q,
-		"stripePriceId": %q,
-		"baseUrl": %q,
-		"emailLogoFilename": %q,
-		"emailLogoBorderRadius": %q,
-		"turnstileEnabled": %t,
-		"turnstileSiteKey": %q
-	}
-};
-</script>`, branding, email, controller.Options.UserRegistrationEnabled, controller.Options.StripePaywallEnabled, controller.Options.StripePublishableKey, controller.Options.StripePriceId, controller.Options.BaseUrl, controller.Options.EmailLogoFilename, controller.Options.EmailLogoBorderRadius, controller.Options.TurnstileEnabled, controller.Options.TurnstileSiteKey)
-
-					// Try multiple insertion points for the config script
-					injected := false
-					// Try to insert config script before the closing </head> tag
-					if strings.Contains(html, "</head>") {
-						html = strings.Replace(html, "</head>", configScript+"</head>", 1)
-						injected = true
-					} else if strings.Contains(html, "</HEAD>") { // Case-insensitive check
-						html = strings.Replace(html, "</HEAD>", configScript+"</HEAD>", 1)
-						injected = true
-					} else if strings.Contains(html, "<head>") {
-						// Insert after <head> tag
-						html = strings.Replace(html, "<head>", "<head>"+configScript, 1)
-						injected = true
-					} else if strings.Contains(html, "<HEAD>") {
-						html = strings.Replace(html, "<HEAD>", "<HEAD>"+configScript, 1)
-						injected = true
-					} else if strings.Contains(html, "</body>") {
-						html = strings.Replace(html, "</body>", configScript+"</body>", 1)
-						injected = true
-					} else if strings.Contains(html, "</BODY>") { // Case-insensitive check
-						html = strings.Replace(html, "</BODY>", configScript+"</BODY>", 1)
-						injected = true
-					}
-
-					if !injected {
-						// Last resort: prepend to HTML
-						html = configScript + html
-					}
-
-					w.Header().Set("Content-Type", "text/html")
-					w.Write([]byte(html))
+				if writeInjectedWebappIndexHTML(w, r, controller) {
 					return
 				}
 				url = "index.html"
@@ -879,22 +884,34 @@ window.initialConfig = {
 
 			if b, err := webapp.ReadFile(path.Join("webapp", url)); err == nil {
 				var t string
-				switch path.Ext(url) {
+				ext := path.Ext(url)
+				switch ext {
 				case ".js":
 					t = "text/javascript" // see https://github.com/golang/go/issues/32350
 				default:
-					t = mime.TypeByExtension(path.Ext(url))
+					t = mime.TypeByExtension(ext)
 				}
+
+				switch {
+				case url == "ngsw-worker.js" || url == "ngsw.json" || url == "safety-worker.js":
+					w.Header().Set("Cache-Control", "no-cache")
+				case ext == ".js" || ext == ".css":
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				default:
+					w.Header().Set("Cache-Control", "public, max-age=86400")
+				}
+
 				w.Header().Set("Content-Type", t)
 				w.Write(b)
 
-			} else if url[:len(url)-1] != "/" {
-				if b, err := webapp.ReadFile("webapp/index.html"); err == nil {
-					w.Write(b)
+			} else if ext := path.Ext(url); ext != "" {
+				w.WriteHeader(http.StatusNotFound)
 
-				} else {
-					w.WriteHeader(http.StatusNotFound)
+			} else if len(url) > 0 && !strings.HasSuffix(url, "/") {
+				if writeInjectedWebappIndexHTML(w, r, controller) {
+					return
 				}
+				w.WriteHeader(http.StatusNotFound)
 
 			} else {
 				w.WriteHeader(http.StatusNotFound)

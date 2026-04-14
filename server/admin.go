@@ -1323,7 +1323,11 @@ func (admin *Admin) ChangePassword(currentPassword any, newPassword string) erro
 
 func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(r.Header.Get("upgrade"), "websocket") {
-		upgrader := websocket.Upgrader{}
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
 
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -1581,6 +1585,10 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 					if readErr := admin.Controller.Systems.Read(admin.Controller.Database); readErr != nil {
 						logError(readErr)
 					}
+					w.WriteHeader(http.StatusInternalServerError)
+					json.NewEncoder(w).Encode(map[string]string{"error": "failed to save systems: " + err.Error()})
+					admin.Controller.Dirwatches.Start(admin.Controller)
+					return
 				} else {
 					err = admin.Controller.Systems.Read(admin.Controller.Database)
 					if err != nil {
@@ -4315,6 +4323,39 @@ func (admin *Admin) RadioReferenceSitesHandler(w http.ResponseWriter, r *http.Re
 	json.NewEncoder(w).Encode(result)
 }
 
+// rrSiteImportID unmarshals a Radio Reference site "id" from JSON. The sites API returns
+// ids as strings (e.g. "055", "1-055"); the Angular client forwards them unchanged. A plain
+// float64 field rejects string JSON and the whole request fails with 400.
+type rrSiteImportID struct {
+	value string
+}
+
+func (v *rrSiteImportID) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || string(b) == "null" {
+		v.value = ""
+		return nil
+	}
+	if b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		v.value = strings.TrimSpace(s)
+		return nil
+	}
+	var f float64
+	if err := json.Unmarshal(b, &f); err != nil {
+		return err
+	}
+	if f == float64(int64(f)) {
+		v.value = strconv.FormatInt(int64(f), 10)
+	} else {
+		v.value = strconv.FormatFloat(f, 'f', -1, 64)
+	}
+	return nil
+}
+
 // RadioReferenceImportToSystemHandler directly writes RR talkgroups or sites into a local
 // system, creating any missing groups/tags in the database on the fly.
 func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r *http.Request) {
@@ -4339,15 +4380,20 @@ func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r
 			Enc         float64 `json:"enc"`
 		} `json:"talkgroups"`
 		Sites []struct {
-			Id          float64   `json:"id"`
-			Name        string    `json:"name"`
-			Rfss        float64   `json:"rfss"`
-			Frequencies []float64 `json:"frequencies"`
+			Id          rrSiteImportID `json:"id"`
+			Name        string         `json:"name"`
+			Rfss        float64        `json:"rfss"`
+			Frequencies []float64      `json:"frequencies"`
 		} `json:"sites"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.SystemId == 0 {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if body.SystemId == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "systemId is required (select a target system in the import UI)"})
 		return
 	}
 
@@ -4450,7 +4496,10 @@ func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r
 
 	// ── Sites ─────────────────────────────────────────────────────────────────
 	for _, s := range body.Sites {
-		siteRef := fmt.Sprintf("%d", uint(s.Id))
+		siteRef := strings.TrimSpace(s.Id.value)
+		if siteRef == "" {
+			continue
+		}
 
 		if existing, ok := system.Sites.GetSiteByRef(siteRef); ok {
 			existing.Label = s.Name
@@ -6044,7 +6093,7 @@ func (admin *Admin) DeviceTokenDeleteHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Delete the device token
-	if err := admin.Controller.DeviceTokens.Delete(tokenID, admin.Controller.Database); err != nil {
+	if err := admin.Controller.DeviceTokens.Delete(tokenID, admin.Controller.Database, admin.Controller.Clients); err != nil {
 		log.Printf("Failed to delete device token %d for user %d: %v", tokenID, userID, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete device token"})

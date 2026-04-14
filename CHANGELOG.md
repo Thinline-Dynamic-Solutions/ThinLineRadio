@@ -1,5 +1,34 @@
 # Change log
 
+## Version 26.04.031 - Released Apr 14, 2026
+
+### Fixed
+
+- **Server — Radio Reference TRS site list parsing**
+  - Site list XML nests `<item>` under `<siteFreqs>` and `<siteLicenses>` as well as under `<return>`; the parser previously matched every `//item`, treating thousands of frequency/license rows as sites and logging spurious “No siteFreqs” lines
+  - Parser now selects only site rows with `//item[siteNumber]`, matching Radio Reference’s structure and avoiding heavy work that could time out or fail imports on large systems
+
+- **Admin — Delete correct Sites and Units row**
+  - Sites and Units tables use sorted `FormArray` data; delete used the visible row index or `indexOf()` on the sorted list, which removed the wrong `FormArray` control (especially visible with duplicate unit IDs)
+  - Delete now resolves the row’s `FormGroup` in the underlying `FormArray` by reference, consistent with talkgroup removal
+
+- **Server — Duplicate `units` rows and wrong `unitId` / `unitRef` round-trip**
+  - `MarshalJSON` had exposed radio `unitRef` as JSON `"id"` while `FromMap` treated `"id"` as the database primary key, so saves could insert bogus `unitId` values and duplicate `(systemId, unitRef)` rows
+  - JSON now uses `"id"` for the real `unitId` and `"unitRef"` for the radio ID; `FromMap` detects legacy payloads where both fields were the same
+  - `Units.WriteTx` updates existing rows by `(systemId, unitRef)` when the client has no valid PK match, avoids inserting with a mistaken client `unitId`, and tightens orphan deletion (incoming primary keys plus in-use refs for rows without a PK yet)
+
+- **Docker — Fresh install `.env` and Compose**
+  - `docker-deploy.sh` wrote `.env` at the repository root but opened `docker/.env` in the editor; Compose loads `.env` next to `docker-compose.yml`, so `DB_PASS` was missing and services failed to start
+  - `.env` is now created and edited under `docker/`; optional one-time copy from a legacy root `.env`; validation for empty `DB_PASS`; root `docker-deploy.sh` wrapper delegates to `docker/docker-deploy.sh`
+  - `env.docker.example` uses `DATA_PATH=./data` relative to `docker/`; README / `docker/README.md` / `docker/DOCKER.md` quick starts updated for current paths
+
+### Changed
+
+- **Server — AssemblyAI transcription request**
+  - Replaced deprecated `word_boost` with `keyterms_prompt` for all speech models (AssemblyAI will reject `word_boost` after May 11, 2026); admin copy under Options → Transcription describes keyterms
+
+---
+
 ## Version 26.04.030 - Released Apr 10, 2026
 
 ### New Features

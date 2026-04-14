@@ -2636,6 +2636,44 @@ func migrateCallsVerifiedDuplicate(db *Database) error {
 	return nil
 }
 
+// migratePostgresSiteRefToText converts the sites.siteRef column from INTEGER
+// to TEXT on PostgreSQL installations. The earlier migrateEnhancedDuplicateDetection
+// migration performed this conversion for SQLite using pragma_table_info, which is
+// a no-op on PostgreSQL. As a result, siteRef remained INTEGER on PostgreSQL, causing
+// INSERT/SELECT type-mismatch errors when the application code treats it as a string.
+// This migration uses PostgreSQL's information_schema to detect the column type and
+// ALTERs it in-place, then drops the orphaned siteRef_new TEXT column if present.
+func migratePostgresSiteRefToText(db *Database) error {
+	// Determine the current data type of the siteRef column.
+	var dataType string
+	checkQuery := `SELECT data_type FROM information_schema.columns WHERE table_name = 'sites' AND column_name = 'siteRef'`
+	err := db.Sql.QueryRow(checkQuery).Scan(&dataType)
+	if err != nil {
+		// Column may not exist yet — skip silently.
+		return nil
+	}
+
+	if dataType != "text" && dataType != "character varying" {
+		log.Println("migrating sites.siteRef column type from integer to text...")
+		alterQuery := `ALTER TABLE "sites" ALTER COLUMN "siteRef" TYPE TEXT USING "siteRef"::TEXT`
+		if _, err := db.Sql.Exec(alterQuery); err != nil {
+			return fmt.Errorf("migratePostgresSiteRefToText: %w", err)
+		}
+	}
+
+	// Drop the orphaned siteRef_new TEXT column left by the earlier SQLite migration
+	// attempt, if it still exists on this database.
+	var orphanCount int
+	orphanCheck := `SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'sites' AND column_name = 'siteRef_new'`
+	if err := db.Sql.QueryRow(orphanCheck).Scan(&orphanCount); err == nil && orphanCount > 0 {
+		if _, err := db.Sql.Exec(`ALTER TABLE "sites" DROP COLUMN IF EXISTS "siteRef_new"`); err != nil {
+			log.Printf("migratePostgresSiteRefToText: could not drop orphaned siteRef_new column: %v", err)
+		}
+	}
+
+	return nil
+}
+
 // migrateCallsAudioHash adds a SHA-256 PCM content hash column to the calls
 // table and an index for fast lookup. The hash is computed by decoding the
 // audio to raw PCM and hashing the samples, making it codec/container-agnostic.

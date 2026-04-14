@@ -85,8 +85,9 @@ The easiest way to deploy ThinLine Radio is using Docker:
 git clone https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio.git
 cd ThinLineRadio
 
-# 2. Run the deployment helper
+# 2. Run the deployment helper (from repository root)
 ./docker-deploy.sh
+# Equivalent: ./docker/docker-deploy.sh
 
 # 3. Access the admin dashboard
 # Open http://localhost:3000/admin
@@ -100,7 +101,7 @@ cd ThinLineRadio
 - ✅ Health checks and automatic restarts
 - ✅ Volume persistence for data
 
-📖 **Full Docker documentation:** [DOCKER.md](DOCKER.md) | [docker/README.md](docker/README.md)
+📖 **Full Docker documentation:** [docker/DOCKER.md](docker/DOCKER.md) | [docker/README.md](docker/README.md)
 
 ## Manual Installation
 

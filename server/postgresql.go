@@ -65,7 +65,10 @@ var PostgresqlSchema = []string{
     "siteId" bigserial NOT NULL PRIMARY KEY,
     "label" text NOT NULL,
     "order" integer NOT NULL DEFAULT 0,
-    "siteRef" integer NOT NULL,
+    "siteRef" text NOT NULL DEFAULT '',
+    "rfss" integer NOT NULL DEFAULT 0,
+    "frequencies" text NOT NULL DEFAULT '[]',
+    "preferred" boolean NOT NULL DEFAULT false,
     "systemId" bigint NOT NULL DEFAULT 0,
     CONSTRAINT "sites_systemId" FOREIGN KEY ("systemId") REFERENCES "systems" ("systemId") ON DELETE CASCADE ON UPDATE CASCADE
   );`,

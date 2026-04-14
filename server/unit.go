@@ -39,11 +39,40 @@ func NewUnit() *Unit {
 }
 
 func (unit *Unit) FromMap(m map[string]any) *Unit {
-	// Handle both "id" and "_id" fields for backward compatibility
+	refFromMap := false
+	if uv, ok := m["unitRef"]; ok && uv != nil {
+		if v, ok := uv.(float64); ok {
+			unit.UnitRef = uint(v)
+			refFromMap = true
+		}
+	}
+	_, unitRefKeyPresent := m["unitRef"]
+
+	// Primary key: JSON "id" is the database unitId. Legacy MarshalJSON used radio unitRef as "id".
 	if v, ok := m["id"].(float64); ok {
-		unit.Id = uint64(v)
+		idVal := uint64(v)
+		if refFromMap && unit.UnitRef > 0 && idVal == uint64(unit.UnitRef) {
+			unit.Id = 0
+		} else if refFromMap {
+			unit.Id = idVal
+		} else if !unitRefKeyPresent {
+			unit.UnitRef = uint(v)
+			unit.Id = 0
+		} else {
+			unit.Id = idVal
+		}
 	} else if v, ok := m["_id"].(float64); ok {
-		unit.Id = uint64(v)
+		idVal := uint64(v)
+		if refFromMap && unit.UnitRef > 0 && idVal == uint64(unit.UnitRef) {
+			unit.Id = 0
+		} else if refFromMap {
+			unit.Id = idVal
+		} else if !unitRefKeyPresent {
+			unit.UnitRef = uint(v)
+			unit.Id = 0
+		} else {
+			unit.Id = idVal
+		}
 	}
 
 	switch v := m["label"].(type) {
@@ -61,11 +90,6 @@ func (unit *Unit) FromMap(m map[string]any) *Unit {
 		unit.SystemId = uint64(v)
 	}
 
-	switch v := m["unitRef"].(type) {
-	case float64:
-		unit.UnitRef = uint(v)
-	}
-
 	switch v := m["unitFrom"].(type) {
 	case float64:
 		unit.UnitFrom = uint(v)
@@ -81,8 +105,11 @@ func (unit *Unit) FromMap(m map[string]any) *Unit {
 
 func (unit *Unit) MarshalJSON() ([]byte, error) {
 	m := map[string]any{
-		"id":    unit.UnitRef,
 		"label": unit.Label,
+	}
+	// "id" is the database primary key (unitId), not the radio unitRef — see issue #172.
+	if unit.Id > 0 {
+		m["id"] = unit.Id
 	}
 
 	if unit.Order > 0 {
@@ -223,24 +250,31 @@ func (units *Units) WriteTx(tx *sql.Tx, systemId uint64) error {
 
 	formatError := errorFormatter("units", "writetx")
 
-	query = fmt.Sprintf(`SELECT "unitId" FROM "units" WHERE "systemId" = %d`, systemId)
+	incomingIDs := map[uint64]struct{}{}
+	incomingRefNoPK := map[uint]struct{}{}
+	for _, u := range units.List {
+		if u.Id > 0 {
+			incomingIDs[u.Id] = struct{}{}
+		}
+		if u.Id == 0 && u.UnitRef > 0 {
+			incomingRefNoPK[u.UnitRef] = struct{}{}
+		}
+	}
+
+	query = fmt.Sprintf(`SELECT "unitId", "unitRef" FROM "units" WHERE "systemId" = %d`, systemId)
 	if rows, err = tx.Query(query); err != nil {
 		return formatError(err, query)
 	}
 
 	for rows.Next() {
 		var unitId uint64
-		if err = rows.Scan(&unitId); err != nil {
+		var unitRef uint
+		if err = rows.Scan(&unitId, &unitRef); err != nil {
 			break
 		}
-		remove := true
-		for _, unit := range units.List {
-			if unit.Id == 0 || unit.Id == unitId {
-				remove = false
-				break
-			}
-		}
-		if remove {
+		_, keepByPK := incomingIDs[unitId]
+		_, keepByRef := incomingRefNoPK[unitRef]
+		if !keepByPK && !keepByRef {
 			unitIds = append(unitIds, unitId)
 		}
 	}
@@ -262,32 +296,42 @@ func (units *Units) WriteTx(tx *sql.Tx, systemId uint64) error {
 	}
 
 	for _, unit := range units.List {
-		var count uint
-
 		if unit.Id > 0 {
-			query = fmt.Sprintf(`SELECT COUNT(*) FROM "units" WHERE "unitId" = %d`, unit.Id)
+			var count uint
+			query = fmt.Sprintf(`SELECT COUNT(*) FROM "units" WHERE "unitId" = %d AND "systemId" = %d`, unit.Id, systemId)
 			if err = tx.QueryRow(query).Scan(&count); err != nil {
 				break
 			}
+			if count > 0 {
+				query = fmt.Sprintf(`UPDATE "units" SET "label" = '%s', "order" = %d, "unitRef" = %d, "unitFrom" = %d, "unitTo" = %d WHERE "unitId" = %d AND "systemId" = %d`, escapeQuotes(unit.Label), unit.Order, unit.UnitRef, unit.UnitFrom, unit.UnitTo, unit.Id, systemId)
+				if _, err = tx.Exec(query); err != nil {
+					break
+				}
+				continue
+			}
 		}
 
-		if count == 0 {
-			if unit.Id > 0 {
-				// Preserve the explicit ID when inserting
-				query = fmt.Sprintf(`INSERT INTO "units" ("unitId", "label", "order", "systemId", "unitRef", "unitFrom", "unitTo") VALUES (%d, '%s', %d, %d, %d, %d, %d)`, unit.Id, escapeQuotes(unit.Label), unit.Order, systemId, unit.UnitRef, unit.UnitFrom, unit.UnitTo)
-			} else {
-				// Let database assign auto-increment ID
-				query = fmt.Sprintf(`INSERT INTO "units" ("label", "order", "systemId", "unitRef", "unitFrom", "unitTo") VALUES ('%s', %d, %d, %d, %d, %d)`, escapeQuotes(unit.Label), unit.Order, systemId, unit.UnitRef, unit.UnitFrom, unit.UnitTo)
-			}
-			if _, err = tx.Exec(query); err != nil {
+		if unit.UnitRef > 0 {
+			var existingId uint64
+			q2 := fmt.Sprintf(`SELECT "unitId" FROM "units" WHERE "systemId" = %d AND "unitRef" = %d LIMIT 1`, systemId, unit.UnitRef)
+			scanErr := tx.QueryRow(q2).Scan(&existingId)
+			if scanErr == sql.ErrNoRows {
+				// fall through to INSERT
+			} else if scanErr != nil {
+				err = scanErr
 				break
+			} else if existingId > 0 {
+				query = fmt.Sprintf(`UPDATE "units" SET "label" = '%s', "order" = %d, "unitRef" = %d, "unitFrom" = %d, "unitTo" = %d WHERE "unitId" = %d AND "systemId" = %d`, escapeQuotes(unit.Label), unit.Order, unit.UnitRef, unit.UnitFrom, unit.UnitTo, existingId, systemId)
+				if _, err = tx.Exec(query); err != nil {
+					break
+				}
+				continue
 			}
+		}
 
-		} else {
-			query = fmt.Sprintf(`UPDATE "units" SET "label" = '%s', "order" = %d, "unitRef" = %d, "unitFrom" = %d, "unitTo" = %d WHERE "unitId" = %d`, escapeQuotes(unit.Label), unit.Order, unit.UnitRef, unit.UnitFrom, unit.UnitTo, unit.Id)
-			if _, err = tx.Exec(query); err != nil {
-				break
-			}
+		query = fmt.Sprintf(`INSERT INTO "units" ("label", "order", "systemId", "unitRef", "unitFrom", "unitTo") VALUES ('%s', %d, %d, %d, %d, %d)`, escapeQuotes(unit.Label), unit.Order, systemId, unit.UnitRef, unit.UnitFrom, unit.UnitTo)
+		if _, err = tx.Exec(query); err != nil {
+			break
 		}
 	}
 

@@ -38,7 +38,7 @@ func isLegacyOneSignalToken(dt *DeviceToken) bool {
 // emails when a user has several legacy devices.
 func (controller *Controller) handleLegacyOneSignalToken(dt *DeviceToken, notifiedUsers map[uint64]struct{}) {
 	// Delete from DB + memory
-	if err := controller.DeviceTokens.Delete(dt.Id, controller.Database); err != nil {
+	if err := controller.DeviceTokens.Delete(dt.Id, controller.Database, controller.Clients); err != nil {
 		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf(
 			"push notification: failed to delete legacy token %d for user %d: %v", dt.Id, dt.UserId, err))
 	} else {
@@ -458,20 +458,17 @@ func (controller *Controller) sendNotificationBatch(playerIDs []string, title, s
 	// Handle invalid FCM tokens — relay server reports tokens it could not deliver to.
 	// O(1) per token via tokenIndex; no need to scan all users.
 	if len(response.InvalidPlayerIDs) > 0 {
-		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("push notification: removing %d invalid FCM token(s) from user accounts", len(response.InvalidPlayerIDs)))
-		notifiedUsers := make(map[uint64]struct{})
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("push notification: removing %d invalid FCM token(s) from user accounts (relay reported UNREGISTERED / invalid)", len(response.InvalidPlayerIDs)))
 		for _, invalidToken := range response.InvalidPlayerIDs {
 			dt := controller.DeviceTokens.GetByToken(invalidToken)
 			if dt == nil {
-				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: invalid FCM token not found in index (already removed?)"))
+				controller.Logs.LogEvent(LogLevelInfo, "push notification: invalid FCM token not found in index (already removed?)")
 				continue
 			}
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: removing invalid FCM token for user %d", dt.UserId))
-			if err := controller.DeviceTokens.Delete(dt.Id, controller.Database); err != nil {
+			if err := controller.DeviceTokens.Delete(dt.Id, controller.Database, controller.Clients); err != nil {
 				controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("push notification: failed to remove invalid FCM token for user %d: %v", dt.UserId, err))
 			}
-			// Email the user once so they know to re-register their device.
-			controller.handleLegacyOneSignalToken(dt, notifiedUsers)
 		}
 	}
 
@@ -580,6 +577,13 @@ func (controller *Controller) sendDisconnectPushNotification(user *User) {
 // single device identified by its FCM token, rather than all devices on the account.
 func (controller *Controller) sendDisconnectPushNotificationToDevice(user *User, fcmToken string) {
 	if controller.Options.RelayServerAPIKey == "" || fcmToken == "" {
+		return
+	}
+
+	// Disconnect scheduling waits 10s in client.go; if the same device reconnects
+	// and binds this FCM token with the live feed on, skip the stale notification.
+	if controller.Clients != nil && controller.Clients.IsDeviceLiveFeedActive(fcmToken) {
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("push notification: disconnect skipped — device reconnected (user %d)", user.Id))
 		return
 	}
 

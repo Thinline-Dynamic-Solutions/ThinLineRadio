@@ -456,19 +456,24 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
         this._lastTalkgroupsVersion++;
     }
 
-    removeSite(index: number): void {
-        if (this.expandedSite === this.sites[index]) this.expandedSite = null;
-        const arr = this.form.get('sites') as unknown as FormArray;
-        arr?.removeAt(index);
-        arr?.markAsDirty();
+    /** Remove by FormGroup reference — table rows are sorted by order, not FormArray index. */
+    removeSite(site: FormGroup): void {
+        if (this.expandedSite === site) this.expandedSite = null;
+        const arr = this.form.get('sites') as FormArray | null;
+        if (!arr) return;
+        const arrIdx = (arr.controls as FormGroup[]).indexOf(site);
+        if (arrIdx !== -1) arr.removeAt(arrIdx);
+        arr.markAsDirty();
         this._lastSitesVersion++;
     }
 
-    removeUnit(index: number): void {
-        if (this.expandedUnit === this.units[index]) this.expandedUnit = null;
-        const arr = this.form.get('units') as unknown as FormArray;
-        arr?.removeAt(index);
-        arr?.markAsDirty();
+    removeUnit(unit: FormGroup): void {
+        if (this.expandedUnit === unit) this.expandedUnit = null;
+        const arr = this.form.get('units') as FormArray | null;
+        if (!arr) return;
+        const arrIdx = (arr.controls as FormGroup[]).indexOf(unit);
+        if (arrIdx !== -1) arr.removeAt(arrIdx);
+        arr.markAsDirty();
         this._lastUnitsVersion++;
     }
 

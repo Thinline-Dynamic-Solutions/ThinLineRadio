@@ -402,6 +402,12 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Convert sites.siteRef from INTEGER to TEXT on PostgreSQL (the earlier
+	// migrateEnhancedDuplicateDetection only handled SQLite via pragma_table_info).
+	if err := migratePostgresSiteRefToText(db); err != nil {
+		return formatError(err, "")
+	}
+
 	return nil
 }
 

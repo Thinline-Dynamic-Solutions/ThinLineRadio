@@ -36,40 +36,53 @@ echo -e "${GREEN}✓ Docker installed:${NC} $(docker --version)"
 echo -e "${GREEN}✓ Docker Compose installed:${NC} $(docker compose version)"
 echo ""
 
-# Check if .env file exists (lives in repo root, one level up)
-if [ ! -f ../.env ]; then
+# Docker Compose loads `.env` from this directory (same folder as docker-compose.yml).
+ENV_FILE=".env"
+
+# One-time migration: older docs put .env at repository root
+if [ ! -f "$ENV_FILE" ] && [ -f ../.env ]; then
+    echo -e "${YELLOW}Found .env at repository root; copying to docker/.env for Compose.${NC}"
+    cp ../.env "$ENV_FILE"
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Creating .env file from template...${NC}"
-    
+
     if [ -f env.docker.example ]; then
-        cp env.docker.example ../.env
-        echo -e "${GREEN}✓ Created .env file${NC}"
+        cp env.docker.example "$ENV_FILE"
+        echo -e "${GREEN}✓ Created docker/.env${NC}"
         echo ""
-        echo -e "${YELLOW}IMPORTANT: You must edit .env and set a secure database password!${NC}"
+        echo -e "${YELLOW}IMPORTANT: Edit docker/.env and set a secure DB_PASS (database password).${NC}"
         echo "Edit now? (y/n)"
         read -r response
         if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-            ${EDITOR:-nano} .env
+            ${EDITOR:-nano} "$ENV_FILE"
         else
-            echo -e "${RED}Please edit .env before continuing${NC}"
+            echo -e "${RED}Please edit docker/.env before continuing${NC}"
             exit 1
         fi
     else
-        echo -e "${RED}ERROR: env.docker.example not found${NC}"
+        echo -e "${RED}ERROR: env.docker.example not found in $(pwd)${NC}"
         exit 1
     fi
 else
-    echo -e "${GREEN}✓ .env file exists${NC}"
-    
-    # Check if password was changed
-    if grep -q "change_this_password_immediately" ../.env; then
+    echo -e "${GREEN}✓ .env file exists ($(pwd)/$ENV_FILE)${NC}"
+
+    if grep -q '^[[:space:]]*DB_PASS=[[:space:]]*$' "$ENV_FILE" 2>/dev/null || ! grep -q '^DB_PASS=' "$ENV_FILE" 2>/dev/null; then
+        echo -e "${RED}ERROR: DB_PASS is missing or empty in $ENV_FILE${NC}"
+        echo "Set DB_PASS to a strong password, then run this script again."
+        exit 1
+    fi
+
+    if grep -q "change_this_password_immediately" "$ENV_FILE"; then
         echo -e "${RED}WARNING: Default database password detected!${NC}"
-        echo "You MUST change the database password in .env"
+        echo "You MUST change DB_PASS in docker/.env"
         echo "Edit now? (y/n)"
         read -r response
         if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-            ${EDITOR:-nano} .env
+            ${EDITOR:-nano} "$ENV_FILE"
         else
-            echo -e "${RED}Please edit .env before continuing${NC}"
+            echo -e "${RED}Please edit docker/.env before continuing${NC}"
             exit 1
         fi
     fi
@@ -169,6 +182,7 @@ echo "  Stop containers:  docker compose down"
 echo "  Restart:          docker compose restart"
 echo "  Status:           docker compose ps"
 echo ""
+echo "Configuration file: $(pwd)/.env"
 echo "For more information, see: docker/README.md"
 echo ""
 

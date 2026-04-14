@@ -3302,6 +3302,23 @@ func (api *Api) TranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Same access rules as audio/call playback (user + group system/talkgroup scope).
+		system, sysOk := api.Controller.Systems.GetSystemById(sysId)
+		if !sysOk {
+			continue
+		}
+		talkgroup, tgOk := system.Talkgroups.GetTalkgroupById(tgId)
+		if !tgOk {
+			continue
+		}
+		minimalCall := &Call{
+			System:    system,
+			Talkgroup: talkgroup,
+		}
+		if !api.Controller.userHasAccess(client.User, minimalCall) {
+			continue
+		}
+
 		entry := map[string]any{
 			"callId":              callId,
 			"systemId":            sysId,
@@ -8074,7 +8091,7 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Clean up any remaining legacy tokens for this user now that they've registered via FCM.
-		if err := api.Controller.DeviceTokens.RemoveAllLegacyTokensForUser(client.User.Id, api.Controller.Database); err != nil {
+		if err := api.Controller.DeviceTokens.RemoveAllLegacyTokensForUser(client.User.Id, api.Controller.Database, api.Controller.Clients); err != nil {
 			log.Printf("Error removing legacy tokens for user %d: %v", client.User.Id, err)
 		}
 
@@ -8166,7 +8183,7 @@ func (api *Api) UserDeviceTokenHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := api.Controller.DeviceTokens.Delete(deviceToken.Id, api.Controller.Database); err != nil {
+		if err := api.Controller.DeviceTokens.Delete(deviceToken.Id, api.Controller.Database, api.Controller.Clients); err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, "Failed to delete device token")
 			return
 		}

@@ -173,7 +173,7 @@ type TranscriptionConfig struct {
 	GoogleCredentials           string   `json:"googleCredentials"`           // Google Cloud service account JSON credentials (alternative to API key)
 	AssemblyAIKey               string   `json:"assemblyAIKey"`               // AssemblyAI API key
 	AssemblyAISpeechModel       string   `json:"assemblyAISpeechModel"`       // Speech model for AssemblyAI: "universal-2" (default) or "universal-3-pro"
-	AssemblyAIWordBoost         []string `json:"assemblyAIWordBoost"`         // Word boost/keyterms for AssemblyAI (max 100 terms, 50 chars each)
+	AssemblyAIWordBoost         []string `json:"assemblyAIWordBoost"`         // Sent as AssemblyAI keyterms_prompt (max 100 terms, 50 chars each)
 	HallucinationPatterns       []string `json:"hallucinationPatterns"`       // Patterns to remove from transcripts (Whisper hallucinations)
 	HallucinationDetectionMode  string   `json:"hallucinationDetectionMode"`  // "off", "manual", "auto"
 	HallucinationMinOccurrences int      `json:"hallucinationMinOccurrences"` // Minimum times a phrase must appear in rejected calls before flagging (default: 5)
@@ -252,17 +252,26 @@ func (options *Options) FromMap(m map[string]any) *Options {
 
 	switch v := m["duplicateDetectionTimeFrame"].(type) {
 	case float64:
-		options.DuplicateDetectionTimeFrame = uint(v)
+		u := uint(v)
+		if u < 1000 {
+			u = defaults.options.duplicateDetectionTimeFrame
+		}
+		options.DuplicateDetectionTimeFrame = u
 	default:
 		options.DuplicateDetectionTimeFrame = defaults.options.duplicateDetectionTimeFrame
 	}
 
 	switch v := m["duplicateTimestampWindow"].(type) {
 	case float64:
-		if uint(v) > 0 {
-			options.DuplicateTimestampWindow = uint(v)
-		} else {
+		u := uint(v)
+		if u == 0 {
 			options.DuplicateTimestampWindow = defaults.options.duplicateTimestampWindow
+		} else if u < 100 {
+			options.DuplicateTimestampWindow = defaults.options.duplicateTimestampWindow
+		} else if u > 30000 {
+			options.DuplicateTimestampWindow = 30000
+		} else {
+			options.DuplicateTimestampWindow = u
 		}
 	default:
 		options.DuplicateTimestampWindow = defaults.options.duplicateTimestampWindow
@@ -1050,16 +1059,27 @@ func (options *Options) Read(db *Database) error {
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
 				case float64:
-					options.DuplicateDetectionTimeFrame = uint(v)
+					u := uint(v)
+					if u < 1000 {
+						u = defaults.options.duplicateDetectionTimeFrame
+					}
+					options.DuplicateDetectionTimeFrame = u
 				}
 			}
 		case "duplicateTimestampWindow":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
 				case float64:
-					if uint(v) > 0 {
-						options.DuplicateTimestampWindow = uint(v)
+					u := uint(v)
+					if u == 0 {
+						break
 					}
+					if u < 100 {
+						u = defaults.options.duplicateTimestampWindow
+					} else if u > 30000 {
+						u = 30000
+					}
+					options.DuplicateTimestampWindow = u
 				}
 			}
 		case "email":

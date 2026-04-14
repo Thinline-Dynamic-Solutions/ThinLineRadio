@@ -56,7 +56,8 @@ export interface RadioReferenceTalkgroup {
 
 
 export interface RadioReferenceSite {
-    id: number;
+    /** Radio Reference sends zero-padded or RFSS-prefixed strings (e.g. "055", "1-055"). */
+    id: number | string;
     name: string;
     latitude: number;
     longitude: number;
@@ -147,8 +148,8 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     // Talkgroup selection
     private selectedTalkgroupIds: Set<number> = new Set<number>();
     
-    // Site selection
-    private selectedSiteIds: Set<number> = new Set<number>();
+    // Site selection (ids are strings from Radio Reference, e.g. "055", "1-055")
+    private selectedSiteIds: Set<string> = new Set<string>();
     allSites: RadioReferenceSite[] = [];
     filteredSites: RadioReferenceSite[] = [];
 
@@ -588,11 +589,11 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     }
 
     private async importTalkgroups(): Promise<{ updated: number, created: number }> {
-        if (this.targetSystemId === null) {
+        if (this.targetSystemId == null || !Number.isFinite(Number(this.targetSystemId))) {
             throw new Error('No target system selected');
         }
 
-        const result = await this.adminService.rrImportToSystem(this.targetSystemId, this.importData);
+        const result = await this.adminService.rrImportToSystem(Number(this.targetSystemId), this.importData);
 
         if (!result.success) {
             throw new Error(result.error || 'Import failed');
@@ -604,11 +605,11 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
 
 
     private async importSites(): Promise<{ updated: number, created: number }> {
-        if (this.targetSystemId === null) {
+        if (this.targetSystemId == null || !Number.isFinite(Number(this.targetSystemId))) {
             throw new Error('No target system selected');
         }
 
-        const result = await this.adminService.rrImportToSystem(this.targetSystemId, [], this.importData);
+        const result = await this.adminService.rrImportToSystem(Number(this.targetSystemId), [], this.importData);
 
         if (!result.success) {
             throw new Error(result.error || 'Import failed');
@@ -1007,40 +1008,45 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     }
 
     // Site selection and management methods
+    private siteKey(site: RadioReferenceSite): string {
+        return String(site.id);
+    }
+
     isSiteSelected(site: RadioReferenceSite): boolean {
-        return this.selectedSiteIds.has(site.id);
+        return this.selectedSiteIds.has(this.siteKey(site));
     }
 
     onSiteCheckboxChange(site: RadioReferenceSite, checked: boolean): void {
+        const k = this.siteKey(site);
         if (checked) {
-            this.selectedSiteIds.add(site.id);
+            this.selectedSiteIds.add(k);
         } else {
-            this.selectedSiteIds.delete(site.id);
+            this.selectedSiteIds.delete(k);
         }
     }
 
     areAllVisibleSitesSelected(): boolean {
         const visible = this.getPaginatedSites();
-        return visible.length > 0 && visible.every(s => this.selectedSiteIds.has(s.id));
+        return visible.length > 0 && visible.every(s => this.selectedSiteIds.has(this.siteKey(s)));
     }
 
     areSomeVisibleSitesSelected(): boolean {
         const visible = this.getPaginatedSites();
-        const selectedCount = visible.filter(s => this.selectedSiteIds.has(s.id)).length;
+        const selectedCount = visible.filter(s => this.selectedSiteIds.has(this.siteKey(s))).length;
         return selectedCount > 0 && selectedCount < visible.length;
     }
 
     toggleSelectAllVisibleSites(checked: boolean): void {
         const visible = this.getPaginatedSites();
         if (checked) {
-            visible.forEach(s => this.selectedSiteIds.add(s.id));
+            visible.forEach(s => this.selectedSiteIds.add(this.siteKey(s)));
         } else {
-            visible.forEach(s => this.selectedSiteIds.delete(s.id));
+            visible.forEach(s => this.selectedSiteIds.delete(this.siteKey(s)));
         }
     }
 
     selectAllSites(): void {
-        this.filteredSites.forEach(s => this.selectedSiteIds.add(s.id));
+        this.filteredSites.forEach(s => this.selectedSiteIds.add(this.siteKey(s)));
     }
 
     selectAllVisibleSites(): void {
@@ -1068,11 +1074,11 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
         }
 
         // Get the selected sites from filteredSites
-        const sitesToAdd = this.filteredSites.filter(site => this.selectedSiteIds.has(site.id));
+        const sitesToAdd = this.filteredSites.filter(site => this.selectedSiteIds.has(this.siteKey(site)));
 
         // Add to import data, avoiding duplicates
         sitesToAdd.forEach(site => {
-            if (!this.importData.some((s: any) => s.id === site.id)) {
+            if (!this.importData.some((s: any) => String(s.id) === this.siteKey(site))) {
                 this.importData.push(site);
             }
         });
@@ -1084,7 +1090,7 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     }
 
     removeSiteFromImportList(site: RadioReferenceSite): void {
-        this.importData = this.importData.filter((s: any) => s.id !== site.id);
+        this.importData = this.importData.filter((s: any) => String(s.id) !== this.siteKey(site));
         this.saveState();
     }
 

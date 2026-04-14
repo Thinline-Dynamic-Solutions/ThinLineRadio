@@ -1137,12 +1137,20 @@ func parseSiteList(bodyContent []byte) ([]RadioReferenceSite, error) {
 		return nil, fmt.Errorf("failed to parse XML: %v", err)
 	}
 
-	// Find all item elements that contain site data
-	itemNodes := xmlquery.Find(doc, "//item")
+	// Only TRS site rows have <siteNumber>; nested <item> under <siteFreqs> / <siteLicenses> must be ignored.
+	itemNodes := xmlquery.Find(doc, "//item[siteNumber]")
 	log.Printf("Found %d site item nodes", len(itemNodes))
 
 	for _, itemNode := range itemNodes {
 		site := RadioReferenceSite{}
+
+		// Extract RFSS before siteNumber so composite site IDs include the subsystem
+		// (otherwise every site is formatted as "%03d" only and duplicates collide).
+		if rfssNode := xmlquery.FindOne(itemNode, "rfss"); rfssNode != nil {
+			if rfss, err := strconv.Atoi(rfssNode.InnerText()); err == nil {
+				site.RFSS = rfss
+			}
+		}
 
 		// Extract siteNumber (this is what rdio-scanner needs)
 		if numberNode := xmlquery.FindOne(itemNode, "siteNumber"); numberNode != nil {
@@ -1153,13 +1161,6 @@ func parseSiteList(bodyContent []byte) ([]RadioReferenceSite, error) {
 				} else {
 					site.ID = fmt.Sprintf("%03d", number)
 				}
-			}
-		}
-
-		// Extract RFSS (Radio Frequency Sub-System)
-		if rfssNode := xmlquery.FindOne(itemNode, "rfss"); rfssNode != nil {
-			if rfss, err := strconv.Atoi(rfssNode.InnerText()); err == nil {
-				site.RFSS = rfss
 			}
 		}
 
@@ -1211,7 +1212,7 @@ func parseSiteList(bodyContent []byte) ([]RadioReferenceSite, error) {
 				}
 			}
 			log.Printf("Site %s: Successfully parsed %d frequencies", site.Name, len(site.Frequencies))
-		} else {
+		} else if site.Name != "" {
 			log.Printf("Site %s: No siteFreqs node found", site.Name)
 		}
 
