@@ -1,8 +1,9 @@
-Description,ATone,BTone,AToneLength,BToneLength,LongTone,LongToneLength,Tolerance
-Fire Department Dispatch,853.0,960.0,0.6,0.6,,,10
-Police Dispatch,1000.0,1200.0,0.6,0.6,,,10
-EMS Dispatch,1100.0,1300.0,0.6,0.6,,,10
-Long Tone Alert,,,5.0,,1500.0,5.0,10
-Two Tone Pager,800.0,900.0,0.6,0.6,,,15
-Single A Tone Only,500.0,,0.6,,,,10
-Custom Duration Tones,700.0,800.0,1.0,1.0,,,20
+Description,ATone,BTone,AToneLength,BToneLength,AToneMaxDuration,BToneMaxDuration,LongTone,LongToneLength,LongToneMaxDuration,Tolerance,SequenceMinDuration
+Fire Department Dispatch,853.0,960.0,0.6,0.6,3.0,3.0,,,,10,
+Police Dispatch,1000.0,1200.0,0.6,0.6,,,,,,10,
+EMS Dispatch,1100.0,1300.0,0.6,0.6,,,,,,10,0.6
+Long Tone Alert,,,,,,,1500.0,5.0,,10,
+Two Tone Pager,800.0,900.0,0.6,0.6,2.0,2.0,,,,15,
+Single A Tone Only,500.0,,0.6,,1.5,,,,,10,
+Custom Duration Tones,700.0,800.0,1.0,1.0,,,,,,20,
+B Tone Capped (max only on B),600.0,700.0,0.6,0.6,,4.0,,,,10,

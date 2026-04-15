@@ -321,6 +321,9 @@ func toneSetFromCSVRecord(record []string, headerIndex map[string]int) (*ToneSet
 			Frequency:   aFreq,
 			MinDuration: min,
 		}
+		if max, ok := getFloat("atonemaxduration", "amaxduration", "atonemax", "a_max_duration", "amax"); ok && max > 0 {
+			toneSet.ATone.MaxDuration = max
+		}
 	}
 
 	if hasB {
@@ -329,6 +332,9 @@ func toneSetFromCSVRecord(record []string, headerIndex map[string]int) (*ToneSet
 			Frequency:   bFreq,
 			MinDuration: min,
 		}
+		if max, ok := getFloat("btonemaxduration", "bmaxduration", "btonemax", "b_max_duration", "bmax"); ok && max > 0 {
+			toneSet.BTone.MaxDuration = max
+		}
 	}
 
 	if hasLong {
@@ -336,6 +342,9 @@ func toneSetFromCSVRecord(record []string, headerIndex map[string]int) (*ToneSet
 		toneSet.LongTone = &ToneSpec{
 			Frequency:   longFreq,
 			MinDuration: min,
+		}
+		if max, ok := getFloat("longtonemaxduration", "longmaxduration", "longtonemax", "long_max_duration", "longmax"); ok && max > 0 {
+			toneSet.LongTone.MaxDuration = max
 		}
 	}
 
@@ -346,7 +355,11 @@ func toneSetFromCSVRecord(record []string, headerIndex map[string]int) (*ToneSet
 		toneSet.Tolerance = 10
 	}
 
-	toneSet.MinDuration = minDurationFromToneSpecs(toneSet)
+	if seqMin, ok := getFloat("sequenceminduration", "sequencesminduration", "tonepatternminduration", "tonesetminduration"); ok && seqMin > 0 {
+		toneSet.MinDuration = seqMin
+	} else {
+		toneSet.MinDuration = minDurationFromToneSpecs(toneSet)
+	}
 
 	return toneSet, ""
 }

@@ -305,7 +305,7 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 			if call != nil {
 				systemInfo = fmt.Sprintf("System: %v (SystemId: %d, Meta.SystemRef: %d)", call.System, call.SystemId, call.Meta.SystemRef)
 				talkgroupInfo = fmt.Sprintf("Talkgroup: %v (TalkgroupId: %d, Meta.TalkgroupRef: %d)", call.Talkgroup, call.TalkgroupId, call.Meta.TalkgroupRef)
-				metaInfo = fmt.Sprintf("SiteRef: %d, Meta.SiteRef: %d", call.SiteRef, call.Meta.SiteRef)
+				metaInfo = fmt.Sprintf("SiteRef: %s, Meta.SiteRef: %s", call.SiteRef, call.Meta.SiteRef)
 			} else {
 				systemInfo = "call is nil"
 			}

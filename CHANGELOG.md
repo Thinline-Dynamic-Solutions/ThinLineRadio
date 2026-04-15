@@ -1,5 +1,25 @@
 # Change log
 
+## Version 26.04.032 - Released Apr 14, 2026
+
+### New Features
+
+- **Server — Tone set CSV import**
+  - Optional columns for **A/B/Long max duration** (`AToneMaxDuration`, `BToneMaxDuration`, `LongToneMaxDuration`, plus common aliases) map to the same fields as the admin talkgroup form
+  - Optional **sequence minimum duration** (`SequenceMinDuration`, `SequencesMinDuration`, `TonePatternMinDuration`, `ToneSetMinDuration`); when omitted, overall sequence min is still derived from per-tone minimums as before
+
+### Changed
+
+- **Documentation — Tone detection sample CSV**
+  - `docs/examples/tone-detection-sample.csv` now includes max-duration and sequence-min columns and an example row with B-tone max only
+
+### Fixed
+
+- **Server — Panic log formatting in `HandleCall`**
+  - `SiteRef` / `Meta.SiteRef` are strings; panic recovery logging used `%d`, which broke `go build`
+
+---
+
 ## Version 26.04.031 - Released Apr 14, 2026
 
 ### Fixed
