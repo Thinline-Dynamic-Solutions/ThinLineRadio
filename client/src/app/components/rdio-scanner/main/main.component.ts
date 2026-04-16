@@ -35,6 +35,7 @@ import {
     RdioScannerLivefeedMode,
 } from '../rdio-scanner';
 import { RdioScannerService } from '../rdio-scanner.service';
+import { TranscriptAnnotation, renderAnnotatedTranscript } from '../transcript-utils';
 import { TagColorService } from '../tag-color.service';
 import { RdioScannerSupportComponent } from './support/support.component';
 import { SettingsService } from '../settings/settings.service';
@@ -146,6 +147,10 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     get isTranscriptionEnabled(): boolean {
         // Check if transcriptions are enabled in the config
         return this.config?.options?.transcriptionEnabled || false;
+    }
+
+    renderTranscript(transcript: string, annotations?: TranscriptAnnotation[]): string {
+        return renderAnnotatedTranscript(transcript, annotations);
     }
 
     get showScanningAnimation(): boolean {

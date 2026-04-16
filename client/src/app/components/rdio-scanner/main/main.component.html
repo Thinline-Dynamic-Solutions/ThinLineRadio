@@ -191,7 +191,8 @@
                     </table>
                     <div class="now-playing-transcript" *ngIf="call && isTranscriptionEnabled && call.transcript">
                         <span class="now-playing-transcript-label">Transcript</span>
-                        <p class="now-playing-transcript-text">{{ call.transcript }}</p>
+                        <p class="now-playing-transcript-text"
+                           [innerHTML]="renderTranscript(call.transcript, call.transcriptAnnotations)"></p>
                     </div>
                 </div>
             </div>
@@ -268,7 +269,8 @@
                                 </div>
                                 <div class="transcript-block" *ngIf="isTranscriptionEnabled && dc.transcript">
                                     <div class="detail-k">Transcript</div>
-                                    <p class="transcript-body">{{ dc.transcript }}</p>
+                                    <p class="transcript-body"
+                                       [innerHTML]="renderTranscript(dc.transcript, dc.transcriptAnnotations)"></p>
                                 </div>
                             </div>
                             </ng-container>

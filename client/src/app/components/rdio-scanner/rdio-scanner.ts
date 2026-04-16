@@ -71,6 +71,7 @@ export interface RdioScannerCall {
     transcript?: string;
     transcriptConfidence?: number;
     transcriptionStatus?: string;
+    transcriptAnnotations?: import('./transcript-utils').TranscriptAnnotation[];
 }
 
 export interface RdioScannerToneSequence {
@@ -112,6 +113,7 @@ export interface RdioScannerAlert {
     transcript?: string;
     alertSummary?: string;
     transcriptionStatus?: string;
+    transcriptAnnotations?: import('./transcript-utils').TranscriptAnnotation[];
     createdAt: number;
     systemLabel?: string;
     talkgroupLabel?: string;
@@ -131,6 +133,7 @@ export interface RdioScannerTranscript {
     systemLabel?: string;
     talkgroupLabel?: string;
     talkgroupName?: string;
+    transcriptAnnotations?: import('./transcript-utils').TranscriptAnnotation[];
 }
 
 export interface RdioScannerAlertPreference {

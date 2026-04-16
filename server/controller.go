@@ -71,18 +71,18 @@ type Controller struct {
 	HallucinationDetector            *HallucinationDetector
 	CentralManagement                *CentralManagementService
 	// Performance caches
-	PreferencesCache                 *PreferencesCache
-	KeywordListsCache                *KeywordListsCache
-	IdLookupsCache                   *IdLookupsCache
-	RecentAlertsCache                *RecentAlertsCache
-	DedupCache                       *DedupCache
-	Register                         chan *Client
-	Unregister                       chan *Client
-	Ingest                           chan *Call
-	running                          bool
-	workerCancel                     context.CancelFunc // Function to cancel worker context
-	workersWg                        sync.WaitGroup     // WaitGroup to track worker goroutines
-	workerStats                      struct {
+	PreferencesCache  *PreferencesCache
+	KeywordListsCache *KeywordListsCache
+	IdLookupsCache    *IdLookupsCache
+	RecentAlertsCache *RecentAlertsCache
+	DedupCache        *DedupCache
+	Register          chan *Client
+	Unregister        chan *Client
+	Ingest            chan *Call
+	running           bool
+	workerCancel      context.CancelFunc // Function to cancel worker context
+	workersWg         sync.WaitGroup     // WaitGroup to track worker goroutines
+	workerStats       struct {
 		sync.Mutex
 		activeWorkers  int
 		totalCalls     int64
@@ -505,13 +505,13 @@ func (controller *Controller) IngestCall(call *Call) {
 			}
 
 			talkgroup = &Talkgroup{
-				GroupIds:        []uint64{groupId},
-				Label:           fmt.Sprintf("%d", talkgroupId),
-				Name:            fmt.Sprintf("%d", talkgroupId),
-				TalkgroupRef:    talkgroupId,
-				TagId:           tagId,
-				Order:           maxOrder + 1, // Assign order at the end of the list
-				AlertsEnabled:   system.AutoPopulateAlertsEnabled,
+				GroupIds:      []uint64{groupId},
+				Label:         fmt.Sprintf("%d", talkgroupId),
+				Name:          fmt.Sprintf("%d", talkgroupId),
+				TalkgroupRef:  talkgroupId,
+				TagId:         tagId,
+				Order:         maxOrder + 1, // Assign order at the end of the list
+				AlertsEnabled: system.AutoPopulateAlertsEnabled,
 			}
 
 			// Update label and name if provided (v6 style)
@@ -3105,6 +3105,9 @@ func (controller *Controller) Start() error {
 		controller.Logs.LogEvent(LogLevelInfo, "transcription is disabled in config")
 	}
 
+	// Build the transcript parser from saved config (no-op if config is empty)
+	controller.rebuildTranscriptParser()
+
 	// Initialize Hydra transcription retrieval queue if enabled
 	if controller.Options.HydraTranscriptionEnabled && controller.Options.HydraAPIKey != "" {
 		controller.HydraTranscriptionRetrievalQueue = NewHydraTranscriptionRetrievalQueue(controller)
@@ -3230,6 +3233,13 @@ func (controller *Controller) Start() error {
 	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("startup: server ready in %s", time.Since(startupStart).Round(time.Millisecond)))
 
 	return nil
+}
+
+// rebuildTranscriptParser compiles a new TranscriptParser from the current
+// Options.TranscriptParserConfig and stores it as the active parser.
+func (controller *Controller) rebuildTranscriptParser() {
+	p := NewTranscriptParser(controller.Options.TranscriptParserConfig)
+	activeTranscriptParser.Store(p)
 }
 
 // RestartTranscriptionQueue restarts the transcription queue with updated settings

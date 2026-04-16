@@ -25,6 +25,7 @@ import { RdioScannerAlert, RdioScannerCall, RdioScannerService, RdioScannerTrans
 import { AlertsService } from './alerts.service';
 import { AlertSoundService } from '../alert-sound.service';
 import { SettingsService } from '../settings/settings.service';
+import { TranscriptAnnotation, renderAnnotatedTranscript } from '../transcript-utils';
 
 /** Main board hosts separate tabs; each instance uses one mode. */
 export type RdioScannerAlertsPanelMode = 'alertsAndPreferences' | 'transcripts' | 'stats';
@@ -297,6 +298,10 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         }
         const regex = new RegExp(`(${search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
         return text.replace(regex, '<mark>$1</mark>');
+    }
+
+    renderTranscript(transcript: string, annotations?: TranscriptAnnotation[], search?: string): string {
+        return renderAnnotatedTranscript(transcript, annotations, search);
     }
 
     ngOnDestroy(): void {

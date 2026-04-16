@@ -51,6 +51,7 @@ import { RequestAPIKeyDialogComponent } from './config/options/request-api-key-d
 import { RecoverAPIKeyDialogComponent } from './config/options/recover-api-key-dialog.component';
 import { RdioScannerAdminUserGroupsComponent } from './config/user-groups/user-groups.component';
 import { RdioScannerAdminKeywordListsComponent } from './config/keyword-lists/keyword-lists.component';
+import { RdioScannerAdminTranscriptParserComponent } from './config/transcript-parser/transcript-parser.component';
 import { RdioScannerAdminLoginComponent } from './login/login.component';
 import { AlertsService } from '../alerts/alerts.service';
 import { RdioScannerAdminLogsComponent } from './logs/logs.component';
@@ -102,6 +103,7 @@ import { RdioScannerAdminSystemHealthComponent } from './system-health/system-he
         RdioScannerAdminUnitComponent,
         RdioScannerAdminRadioReferenceImportComponent,
         RdioScannerAdminKeywordListsComponent,
+        RdioScannerAdminTranscriptParserComponent,
         RdioScannerAdminConfigSyncComponent,
         RdioScannerAdminStripeSyncComponent,
         RdioScannerAdminPurgeDataComponent,

@@ -308,6 +308,7 @@ func main() {
 
 	http.HandleFunc("/api/admin/transcription-failures", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.TranscriptionFailuresHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/transcription-failure-threshold", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.TranscriptionFailureThresholdHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/transcript-parser", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.TranscriptParserHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/tone-detection-issue-threshold", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ToneDetectionIssueThresholdHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/alert-retention-days", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.AlertRetentionDaysHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/no-audio-threshold-minutes", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.NoAudioThresholdMinutesHandler)).ServeHTTP)

@@ -1459,13 +1459,13 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						logError(err)
 					} else {
-					// Restart transcription queue with updated settings
-					admin.Controller.RestartTranscriptionQueue()
+						// Restart transcription queue with updated settings
+						admin.Controller.RestartTranscriptionQueue()
 
-					// Restart no-audio monitoring in case health alert settings changed
-					go admin.Controller.StartNoAudioMonitoringForAllSystems()
+						// Restart no-audio monitoring in case health alert settings changed
+						go admin.Controller.StartNoAudioMonitoringForAllSystems()
 
-					// If audio encryption is enabled and we don't have a key yet
+						// If audio encryption is enabled and we don't have a key yet
 						// (or it was just enabled), fetch the key + client token from
 						// the relay server without requiring a server restart.
 						if admin.Controller.Options.AudioEncryptionEnabled &&
@@ -1777,22 +1777,22 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 			case []any:
 				// Only delete ALL existing users for full imports, not regular saves
 				if isFullImport {
-				allUsers := admin.Controller.Users.GetAllUsers()
-				for _, existingUser := range allUsers {
-					// Delete dependent rows first (FK constraints have no CASCADE after migration)
-					admin.Controller.Database.Sql.Exec(`DELETE FROM "userAlertPreferences" WHERE "userId" = $1`, existingUser.Id)
-					admin.Controller.Database.Sql.Exec(`DELETE FROM "deviceTokens" WHERE "userId" = $1`, existingUser.Id)
-					// Now safe to delete the user
-					_, err := admin.Controller.Database.Sql.Exec(`DELETE FROM "users" WHERE "userId" = $1`, existingUser.Id)
-					if err != nil {
-						logError(fmt.Errorf("failed to delete user %s from database during import: %v", existingUser.Email, err))
-					} else {
-						// Remove from in-memory map
-						if err := admin.Controller.Users.Remove(existingUser.Id); err != nil {
-							logError(fmt.Errorf("failed to remove user %s from memory during import: %v", existingUser.Email, err))
+					allUsers := admin.Controller.Users.GetAllUsers()
+					for _, existingUser := range allUsers {
+						// Delete dependent rows first (FK constraints have no CASCADE after migration)
+						admin.Controller.Database.Sql.Exec(`DELETE FROM "userAlertPreferences" WHERE "userId" = $1`, existingUser.Id)
+						admin.Controller.Database.Sql.Exec(`DELETE FROM "deviceTokens" WHERE "userId" = $1`, existingUser.Id)
+						// Now safe to delete the user
+						_, err := admin.Controller.Database.Sql.Exec(`DELETE FROM "users" WHERE "userId" = $1`, existingUser.Id)
+						if err != nil {
+							logError(fmt.Errorf("failed to delete user %s from database during import: %v", existingUser.Email, err))
+						} else {
+							// Remove from in-memory map
+							if err := admin.Controller.Users.Remove(existingUser.Id); err != nil {
+								logError(fmt.Errorf("failed to remove user %s from memory during import: %v", existingUser.Email, err))
+							}
 						}
 					}
-				}
 				}
 
 				// Now create/update users from import
@@ -2089,21 +2089,21 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 
-					// Use empty slices instead of nil so we always store "[]" not "null"
-					if keywords == nil {
-						keywords = []string{}
-					}
-					if keywordListIds == nil {
-						keywordListIds = []int{}
-					}
-					if toneSetIds == nil {
-						toneSetIds = []string{}
-					}
-					keywordsJson, _ := json.Marshal(keywords)
-					keywordListIdsJson, _ := json.Marshal(keywordListIds)
-					toneSetIdsJson, _ := json.Marshal(toneSetIds)
+						// Use empty slices instead of nil so we always store "[]" not "null"
+						if keywords == nil {
+							keywords = []string{}
+						}
+						if keywordListIds == nil {
+							keywordListIds = []int{}
+						}
+						if toneSetIds == nil {
+							toneSetIds = []string{}
+						}
+						keywordsJson, _ := json.Marshal(keywords)
+						keywordListIdsJson, _ := json.Marshal(keywordListIds)
+						toneSetIdsJson, _ := json.Marshal(toneSetIds)
 
-					// Insert user alert preference using parameterized queries
+						// Insert user alert preference using parameterized queries
 						if admin.Controller.Database.Config.DbType == DbTypePostgresql {
 							query := `INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 							if _, err := admin.Controller.Database.Sql.Exec(query, actualUserId, systemId, talkgroupId, alertEnabled, toneAlerts, keywordAlerts, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson)); err != nil {
@@ -2432,7 +2432,7 @@ func (admin *Admin) GetConfig() map[string]any {
 
 	// Get all user alert preferences from cache for export
 	userAlertPrefList := make([]map[string]any, 0)
-	
+
 	// We need to query the database for this as we don't have a method to get ALL preferences
 	// across ALL users from cache. This is acceptable as it's only for admin config export.
 	// Alternative: Could add GetAllPreferences() to cache, but export is rare operation.
@@ -6249,4 +6249,46 @@ func (api *Api) TestPagerAlertHandler(w http.ResponseWriter, r *http.Request) {
 		"talkgroupLabel": talkgroupLabel,
 		"tokensSent":     len(tokens),
 	})
+}
+
+// TranscriptParserHandler handles GET and PUT for the transcript parser config.
+//
+// GET  /api/admin/transcript-parser — returns the current TranscriptConfig as JSON.
+// PUT  /api/admin/transcript-parser — replaces the config, rebuilds the active parser.
+func (admin *Admin) TranscriptParserHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(admin.Controller.Options.TranscriptParserConfig)
+
+	case http.MethodPut:
+		var cfg TranscriptConfig
+		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		admin.Controller.Options.TranscriptParserConfig = cfg
+
+		if err := admin.Controller.Options.Write(admin.Controller.Database); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("failed to save config: %v", err)})
+			return
+		}
+
+		admin.Controller.rebuildTranscriptParser()
+
+		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
 }
