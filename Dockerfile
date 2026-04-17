@@ -30,6 +30,10 @@ RUN ls -la /build/server/webapp/ && echo "Webapp build successful"
 # =============================================================================
 FROM golang:1.24-alpine AS server-builder
 
+# BuildKit sets these per --platform (e.g. linux/arm64); defaults suit plain `docker build`.
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 WORKDIR /build/server
 
 # Install build dependencies
@@ -48,13 +52,14 @@ COPY --from=client-builder /build/server/webapp ./webapp/
 # Verify webapp was copied
 RUN ls -la ./webapp/ && echo "Webapp files:" && ls -la ./webapp/ | head -20
 
-# Build static binary with optimizations
-# CGO_ENABLED=0 creates a fully static binary that works in Alpine
+# Pure Go binary: CGO_ENABLED=0 already produces a static executable (no libc link).
+# Omit -extldflags '-static' — it forces an external linker path that often fails on
+# Alpine + buildx even when CGO is off, and is unnecessary for this build.
 ENV CGO_ENABLED=0 \
-    GOOS=linux \
-    GOARCH=amd64
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH}
 
-RUN go build -ldflags="-s -w -extldflags '-static'" -o thinline-radio .
+RUN go build -ldflags="-s -w" -o thinline-radio .
 
 # Verify binary was created
 RUN ls -lh thinline-radio
