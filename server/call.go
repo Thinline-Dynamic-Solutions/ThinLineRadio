@@ -105,8 +105,13 @@ type Call struct {
 	// Not persisted to DB or included in JSON output.
 	Duration float64
 
-	IsDuplicate bool   `json:"isDuplicate,omitempty"`
+	IsDuplicate bool `json:"isDuplicate,omitempty"`
 	AudioHash   string `json:"audioHash,omitempty"`
+
+	// IsForwarded is set when this call was received from another TLR server via
+	// downstream forwarding. It is runtime-only (never stored in DB) and prevents
+	// the receiving server from re-forwarding the call, breaking circular loops.
+	IsForwarded bool `json:"-"`
 }
 
 func NewCall() *Call {
@@ -489,6 +494,84 @@ func (calls *Calls) CheckDuplicateByTimestamp(call *Call, db *Database, windowMs
 	}
 
 	return false, nil
+}
+
+// receivedAtDuplicateWindow is the maximum gap between this call's server-arrival
+// time and a prior call's server-arrival time on the same system+talkgroup for the
+// receivedAt duplicate pass to fire. 1 second covers the common multi-recorder case
+// where two recorders upload the same transmission within a fraction of a second of
+// each other even when their P25 clocks are skewed.
+const receivedAtDuplicateWindow = 1000 * time.Millisecond
+
+// audioDurationsSimilarForReceivedAtDup returns true when two audio durations are
+// close enough to be considered the same transmission. We use a generous tolerance
+// because the same transmission captured by two different SDRs can differ by a
+// fraction of a second in decode length.
+func audioDurationsSimilarForReceivedAtDup(a, b float64) bool {
+	if a <= 0 || b <= 0 {
+		return false
+	}
+	diff := a - b
+	if diff < 0 {
+		diff = -diff
+	}
+	// Absolute tolerance: within 0.4 s
+	if diff <= 0.4 {
+		return true
+	}
+	// Relative tolerance: within 15% of the longer duration
+	longer := a
+	if b > a {
+		longer = b
+	}
+	return diff/longer <= 0.15
+}
+
+// CheckDuplicateByReceivedAt looks for a prior call on the same system+talkgroup
+// whose server-arrival time (receivedAt) is within receivedAtDuplicateWindow of
+// this call's arrival time AND whose audio duration is similar. This catches
+// multi-recorder near-duplicates where the audio bytes differ (different noise
+// floor or encoding) but the same transmission was received by the server within
+// ~1 second from two different uploaders.
+//
+// Forwarded calls are excluded from this check — a call that arrived via
+// downstream forwarding will always have a different receivedAt than the original,
+// and we must not flag it as a duplicate of itself.
+func (calls *Calls) CheckDuplicateByReceivedAt(call *Call, db *Database) (bool, error) {
+	if call.System == nil || call.Talkgroup == nil {
+		return false, nil
+	}
+
+	// We need the duration to guard against false positives.
+	if _, err := calls.controller.getCallDuration(call); err != nil || call.Duration <= 0 {
+		return false, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	windowStart := time.Now().Add(-receivedAtDuplicateWindow)
+
+	// Look for the most recent call on this system+talkgroup that arrived within
+	// the window. The duration guard prevents false positives from genuinely
+	// different calls that happen to land in the same second.
+	query := fmt.Sprintf(
+		`SELECT "audioDuration" FROM "calls" WHERE "systemId" = %d AND "talkgroupId" = %d AND "receivedAt" >= $1 ORDER BY "receivedAt" DESC LIMIT 1`,
+		call.System.Id, call.Talkgroup.Id,
+	)
+
+	var priorDur sql.NullFloat64
+	_ = db.Sql.QueryRowContext(ctx, query, windowStart).Scan(&priorDur)
+
+	if !priorDur.Valid {
+		return false, nil
+	}
+
+	if !audioDurationsSimilarForReceivedAtDup(call.Duration, priorDur.Float64) {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (calls *Calls) GetCall(id uint64) (*Call, error) {

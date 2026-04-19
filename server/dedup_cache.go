@@ -61,57 +61,24 @@ func NewDedupCache(timeframeMs uint) *DedupCache {
 }
 
 
-// CheckAndMarkHash checks a PCM content hash against the cache. Returns true if
-// an identical hash was already seen for this system+talkgroup (exact duplicate).
-// No time window is applied — a hash match is definitive regardless of timestamp.
-func (dc *DedupCache) CheckAndMarkHash(systemId, talkgroupId uint64, hash string) bool {
-	if hash == "" {
-		return false
-	}
-	key := fmt.Sprintf("ah:%d:%d:%s", systemId, talkgroupId, hash)
+// CheckAndMarkReceivedAt checks whether a call for the given system+talkgroup
+// was already seen within receivedAtDuplicateWindow (1 second) of now.
+// Returns true (duplicate) if so. Always records the current arrival time so
+// back-to-back simultaneous uploads are caught before either hits the database.
+func (dc *DedupCache) CheckAndMarkReceivedAt(systemId, talkgroupId uint64) bool {
+	key := fmt.Sprintf("ra:%d:%d", systemId, talkgroupId)
+	now := time.Now()
 	dc.mutex.Lock()
 	defer dc.mutex.Unlock()
 
-	if _, ok := dc.entries[key]; ok {
-		return true
-	}
-	dc.entries[key] = &DedupEntry{SeenAt: time.Now()}
-	return false
-}
-
-// CheckAndMarkTimestamp is the last-resort duplicate check for simultaneous
-// arrivals. It records the P25 call timestamp and duration for the given
-// system+talkgroup and returns true if a previously seen call had a timestamp
-// within ±windowMs AND a duration within the timestampDurationRatioMin ratio.
-// The duration guard prevents false positives when two genuinely different
-// calls land at the same wall-clock second (e.g. SDR Trunk uploaders).
-func (dc *DedupCache) CheckAndMarkTimestamp(systemId, talkgroupId uint64, timestampMs int64, duration float64, windowMs int64) bool {
-	key := fmt.Sprintf("ts:%d:%d", systemId, talkgroupId)
-	dc.mutex.Lock()
-	defer dc.mutex.Unlock()
-
-	if entry, ok := dc.entries[key]; ok && entry.CallTimestamp != 0 {
-		diff := timestampMs - entry.CallTimestamp
-		if diff < 0 {
-			diff = -diff
-		}
-		if diff <= windowMs {
-			// Apply duration ratio guard — skip if durations are known but diverge too much.
-			if duration > 0 && entry.Duration > 0 {
-				lo, hi := duration, entry.Duration
-				if hi < lo {
-					lo, hi = hi, lo
-				}
-				if lo/hi < timestampDurationRatioMin {
-					// Different call lengths at the same timestamp — not a duplicate.
-					dc.entries[key] = &DedupEntry{CallTimestamp: timestampMs, Duration: duration, SeenAt: time.Now()}
-					return false
-				}
-			}
+	if entry, ok := dc.entries[key]; ok {
+		if now.Sub(entry.SeenAt) <= receivedAtDuplicateWindow {
+			// Update SeenAt so we keep blocking additional arrivals within the window.
+			entry.SeenAt = now
 			return true
 		}
 	}
-	dc.entries[key] = &DedupEntry{CallTimestamp: timestampMs, Duration: duration, SeenAt: time.Now()}
+	dc.entries[key] = &DedupEntry{SeenAt: now}
 	return false
 }
 

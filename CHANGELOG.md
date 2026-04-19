@@ -1,5 +1,24 @@
 # Change log
 
+## Version 26.04.037 - Released Apr 15, 2026
+
+### Changed
+
+- **Server — Arrival-time-only duplicate detection**
+  - Duplicate detection now uses server arrival time (`receivedAt`) exclusively — PCM content hash and P25 radio timestamp checks have been removed
+  - Two-pass approach: in-memory cache check first (catches simultaneous uploads before either is written to the database), then database check (catches near-simultaneous uploads within 1 second)
+  - Duplicate calls are dropped immediately — no database write, no downstream delivery, no transcription, no tone detection
+
+- **Server — Downstream forwarding loop prevention**
+  - Calls forwarded to a downstream TLR server are tagged with a `tlrForwarded=1` form field in the multipart upload
+  - Receiving servers honour this tag: the call is saved and emitted to local clients but is never re-forwarded, preventing circular call loops between two servers that downstream to each other
+  - The forwarded tag travels in the call's form data (not an HTTP header) so it survives proxy forwarding
+
+- **Server — Background purge of legacy duplicate rows on startup**
+  - Any `isDuplicate = true` rows left in the database from before duplicates were dropped at ingest are deleted in small batches (100 rows, 250 ms pause) by a background goroutine at startup
+
+---
+
 ## Version 26.04.036 - Released Apr 17, 2026
 
 ### Changed

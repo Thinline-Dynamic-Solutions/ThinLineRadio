@@ -516,6 +516,13 @@ func ParseMultipartContent(call *Call, p *multipart.Part, b []byte) {
 	case "test":
 		// SDRTrunk test field - no action needed, just acknowledge it was received
 
+	case "tlrForwarded":
+		// Set by TLR when forwarding a call to a downstream server.
+		// Prevents the receiving server from re-forwarding the call and creating loops.
+		if string(b) == "1" {
+			call.IsForwarded = true
+		}
+
 	case "transmission_id":
 		// RDIO upstream transmission ID - set when transcription was already processed externally.
 		// Empty when transcription is disabled or audio is outside the 2s-250s processing window.

@@ -246,6 +246,16 @@ func (downstream *Downstream) Send(call *Call) error {
 		return formatError(err)
 	}
 
+	// Tag the call as forwarded so the receiving TLR server does not re-forward it,
+	// preventing circular downstream loops between servers.
+	if w, err := mw.CreateFormField("tlrForwarded"); err == nil {
+		if _, err = w.Write([]byte("1")); err != nil {
+			return formatError(err)
+		}
+	} else {
+		return formatError(err)
+	}
+
 	// Only send patches if there are any (matching v6 behavior)
 	if len(call.Patches) > 0 {
 		if w, err := mw.CreateFormField("patches"); err == nil {

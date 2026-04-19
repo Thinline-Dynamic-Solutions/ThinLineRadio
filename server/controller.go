@@ -247,6 +247,13 @@ func NewController(config *Config) *Controller {
 }
 
 func (controller *Controller) EmitCall(call *Call) {
+	// Forwarded calls (received from another TLR server via downstream) are never
+	// re-forwarded — only emitted to local clients — to prevent circular loops.
+	if call.IsForwarded {
+		go controller.Clients.EmitCall(controller, call)
+		return
+	}
+
 	// If call is already marked as delayed (system-wide delay),
 	// it's already been processed - just emit it
 	if call.Delayed {
@@ -727,55 +734,28 @@ func (controller *Controller) IngestCall(call *Call) {
 	}
 
 	if !controller.Options.DisableDuplicateDetection {
-		// ── Pass 0: PCM content hash (exact duplicate, any time window) ──────
-		// Compute a SHA-256 hash of the decoded PCM samples. This is codec and
-		// container agnostic. If the hash matches an existing call the audio is
-		// bit-identical and no further fingerprinting is needed.
-		if audioHash, err := ComputeAudioHash(call.Audio, call.AudioMime); err == nil && audioHash != "" {
-			call.AudioHash = audioHash
-			if controller.DedupCache != nil && controller.DedupCache.CheckAndMarkHash(
-				call.System.Id, call.Talkgroup.Id, audioHash,
-			) {
-				logCall(call, LogLevelWarn, "duplicate (hash cache); storing flagged")
-				call.IsDuplicate = true
-			}
-			if !call.IsDuplicate {
-				isDuplicate, err := controller.Calls.CheckDuplicateByHash(call, controller.Database)
-				if err != nil {
-					logError(err)
-				} else if isDuplicate {
-					logCall(call, LogLevelWarn, "duplicate (hash); storing flagged")
-					call.IsDuplicate = true
-				}
-			}
-		}
+		// ── Arrival-time duplicate detection ─────────────────────────────────
+		// Two passes using server receivedAt only — no P25 timestamp, no hash.
+		// Catches multi-recorder uploads of the same transmission that arrive
+		// at the server within 1 second of each other.
 
-		callDuration, _ := controller.getCallDuration(call)
-
-		// Resolve the timestamp window: use the admin-configured value if set,
-		// otherwise fall back to the compile-time default (800 ms).
-		tsWindowMs := defaultTimestampFallbackWindow.Milliseconds()
-		if controller.Options.DuplicateTimestampWindow > 0 {
-			tsWindowMs = int64(controller.Options.DuplicateTimestampWindow)
-		}
-
-		if !call.IsDuplicate {
-			if controller.DedupCache != nil && controller.DedupCache.CheckAndMarkTimestamp(
-				call.System.Id, call.Talkgroup.Id, call.Timestamp.UnixMilli(), callDuration, tsWindowMs,
-			) {
-				logCall(call, LogLevelWarn, "duplicate (timestamp cache); storing flagged")
+		// Pass 1: in-memory cache — catches simultaneous arrivals before either
+		// has been written to the database (closes the race window).
+		if !call.IsDuplicate && controller.DedupCache != nil {
+			if controller.DedupCache.CheckAndMarkReceivedAt(call.System.Id, call.Talkgroup.Id) {
+				logCall(call, LogLevelWarn, "duplicate (receivedAt cache)")
 				call.IsDuplicate = true
 			}
 		}
 
+		// Pass 2: database — catches near-simultaneous arrivals where the first
+		// call was already committed before the second arrived.
 		if !call.IsDuplicate {
-			isDuplicateTS, tsErr := controller.Calls.CheckDuplicateByTimestamp(call, controller.Database, tsWindowMs)
-			if tsErr != nil {
-				logError(tsErr)
-				return
-			}
-			if isDuplicateTS {
-				logCall(call, LogLevelWarn, "duplicate (timestamp fallback); storing flagged")
+			isDupRA, raErr := controller.Calls.CheckDuplicateByReceivedAt(call, controller.Database)
+			if raErr != nil {
+				logError(raErr)
+			} else if isDupRA {
+				logCall(call, LogLevelWarn, "duplicate (receivedAt db)")
 				call.IsDuplicate = true
 			}
 		}
