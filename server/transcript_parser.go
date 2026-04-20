@@ -845,8 +845,29 @@ func (p *TranscriptParser) AnnotateTranscript(transcript string) (string, []Tran
 	}
 
 	sort.Slice(annotations, func(i, j int) bool {
-		return annotations[i].Start < annotations[j].Start
+		if annotations[i].Start != annotations[j].Start {
+			return annotations[i].Start < annotations[j].Start
+		}
+		return annotations[i].End > annotations[j].End
 	})
+
+	// Remove overlapping annotations. When two annotations overlap, prefer
+	// the longer (more specific) match. Ties are broken by: prefixed > bare,
+	// exact > fuzzy.
+	filtered := annotations[:0]
+	for i := range annotations {
+		overlaps := false
+		for j := range filtered {
+			if annotations[i].Start < filtered[j].End && annotations[i].End > filtered[j].Start {
+				overlaps = true
+				break
+			}
+		}
+		if !overlaps {
+			filtered = append(filtered, annotations[i])
+		}
+	}
+	annotations = filtered
 
 	// Substitute canonical forms into the corrected transcript string so that
 	// the returned text reflects what was recognized (e.g. alias "DECK, FIRE 3"

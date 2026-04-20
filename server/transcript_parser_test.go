@@ -1083,6 +1083,26 @@ func TestAnnotateTranscriptSortedByStart(t *testing.T) {
 	}
 }
 
+func TestAnnotateTranscriptNoOverlaps(t *testing.T) {
+	// "MEDIC ENGINE 107" should produce one annotation, not two overlapping ones.
+	_, annotations := testParser.AnnotateTranscript("MEDIC ENGINE 107 RESPOND TO SCENE")
+	if len(annotations) != 1 {
+		t.Fatalf("expected 1 annotation, got %d: %+v", len(annotations), annotations)
+	}
+	if annotations[0].Prefix != "MEDIC" || annotations[0].Apparatus != "ENGINE" || annotations[0].Number != "107" {
+		t.Errorf("unexpected annotation: %+v", annotations[0])
+	}
+	// Verify no pair of annotations overlap in any result.
+	_, annAll := testParser.AnnotateTranscript("MEDIC ENGINE 107 AND AMBULANCE 5 ON CITY FIRE 3")
+	for i := 0; i < len(annAll); i++ {
+		for j := i + 1; j < len(annAll); j++ {
+			if annAll[i].Start < annAll[j].End && annAll[j].Start < annAll[i].End {
+				t.Errorf("overlapping annotations [%d]=%+v and [%d]=%+v", i, annAll[i], j, annAll[j])
+			}
+		}
+	}
+}
+
 func TestAnnotateTranscriptNoMatches(t *testing.T) {
 	// A transcript with no recognizable units or channels returns nil annotations
 	corrected, annotations := testParser.AnnotateTranscript("RESPOND TO THE SCENE IMMEDIATELY")
