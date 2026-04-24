@@ -441,6 +441,15 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         // Convert tone sets from flat form structure to nested structure
         if (formValue?.systems) {
             formValue.systems = formValue.systems.map((system: any) => {
+                // Units are managed as raw objects (not FormGroups) — always restore
+                // from originalConfig which is mutated in-place by the system component
+                if (system.id) {
+                    const originalSystem = this.originalConfig.systems?.find(s => s.id === system.id);
+                    if (originalSystem) {
+                        system.units = originalSystem.units || [];
+                    }
+                }
+
                 // Restore talkgroups from original config if they weren't loaded
                 if (system.id && !this.systemsWithLoadedTalkgroups.has(system.id)) {
                     const originalSystem = this.originalConfig.systems?.find(s => s.id === system.id);

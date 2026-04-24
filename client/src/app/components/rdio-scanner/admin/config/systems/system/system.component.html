@@ -524,24 +524,55 @@
         <div class="sub-section-title">
             <mat-icon>person_pin</mat-icon>
             <h4>Units</h4>
-            <span class="count-chip">{{ units.length }}</span>
-            <mat-icon *ngIf="form.get('units')?.invalid" color="warn" class="section-error">error</mat-icon>
+            <span class="count-chip">{{ rawUnits.length }}</span>
         </div>
         <button type="button" mat-raised-button color="primary" (click)="addUnit()">
             <mat-icon>add</mat-icon> Add Unit
         </button>
     </div>
 
-    <div *ngIf="units.length === 0" class="sub-empty">
+    <div *ngIf="rawUnits.length === 0" class="sub-empty">
         <mat-icon>person_pin</mat-icon>
         <p>No units defined. Units map unit IDs to friendly labels on the main screen.</p>
     </div>
 
-    <div class="table-wrapper" *ngIf="units.length > 0">
-        <mat-table [dataSource]="filteredUnits"
+    <!-- Search -->
+    <div class="table-search-bar" *ngIf="rawUnits.length > 0">
+        <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Search units</mat-label>
+            <input matInput [value]="unitsSearchTerm"
+                   (input)="onUnitsSearchChange($any($event.target).value)"
+                   placeholder="Unit ID or label" autocomplete="off">
+            <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+        <span *ngIf="unitsSearchTerm" class="mat-caption search-count">
+            {{ filteredUnits.length }} of {{ rawUnits.length }}
+        </span>
+    </div>
+
+    <div class="table-wrapper" *ngIf="rawUnits.length > 0">
+
+        <!-- Pagination Controls (Top) -->
+        <div class="pagination-controls" *ngIf="unitTotalPages > 1">
+            <button type="button" mat-icon-button
+                    [disabled]="unitCurrentPage === 0"
+                    (click)="prevUnitPage()"
+                    matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+            </button>
+            <span class="page-info">{{ unitPageInfo }}</span>
+            <button type="button" mat-icon-button
+                    [disabled]="unitCurrentPage >= unitTotalPages - 1"
+                    (click)="nextUnitPage()"
+                    matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+            </button>
+        </div>
+
+        <mat-table [dataSource]="paginatedUnits"
                    multiTemplateDataRows
                    cdkDropList
-                   [cdkDropListData]="filteredUnits"
+                   [cdkDropListData]="paginatedUnits"
                    (cdkDropListDropped)="dropUnit($event)"
                    class="data-table">
 
@@ -557,7 +588,7 @@
             <ng-container matColumnDef="unitRef">
                 <th mat-header-cell *matHeaderCellDef>Unit ID</th>
                 <td mat-cell *matCellDef="let unit">
-                    <code class="id-code">{{ unit.value.unitRef || '—' }}</code>
+                    <code class="id-code">{{ unit.unitRef || '—' }}</code>
                 </td>
             </ng-container>
 
@@ -565,8 +596,7 @@
             <ng-container matColumnDef="label">
                 <th mat-header-cell *matHeaderCellDef>Label</th>
                 <td mat-cell *matCellDef="let unit">
-                    <span class="tg-label">{{ unit.value.label?.trim() || '—' }}</span>
-                    <mat-icon *ngIf="unit.invalid" color="warn" class="row-error">error</mat-icon>
+                    <span class="tg-label">{{ unit.label?.trim() || '—' }}</span>
                 </td>
             </ng-container>
 
@@ -574,10 +604,10 @@
             <ng-container matColumnDef="range">
                 <th mat-header-cell *matHeaderCellDef>Range</th>
                 <td mat-cell *matCellDef="let unit">
-                    <span *ngIf="unit.value.unitFrom && unit.value.unitTo" class="range-value">
-                        {{ unit.value.unitFrom }} – {{ unit.value.unitTo }}
+                    <span *ngIf="unit.unitFrom && unit.unitTo" class="range-value">
+                        {{ unit.unitFrom }} – {{ unit.unitTo }}
                     </span>
-                    <span class="no-value" *ngIf="!unit.value.unitFrom || !unit.value.unitTo">—</span>
+                    <span class="no-value" *ngIf="!unit.unitFrom || !unit.unitTo">—</span>
                 </td>
             </ng-container>
 
@@ -585,10 +615,10 @@
             <ng-container matColumnDef="actions">
                 <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
                 <td mat-cell *matCellDef="let unit" class="actions-col">
-                    <button mat-icon-button [class.active-edit]="expandedUnit === unit"
+                    <button mat-icon-button [class.active-edit]="expandedRawUnit === unit"
                             (click)="toggleUnitExpand(unit); $event.stopPropagation()"
                             matTooltip="Edit">
-                        <mat-icon>{{ expandedUnit === unit ? 'expand_less' : 'edit' }}</mat-icon>
+                        <mat-icon>{{ expandedRawUnit === unit ? 'expand_less' : 'edit' }}</mat-icon>
                     </button>
                     <button mat-icon-button color="warn"
                             (click)="removeUnit(unit); $event.stopPropagation()"
@@ -601,9 +631,9 @@
             <!-- Expanded Detail Column -->
             <ng-container matColumnDef="expandedDetail">
                 <td mat-cell *matCellDef="let unit" [attr.colspan]="unitDisplayedColumns.length" class="detail-cell">
-                    <div *ngIf="expandedUnit === unit" class="expanded-form-wrapper">
+                    <div *ngIf="expandedRawUnit === unit && expandedUnitForm" class="expanded-form-wrapper">
                         <rdio-scanner-admin-unit
-                            [form]="unit"
+                            [form]="expandedUnitForm"
                             (remove)="removeUnit(unit)">
                         </rdio-scanner-admin-unit>
                     </div>
@@ -613,15 +643,33 @@
             <tr mat-header-row *matHeaderRowDef="unitDisplayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: unitDisplayedColumns;"
                 class="data-row"
-                [class.row-expanded]="expandedUnit === row"
+                [class.row-expanded]="expandedRawUnit === row"
                 cdkDrag [cdkDragData]="row"
                 (click)="toggleUnitExpand(row)">
             </tr>
             <tr mat-row *matRowDef="let row; columns: ['expandedDetail'];" class="detail-row"
-                [class.row-hidden]="expandedUnit !== row">
+                [class.row-hidden]="expandedRawUnit !== row">
             </tr>
 
         </mat-table>
+
+        <!-- Pagination Controls (Bottom) -->
+        <div class="pagination-controls bottom" *ngIf="unitTotalPages > 1">
+            <button type="button" mat-icon-button
+                    [disabled]="unitCurrentPage === 0"
+                    (click)="prevUnitPage()"
+                    matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+            </button>
+            <span class="page-info">Page {{ unitCurrentPage + 1 }} of {{ unitTotalPages }}</span>
+            <button type="button" mat-icon-button
+                    [disabled]="unitCurrentPage >= unitTotalPages - 1"
+                    (click)="nextUnitPage()"
+                    matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+            </button>
+        </div>
+
     </div>
 </div>
 
