@@ -1128,7 +1128,7 @@ export class RdioScannerAdminService implements OnDestroy {
             downstreams: this.ngFormBuilder.array(config?.downstreams?.map((downstream) => this.newDownstreamForm(downstream)) || []),
             groups: this.ngFormBuilder.array(config?.groups?.map((group) => this.newGroupForm(group)) || []),
             options: this.newOptionsForm(config?.options),
-            systems: this.ngFormBuilder.array(config?.systems?.map((system) => this.newSystemForm(system, true)) || []),
+            systems: this.ngFormBuilder.array(config?.systems?.map((system) => this.newSystemForm(system, true, true)) || []),
             tags: this.ngFormBuilder.array(config?.tags?.map((tag) => this.newTagForm(tag)) || []),
             users: this.ngFormBuilder.array(config?.users?.map((user) => this.newUserForm(user)) || []),
             userGroups: this.ngFormBuilder.array(config?.userGroups?.map((userGroup) => this.newUserGroupForm(userGroup)) || []),
@@ -1398,7 +1398,7 @@ export class RdioScannerAdminService implements OnDestroy {
         });
     }
 
-    newSystemForm(system?: System, skipTalkgroups = false): FormGroup {
+    newSystemForm(system?: System, skipTalkgroups = false, skipUnits = false): FormGroup {
         return this.ngFormBuilder.group({
             id: this.ngFormBuilder.control(system?.id),
             alert: this.ngFormBuilder.control(system?.alert),
@@ -1412,7 +1412,7 @@ export class RdioScannerAdminService implements OnDestroy {
             systemRef: this.ngFormBuilder.control(system?.systemRef, [Validators.required, Validators.min(1), this.validateSystemRef()]),
             talkgroups: skipTalkgroups ? this.ngFormBuilder.array([]) : this.ngFormBuilder.array(system?.talkgroups?.map((talkgroup) => this.newTalkgroupForm(talkgroup)) || []),
             type: this.ngFormBuilder.control(system?.type || ''),
-            units: this.ngFormBuilder.array(system?.units?.map((unit) => this.newUnitForm(unit)) || []),
+            units: skipUnits ? this.ngFormBuilder.array([]) : this.ngFormBuilder.array(system?.units?.map((unit) => this.newUnitForm(unit)) || []),
             noAudioAlertsEnabled: this.ngFormBuilder.control(system?.noAudioAlertsEnabled !== false),
             noAudioThresholdMinutes: this.ngFormBuilder.control(system?.noAudioThresholdMinutes || 30),
             alertsEnabled: this.ngFormBuilder.control(system?.alertsEnabled !== false),

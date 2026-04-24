@@ -41,8 +41,12 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
 
     // ─── Expanded row state ────────────────────────────────────────────────────
     expandedTalkgroup: FormGroup | null = null;
-    expandedSite: FormGroup | null = null;
-    expandedUnit: FormGroup | null = null;
+    expandedSite:      FormGroup | null = null;
+
+    // Units use raw-object display — FormGroup created on demand for editing only
+    rawUnits:         any[]          = [];
+    expandedRawUnit:  any | null     = null;
+    expandedUnitForm: FormGroup|null = null;
 
     // ─── Column definitions ────────────────────────────────────────────────────
     talkgroupDisplayedColumns = ['select', 'drag', 'talkgroupRef', 'label', 'name', 'groups', 'tag', 'alertsEnabled', 'actions'];
@@ -50,9 +54,11 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
     unitDisplayedColumns      = ['drag', 'unitRef', 'label', 'range', 'actions'];
 
     // ─── Pagination & Performance ──────────────────────────────────────────────
-    talkgroupPageSize = 50; // Show 50 talkgroups per page
+    talkgroupPageSize = 50;
     talkgroupCurrentPage = 0;
-    talkgroupsLoaded = false; // Defer loading until talkgroups section is viewed
+    talkgroupsLoaded = false;
+    unitPageSize = 50;
+    unitCurrentPage = 0;
 
     // ─── Bulk selection ────────────────────────────────────────────────────────
     selectedTalkgroupIndices: Set<number> = new Set();
@@ -67,10 +73,8 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
     // ─── Cached sorted arrays ──────────────────────────────────────────────────
     private _cachedSites:      FormGroup[] = [];
     private _cachedTalkgroups: FormGroup[] = [];
-    private _cachedUnits:      FormGroup[] = [];
     private _lastSitesVersion:      number = 0;
     private _lastTalkgroupsVersion: number = 0;
-    private _lastUnitsVersion:      number = 0;
 
     constructor(
         private adminService: RdioScannerAdminService,
@@ -78,42 +82,43 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
     ) { }
 
     ngOnChanges(changes: SimpleChanges) {
-        // Reset talkgroupsLoaded flag when switching to a different system
+        if (changes['systemData']) {
+            this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
+            this.unitCurrentPage = 0;
+            this.unitsSearchTerm = '';
+            this.expandedRawUnit = null;
+            this.expandedUnitForm = null;
+        }
+
         if (changes['form'] && !changes['form'].firstChange) {
             const tgArray = this.form.get('talkgroups') as FormArray | null;
             this.talkgroupsLoaded = tgArray ? tgArray.length > 0 : false;
             this.talkgroupCurrentPage = 0;
             this.selectedTalkgroupIndices.clear();
             this.talkgroupsSearchTerm = '';
-            
-            // Auto-load talkgroups for the new system
+
             if (!this.talkgroupsLoaded) {
-                setTimeout(() => {
-                    this.loadTalkgroupsProgressively();
-                }, 100);
+                setTimeout(() => { this.loadTalkgroupsProgressively(); }, 100);
             }
         }
     }
 
     ngOnInit() {
-        // Check if talkgroups are already loaded (has items in FormArray)
+        // Initialize raw units instantly from systemData — no FormGroups needed for display
+        this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
+
+        // Talkgroups still use progressive FormArray loading
         const tgArray = this.form.get('talkgroups') as FormArray | null;
         if (tgArray && tgArray.length > 0) {
             this.talkgroupsLoaded = true;
         } else {
-            // Auto-load talkgroups progressively after a short delay
-            setTimeout(() => {
-                this.loadTalkgroupsProgressively();
-            }, 100);
+            setTimeout(() => { this.loadTalkgroupsProgressively(); }, 100);
         }
-        
-        // Disable validators for all talkgroups except first page to improve performance
+
         if (tgArray && tgArray.length > this.talkgroupPageSize) {
             for (let i = this.talkgroupPageSize; i < tgArray.length; i++) {
                 const control = tgArray.at(i);
-                if (control) {
-                    control.disable({ emitEvent: false });
-                }
+                if (control) control.disable({ emitEvent: false });
             }
         }
     }
@@ -210,20 +215,6 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
         return arr ? arr.length : 0;
     }
 
-    get units(): FormGroup[] {
-        const arr = this.form.get('units') as FormArray | null;
-        if (!arr) return [];
-        const v = arr.length;
-        if (this._lastUnitsVersion !== v || this._cachedUnits.length !== arr.length) {
-            this._cachedUnits = (arr.controls as FormGroup[]).slice().sort((a, b) => {
-                const d = (a.value.order || 0) - (b.value.order || 0);
-                return d !== 0 ? d : (a.value.id || 0) - (b.value.id || 0);
-            });
-            this._lastUnitsVersion = v;
-        }
-        return this._cachedUnits;
-    }
-
     // ─── Filtered / paginated ──────────────────────────────────────────────────
 
     get filteredTalkgroups(): FormGroup[] {
@@ -298,13 +289,64 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
         return this.sites.filter(site => (site.value.label || '').toLowerCase().includes(s));
     }
 
-    get filteredUnits(): FormGroup[] {
-        if (!this.unitsSearchTerm.trim()) return this.units;
-        const s = this.unitsSearchTerm.toLowerCase();
-        return this.units.filter(u =>
-            (u.value.label || '').toLowerCase().includes(s) ||
-            String(u.value.unitRef).includes(s)
-        );
+    // Units operate on rawUnits (plain objects) — no FormGroups created until edit
+    get filteredUnits(): any[] {
+        const filtered = this.unitsSearchTerm.trim()
+            ? this.rawUnits.filter(u => {
+                const s = this.unitsSearchTerm.toLowerCase();
+                return (u.label || '').toLowerCase().includes(s) ||
+                       String(u.unitRef).includes(s);
+              })
+            : this.rawUnits.slice().sort((a, b) => {
+                const d = (a.order || 0) - (b.order || 0);
+                return d !== 0 ? d : (a.id || 0) - (b.id || 0);
+              });
+
+        const totalPages = Math.ceil(filtered.length / this.unitPageSize);
+        if (this.unitCurrentPage >= totalPages && totalPages > 0) {
+            this.unitCurrentPage = 0;
+        }
+        return filtered;
+    }
+
+    get paginatedUnits(): any[] {
+        const start = this.unitCurrentPage * this.unitPageSize;
+        return this.filteredUnits.slice(start, start + this.unitPageSize);
+    }
+
+    get unitTotalPages(): number {
+        return Math.ceil(this.filteredUnits.length / this.unitPageSize);
+    }
+
+    get unitPageInfo(): string {
+        const total = this.filteredUnits.length;
+        if (total === 0) return 'No units';
+        const start = this.unitCurrentPage * this.unitPageSize + 1;
+        const end = Math.min((this.unitCurrentPage + 1) * this.unitPageSize, total);
+        return `${start}–${end} of ${total}`;
+    }
+
+    nextUnitPage(): void {
+        if (this.unitCurrentPage < this.unitTotalPages - 1) {
+            this.unitCurrentPage++;
+            this.expandedRawUnit = null;
+            this.expandedUnitForm = null;
+        }
+    }
+
+    prevUnitPage(): void {
+        if (this.unitCurrentPage > 0) {
+            this.unitCurrentPage--;
+            this.expandedRawUnit = null;
+            this.expandedUnitForm = null;
+        }
+    }
+
+    onUnitsSearchChange(term: string): void {
+        this.unitsSearchTerm = term;
+        this.unitCurrentPage = 0;
+        this.expandedRawUnit = null;
+        this.expandedUnitForm = null;
     }
 
     // ─── Expand / collapse rows ────────────────────────────────────────────────
@@ -317,8 +359,27 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
         this.expandedSite = this.expandedSite === site ? null : site;
     }
 
-    toggleUnitExpand(unit: FormGroup): void {
-        this.expandedUnit = this.expandedUnit === unit ? null : unit;
+    toggleUnitExpand(unit: any): void {
+        if (this.expandedRawUnit === unit) {
+            this._commitUnitEdit();
+            this.expandedRawUnit = null;
+            this.expandedUnitForm = null;
+        } else {
+            this._commitUnitEdit();
+            this.expandedRawUnit = unit;
+            this.expandedUnitForm = this.adminService.newUnitForm(unit);
+        }
+        this.cdr.markForCheck();
+    }
+
+    private _commitUnitEdit(): void {
+        if (!this.expandedRawUnit || !this.expandedUnitForm) return;
+        const idx = this.rawUnits.indexOf(this.expandedRawUnit);
+        if (idx !== -1) {
+            Object.assign(this.rawUnits[idx], this.expandedUnitForm.getRawValue());
+            if (this.systemData) this.systemData.units = this.rawUnits;
+            this.form.markAsDirty();
+        }
     }
 
     // ─── Helper: look up labels ────────────────────────────────────────────────
@@ -435,10 +496,14 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
     }
 
     addUnit(): void {
-        const arr = this.form.get('units') as FormArray | null;
-        arr?.insert(0, this.adminService.newUnitForm());
+        this._commitUnitEdit();
+        const newUnit = { id: null, label: '', order: 0, unitRef: null, unitFrom: null, unitTo: null };
+        this.rawUnits = [newUnit, ...this.rawUnits];
+        if (this.systemData) this.systemData.units = this.rawUnits;
+        this.expandedRawUnit = newUnit;
+        this.expandedUnitForm = this.adminService.newUnitForm();
         this.form.markAsDirty();
-        this._lastUnitsVersion++;
+        this.cdr.markForCheck();
     }
 
     /** Remove a talkgroup by FormGroup reference — immune to filtered-index drift. */
@@ -467,14 +532,15 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
         this._lastSitesVersion++;
     }
 
-    removeUnit(unit: FormGroup): void {
-        if (this.expandedUnit === unit) this.expandedUnit = null;
-        const arr = this.form.get('units') as FormArray | null;
-        if (!arr) return;
-        const arrIdx = (arr.controls as FormGroup[]).indexOf(unit);
-        if (arrIdx !== -1) arr.removeAt(arrIdx);
-        arr.markAsDirty();
-        this._lastUnitsVersion++;
+    removeUnit(unit: any): void {
+        if (this.expandedRawUnit === unit) {
+            this.expandedRawUnit = null;
+            this.expandedUnitForm = null;
+        }
+        this.rawUnits = this.rawUnits.filter(u => u !== unit);
+        if (this.systemData) this.systemData.units = this.rawUnits;
+        this.form.markAsDirty();
+        this.cdr.markForCheck();
     }
 
     blacklistTalkgroup(tg: FormGroup): void {
@@ -510,12 +576,15 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
         this._lastSitesVersion++;
     }
 
-    dropUnit(event: CdkDragDrop<FormGroup[]>): void {
+    dropUnit(event: CdkDragDrop<any[]>): void {
         if (event.previousIndex === event.currentIndex) return;
-        moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
-        event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
+        const page = event.container.data;
+        moveItemInArray(page, event.previousIndex, event.currentIndex);
+        const offset = this.unitCurrentPage * this.unitPageSize;
+        page.forEach((u, idx) => { u.order = offset + idx + 1; });
+        if (this.systemData) this.systemData.units = this.rawUnits;
         this.form.markAsDirty();
-        this._lastUnitsVersion++;
+        this.cdr.markForCheck();
     }
 
     // ─── Sort ──────────────────────────────────────────────────────────────────
@@ -561,5 +630,4 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges {
 
     onTalkgroupsSearchChange(s: string): void { this.talkgroupsSearchTerm = s; }
     onSitesSearchChange(s: string): void { this.sitesSearchTerm = s; }
-    onUnitsSearchChange(s: string): void { this.unitsSearchTerm = s; }
 }
