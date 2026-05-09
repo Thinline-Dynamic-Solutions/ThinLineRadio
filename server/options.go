@@ -930,6 +930,15 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		if v, ok := tc["assemblyAISpeechModel"].(string); ok {
 			options.TranscriptionConfig.AssemblyAISpeechModel = v
 		}
+		if v, ok := tc["cloudflareAccountID"].(string); ok {
+			options.TranscriptionConfig.CloudflareAccountID = v
+		}
+		if v, ok := tc["cloudflareAPIToken"].(string); ok {
+			options.TranscriptionConfig.CloudflareAPIToken = v
+		}
+		if v, ok := tc["cloudflareModel"].(string); ok {
+			options.TranscriptionConfig.CloudflareModel = v
+		}
 		if v, ok := tc["assemblyAIWordBoost"].([]interface{}); ok {
 			wordBoost := make([]string, 0, len(v))
 			for _, wb := range v {
