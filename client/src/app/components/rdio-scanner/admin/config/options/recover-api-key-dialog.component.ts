@@ -28,6 +28,10 @@ import { MatSnackBar } from '@angular/material/snack-bar';
   template: `
     <h2 mat-dialog-title>Recover API Key</h2>
     <mat-dialog-content>
+      <p style="font-size: 13px; color: #666; line-height: 1.45; margin: 0 0 16px 0;">
+        This dialog uses your browser’s cryptography APIs. Load admin over HTTPS, or over http://localhost / http://127.0.0.1,
+        with the server listening on 0.0.0.0 if you need loopback access. Plain http:// with a LAN IP or hostname often cannot complete this step.
+      </p>
       <div *ngIf="!codeSent && !apiKeyRecovered">
         <p style="margin-bottom: 20px; color: #666;">
           Enter your server URL and email address. A verification code will be sent to your email.

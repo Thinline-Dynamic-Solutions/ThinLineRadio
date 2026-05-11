@@ -126,7 +126,7 @@
             </div>
             <mat-paginator class="archive-paginator" [disabled]="livefeedPlayback || resultsPending" [length]="paginatorCount"
                 [hidePageSize]="true" [pageSize]="results.value.length" [showFirstLastButtons]="true"
-                (page)="refreshResults()">
+                (page)="onPageChange()">
             </mat-paginator>
         </div>
 

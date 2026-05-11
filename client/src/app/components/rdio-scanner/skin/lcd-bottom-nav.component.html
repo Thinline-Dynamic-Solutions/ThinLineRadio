@@ -1,0 +1,12 @@
+<nav class="lcd-nav" role="tablist">
+    <button *ngFor="let item of items; let i = index; trackBy: trackByIndex"
+            type="button"
+            role="tab"
+            class="lcd-nav-item"
+            [class.active]="i === selectedIndex"
+            [attr.aria-selected]="i === selectedIndex"
+            (click)="onSelect(i)">
+        <mat-icon class="lcd-nav-icon">{{ item.icon }}</mat-icon>
+        <span class="lcd-nav-label">{{ item.label }}</span>
+    </button>
+</nav>

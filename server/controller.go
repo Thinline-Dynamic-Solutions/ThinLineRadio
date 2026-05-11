@@ -88,6 +88,10 @@ type Controller struct {
 		totalCalls     int64
 		avgProcessTime time.Duration
 	}
+	// RecentCalls is a per-second ring buffer used to publish a "calls/min"
+	// stat on the central management heartbeat. Independent of workerStats so
+	// it can be read without contending the worker hot path's lock.
+	RecentCalls *RecentCallsRing
 	// Pending tone sequences per talkgroup (for associating tones with subsequent voice calls)
 	// Tones detected on tone-only calls are stored here and attached to the first subsequent voice call
 	pendingTones      map[string]*PendingToneSequence // Key: "systemId:talkgroupId"
@@ -173,6 +177,7 @@ func NewController(config *Config) *Controller {
 		pendingTones:      make(map[string]*PendingToneSequence),
 		waitingShortCalls: make(map[string]*WaitingShortCall),
 		authMutexes:       make(map[uint64]*sync.Mutex),
+		RecentCalls:       NewRecentCallsRing(),
 	}
 
 	controller.Admin = NewAdmin(controller)
@@ -3178,6 +3183,7 @@ func (controller *Controller) Start() error {
 							controller.workerStats.avgProcessTime = (controller.workerStats.avgProcessTime + processTime) / 2
 						}
 						controller.workerStats.Unlock()
+						controller.RecentCalls.Bump()
 					}
 				case <-ctx.Done():
 					return

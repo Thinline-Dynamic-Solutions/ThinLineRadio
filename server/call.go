@@ -919,6 +919,43 @@ func (calls *Calls) DeleteByIDs(db *Database, ids []uint64) error {
 	return nil
 }
 
+// playbackSearchRowPlayableNow matches CAL playback gates for list rows: user/group
+// access and per-call effective delay. Global delayed-queue rows are already excluded
+// by the Search SQL (LEFT JOIN delayed … d."callId" IS NULL); do not call
+// Delayer.IsCallDelayed here — it would issue one SELECT per row and stall playback.
+func (calls *Calls) playbackSearchRowPlayableNow(client *Client, sr CallsSearchResult) bool {
+	if calls.controller == nil || client == nil {
+		return true
+	}
+	if client.BypassPlaybackSearchACL {
+		return true
+	}
+	if !calls.controller.requiresUserAuth() {
+		return true
+	}
+	if client.User == nil {
+		return false
+	}
+	call := &Call{
+		Id:        sr.Id,
+		Timestamp: sr.Timestamp,
+		System:    &System{SystemRef: sr.System},
+		Talkgroup: &Talkgroup{TalkgroupRef: sr.Talkgroup},
+	}
+	if !calls.controller.userHasAccess(client.User, call) {
+		return false
+	}
+	defaultDelay := calls.controller.Options.DefaultSystemDelay
+	effectiveDelay := calls.controller.userEffectiveDelay(client.User, call, defaultDelay)
+	if effectiveDelay > 0 {
+		releaseAt := call.Timestamp.Add(time.Duration(effectiveDelay) * time.Minute)
+		if time.Now().Before(releaseAt) {
+			return false
+		}
+	}
+	return true
+}
+
 func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*CallsSearchResults, error) {
 	const (
 		ascOrder  = "ASC"
@@ -1101,72 +1138,149 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	searchResults.Count = 0
 	searchResults.HasMore = false
 
-	// Use subquery approach for PostgreSQL
-	// Query for limit+1 to determine if there are more results
 	queryLimit := limit + 1
-	query = fmt.Sprintf(`SELECT c."callId", c."timestamp", c."systemRef", c."talkgroupRef", c."frequency", c."siteRef", (SELECT cu."unitRef" FROM "callUnits" cu WHERE cu."callId" = c."callId" ORDER BY cu."offset" LIMIT 1) as "source" FROM "calls" AS c LEFT JOIN "delayed" AS d ON d."callId" = c."callId" %s ORDER BY c."timestamp" %s LIMIT %d OFFSET %d`, delayWhere, order, queryLimit, offset)
+	baseSelect := fmt.Sprintf(`SELECT c."callId", c."timestamp", c."systemRef", c."talkgroupRef", c."frequency", c."siteRef", (SELECT cu."unitRef" FROM "callUnits" cu WHERE cu."callId" = c."callId" ORDER BY cu."offset" LIMIT 1) as "source" FROM "calls" AS c LEFT JOIN "delayed" AS d ON d."callId" = c."callId" %s ORDER BY c."timestamp" %s`, delayWhere, order)
 
-	calls.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("Search RESULTS query: %s", query))
+	enforcePlaybackACL := calls.controller.requiresUserAuth() && !client.BypassPlaybackSearchACL
 
-	// Add timeout context to prevent indefinite blocking
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if rows, err = db.Sql.QueryContext(ctx, query); err != nil && err != sql.ErrNoRows {
-		return nil, formatError(err, query)
+	if enforcePlaybackACL && client.User == nil {
+		return searchResults, nil
 	}
 
-	var totalCalls, includedCalls int
+	if !enforcePlaybackACL {
+		query = fmt.Sprintf(`%s LIMIT %d OFFSET %d`, baseSelect, queryLimit, offset)
+		calls.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("Search RESULTS query: %s", query))
 
-	for rows.Next() {
-		searchResult := CallsSearchResult{}
-		var frequency sql.NullInt64
-		var siteRef sql.NullInt64
-		var source sql.NullInt64
-		if err = rows.Scan(&searchResult.Id, &timestamp, &searchResult.System, &searchResult.Talkgroup, &frequency, &siteRef, &source); err != nil {
+		if rows, err = db.Sql.QueryContext(ctx, query); err != nil && err != sql.ErrNoRows {
+			return nil, formatError(err, query)
+		}
+
+		var totalCalls, includedCalls int
+
+		for rows.Next() {
+			searchResult := CallsSearchResult{}
+			var frequency sql.NullInt64
+			var siteRef sql.NullInt64
+			var source sql.NullInt64
+			if err = rows.Scan(&searchResult.Id, &timestamp, &searchResult.System, &searchResult.Talkgroup, &frequency, &siteRef, &source); err != nil {
+				break
+			}
+
+			searchResult.Timestamp = time.UnixMilli(timestamp)
+			if searchResult.Timestamp.Year() < 1 || searchResult.Timestamp.Year() > 9999 {
+				calls.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("Skipping call %d with invalid timestamp: %v (year %d out of range)", searchResult.Id, searchResult.Timestamp, searchResult.Timestamp.Year()))
+				continue
+			}
+
+			if frequency.Valid && frequency.Int64 > 0 {
+				searchResult.Frequency = uint(frequency.Int64)
+			}
+			if siteRef.Valid && siteRef.Int64 > 0 {
+				searchResult.Site = uint(siteRef.Int64)
+			}
+			if source.Valid && source.Int64 > 0 {
+				searchResult.Source = uint(source.Int64)
+			}
+			totalCalls++
+
+			if includedCalls < int(limit) {
+				searchResults.Results = append(searchResults.Results, searchResult)
+				includedCalls++
+			}
+		}
+
+		rows.Close()
+
+		if err != nil {
+			return nil, formatError(err, "")
+		}
+
+		searchResults.Count = uint(len(searchResults.Results))
+		searchResults.HasMore = totalCalls > int(limit)
+		return searchResults, nil
+	}
+
+	const chunkSize uint = 2000
+	var skipAllowed uint = offset
+	collected := make([]CallsSearchResult, 0, queryLimit)
+	var dbScanOffset uint
+
+	for chunks := 0; uint(len(collected)) < queryLimit && chunks < 2000; chunks++ {
+		query = fmt.Sprintf(`%s LIMIT %d OFFSET %d`, baseSelect, chunkSize, dbScanOffset)
+
+		var chunkRows *sql.Rows
+		if chunkRows, err = db.Sql.QueryContext(ctx, query); err != nil && err != sql.ErrNoRows {
+			return nil, formatError(err, query)
+		}
+
+		chunkCount := 0
+		for chunkRows.Next() {
+			chunkCount++
+			searchResult := CallsSearchResult{}
+			var frequency sql.NullInt64
+			var siteRef sql.NullInt64
+			var source sql.NullInt64
+			if err = chunkRows.Scan(&searchResult.Id, &timestamp, &searchResult.System, &searchResult.Talkgroup, &frequency, &siteRef, &source); err != nil {
+				break
+			}
+
+			searchResult.Timestamp = time.UnixMilli(timestamp)
+			if searchResult.Timestamp.Year() < 1 || searchResult.Timestamp.Year() > 9999 {
+				calls.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("Skipping call %d with invalid timestamp: %v (year %d out of range)", searchResult.Id, searchResult.Timestamp, searchResult.Timestamp.Year()))
+				continue
+			}
+
+			if frequency.Valid && frequency.Int64 > 0 {
+				searchResult.Frequency = uint(frequency.Int64)
+			}
+			if siteRef.Valid && siteRef.Int64 > 0 {
+				searchResult.Site = uint(siteRef.Int64)
+			}
+			if source.Valid && source.Int64 > 0 {
+				searchResult.Source = uint(source.Int64)
+			}
+
+			if !calls.playbackSearchRowPlayableNow(client, searchResult) {
+				continue
+			}
+
+			if skipAllowed > 0 {
+				skipAllowed--
+				continue
+			}
+
+			collected = append(collected, searchResult)
+			if uint(len(collected)) >= queryLimit {
+				break
+			}
+		}
+		chunkRows.Close()
+
+		if err != nil {
+			return nil, formatError(err, "")
+		}
+
+		if chunkCount == 0 {
 			break
 		}
-
-		// Convert timestamp - validate to prevent JSON marshaling errors
-		// JSON only supports years 0-9999, so skip calls with invalid timestamps
-		searchResult.Timestamp = time.UnixMilli(timestamp)
-		if searchResult.Timestamp.Year() < 1 || searchResult.Timestamp.Year() > 9999 {
-			// Skip this call - invalid timestamp that will cause JSON marshaling to fail
-			calls.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("Skipping call %d with invalid timestamp: %v (year %d out of range)", searchResult.Id, searchResult.Timestamp, searchResult.Timestamp.Year()))
-			continue
+		if chunkCount < int(chunkSize) {
+			break
 		}
-
-		if frequency.Valid && frequency.Int64 > 0 {
-			searchResult.Frequency = uint(frequency.Int64)
-		}
-		if siteRef.Valid && siteRef.Int64 > 0 {
-			searchResult.Site = uint(siteRef.Int64)
-		}
-		if source.Valid && source.Int64 > 0 {
-			searchResult.Source = uint(source.Int64)
-		}
-		totalCalls++
-
-		// Only include up to 'limit' results (drop the extra one we fetched)
-		if includedCalls < int(limit) {
-			searchResults.Results = append(searchResults.Results, searchResult)
-			includedCalls++
-		}
+		dbScanOffset += chunkSize
 	}
 
-	rows.Close()
-
-	if err != nil {
-		return nil, formatError(err, "")
+	if len(collected) > int(limit) {
+		searchResults.Results = collected[:limit]
+		searchResults.HasMore = true
+	} else {
+		searchResults.Results = collected
+		searchResults.HasMore = false
 	}
-
-	// Set count to actual number of results returned (should be limit)
 	searchResults.Count = uint(len(searchResults.Results))
-
-	// If we fetched more than 'limit' rows, there are more results available
-	searchResults.HasMore = totalCalls > int(limit)
-
-	return searchResults, err
+	return searchResults, nil
 }
 
 func (calls *Calls) WriteCall(call *Call, db *Database) (uint64, error) {

@@ -36,6 +36,27 @@ import { RdioScannerService } from '../rdio-scanner.service';
 import { FavoritesService } from '../favorites.service';
 import { TagColorService } from '../tag-color.service';
 
+/**
+ * Cross-session persistence for Archive (Playback) filters and pagination.
+ *
+ * Issue #185: keep system / talkgroup / page selection when bouncing between
+ * Live and Playback. Stored as labels (not array indices) so it survives
+ * config reloads and reorderings; a `favoriteKey` of `${systemId}:${talkgroupId}`
+ * captures the favorites picker selection in a config-independent way.
+ */
+interface PlaybackPrefs {
+    systemLabel?: string;
+    talkgroupLabel?: string;
+    groupLabel?: string;
+    tagLabel?: string;
+    favoriteKey?: string;
+    date?: string;
+    sort?: number;
+    pageIndex?: number;
+    pageSize?: number;
+}
+const PLAYBACK_PREFS_STORAGE_KEY = 'rdio-scanner-playback-prefs';
+
 @Component({
     selector: 'rdio-scanner-search',
     styleUrls: ['./search.component.scss'],
@@ -59,6 +80,16 @@ export class RdioScannerSearchComponent implements OnDestroy {
 
     form: any;
 
+    /** Snapshot of saved prefs read once at construction; consumed when config arrives. */
+    private pendingPrefs: PlaybackPrefs | null = null;
+    /** Avoid re-applying prefs every time a config event arrives. */
+    private prefsApplied = false;
+    /**
+     * Saved paginator pageIndex still waiting to be restored (consumed when the
+     * first batch of results arrives so the user lands on the page they left).
+     */
+    private pendingPageIndex: number | null = null;
+
     constructor(
         private rdioScannerService: RdioScannerService,
         private ngChangeDetectorRef: ChangeDetectorRef,
@@ -66,27 +97,27 @@ export class RdioScannerSearchComponent implements OnDestroy {
         private favoritesService: FavoritesService,
         private tagColorService: TagColorService,
     ) {
+        this.pendingPrefs = this.loadPrefs();
+
         this.form = this.ngFormBuilder.group({
             date: [null],
             group: [-1],
-            sort: [-1],
+            sort: this.pendingPrefs?.sort ?? -1,
             system: [-1],
             tag: [-1],
             talkgroup: [-1],
             favorite: [-1],
         });
-        
-        // Initialize selectedDate from form if it exists
-        if (this.form.value.date) {
-            const dateStr = this.form.value.date;
-            if (typeof dateStr === 'string') {
-                const dateObj = new Date(dateStr);
-                if (!isNaN(dateObj.getTime())) {
-                    this.selectedDate = dateObj;
-                }
+
+        // Date is config-independent, so apply it eagerly even before systems arrive.
+        if (this.pendingPrefs?.date) {
+            const dateObj = new Date(this.pendingPrefs.date);
+            if (!isNaN(dateObj.getTime())) {
+                this.selectedDate = dateObj;
+                this.form.get('date')?.setValue(this.pendingPrefs.date, { emitEvent: false });
             }
         }
-        
+
         this.eventSubscription = this.rdioScannerService.event.subscribe((event: RdioScannerEvent) => this.eventHandler(event));
     }
 
@@ -434,11 +465,13 @@ export class RdioScannerSearchComponent implements OnDestroy {
         this.selectedDate = null;
         this.paginator?.firstPage();
 
+        this.savePrefs();
         this.formChangeHandler();
     }
 
     setFavorite(value: number): void {
         this.form.get('favorite')?.setValue(value, { emitEvent: false });
+        this.savePrefs();
         this.formChangeHandler();
     }
 
@@ -493,6 +526,7 @@ export class RdioScannerSearchComponent implements OnDestroy {
             const day = String(localDate.getDate()).padStart(2, '0');
             const dateString = `${year}-${month}-${day}`;
             this.form.get('date')?.setValue(dateString, { emitEvent: false });
+            this.savePrefs();
             this.formChangeHandler();
         } else if (date === null) {
             this.clearDate();
@@ -502,11 +536,13 @@ export class RdioScannerSearchComponent implements OnDestroy {
     clearDate(): void {
         this.selectedDate = null;
         this.form.get('date')?.setValue(null, { emitEvent: false });
+        this.savePrefs();
         this.formChangeHandler();
     }
 
     setSort(value: number): void {
         this.form.get('sort')?.setValue(value, { emitEvent: false });
+        this.savePrefs();
         this.formChangeHandler();
     }
 
@@ -518,22 +554,32 @@ export class RdioScannerSearchComponent implements OnDestroy {
 
     setSystem(value: number): void {
         this.form.get('system')?.setValue(value, { emitEvent: false });
+        this.savePrefs();
         this.formChangeHandler();
     }
 
     setTalkgroup(value: number): void {
         this.form.get('talkgroup')?.setValue(value, { emitEvent: false });
+        this.savePrefs();
         this.formChangeHandler();
     }
 
     setGroup(value: number): void {
         this.form.get('group')?.setValue(value, { emitEvent: false });
+        this.savePrefs();
         this.formChangeHandler();
     }
 
     setTag(value: number): void {
         this.form.get('tag')?.setValue(value, { emitEvent: false });
+        this.savePrefs();
         this.formChangeHandler();
+    }
+
+    /** Wired to mat-paginator (page) — keep saved page in sync, then drive the regular pagination flow. */
+    onPageChange(): void {
+        this.savePrefs();
+        this.refreshResults();
     }
 
     getSelectedSystemLabel(): string {
@@ -762,7 +808,10 @@ export class RdioScannerSearchComponent implements OnDestroy {
             this.loadFavorites();
 
             this.time12h = this.config?.time12hFormat || false;
-            
+
+            // Issue #185: restore saved playback filters now that config is available.
+            this.applyPendingPrefs();
+
             // Auto-select system if only one exists (UX improvement for single-system setups)
             if (this.optionsSystem.length === 1 && this.form.value.system === -1) {
                 this.form.patchValue({ system: 0 }, { emitEvent: false });
@@ -839,10 +888,23 @@ export class RdioScannerSearchComponent implements OnDestroy {
             // This ensures the display updates immediately, even if paginator isn't ready
             if (this.accumulatedResults.length > 0) {
                 const batchOffset = this.playbackList?.options?.offset ?? 0;
-                
-                // For new searches (offset 0 and accumulated results were just reset), ensure paginator is on first page
-                // Only reset if we have very few results (indicating this is a fresh search, not a reload of offset 0)
-                if (batchOffset === 0 && this.playbackList?.results && this.accumulatedResults.length <= this.playbackList.results.length && this.paginator && this.paginator.pageIndex !== 0) {
+
+                // Issue #185: if we have a saved page waiting, jump to it and let
+                // the existing batch-loading logic fetch the right offset. We
+                // intentionally skip the "snap to first page on fresh search"
+                // reset below in this case.
+                if (this.pendingPageIndex !== null && this.paginator) {
+                    const target = this.pendingPageIndex;
+                    this.pendingPageIndex = null;
+                    if (this.paginator.pageIndex !== target) {
+                        this.paginator.pageIndex = target;
+                        // Defer so MatPaginator emits its (page) and refreshResults can fetch.
+                        setTimeout(() => this.refreshResults(), 0);
+                    }
+                } else if (batchOffset === 0 && this.playbackList?.results && this.accumulatedResults.length <= this.playbackList.results.length && this.paginator && this.paginator.pageIndex !== 0) {
+                    // For new searches (offset 0 and accumulated results were just reset),
+                    // ensure paginator is on first page. Only reset if we have very few
+                    // results (indicating this is a fresh search, not a reload of offset 0).
                     this.paginator.firstPage();
                 }
                 
@@ -911,6 +973,109 @@ export class RdioScannerSearchComponent implements OnDestroy {
         const talkgroupIndex = this.form.value.talkgroup;
         if (talkgroupIndex == null || talkgroupIndex < 0) return undefined;
         return system.talkgroups.find((talkgroup) => talkgroup.label === this.optionsTalkgroup[talkgroupIndex]);
+    }
+
+    // ── Issue #185: persistence ────────────────────────────────────────────────
+
+    /** Read saved playback prefs from localStorage; returns null on miss/parse error. */
+    private loadPrefs(): PlaybackPrefs | null {
+        try {
+            if (typeof localStorage === 'undefined') return null;
+            const raw = localStorage.getItem(PLAYBACK_PREFS_STORAGE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') return parsed as PlaybackPrefs;
+        } catch { /* corrupt prefs — ignore and start fresh */ }
+        return null;
+    }
+
+    /** Persist current filter + pagination state. Cheap and safe to call on every change. */
+    private savePrefs(): void {
+        try {
+            if (typeof localStorage === 'undefined') return;
+            const system = this.getSelectedSystem();
+            const talkgroup = this.getSelectedTalkgroup();
+            const group = this.getSelectedGroup();
+            const tag = this.getSelectedTag();
+            const favIdx = this.form.value.favorite ?? -1;
+            const fav = favIdx >= 0 ? this.optionsFavorites[favIdx] : undefined;
+
+            const prefs: PlaybackPrefs = {
+                systemLabel: system?.label,
+                talkgroupLabel: talkgroup?.label,
+                groupLabel: group,
+                tagLabel: tag,
+                favoriteKey: fav ? `${fav.systemId}:${fav.talkgroupId}` : undefined,
+                date: this.selectedDate ? this.selectedDate.toISOString() : undefined,
+                sort: this.form.value.sort ?? -1,
+                pageIndex: this.paginator?.pageIndex ?? 0,
+                pageSize: this.paginator?.pageSize ?? 10,
+            };
+            localStorage.setItem(PLAYBACK_PREFS_STORAGE_KEY, JSON.stringify(prefs));
+        } catch { /* quota or disabled storage — silently skip */ }
+    }
+
+    /**
+     * Apply previously-saved prefs once the config has arrived. Stored values are
+     * looked up by label (system/talkgroup/group/tag) and key
+     * (`${systemId}:${talkgroupId}` for favorites) so we recover gracefully from
+     * config reorderings or talkgroups that no longer exist.
+     */
+    private applyPendingPrefs(): void {
+        if (this.prefsApplied || !this.pendingPrefs || !this.config) return;
+        const prefs = this.pendingPrefs;
+        this.prefsApplied = true;
+
+        const patch: Record<string, number | string | null> = {};
+
+        if (prefs.systemLabel) {
+            const idx = this.optionsSystem.findIndex((label) => label === prefs.systemLabel);
+            if (idx >= 0) patch['system'] = idx;
+        }
+        if (prefs.groupLabel) {
+            const idx = this.optionsGroup.findIndex((label) => label === prefs.groupLabel);
+            if (idx >= 0) patch['group'] = idx;
+        }
+        if (prefs.tagLabel) {
+            const idx = this.optionsTag.findIndex((label) => label === prefs.tagLabel);
+            if (idx >= 0) patch['tag'] = idx;
+        }
+
+        if (Object.keys(patch).length > 0) {
+            this.form.patchValue(patch, { emitEvent: false });
+            // System patched in: rebuild dependent option arrays before patching talkgroup.
+            this.refreshFilters();
+        }
+
+        if (prefs.talkgroupLabel) {
+            const idx = this.optionsTalkgroup.findIndex((label) => label === prefs.talkgroupLabel);
+            if (idx >= 0) {
+                this.form.get('talkgroup')?.setValue(idx, { emitEvent: false });
+            }
+        }
+
+        if (prefs.favoriteKey) {
+            const idx = this.optionsFavorites.findIndex((f) => `${f.systemId}:${f.talkgroupId}` === prefs.favoriteKey);
+            if (idx >= 0) this.form.get('favorite')?.setValue(idx, { emitEvent: false });
+        }
+
+        // Remember which page the user was on so it can be restored after the
+        // first batch of results comes back.
+        if (typeof prefs.pageIndex === 'number' && prefs.pageIndex > 0) {
+            this.pendingPageIndex = prefs.pageIndex;
+        }
+
+        // After config-dependent restoration is in place, kick a search so the
+        // table populates without requiring the user to click anything.
+        if (
+            patch['system'] !== undefined ||
+            this.form.value.talkgroup >= 0 ||
+            this.form.value.favorite >= 0 ||
+            this.selectedDate ||
+            this.pendingPageIndex !== null
+        ) {
+            this.searchCalls();
+        }
     }
 
     /** Same tag-tinted row background as Current call history. */

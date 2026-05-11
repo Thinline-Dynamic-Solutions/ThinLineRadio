@@ -1077,27 +1077,6 @@
   &:active { cursor: grabbing; }
 }
 
-.scan-list-livefeed-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  max-width: 140px;
-
-  .scan-toggle-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: rgba(255, 255, 255, 0.45);
-    line-height: 1.1;
-  }
-
-  ::ng-deep .mat-mdc-slide-toggle .mdc-switch {
-    transform: scale(0.82);
-  }
-}
-
 .scan-list-card-header {
   display: flex;
   align-items: center;
@@ -1139,11 +1118,34 @@
     font-size: 11px;
     color: rgba(255, 255, 255, 0.45);
     flex-shrink: 0;
+    transition: color 120ms ease-out;
+
+    &.some-on {
+      color: #ffb74d;
+    }
+
+    &.all-on {
+      color: #00e676;
+    }
   }
 
   .scan-list-actions {
     display: flex;
     gap: 4px;
+
+    .icon-action.bulk-toggle {
+      color: rgba(255, 255, 255, 0.45);
+      transition: color 120ms ease-out, text-shadow 120ms ease-out;
+
+      &.some-on {
+        color: #ffb74d;
+      }
+
+      &.all-on {
+        color: #00e676;
+        text-shadow: 0 0 6px rgba(0, 230, 118, 0.55);
+      }
+    }
   }
 
   .expand-icon {
@@ -1274,96 +1276,198 @@
   font-size: 16px;
 }
 
-// ── Scan List add-to-list dropdown ──────────────────────────────────────────
-.scan-list-menu-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
+/* ════════════════════════════════════════════════════════════════════════
+ * ThinLine skin overrides — Channels (Select) tab
+ * Only active under an ancestor with `.thinline-skin`.
+ * ═══════════════════════════════════════════════════════════════════════*/
+:host-context(.thinline-skin) {
+  background: var(--tlr-chassis-gradient);
+  color: var(--tlr-text);
+  font-family: var(--tlr-font-primary);
 
-.scan-list-dropdown {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 200;
-  min-width: 180px;
-  max-width: 260px;
-  background: #2a2a2a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 4px 0;
-  -webkit-overflow-scrolling: touch;
+  .top-section {
+    border-bottom-color: var(--tlr-header-divider);
 
-  &.scan-list-dropdown--fixed {
-    /* top/left/width/max-height from component ngStyle */
-    right: auto;
-    min-width: 180px;
-  }
+    .search-bar {
+      background: var(--tlr-lcd-gradient);
+      border: 1px solid var(--tlr-bezel-border);
+      border-radius: var(--tlr-bezel-radius);
 
-  .scan-list-dropdown-tag-hint {
-    padding: 8px 12px 6px;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.45);
-    line-height: 1.35;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    margin-bottom: 2px;
-  }
-
-  .scan-list-dropdown-empty {
-    padding: 10px 14px;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.45);
-    font-style: italic;
-  }
-
-  .scan-list-dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.85);
-    cursor: pointer;
-    transition: background 0.15s ease;
-
-    mat-icon {
-      width: 18px;
-      height: 18px;
-      font-size: 18px;
-      flex-shrink: 0;
-      color: rgba(255, 255, 255, 0.5);
-    }
-
-    .dropdown-check {
-      color: #00e676;
-
-      &.partial {
-        color: #ffab40;
+      &.focused {
+        border: 2px solid var(--tlr-primary);
       }
     }
+  }
+
+  .channels-sidebar,
+  .channels-detail {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+  }
+
+  .channels-sidebar .sidebar-head {
+    color: var(--tlr-text-secondary);
+    border-bottom-color: var(--tlr-header-divider);
+  }
+
+  .sidebar-system-row {
+    &:hover {
+      background: rgba(126, 200, 232, 0.08);
+    }
+
+    &.active {
+      background: rgba(57, 255, 20, 0.1);
+      border-color: var(--tlr-primary);
+
+      .sidebar-row-label {
+        color: var(--tlr-primary);
+        text-shadow: 0 0 6px rgba(57, 255, 20, 0.45);
+      }
+    }
+
+    .sidebar-row-icon {
+      background: rgba(57, 255, 20, 0.12);
+
+      mat-icon {
+        color: var(--tlr-primary);
+      }
+    }
+
+    .sidebar-row-label {
+      color: var(--tlr-text);
+    }
+
+    .sidebar-row-meta {
+      color: var(--tlr-text-secondary);
+
+      .enabled-count {
+        color: var(--tlr-accent);
+      }
+    }
+  }
+
+  /* System / tag / talkgroup hierarchy */
+  .system-card,
+  .tag-group {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: none;
+  }
+
+  .system-card .system-header {
+    .system-icon {
+      background: rgba(57, 255, 20, 0.12);
+
+      mat-icon {
+        color: var(--tlr-primary);
+      }
+    }
+
+    .system-info .system-label {
+      color: var(--tlr-text);
+      font-family: var(--tlr-font-primary);
+      letter-spacing: 0.5px;
+    }
+
+    .system-info .system-stats {
+      color: var(--tlr-text-secondary);
+
+      .enabled-count {
+        color: var(--tlr-accent);
+      }
+    }
+
+    .system-status mat-icon.status-enabled {
+      color: var(--tlr-led-green);
+    }
+
+    .system-toggle .toggle-badge.all {
+      background: rgba(57, 255, 20, 0.18);
+      border-color: var(--tlr-primary);
+      color: var(--tlr-primary);
+    }
+  }
+
+  .system-card .system-content {
+    border-top-color: var(--tlr-header-divider);
+  }
+
+  .tag-group .tag-header .tag-label {
+    color: var(--tlr-text);
+  }
+
+  .talkgroup-row {
+    background: rgba(0, 0, 0, 0.25);
+    border-color: var(--tlr-bezel-border);
+    color: var(--tlr-accent);
+    font-family: var(--tlr-font-numeric);
 
     &:hover {
-      background: rgba(255, 255, 255, 0.07);
+      background: rgba(126, 200, 232, 0.08);
     }
 
-    &.create {
-      color: rgba(255, 255, 255, 0.55);
-      font-size: 12px;
+    &.enabled {
+      background: rgba(57, 255, 20, 0.12);
+      border-color: var(--tlr-primary);
 
-      mat-icon { color: rgba(255, 255, 255, 0.35); }
-
-      &:hover {
-        color: rgba(255, 255, 255, 0.85);
-        mat-icon { color: rgba(255, 255, 255, 0.65); }
+      .row-radio-icon {
+        color: var(--tlr-primary);
       }
+
+      .row-label {
+        color: var(--tlr-primary);
+        text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+      }
+    }
+
+    .row-label {
+      color: var(--tlr-accent);
+    }
+
+    .row-name {
+      color: var(--tlr-text-secondary);
+    }
+
+    .row-id {
+      color: var(--tlr-text-secondary);
+      background: rgba(0, 0, 0, 0.35);
+      font-family: var(--tlr-font-numeric);
     }
   }
 
-  .scan-list-dropdown-divider {
-    height: 1px;
-    background: rgba(255, 255, 255, 0.08);
-    margin: 4px 0;
+  /* Scan-lists panel — same LCD treatment as system cards. */
+  .scan-lists-header .scan-lists-title {
+    color: var(--tlr-primary);
+    text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+  }
+
+  .scan-list-card {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+  }
+
+  .scan-list-card-header,
+  .scan-list-system-header,
+  .scan-list-tag-header {
+    color: var(--tlr-text);
+    border-bottom-color: var(--tlr-header-divider);
+  }
+
+  .channels-full-empty,
+  .channels-detail-empty,
+  .sidebar-empty,
+  .scan-lists-empty {
+    color: var(--tlr-text-secondary);
+  }
+
+  /* Search input text inside the bar reads as LCD numerals. */
+  .top-section .search-bar input {
+    color: var(--tlr-accent);
+    font-family: var(--tlr-font-numeric);
   }
 }

@@ -748,7 +748,12 @@
       <div class="row">
         <p>
           <span class="mat-body">Relay Server API Key</span><br>
-          <span class="mat-caption">Required for push notifications and audio encryption. Request an API key to get started.</span>
+          <span class="mat-caption">Required for push notifications and audio encryption. Request an API key to get started.</span><br>
+          <span class="mat-caption" style="display: inline-block; margin-top: 8px; max-width: 52rem; line-height: 1.45;">
+            Requesting or changing this key needs a supported browser context: open admin using HTTPS, or using http://localhost or http://127.0.0.1.
+            If you rely on localhost, set the server listen address to 0.0.0.0 in your configuration (not only the machine’s LAN IP) so the service is reachable on loopback.
+            Opening admin as plain http with only a LAN IP or hostname can fail with “Failed to initialize authorization” before you submit the form.
+          </span>
         </p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button mat-raised-button type="button" color="primary" *ngIf="!hasRelayAPIKey()" (click)="requestRelayAPIKey()">

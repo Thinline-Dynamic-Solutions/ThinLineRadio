@@ -36,7 +36,9 @@ type Client struct {
 	Conn        *websocket.Conn
 	Send        chan *Message
 	IsAdmin     bool // Set to true when authenticated with admin token
-	PinExpired  bool // Set to true when user's PIN is expired
+	// BypassPlaybackSearchACL skips user/group filtering in Calls.Search (admin HTTP API only).
+	BypassPlaybackSearchACL bool
+	PinExpired              bool // Set to true when user's PIN is expired
 	BacklogSent bool // Set to true after initial backlog has been sent (prevents resending on channel toggle)
 	Systems     []System
 	GroupsData  []Group

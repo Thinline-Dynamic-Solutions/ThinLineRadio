@@ -1574,3 +1574,286 @@
     color: #64b5f6;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+ * ThinLine skin overrides (parity with mobile app) — CLASSIC view
+ *
+ * Mirrors the new-view block at the bottom of `main.component.scss`.
+ * Only applied when this component is rendered inside an ancestor with
+ * `.thinline-skin` (set by `rdio-scanner.component.html` on the classic
+ * view's mat-sidenav-container). Without that class the legacy SCSS above
+ * renders unchanged.
+ *
+ * See client/src/styles/_thinline-tokens.scss and docs/THINLINE_SKIN.md.
+ * ═══════════════════════════════════════════════════════════════════════*/
+:host-context(.thinline-skin) {
+  background: var(--tlr-chassis-gradient);
+  color: var(--tlr-text);
+  font-family: var(--tlr-font-primary);
+
+  /* Top status strip — sits above the LCD face with a thin neon divider. */
+  .rdio-status {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+    padding: 8px 12px;
+    position: relative;
+
+    /* Neon-green top divider line, matches LcdBottomNavBar top edge. */
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 1px;
+      background: linear-gradient(
+        to right,
+        transparent,
+        rgba(57, 255, 20, 0.55),
+        transparent
+      );
+      pointer-events: none;
+    }
+
+    .branding {
+      color: var(--tlr-primary);
+      font-family: var(--tlr-font-numeric);
+      letter-spacing: 1.2px;
+      text-shadow: 0 0 8px rgba(57, 255, 20, 0.6),
+        0 0 16px rgba(57, 255, 20, 0.25);
+    }
+
+    .left-led-container .led-text {
+      color: var(--tlr-accent);
+      text-shadow: 0 0 6px rgba(126, 200, 232, 0.45);
+    }
+  }
+
+  /* Center display = LCD inside a bezel + scanlines. */
+  .rdio-display {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+    color: var(--tlr-accent);
+    font-family: var(--tlr-font-numeric);
+    position: relative;
+    overflow: hidden;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        var(--tlr-lcd-scanline-color) 0,
+        var(--tlr-lcd-scanline-color) 1px,
+        transparent 1px,
+        transparent var(--tlr-lcd-scanline-step)
+      );
+      z-index: 0;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Soft cyan glow on the meta lines (Time / Listeners / Queue, etc.). */
+    .row span,
+    .tgid-row span {
+      color: var(--tlr-accent);
+      text-shadow: 0 0 10px rgba(126, 200, 232, 0.32);
+    }
+
+    /* Hero talkgroup line — bright neon, larger glow, mobile parity. */
+    .talkgroup-container .talkgroup-box {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(126, 200, 232, 0.18);
+      box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45);
+
+      .talkgroup-name {
+        font-family: var(--tlr-font-numeric);
+        letter-spacing: 1px;
+        /* Inline [style.color] still wins for tag colors; we just add the
+         * LCD glow so any color reads like a backlit segment. */
+        text-shadow: 0 0 18px currentColor, 0 0 28px rgba(126, 200, 232, 0.45);
+      }
+    }
+
+    /* SCANNING animation pulses the brand neon green, like the mobile app. */
+    .scanning-container .scanning-animation {
+      .scanning-label,
+      .scanning-dots .dot {
+        color: var(--tlr-primary);
+        text-shadow: 0 0 8px rgba(57, 255, 20, 0.55),
+          0 0 16px rgba(57, 255, 20, 0.25);
+      }
+
+      .current-system .system-name {
+        color: var(--tlr-accent);
+        text-shadow: 0 0 10px rgba(126, 200, 232, 0.32);
+      }
+    }
+
+    /* Transmission history table — LCD readout. */
+    .transmission-history {
+      border-top-color: var(--tlr-header-divider);
+
+      .history-header {
+        color: var(--tlr-text-secondary);
+        font-family: var(--tlr-font-primary);
+        letter-spacing: 0.5px;
+      }
+    }
+
+    .history {
+      th {
+        background: transparent;
+        color: var(--tlr-text-secondary);
+        font-family: var(--tlr-font-primary);
+      }
+
+      td {
+        color: var(--tlr-accent);
+        font-family: var(--tlr-font-numeric);
+        text-shadow: 0 0 6px rgba(126, 200, 232, 0.22);
+      }
+
+      tbody > tr {
+        border-top-color: var(--tlr-header-divider);
+      }
+
+      tr.replaying td {
+        color: var(--tlr-primary);
+        text-shadow: 0 0 10px rgba(57, 255, 20, 0.45);
+      }
+    }
+  }
+
+  /* Keypad area — recessed well + neon-cyan key labels (mobile rubber-key
+   * vibe, no bitmap). */
+  .rdio-control .control-grid {
+    background: linear-gradient(
+      180deg,
+      rgba(2, 2, 3, 0.55) 0%,
+      rgba(8, 9, 12, 0.75) 55%,
+      rgba(11, 12, 16, 0.85) 100%
+    );
+    border: 1px solid var(--tlr-bezel-border);
+    border-top-color: rgba(0, 0, 0, 0.85);
+    border-left-color: rgba(0, 0, 0, 0.85);
+    border-radius: 11px;
+    padding: 6px;
+    box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.55);
+
+    .rdio-button {
+      background: linear-gradient(
+        180deg,
+        #2e343e 0%,
+        #181c22 42%,
+        #0e1116 100%
+      );
+      border-color: #1c222a;
+      color: var(--tlr-key-label-neon);
+      box-shadow: 0 3px 0 0 rgba(0, 0, 0, 0.55),
+        0 4px 6px rgba(0, 0, 0, 0.35);
+
+      mat-icon {
+        color: var(--tlr-key-label-neon);
+      }
+
+      span {
+        color: var(--tlr-key-label-neon);
+      }
+
+      &:hover {
+        background: linear-gradient(
+          180deg,
+          #38404c 0%,
+          #1c2129 50%,
+          #11151b 100%
+        );
+      }
+
+      &.active {
+        border-color: var(--tlr-primary);
+        color: var(--tlr-primary);
+        box-shadow:
+          0 3px 0 0 rgba(0, 0, 0, 0.55),
+          0 4px 6px rgba(0, 0, 0, 0.35),
+          0 0 12px rgba(57, 255, 20, 0.4);
+
+        mat-icon,
+        span {
+          color: var(--tlr-primary);
+          text-shadow: 0 0 6px rgba(57, 255, 20, 0.55);
+        }
+      }
+
+      &.inactive,
+      &.live-feed.inactive {
+        border-color: var(--tlr-led-red);
+        color: var(--tlr-led-red);
+
+        mat-icon,
+        span {
+          color: var(--tlr-led-red);
+        }
+      }
+    }
+  }
+
+  /* Volume slider strip — LCD-style track, primary thumb. */
+  .rdio-control .volume-control {
+    .volume-icon,
+    .volume-value {
+      color: var(--tlr-accent);
+      text-shadow: 0 0 8px rgba(126, 200, 232, 0.3);
+    }
+  }
+
+  /* Recent alerts side panel — LCD bezel matches mobile alerts list. */
+  .recent-alerts-panel {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+
+    .alerts-header {
+      border-bottom-color: var(--tlr-header-divider);
+
+      h3 {
+        color: var(--tlr-primary);
+        font-family: var(--tlr-font-numeric);
+        text-shadow: 0 0 8px rgba(57, 255, 20, 0.5);
+      }
+    }
+
+    .alerts-content .alerts-list .alert-item {
+      background: rgba(0, 0, 0, 0.25);
+      border-color: rgba(126, 200, 232, 0.12);
+
+      .alert-type-badge {
+        background: rgba(57, 255, 20, 0.15);
+        color: var(--tlr-primary);
+      }
+    }
+  }
+
+  /* LED dots inherit the mobile led* tokens. */
+  .rdio-status .led {
+    border-color: rgba(126, 200, 232, 0.25);
+
+    &.on.green {
+      background: var(--tlr-led-green);
+      box-shadow: 0 0 6px 3px var(--tlr-led-green);
+    }
+
+    &.on.red {
+      background: var(--tlr-led-red);
+      box-shadow: 0 0 6px 3px var(--tlr-led-red);
+    }
+  }
+}

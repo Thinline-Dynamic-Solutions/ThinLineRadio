@@ -49,6 +49,21 @@ $background-color: rgb(30, 30, 30);
     align-items: stretch;
     overflow: auto;
   }
+
+  /* ── ThinLine skin — classic view chassis ────────────────────────────
+   * Only kicks in when classic view opts in via .thinline-skin on the
+   * sidenav container; legacy main-legacy SCSS supplies the per-panel
+   * overrides. */
+  ::ng-deep .mat-sidenav-container.thinline-skin,
+  ::ng-deep .mat-sidenav-container.thinline-skin .mat-sidenav-content {
+    background: var(--tlr-chassis-gradient, $background-color);
+    color: var(--tlr-text, inherit);
+  }
+
+  ::ng-deep .mat-sidenav-container.thinline-skin .mat-sidenav {
+    background: var(--tlr-lcd-gradient, $background-color);
+    color: var(--tlr-text, inherit);
+  }
 }
 
 .panel {

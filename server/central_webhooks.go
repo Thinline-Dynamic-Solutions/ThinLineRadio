@@ -547,6 +547,14 @@ func (api *Api) PairWithCentralManagementHandler(w http.ResponseWriter, r *http.
 	}
 
 	// Apply the centralized management configuration.
+	//
+	// We do NOT verify the new key against CM synchronously here. CM's ConnectServer
+	// flow only writes the api_keys row AFTER this pair call returns, so a synchronous
+	// register() from inside the pair handler would always 401 (chicken-and-egg).
+	// The runtime heartbeat loop in CentralManagementService will detect persistent
+	// failures and auto-unpair after a few consecutive 4xx/5xx responses, which gives
+	// us the "if anything goes wrong, stay out of CM mode" behavior without breaking
+	// the standard CM pair flow.
 	api.Controller.Options.mutex.Lock()
 	api.Controller.Options.CentralManagementEnabled = true
 	api.Controller.Options.CentralManagementURL = req.CentralManagementURL

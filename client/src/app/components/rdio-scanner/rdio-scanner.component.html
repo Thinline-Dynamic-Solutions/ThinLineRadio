@@ -20,18 +20,20 @@
          NEW TAB-BASED LAYOUT
     ════════════════════════════════════════════════════════════════════ -->
     <ng-container *ngIf="!hasVerificationToken() && (!authRequired || userAuthenticated) && !isMobileRestrictedBrowser && !useClassicView">
-        <rdio-scanner-main
-            (toggleFullscreen)="toggleFullscreen()"
-            (signOut)="onSignOut()"
-            (toggleClassicViewRequest)="toggleClassicView()">
-        </rdio-scanner-main>
+        <rdio-scanner-chassis class="thinline-skin">
+            <rdio-scanner-main
+                (toggleFullscreen)="toggleFullscreen()"
+                (signOut)="onSignOut()"
+                (toggleClassicViewRequest)="toggleClassicView()">
+            </rdio-scanner-main>
+        </rdio-scanner-chassis>
     </ng-container>
 
     <!-- ═══════════════════════════════════════════════════════════════════
          CLASSIC LAYOUT — original mat-sidenav-container structure
     ════════════════════════════════════════════════════════════════════ -->
     <ng-container *ngIf="!hasVerificationToken() && (!authRequired || userAuthenticated) && !isMobileRestrictedBrowser && useClassicView">
-        <mat-sidenav-container [hasBackdrop]="false">
+        <mat-sidenav-container [hasBackdrop]="false" class="thinline-skin">
             <mat-sidenav #classicSearchPanel [autoFocus]="false" [disableClose]="true" position="start" (closedStart)="onSearchPanelClosed()">
                 <div class="panel search">
                     <mat-toolbar>

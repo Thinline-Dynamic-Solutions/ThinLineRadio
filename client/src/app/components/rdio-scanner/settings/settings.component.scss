@@ -1079,3 +1079,128 @@
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+ * ThinLine skin overrides — Settings tab
+ * Only active under an ancestor with `.thinline-skin`.
+ * ═══════════════════════════════════════════════════════════════════════*/
+:host-context(.thinline-skin) {
+  .settings-container {
+    background: var(--tlr-chassis-gradient);
+    color: var(--tlr-text);
+    font-family: var(--tlr-font-primary);
+
+    h2 {
+      color: var(--tlr-primary);
+      font-family: var(--tlr-font-numeric);
+      letter-spacing: 1px;
+      text-shadow: 0 0 8px rgba(57, 255, 20, 0.45);
+    }
+
+    .settings-content {
+      color: var(--tlr-text);
+    }
+
+    .section {
+      background: var(--tlr-lcd-gradient);
+      border: 1px solid var(--tlr-bezel-border);
+      border-radius: var(--tlr-bezel-radius);
+      box-shadow: var(--tlr-bezel-shadow);
+
+      h3 {
+        color: var(--tlr-primary);
+        font-family: var(--tlr-font-primary);
+        letter-spacing: 0.06em;
+        text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+      }
+
+      .section-description {
+        color: var(--tlr-text-secondary);
+      }
+    }
+
+    /* Material form fields → LCD-tinted, primary green focus ring. */
+    .section ::ng-deep {
+      .mat-mdc-text-field-wrapper,
+      .mdc-text-field {
+        background: rgba(0, 0, 0, 0.25) !important;
+      }
+
+      .mdc-text-field--outlined .mdc-notched-outline__leading,
+      .mdc-text-field--outlined .mdc-notched-outline__notch,
+      .mdc-text-field--outlined .mdc-notched-outline__trailing {
+        border-color: var(--tlr-bezel-border) !important;
+      }
+
+      .mdc-text-field--focused .mdc-notched-outline__leading,
+      .mdc-text-field--focused .mdc-notched-outline__notch,
+      .mdc-text-field--focused .mdc-notched-outline__trailing {
+        border-color: var(--tlr-primary) !important;
+      }
+
+      .mdc-floating-label,
+      .mat-mdc-form-field-label {
+        color: var(--tlr-text-secondary) !important;
+      }
+
+      .mat-mdc-input-element,
+      .mat-mdc-select-value-text {
+        color: var(--tlr-accent) !important;
+        font-family: var(--tlr-font-numeric);
+      }
+
+      .mat-mdc-form-field-hint {
+        color: var(--tlr-text-secondary);
+      }
+
+      .mat-mdc-select-arrow {
+        color: var(--tlr-primary);
+      }
+
+      /* Slide toggles → LCD track + primary thumb when on. */
+      .mdc-switch__track {
+        background-color: rgba(0, 0, 0, 0.5) !important;
+      }
+
+      .mdc-switch--selected .mdc-switch__track {
+        background-color: rgba(57, 255, 20, 0.55) !important;
+      }
+
+      .mdc-switch__handle {
+        background: #d8d8d8 !important;
+      }
+
+      .mdc-switch--selected .mdc-switch__handle {
+        background: var(--tlr-primary) !important;
+        box-shadow: 0 0 10px rgba(57, 255, 20, 0.55);
+      }
+
+      .mdc-label {
+        color: var(--tlr-text) !important;
+      }
+
+      /* Buttons inside settings — primary uses brand neon. */
+      .mat-mdc-raised-button.mat-primary,
+      .mat-mdc-flat-button.mat-primary {
+        background: var(--tlr-primary) !important;
+        color: var(--tlr-bg) !important;
+        box-shadow: 0 0 12px rgba(57, 255, 20, 0.4) !important;
+      }
+
+      .mat-mdc-stroked-button {
+        background: rgba(0, 0, 0, 0.25) !important;
+        border-color: var(--tlr-bezel-border) !important;
+        color: var(--tlr-accent) !important;
+
+        &:hover {
+          background: rgba(126, 200, 232, 0.08) !important;
+          border-color: var(--tlr-accent) !important;
+        }
+      }
+    }
+
+    .hint-text {
+      color: var(--tlr-text-secondary);
+    }
+  }
+}
+
