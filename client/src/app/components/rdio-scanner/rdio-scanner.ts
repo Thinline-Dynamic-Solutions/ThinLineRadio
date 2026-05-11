@@ -343,7 +343,10 @@ export interface RdioScannerTalkgroup {
     alert?: string;
     frequency?: number;
     groups: string[];
+    /** Radio / trunked ID used on the air and in live feed maps (same as server `talkgroupRef`). */
     id: number;
+    /** Database primary key from server JSON field `talkgroupId`; unique server-wide (unlike `id` ref). */
+    talkgroupId?: number;
     talkgroupRef?: number;
     label: string;
     led?: 'blue' | 'cyan' | 'green' | 'magenta' | 'orange' | 'red' | 'white' | 'yellow';

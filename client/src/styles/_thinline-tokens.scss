@@ -1,0 +1,121 @@
+/*
+ * ThinLine Radio — Web design tokens
+ *
+ * Mirror of mobile `lib/theme/app_theme.dart` (AppTheme) and
+ * `lib/theme/scanner_skin.dart` (ScannerSkin).
+ *
+ * Web parity rule: any value the mobile app exposes through AppTheme or
+ * ScannerSkin should appear here once as a CSS custom property. Component
+ * SCSS reads from these variables only — never hard-coded gradients/colors.
+ *
+ * Theme is opted in by adding `.thinline-skin` (and optionally
+ * `.thinline-skin--light`) to <body> or any subtree. Without that class,
+ * existing Material styling stays intact so we can migrate screens
+ * incrementally.
+ */
+
+:root,
+.thinline-skin {
+    /* ── Brand & accents ─────────────────────────────────────────────── */
+    /* AppTheme.primaryColor — bright neon green; reserve for high-emphasis only. */
+    --tlr-primary: #39ff14;
+    /* AppTheme.uiAccent — softer cyan for dense lists, tabs, toggles. */
+    --tlr-accent: #7ec8e8;
+    --tlr-error: #ff1744;
+    --tlr-warning: #ffa500;
+    --tlr-info: #1e90ff;
+
+    /* ── Surfaces & text (dark, default) ─────────────────────────────── */
+    --tlr-bg: #000000;
+    --tlr-surface: #2a2a2a;
+    --tlr-text: #ffffff;
+    --tlr-text-secondary: #888888;
+
+    /* ── Fonts (Rajdhani / Orbitron loaded via thinline-fonts.scss) ──── */
+    --tlr-font-primary: "Rajdhani", "Roboto", "Helvetica Neue", sans-serif;
+    --tlr-font-numeric: "Orbitron", "Rajdhani", "Roboto", monospace;
+
+    /* ── ScannerSkin: chassis (full-screen body behind UI) ───────────── */
+    --tlr-chassis-stop-1: #0c0e12;
+    --tlr-chassis-stop-2: #060708;
+    --tlr-chassis-stop-3: #0a0d11;
+    --tlr-chassis-gradient: linear-gradient(
+        135deg,
+        var(--tlr-chassis-stop-1) 0%,
+        var(--tlr-chassis-stop-2) 45%,
+        var(--tlr-chassis-stop-3) 100%
+    );
+
+    /* ── ScannerSkin: LCD face (inside the bezel) ────────────────────── */
+    --tlr-lcd-stop-1: #152028;
+    --tlr-lcd-stop-2: #0c1218;
+    --tlr-lcd-stop-3: #080c10;
+    --tlr-lcd-gradient: linear-gradient(
+        135deg,
+        var(--tlr-lcd-stop-1) 0%,
+        var(--tlr-lcd-stop-2) 50%,
+        var(--tlr-lcd-stop-3) 100%
+    );
+    --tlr-lcd-scanline-color: rgba(255, 255, 255, 0.035);
+    --tlr-lcd-scanline-step: 3px;
+
+    /* ── ScannerSkin: LCD bezel ──────────────────────────────────────── */
+    --tlr-bezel-border: #2f3d4a;
+    --tlr-bezel-radius: 12px;
+    --tlr-bezel-shadow:
+        0 5px 14px rgba(0, 0, 0, 0.5),
+        0 0 20px -4px rgba(57, 255, 20, 0.04);
+
+    /* ── ScannerSkin: divider, neon labels, LEDs ─────────────────────── */
+    --tlr-header-divider: rgba(255, 255, 255, 0.08);
+    --tlr-key-label-neon: #8ed8ff;
+    --tlr-key-label-neon-dim: #5a8fa8;
+    --tlr-led-green: #39ff14;
+    --tlr-led-green-dim: #1a3320;
+    --tlr-led-red: #ff3355;
+    --tlr-led-red-dim: #331018;
+
+    /* ── Bottom nav (LcdBottomNavBar parity) ─────────────────────────── */
+    --tlr-nav-active: var(--tlr-primary);
+    /* Inactive tabs — readable on the LCD face per latest mobile tweak. */
+    --tlr-nav-inactive: #9bbfaf;
+    --tlr-nav-active-glow: 0 0 8px rgba(57, 255, 20, 0.7),
+        0 0 16px rgba(57, 255, 20, 0.35);
+
+    /* ── Glow utilities for hero/meta text ───────────────────────────── */
+    --tlr-meta-glow: 0 0 10px rgba(126, 200, 232, 0.32);
+    --tlr-hero-glow: 0 0 18px rgba(126, 200, 232, 0.9),
+        0 0 28px rgba(126, 200, 232, 0.45);
+}
+
+/* ── Light variant — mirrors AppTheme.lightXxx + ScannerSkin light branch */
+.thinline-skin--light {
+    --tlr-bg: #c0c0c0;
+    --tlr-surface: #b0b0b0;
+    --tlr-text: #2c2c2c;
+    --tlr-text-secondary: #666666;
+
+    --tlr-chassis-stop-1: #b0b0b0;
+    --tlr-chassis-stop-2: #c0c0c0;
+    --tlr-chassis-stop-3: rgba(154, 154, 154, 0.9);
+    --tlr-chassis-gradient: linear-gradient(
+        180deg,
+        var(--tlr-chassis-stop-1) 0%,
+        var(--tlr-chassis-stop-2) 50%,
+        var(--tlr-chassis-stop-3) 100%
+    );
+
+    --tlr-lcd-stop-1: #eef2f5;
+    --tlr-lcd-stop-2: #d9e0e6;
+    --tlr-lcd-stop-3: #ced6de;
+    --tlr-lcd-scanline-color: rgba(0, 0, 0, 0.04);
+
+    --tlr-bezel-border: #6e7780;
+    --tlr-bezel-shadow:
+        0 5px 14px rgba(0, 0, 0, 0.14),
+        0 0 20px -4px rgba(57, 255, 20, 0.02);
+
+    --tlr-header-divider: rgba(0, 0, 0, 0.12);
+
+    --tlr-nav-inactive: #2f4338;
+}

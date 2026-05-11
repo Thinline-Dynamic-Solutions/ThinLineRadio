@@ -29,6 +29,7 @@ import { RdioScannerNativeModule } from './native/native.module';
 import { RdioScannerSearchComponent } from './search/search.component';
 import { RdioScannerSelectComponent } from './select/select.component';
 import { SystemsVisibilityDialogComponent } from './select/systems-visibility-dialog.component';
+import { ScanListEditDialogComponent } from './select/scan-list-edit-dialog.component';
 import { RdioScannerUserLoginComponent } from './user-login/user-login.component';
 import { RdioScannerUserRegistrationComponent } from './user-registration/user-registration.component';
 import { RdioScannerEmailVerificationComponent } from './email-verification/email-verification.component';
@@ -47,6 +48,9 @@ import { ScanListsService } from './scan-lists.service';
 import { RdioScannerSelectLegacyComponent } from './select/select-legacy.component';
 import { AlertSoundService } from './alert-sound.service';
 import { RdioScannerMobileWebHubComponent } from './mobile-web-hub/mobile-web-hub.component';
+import { RdioScannerChassisComponent } from './skin/chassis.component';
+import { RdioScannerLcdFrameComponent } from './skin/lcd-frame.component';
+import { RdioScannerLcdBottomNavComponent } from './skin/lcd-bottom-nav.component';
 
 @NgModule({
     declarations: [
@@ -57,6 +61,7 @@ import { RdioScannerMobileWebHubComponent } from './mobile-web-hub/mobile-web-hu
         RdioScannerSelectComponent,
         RdioScannerSelectLegacyComponent,
         SystemsVisibilityDialogComponent,
+        ScanListEditDialogComponent,
         RdioScannerSupportComponent,
         RdioScannerUserLoginComponent,
         RdioScannerUserRegistrationComponent,
@@ -69,8 +74,16 @@ import { RdioScannerMobileWebHubComponent } from './mobile-web-hub/mobile-web-hu
         RdioScannerAlertsComponent,
         RdioScannerAlertPreferencesComponent,
         RdioScannerMobileWebHubComponent,
+        RdioScannerChassisComponent,
+        RdioScannerLcdFrameComponent,
+        RdioScannerLcdBottomNavComponent,
     ],
-    exports: [RdioScannerComponent],
+    exports: [
+        RdioScannerComponent,
+        RdioScannerChassisComponent,
+        RdioScannerLcdFrameComponent,
+        RdioScannerLcdBottomNavComponent,
+    ],
     imports: [
         AppSharedModule,
         RdioScannerNativeModule,

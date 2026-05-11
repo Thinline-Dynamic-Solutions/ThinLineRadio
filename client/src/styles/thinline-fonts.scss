@@ -1,0 +1,14 @@
+/*
+ * ThinLine Radio — Web fonts
+ *
+ * Mirrors mobile font choices (Rajdhani primary, Orbitron numeric).
+ * Loaded from Google Fonts so we don't need to ship the woff2 files.
+ * `font-display: swap` falls back to system sans during fetch so first paint
+ * is never blocked.
+ *
+ * Usage in component SCSS:
+ *   font-family: var(--tlr-font-primary);
+ *   font-family: var(--tlr-font-numeric);
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;600;700&display=swap");

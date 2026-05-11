@@ -2175,3 +2175,286 @@
 ::ng-deep .transcript-annotation--fuzzy {
   border-bottom-style: dashed;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+ * ThinLine skin overrides (parity with mobile app)
+ *
+ * Only applied when this component is rendered inside an ancestor with
+ * `.thinline-skin` (currently set in `rdio-scanner.component.html` for the
+ * new tab-based layout). Classic view inherits nothing here.
+ *
+ * See client/src/styles/_thinline-tokens.scss and docs/THINLINE_SKIN.md.
+ * ═══════════════════════════════════════════════════════════════════════*/
+:host-context(.thinline-skin) {
+  background: var(--tlr-chassis-gradient);
+  color: var(--tlr-text);
+  font-family: var(--tlr-font-primary);
+
+  .transport-toolbar {
+    background: var(--tlr-lcd-gradient) !important;
+    border-bottom-color: var(--tlr-bezel-border);
+    color: var(--tlr-text) !important;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.6),
+      0 2px 6px rgba(0, 0, 0, 0.45);
+
+    .transport-action-btn {
+      &.active {
+        border-color: var(--tlr-primary) !important;
+        background: rgba(57, 255, 20, 0.08) !important;
+
+        mat-icon,
+        .transport-action-label {
+          color: var(--tlr-primary) !important;
+          text-shadow: 0 0 8px rgba(57, 255, 20, 0.55);
+        }
+      }
+    }
+  }
+
+  .board-live-strip {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+    /* CRT scanlines on the live LCD strip — matches mobile LCD body. */
+    position: relative;
+    overflow: hidden;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        var(--tlr-lcd-scanline-color) 0,
+        var(--tlr-lcd-scanline-color) 1px,
+        transparent 1px,
+        transparent var(--tlr-lcd-scanline-step)
+      );
+      z-index: 0;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+  }
+
+  .status-strip {
+    color: var(--tlr-accent);
+    font-family: var(--tlr-font-numeric);
+    text-shadow: 0 0 10px rgba(126, 200, 232, 0.32);
+
+    .led-pill {
+      &.on {
+        background: rgba(57, 255, 20, 0.12);
+        border-color: var(--tlr-led-green);
+        color: var(--tlr-led-green);
+        box-shadow: 0 0 10px rgba(57, 255, 20, 0.45),
+          inset 0 0 6px rgba(57, 255, 20, 0.2);
+      }
+
+      &.off {
+        background: rgba(255, 51, 85, 0.12);
+        border-color: var(--tlr-led-red);
+        color: var(--tlr-led-red);
+        box-shadow: 0 0 10px rgba(255, 51, 85, 0.4),
+          inset 0 0 6px rgba(255, 51, 85, 0.2);
+      }
+    }
+  }
+
+  .scanning-banner {
+    color: var(--tlr-primary);
+    text-shadow: 0 0 8px rgba(57, 255, 20, 0.55),
+      0 0 16px rgba(57, 255, 20, 0.25);
+  }
+
+  .now-playing-block {
+    .now-playing-row td:nth-child(3) {
+      /* Talkgroup label gets the LCD hero glow on the now-playing line. */
+      color: var(--tlr-accent);
+      font-family: var(--tlr-font-numeric);
+      text-shadow: 0 0 18px rgba(126, 200, 232, 0.9),
+        0 0 28px rgba(126, 200, 232, 0.45);
+      letter-spacing: 0.5px;
+    }
+  }
+
+  /* Tab strip — match mobile LCD nav inactive readability rule. */
+  .board-tabs ::ng-deep .mat-mdc-tab .mdc-tab__text-label {
+    color: var(--tlr-nav-inactive);
+    font-family: var(--tlr-font-primary);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .board-tabs ::ng-deep .mat-mdc-tab--active .mdc-tab__text-label {
+    color: var(--tlr-nav-active);
+    text-shadow: var(--tlr-nav-active-glow);
+  }
+
+  .board-tabs ::ng-deep .mdc-tab-indicator__content--underline {
+    border-color: var(--tlr-primary) !important;
+    box-shadow: 0 0 8px rgba(57, 255, 20, 0.55);
+  }
+
+  /* ── Tab panel chrome (chassis behind every tab) ────────────────────── */
+  .tab-panel {
+    background: var(--tlr-chassis-gradient);
+    color: var(--tlr-text);
+  }
+
+  .panel-title,
+  .board-history-title {
+    color: var(--tlr-text-secondary);
+    font-family: var(--tlr-font-primary);
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Current tab: call history table → LCD readout ──────────────────── */
+  .history-table-wrap {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+    position: relative;
+
+    /* CRT scanlines on the LCD body. */
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        var(--tlr-lcd-scanline-color) 0,
+        var(--tlr-lcd-scanline-color) 1px,
+        transparent 1px,
+        transparent var(--tlr-lcd-scanline-step)
+      );
+      z-index: 0;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+  }
+
+  .dispatch-table {
+    thead th {
+      background: transparent;
+      color: var(--tlr-text-secondary);
+      font-family: var(--tlr-font-primary);
+      border-bottom-color: var(--tlr-header-divider);
+    }
+
+    tbody td {
+      color: var(--tlr-accent);
+      font-family: var(--tlr-font-numeric);
+      border-bottom-color: var(--tlr-header-divider);
+      text-shadow: 0 0 6px rgba(126, 200, 232, 0.18);
+    }
+
+    tbody tr {
+      &:hover {
+        background: rgba(126, 200, 232, 0.06) !important;
+      }
+
+      &.row-playing {
+        outline-color: var(--tlr-primary);
+        box-shadow: 0 0 14px rgba(57, 255, 20, 0.25) inset;
+      }
+
+      &.row-playing td,
+      &.row-selected td {
+        color: var(--tlr-primary);
+        text-shadow: 0 0 8px rgba(57, 255, 20, 0.45);
+      }
+
+      &.row-selected:not(.row-playing) {
+        box-shadow: inset 3px 0 0 var(--tlr-primary);
+      }
+
+      &.empty-row td {
+        color: var(--tlr-text-secondary);
+        font-family: var(--tlr-font-primary);
+        text-shadow: none;
+      }
+    }
+  }
+
+  /* ── Now-playing strip already gets row hero glow above; keep its row
+   *    background untouched so tag colors still win. ──────────────────── */
+  .now-playing-table-wrap {
+    background: transparent;
+  }
+
+  /* ── Transmission detail panel → bezel-wrapped LCD card ─────────────── */
+  .call-detail-panel {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+
+    .detail-header {
+      color: var(--tlr-primary);
+      font-family: var(--tlr-font-primary);
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 8px rgba(57, 255, 20, 0.45);
+    }
+
+    .detail-grid {
+      .detail-k {
+        color: var(--tlr-text-secondary);
+        font-family: var(--tlr-font-primary);
+      }
+
+      .detail-v {
+        color: var(--tlr-accent);
+        font-family: var(--tlr-font-numeric);
+        text-shadow: 0 0 6px rgba(126, 200, 232, 0.22);
+      }
+    }
+
+    .transcript-block {
+      border-top-color: var(--tlr-header-divider);
+
+      .transcript-body {
+        background: rgba(0, 0, 0, 0.35);
+        border-left-color: var(--tlr-primary);
+        color: var(--tlr-text);
+      }
+    }
+  }
+
+  /* ── Right-side alerts rail in Current tab ──────────────────────────── */
+  .board-alerts-rail {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+  }
+
+  /* ── Archive tab: hint banner ───────────────────────────────────────── */
+  .archive-panel .archive-hint {
+    background: var(--tlr-lcd-gradient);
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    color: var(--tlr-accent);
+    text-shadow: 0 0 6px rgba(126, 200, 232, 0.22);
+
+    strong {
+      color: var(--tlr-primary);
+      text-shadow: 0 0 6px rgba(57, 255, 20, 0.45);
+    }
+  }
+
+  /* ── Auth overlay inside Current tab uses the chassis tint ─────────── */
+  .board-panel .auth {
+    background: rgba(6, 7, 8, 0.78);
+  }
+}

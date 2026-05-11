@@ -735,3 +735,186 @@ input[matInput][style*='opacity: 0'] {
     }
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+ * ThinLine skin overrides — Archive (Search) tab
+ * Activated only when an ancestor carries `.thinline-skin`. See
+ * client/src/styles/_thinline-tokens.scss.
+ * ═══════════════════════════════════════════════════════════════════════*/
+:host-context(.thinline-skin) {
+  color: var(--tlr-text);
+  font-family: var(--tlr-font-primary);
+
+  .rdio-filters,
+  .rdio-list {
+    background: var(--tlr-lcd-gradient) !important;
+    border: 1px solid var(--tlr-bezel-border) !important;
+    border-radius: var(--tlr-bezel-radius) !important;
+    box-shadow: var(--tlr-bezel-shadow) !important;
+  }
+
+  .rdio-filters .filters-panel-head,
+  .rdio-list .results-panel-head {
+    background: transparent;
+    border-bottom-color: var(--tlr-header-divider);
+  }
+
+  .filters-panel-title,
+  .results-panel-title,
+  .filters-panel-hint {
+    color: var(--tlr-text-secondary);
+    letter-spacing: 0.08em;
+  }
+
+  .filters-panel-title,
+  .results-panel-title {
+    color: var(--tlr-primary);
+    text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+  }
+
+  .compact-button {
+    color: var(--tlr-accent);
+    border-color: var(--tlr-bezel-border);
+
+    mat-icon {
+      color: var(--tlr-primary);
+    }
+
+    &:hover {
+      background: rgba(126, 200, 232, 0.06);
+      border-color: var(--tlr-accent);
+    }
+
+    &:active {
+      background: rgba(57, 255, 20, 0.08);
+    }
+
+    &.reset-button {
+      background: rgba(255, 23, 68, 0.06);
+      border-color: rgba(255, 23, 68, 0.55);
+      color: var(--tlr-led-red);
+
+      mat-icon {
+        color: var(--tlr-led-red);
+      }
+    }
+  }
+
+  /* Archive results table — LCD readout, Orbitron numerics, accent rows. */
+  .archive-results-table.mat-mdc-table,
+  .paginator.archive-toolbar {
+    background: transparent !important;
+    border-bottom-color: var(--tlr-header-divider) !important;
+  }
+
+  .archive-results-table {
+    .mat-mdc-header-row,
+    .mat-mdc-header-cell,
+    .archive-results-table .mat-header-cell {
+      background: transparent;
+      border-bottom-color: var(--tlr-header-divider);
+      color: var(--tlr-text-secondary);
+      font-family: var(--tlr-font-primary);
+
+      > span {
+        color: var(--tlr-text-secondary);
+      }
+    }
+
+    .mat-mdc-cell,
+    .mat-cell {
+      color: var(--tlr-accent);
+      font-family: var(--tlr-font-numeric);
+      border-bottom-color: var(--tlr-header-divider);
+      text-shadow: 0 0 6px rgba(126, 200, 232, 0.18);
+
+      > span {
+        color: inherit;
+      }
+    }
+
+    .mat-mdc-row:hover,
+    .mat-row:hover {
+      background: rgba(126, 200, 232, 0.06) !important;
+    }
+
+    .mat-mdc-row.archive-row-playing,
+    .mat-row.archive-row-playing {
+      outline-color: var(--tlr-primary);
+      box-shadow: 0 0 14px rgba(57, 255, 20, 0.25) inset;
+
+      .mat-mdc-cell,
+      .mat-cell {
+        color: var(--tlr-primary);
+        text-shadow: 0 0 8px rgba(57, 255, 20, 0.45);
+      }
+    }
+  }
+
+  /* Pretty up paginator chrome inside the LCD bezel. */
+  .paginator.archive-toolbar {
+    .archive-download-wrap {
+      background: rgba(0, 0, 0, 0.25);
+      border-color: var(--tlr-bezel-border);
+    }
+
+    .archive-paginator ::ng-deep {
+      .mat-mdc-paginator-range-label {
+        background: rgba(0, 0, 0, 0.25);
+        border-color: var(--tlr-bezel-border);
+        color: var(--tlr-accent);
+        font-family: var(--tlr-font-numeric);
+      }
+
+      .mat-mdc-paginator-range-actions > .mat-mdc-icon-button {
+        background: rgba(0, 0, 0, 0.25);
+        border-color: var(--tlr-bezel-border);
+        color: var(--tlr-accent);
+
+        &:hover:not([disabled]) {
+          background: rgba(126, 200, 232, 0.1);
+          border-color: var(--tlr-accent);
+          color: var(--tlr-text);
+        }
+
+        &:focus-visible {
+          outline-color: var(--tlr-primary);
+        }
+      }
+    }
+  }
+
+  .loading-overlay {
+    background: rgba(6, 7, 8, 0.78);
+
+    mat-spinner ::ng-deep circle {
+      stroke: var(--tlr-primary);
+    }
+  }
+
+  /* Material form-field accents → primary green focus ring. */
+  .rdio-filters form .mat-form-field ::ng-deep {
+    .mat-mdc-text-field-wrapper {
+      background: rgba(0, 0, 0, 0.25);
+      border-color: var(--tlr-bezel-border);
+    }
+
+    .mat-mdc-form-field:hover .mat-mdc-text-field-wrapper {
+      border-color: var(--tlr-accent);
+    }
+
+    .mat-mdc-form-field-focus .mat-mdc-text-field-wrapper {
+      border-color: var(--tlr-primary);
+    }
+
+    .mat-mdc-select-arrow {
+      color: var(--tlr-primary);
+    }
+
+    .mat-mdc-select-value-text,
+    .mat-mdc-input-element {
+      color: var(--tlr-accent);
+      font-family: var(--tlr-font-numeric);
+    }
+  }
+}

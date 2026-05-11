@@ -281,29 +281,45 @@ export class RdioScannerService implements OnDestroy {
     }
 
     /**
-     * Enable only talkgroups that appear in the scan list with isEnabled true; all others off.
-     * Updates localStorage and notifies the UI; if live feed is online, resubscribes with the new map.
+     * Set the live-feed `active` state for an explicit set of channels in one batch.
+     *
+     * This is the bulk-toggle entry point used by the Scan Lists UI: it mirrors the
+     * mobile app's `_toggleAllInList` behavior — flip exactly the channels we were
+     * given, leave every other talkgroup's livefeed state untouched. That makes the
+     * scan-list checkbox additive (combines with manual Channels-tab selections)
+     * instead of overriding the entire map.
      */
-    applyScanListChannelsToLivefeed(channels: { systemId: string; talkgroupId: string; isEnabled: boolean }[]): void {
-        if (!this.config?.systems?.length) {
+    setLivefeedActiveForChannels(
+        refs: { systemId: string | number; talkgroupId: string | number }[],
+        active: boolean,
+    ): void {
+        if (!this.config?.systems?.length || !refs.length) {
             return;
         }
 
-        const allowed = new Set(
-            channels.filter((c) => c.isEnabled).map((c) => `${c.systemId}:${c.talkgroupId}`),
-        );
+        const validSystemIds = new Set(this.config.systems.map((s) => s.id));
+        let changed = false;
 
-        for (const sys of this.config.systems) {
-            const sid = String(sys.id);
-            if (!this.livefeedMap[sys.id]) {
-                this.livefeedMap[sys.id] = {};
+        for (const ref of refs) {
+            const sysId = typeof ref.systemId === 'number' ? ref.systemId : parseInt(ref.systemId, 10);
+            const tgId = typeof ref.talkgroupId === 'number' ? ref.talkgroupId : parseInt(ref.talkgroupId, 10);
+            if (Number.isNaN(sysId) || Number.isNaN(tgId)) continue;
+            if (!validSystemIds.has(sysId)) continue;
+
+            if (!this.livefeedMap[sysId]) {
+                this.livefeedMap[sysId] = {};
             }
-            for (const tg of sys.talkgroups) {
-                if (!this.livefeedMap[sys.id][tg.id]) {
-                    this.livefeedMap[sys.id][tg.id] = {} as RdioScannerLivefeed;
-                }
-                this.livefeedMap[sys.id][tg.id].active = allowed.has(`${sid}:${String(tg.id)}`);
+            if (!this.livefeedMap[sysId][tgId]) {
+                this.livefeedMap[sysId][tgId] = {} as RdioScannerLivefeed;
             }
+            if (this.livefeedMap[sysId][tgId].active !== active) {
+                this.livefeedMap[sysId][tgId].active = active;
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return;
         }
 
         this.rebuildCategories();

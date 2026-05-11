@@ -1,0 +1,76 @@
+<div class="picker-root">
+    <header class="picker-header">
+        <div class="header-row">
+            <mat-icon class="header-icon">playlist_add_check</mat-icon>
+            <div class="header-text">
+                <span class="header-title">Edit channels</span>
+                <span class="header-subtitle">{{ list.name }} · {{ membershipCount() }} channel{{ membershipCount() === 1 ? '' : 's' }}</span>
+            </div>
+            <button mat-icon-button class="close-btn" mat-dialog-close aria-label="Close">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+        <div class="search-row">
+            <mat-icon class="search-icon">search</mat-icon>
+            <input
+                type="text"
+                class="search-input"
+                placeholder="Search talkgroup, name, or ID…"
+                [(ngModel)]="searchQuery"
+                (ngModelChange)="onSearchChange()" />
+            <button *ngIf="searchQuery" type="button" class="clear-btn" (click)="clearSearch()" aria-label="Clear search">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+    </header>
+
+    <section class="picker-body" mat-dialog-content>
+        <div *ngIf="getPickerSystems().length === 0" class="empty-state">
+            <mat-icon>filter_alt_off</mat-icon>
+            <p>No talkgroups match your search</p>
+        </div>
+
+        <div *ngFor="let s of getPickerSystems(); trackBy: trackBySystemId" class="picker-system">
+            <button type="button" class="system-row" (click)="toggleSystemExpanded(s.system.id)">
+                <mat-icon class="chev">{{ isSystemExpanded(s.system.id) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                <mat-icon class="sys-icon">radio</mat-icon>
+                <span class="sys-label">{{ s.system.label }}</span>
+                <span class="sys-count">{{ s.matches }}</span>
+            </button>
+
+            <ng-container *ngIf="isSystemExpanded(s.system.id)">
+                <div *ngFor="let tagGroup of s.talkgroupsByTag; trackBy: trackByTag" class="picker-tag-group">
+                    <button type="button"
+                            class="tag-row"
+                            [style.color]="getTagColor(tagGroup.tag)"
+                            (click)="toggleTag(s.system, tagGroup.tag, tagGroup.talkgroups)"
+                            [title]="tagState(s.system, tagGroup.talkgroups) === 'all' ? 'Remove all from list' : 'Add all to list'">
+                        <mat-icon class="tag-state-icon" [class.partial]="tagState(s.system, tagGroup.talkgroups) === 'some'">
+                            {{ tagStateIcon(tagState(s.system, tagGroup.talkgroups)) }}
+                        </mat-icon>
+                        <mat-icon class="tag-icon">label</mat-icon>
+                        <span class="tag-label">{{ tagGroup.tag || 'Untagged' }}</span>
+                        <span class="tag-count">{{ tagGroup.talkgroups.length }}</span>
+                    </button>
+
+                    <div *ngFor="let tg of tagGroup.talkgroups; trackBy: trackByTalkgroupId"
+                         class="tg-row"
+                         [class.in-list]="isMember(s.system.id, tg.id)"
+                         (click)="toggleChannel(s.system, tg)">
+                        <span class="tg-dot" [class.on]="isMember(s.system.id, tg.id)"></span>
+                        <div class="tg-text">
+                            <span class="tg-label">{{ tg.label }}</span>
+                            <span *ngIf="tg.name && tg.name !== tg.label" class="tg-name">{{ tg.name }}</span>
+                        </div>
+                        <span class="tg-id">{{ tg.id }}</span>
+                    </div>
+                </div>
+            </ng-container>
+        </div>
+    </section>
+
+    <footer class="picker-footer" mat-dialog-actions>
+        <span class="hint">Tap a row to add or remove. Changes save automatically.</span>
+        <button mat-stroked-button color="primary" mat-dialog-close>Done</button>
+    </footer>
+</div>

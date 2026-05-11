@@ -1,5 +1,18 @@
 # Change log
 
+## Version 26.05.003 - Released May 10, 2026
+
+### Changed
+
+- **General UI** — styling and layout updates across the main listener experience, search, select, alerts, settings, and related panels
+- **Admin — Push notification / relay API key** — In-app guidance that requesting or changing a relay API key requires a supported browser context (HTTPS, or http://localhost / http://127.0.0.1), and that the server listen address should include **0.0.0.0** when using localhost, to avoid “Failed to initialize authorization” when opening admin as plain http on a LAN IP only
+
+### Fixed
+
+- **General bug fixes** — server and client correctness and stability improvements (including API, call handling, scan lists, and client services)
+
+---
+
 ## Version 26.05.001 - Released May 4, 2026
 
 ### New Features

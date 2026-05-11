@@ -3,6 +3,13 @@
 @import "./styles/material-icons";
 @import "./styles/roboto-fonts";
 
+/* ── ThinLine skin (mobile-app parity) ─────────────────────────────────────
+ * Tokens and fonts load globally so any component can read them. The skin
+ * itself is opt-in: add `thinline-skin` (and optionally `thinline-skin--light`)
+ * to <body> or a subtree. See docs/THINLINE_SKIN.md. */
+@import "./styles/thinline-fonts";
+@import "./styles/thinline-tokens";
+
 @include mat.core();
 
 $rdio-scanner-font-family: Roboto, "Helvetica Neue", sans-serif;

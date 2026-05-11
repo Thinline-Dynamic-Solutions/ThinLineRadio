@@ -1,0 +1,75 @@
+@import "../../../../styles/thinline-mixins";
+
+:host {
+    display: block;
+    width: 100%;
+    font-family: var(--tlr-font-primary);
+    user-select: none;
+}
+
+.lcd-nav {
+    @include tlr-lcd-face;
+    @include tlr-top-glow-divider;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    padding: 6px 4px 8px;
+    border-top: 1px solid var(--tlr-header-divider);
+    /* Subtle inner glow on the LCD face mirrors the mobile bottom strip. */
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.lcd-nav-item {
+    flex: 1 1 0;
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--tlr-nav-inactive);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 2px;
+    min-height: 44px; /* iOS-style hit target */
+    transition: color 120ms ease-out, text-shadow 120ms ease-out;
+
+    &:focus-visible {
+        outline: 1px solid var(--tlr-accent);
+        outline-offset: -2px;
+        border-radius: 4px;
+    }
+
+    &.active {
+        color: var(--tlr-nav-active);
+        text-shadow: var(--tlr-nav-active-glow);
+
+        .lcd-nav-icon {
+            filter: drop-shadow(0 0 6px rgba(57, 255, 20, 0.65));
+        }
+
+        .lcd-nav-label {
+            font-weight: 700;
+        }
+    }
+}
+
+.lcd-nav-icon {
+    /* Mobile: 20px icons (post Issue #199 readability tweak). */
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+}
+
+.lcd-nav-label {
+    /* Mobile: 9px / w600 inactive (post Issue #199 readability tweak). */
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    line-height: 1;
+}

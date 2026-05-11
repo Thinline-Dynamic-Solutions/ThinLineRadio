@@ -35,6 +35,11 @@ interface SelectedStateData {
   template: `
     <h2 mat-dialog-title>{{ isUpdateMode ? 'Update' : 'Request' }} Push Notification API Key</h2>
     <mat-dialog-content>
+      <p style="font-size: 13px; color: #666; line-height: 1.45; margin: 0 0 16px 0;">
+        This dialog uses your browser’s cryptography APIs. Load admin over HTTPS, or over http://localhost / http://127.0.0.1.
+        If you use localhost, configure the server to listen on 0.0.0.0 (all interfaces), not only the computer’s LAN address, so the admin UI can reach the service on loopback.
+        Plain http:// with a LAN IP or hostname often cannot complete this step.
+      </p>
       <!-- Domain Verification Step -->
       <div *ngIf="requiresDomainVerification && !apiKeyReceived">
         <div style="text-align: center; padding: 20px;">

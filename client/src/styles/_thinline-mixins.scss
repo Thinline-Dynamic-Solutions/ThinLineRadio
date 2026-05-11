@@ -1,0 +1,96 @@
+/*
+ * ThinLine Radio — Web SCSS mixins
+ *
+ * Re-usable building blocks that mirror the helpers in
+ * `lib/theme/scanner_skin.dart` (chassisDecoration, lcdFaceGradient,
+ * lcdBezelDecoration, scanlines, …).
+ *
+ * All mixins read from CSS variables defined in `_thinline-tokens.scss`,
+ * so they inherit dark/light variants automatically.
+ */
+
+/* Full-screen body / app background. */
+@mixin tlr-chassis() {
+    background: var(--tlr-chassis-gradient);
+    color: var(--tlr-text);
+}
+
+/* LCD face gradient — apply to a panel that sits inside the bezel. */
+@mixin tlr-lcd-face() {
+    background: var(--tlr-lcd-gradient);
+    color: var(--tlr-text);
+}
+
+/* Outer bezel + glow. Pair with @include tlr-lcd-face on a child. */
+@mixin tlr-bezel() {
+    border: 1px solid var(--tlr-bezel-border);
+    border-radius: var(--tlr-bezel-radius);
+    box-shadow: var(--tlr-bezel-shadow);
+    overflow: hidden;
+}
+
+/* CRT-style horizontal scanlines overlay.
+ *
+ * Apply to a positioned ancestor; the lines are drawn via repeating-linear-gradient
+ * on a ::after layer and are pointer-events:none so they never block clicks.
+ */
+@mixin tlr-scanlines() {
+    position: relative;
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: repeating-linear-gradient(
+            to bottom,
+            var(--tlr-lcd-scanline-color) 0,
+            var(--tlr-lcd-scanline-color) 1px,
+            transparent 1px,
+            transparent var(--tlr-lcd-scanline-step)
+        );
+        z-index: 0;
+    }
+
+    > * {
+        position: relative;
+        z-index: 1;
+    }
+}
+
+/* Soft glow for LCD metadata text (status strip, counters). */
+@mixin tlr-meta-glow($color: var(--tlr-accent)) {
+    text-shadow: 0 0 10px rgba(126, 200, 232, 0.32);
+    color: $color;
+}
+
+/* Strong glow for the hero/active line (now-playing talkgroup, etc). */
+@mixin tlr-hero-glow($color: var(--tlr-accent)) {
+    text-shadow:
+        0 0 18px rgba(126, 200, 232, 0.9),
+        0 0 28px rgba(126, 200, 232, 0.45);
+    color: $color;
+    font-family: var(--tlr-font-numeric);
+    letter-spacing: 1px;
+}
+
+/* Top neon-green divider (used at the top edge of the LCD nav bar). */
+@mixin tlr-top-glow-divider() {
+    position: relative;
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(
+            to right,
+            transparent,
+            rgba(57, 255, 20, 0.55),
+            transparent
+        );
+        z-index: 2;
+    }
+}

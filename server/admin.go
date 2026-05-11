@@ -2571,8 +2571,9 @@ func (admin *Admin) CallsHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Create a minimal client for admin search (bypasses user restrictions)
 		adminClient := &Client{
-			Controller: admin.Controller,
-			User:       nil, // Admin has no user restrictions
+			Controller:              admin.Controller,
+			User:                    nil,
+			BypassPlaybackSearchACL: true,
 		}
 
 		results, err := admin.Controller.Calls.Search(callOptions, adminClient)

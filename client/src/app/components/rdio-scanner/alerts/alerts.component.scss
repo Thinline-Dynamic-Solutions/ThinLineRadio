@@ -1236,3 +1236,308 @@
 ::ng-deep .transcript-annotation--fuzzy {
     border-bottom-style: dashed;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+ * ThinLine skin overrides — Alerts / Transcripts / Stats tabs
+ * Only active under an ancestor with `.thinline-skin`.
+ * ═══════════════════════════════════════════════════════════════════════*/
+:host-context(.thinline-skin) {
+    .alerts-container {
+        background: var(--tlr-chassis-gradient);
+        color: var(--tlr-text);
+        font-family: var(--tlr-font-primary);
+
+        &.board-embed {
+            background: transparent;
+        }
+    }
+
+    /* Embed (used on Current tab rail) — LCD card. */
+    .alerts-header-embed {
+        background: var(--tlr-lcd-gradient);
+        border: 1px solid var(--tlr-bezel-border);
+        border-radius: var(--tlr-bezel-radius);
+
+        .embed-title {
+            color: var(--tlr-primary);
+            text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+        }
+
+        .btn-embed-refresh {
+            background: rgba(0, 0, 0, 0.25);
+            border-color: var(--tlr-bezel-border);
+            color: var(--tlr-accent);
+
+            &:hover:not(:disabled) {
+                background: rgba(126, 200, 232, 0.1);
+                border-color: var(--tlr-accent);
+            }
+        }
+
+        .btn-embed-open-all {
+            background: rgba(57, 255, 20, 0.08);
+            border-color: var(--tlr-primary);
+            color: var(--tlr-primary);
+            text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+        }
+    }
+
+    .alert-item-embed,
+    .alert-item,
+    .transcript-item {
+        background: var(--tlr-lcd-gradient);
+        border: 1px solid var(--tlr-bezel-border);
+        border-radius: var(--tlr-bezel-radius);
+        box-shadow: var(--tlr-bezel-shadow);
+        color: var(--tlr-text);
+
+        &:hover {
+            background: var(--tlr-lcd-gradient);
+            box-shadow:
+                var(--tlr-bezel-shadow),
+                0 0 14px rgba(126, 200, 232, 0.18);
+        }
+    }
+
+    .alert-item.tone {
+        border-left-color: var(--tlr-warning);
+    }
+
+    .alert-item.keyword {
+        border-left-color: var(--tlr-primary);
+    }
+
+    .alert-item.tone-keyword {
+        border-left-color: var(--tlr-led-red);
+    }
+
+    .alert-header {
+        .alert-type-badge {
+            background: rgba(57, 255, 20, 0.15);
+            border-color: var(--tlr-primary);
+            color: var(--tlr-primary);
+            text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+        }
+
+        .alert-timestamp {
+            color: var(--tlr-text-secondary);
+            font-family: var(--tlr-font-numeric);
+        }
+    }
+
+    .alert-info {
+        strong {
+            color: var(--tlr-text);
+        }
+
+        .alert-tone-set .tone-set-name {
+            background: rgba(126, 200, 232, 0.1);
+            border-color: var(--tlr-accent);
+            color: var(--tlr-accent);
+            text-shadow: 0 0 6px rgba(126, 200, 232, 0.32);
+        }
+
+        .alert-summary .summary-text {
+            background: rgba(126, 200, 232, 0.06);
+            border-color: var(--tlr-accent);
+            color: var(--tlr-text);
+        }
+
+        .alert-transcript .transcript-text {
+            background: rgba(0, 0, 0, 0.35);
+            border-color: var(--tlr-bezel-border);
+            color: var(--tlr-text);
+        }
+    }
+
+    .alert-keywords .keyword-tag {
+        background: rgba(0, 0, 0, 0.25);
+        border-color: var(--tlr-bezel-border);
+        color: var(--tlr-accent);
+        text-shadow: 0 0 6px rgba(126, 200, 232, 0.22);
+    }
+
+    .alert-actions {
+        border-top-color: var(--tlr-header-divider);
+
+        button.btn-play {
+            background: var(--tlr-primary);
+            color: var(--tlr-bg);
+            box-shadow: 0 0 12px rgba(57, 255, 20, 0.4);
+        }
+    }
+
+    /* Transcripts tab */
+    .transcript-header {
+        color: var(--tlr-text-secondary);
+    }
+
+    .transcript-body {
+        background: rgba(0, 0, 0, 0.35);
+        border-color: var(--tlr-bezel-border);
+        color: var(--tlr-text);
+
+        p mark {
+            background: var(--tlr-warning);
+            color: #000;
+        }
+    }
+
+    .transcript-footer {
+        color: var(--tlr-text-secondary);
+
+        .btn-play {
+            background: var(--tlr-primary);
+            color: var(--tlr-bg);
+        }
+    }
+
+    .transcript-filters {
+        background: var(--tlr-lcd-gradient);
+        border: 1px solid var(--tlr-bezel-border);
+        border-radius: var(--tlr-bezel-radius);
+        box-shadow: var(--tlr-bezel-shadow);
+    }
+
+    .alerts-header .header-tabs .tab-button {
+        background: rgba(0, 0, 0, 0.25);
+        border-color: var(--tlr-bezel-border);
+        color: var(--tlr-text-secondary);
+        font-family: var(--tlr-font-primary);
+
+        &:hover {
+            background: rgba(126, 200, 232, 0.08);
+            color: var(--tlr-text);
+        }
+
+        &.active {
+            background: var(--tlr-primary);
+            border-color: var(--tlr-primary);
+            color: var(--tlr-bg);
+            text-shadow: none;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.4);
+        }
+    }
+
+    .alerts-header .header-actions .btn-refresh {
+        background: rgba(0, 0, 0, 0.25);
+        border-color: var(--tlr-bezel-border);
+        color: var(--tlr-accent);
+
+        &:hover:not(:disabled) {
+            background: rgba(126, 200, 232, 0.1);
+            color: var(--tlr-text);
+        }
+    }
+
+    /* Stats dashboard */
+    .stats-counters .stat-counter {
+        background: var(--tlr-lcd-gradient);
+        border: 1px solid var(--tlr-bezel-border);
+        border-radius: var(--tlr-bezel-radius);
+        box-shadow: var(--tlr-bezel-shadow);
+
+        .counter-value {
+            color: var(--tlr-accent);
+            font-family: var(--tlr-font-numeric);
+            text-shadow: 0 0 10px rgba(126, 200, 232, 0.4);
+        }
+
+        .counter-label {
+            color: var(--tlr-text-secondary);
+            font-family: var(--tlr-font-primary);
+        }
+
+        &.accent .counter-value {
+            color: var(--tlr-primary);
+            text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+        }
+
+        &.tone .counter-value {
+            color: var(--tlr-warning);
+            text-shadow: 0 0 10px rgba(255, 165, 0, 0.4);
+        }
+    }
+
+    .stats-section {
+        background: var(--tlr-lcd-gradient);
+        border: 1px solid var(--tlr-bezel-border);
+        border-radius: var(--tlr-bezel-radius);
+        box-shadow: var(--tlr-bezel-shadow);
+    }
+
+    .stats-section-title {
+        color: var(--tlr-primary);
+        text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+    }
+
+    .bar-row {
+        .bar-rank,
+        .bar-count {
+            color: var(--tlr-text-secondary);
+            font-family: var(--tlr-font-numeric);
+        }
+
+        .bar-label {
+            color: var(--tlr-text);
+        }
+
+        .bar-track {
+            background: rgba(0, 0, 0, 0.4);
+
+            .bar-fill {
+                background: var(--tlr-primary);
+                box-shadow: 0 0 8px rgba(57, 255, 20, 0.45);
+            }
+
+            .tone-fill {
+                background: var(--tlr-warning);
+                box-shadow: 0 0 8px rgba(255, 165, 0, 0.4);
+            }
+        }
+    }
+
+    .stats-filter-bar {
+        background: rgba(0, 0, 0, 0.25);
+        border-color: var(--tlr-bezel-border);
+
+        .filter-icon {
+            color: var(--tlr-text-secondary);
+        }
+
+        .filter-label {
+            color: var(--tlr-text-secondary);
+        }
+
+        .stats-system-select {
+            background: rgba(0, 0, 0, 0.4);
+            border-color: var(--tlr-bezel-border);
+            color: var(--tlr-accent);
+            font-family: var(--tlr-font-numeric);
+        }
+    }
+
+    .no-alerts-embed,
+    .loading-embed,
+    .no-alerts,
+    .loading,
+    .stats-empty,
+    .stats-loading {
+        color: var(--tlr-text-secondary);
+        border-color: var(--tlr-header-divider);
+    }
+
+    /* Material expansion panels (alert groupings). */
+    ::ng-deep .tone-alert-group .mat-expansion-panel,
+    ::ng-deep .channel-alert-group .mat-expansion-panel {
+        background: var(--tlr-lcd-gradient) !important;
+        border: 1px solid var(--tlr-bezel-border) !important;
+        border-radius: var(--tlr-bezel-radius) !important;
+        box-shadow: var(--tlr-bezel-shadow) !important;
+    }
+
+    ::ng-deep .tone-alert-group .mat-expansion-panel-header,
+    ::ng-deep .channel-alert-group .mat-expansion-panel-header {
+        background: transparent !important;
+    }
+}
