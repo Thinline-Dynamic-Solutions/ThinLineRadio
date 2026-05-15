@@ -473,18 +473,16 @@
     gap: 1rem;
 }
 
+/* alert-group-panel + tone/channel classes are on mat-expansion-panel host (not a wrapper) */
 ::ng-deep {
-    .tone-alert-group,
-    .channel-alert-group {
+    mat-expansion-panel.alert-group-panel {
         margin-bottom: 8px !important;
-        
-        .mat-expansion-panel {
-            background-color: #2e2e2e !important;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
+        background-color: #2e2e2e !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.9) !important;
+
         .mat-expansion-panel-header {
             padding: 12px 16px;
             background-color: #2e2e2e !important;
@@ -492,36 +490,33 @@
             display: flex !important;
             justify-content: space-between !important;
             align-items: center !important;
-            
-            * {
-                color: rgba(255, 255, 255, 0.9) !important;
+
+            &:hover,
+            &:focus {
+                background-color: #353535 !important;
             }
-            
+
             .mat-panel-title {
                 display: flex !important;
                 align-items: center !important;
                 gap: 0.75rem;
                 color: rgba(255, 255, 255, 0.9) !important;
                 flex: 0 0 auto;
-                
-                * {
-                    color: rgba(255, 255, 255, 0.9) !important;
-                }
-                
+
                 .group-icon {
                     font-size: 1.5rem;
                     width: 1.5rem;
                     height: 1.5rem;
                     color: rgba(255, 255, 255, 0.7) !important;
                 }
-                
+
                 .group-name {
                     font-size: 1rem;
                     font-weight: 600;
-                    color: rgba(255, 255, 255, 0.9) !important;
+                    color: rgba(255, 255, 255, 0.95) !important;
                 }
             }
-            
+
             .mat-panel-description {
                 display: inline-flex !important;
                 align-items: center !important;
@@ -529,18 +524,15 @@
                 flex: 0 0 auto;
                 margin-left: auto !important;
                 justify-content: flex-end !important;
-                
-                * {
-                    color: rgba(255, 255, 255, 0.9) !important;
-                }
-                
+                color: rgba(255, 255, 255, 0.85) !important;
+
                 .alert-count {
                     color: rgba(255, 255, 255, 0.9) !important;
                     font-size: 0.9rem;
                     font-weight: 600;
                     white-space: nowrap;
                 }
-                
+
                 .group-timestamp {
                     color: rgba(255, 255, 255, 0.7) !important;
                     font-size: 0.85rem;
@@ -553,34 +545,28 @@
                     padding: 0 8px;
                 }
             }
-            
-            &:hover {
-                background-color: #353535 !important;
-            }
         }
-        
+
         .mat-expansion-panel-body {
             padding: 12px 16px;
             background-color: #2e2e2e !important;
         }
-        
-        &.mat-expanded {
-            .mat-expansion-panel-header {
-                background-color: #353535 !important;
-            }
+
+        &.mat-expanded > .mat-expansion-panel-header {
+            background-color: #353535 !important;
+        }
+
+        .mat-expansion-indicator::after {
+            color: rgba(255, 255, 255, 0.7) !important;
         }
     }
-    
-    .tone-alert-group {
-        .mat-expansion-panel {
-            border-left: 4px solid #ffc107;
-        }
+
+    mat-expansion-panel.alert-group-panel.tone-alert-group {
+        border-left: 4px solid #ffc107;
     }
-    
-    .channel-alert-group {
-        .mat-expansion-panel {
-            border-left: 4px solid #00e676;
-        }
+
+    mat-expansion-panel.alert-group-panel.channel-alert-group {
+        border-left: 4px solid #00e676;
     }
 }
 
@@ -1527,17 +1513,84 @@
         border-color: var(--tlr-header-divider);
     }
 
-    /* Material expansion panels (alert groupings). */
-    ::ng-deep .tone-alert-group .mat-expansion-panel,
-    ::ng-deep .channel-alert-group .mat-expansion-panel {
+    .alerts-content,
+    .transcripts-content,
+    .preferences-content,
+    .stats-content {
+        background: transparent;
+    }
+
+    /* Material expansion panels — see also styles/_thinline-material.scss (global). */
+    ::ng-deep mat-expansion-panel.alert-group-panel {
         background: var(--tlr-lcd-gradient) !important;
         border: 1px solid var(--tlr-bezel-border) !important;
         border-radius: var(--tlr-bezel-radius) !important;
         box-shadow: var(--tlr-bezel-shadow) !important;
+        color: var(--tlr-text) !important;
+
+        .mat-expansion-indicator::after {
+            color: var(--tlr-accent) !important;
+        }
+
+        .mat-expansion-panel-header {
+            background: var(--tlr-lcd-gradient) !important;
+            color: var(--tlr-text) !important;
+
+            &:hover,
+            &:focus {
+                background: var(--tlr-lcd-gradient) !important;
+            }
+
+            .mat-panel-title {
+                color: var(--tlr-text) !important;
+
+                .group-icon {
+                    color: var(--tlr-accent) !important;
+                }
+
+                .group-name {
+                    color: var(--tlr-primary) !important;
+                    font-family: var(--tlr-font-primary);
+                    font-weight: 600;
+                    text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+                }
+            }
+
+            .mat-panel-description {
+                color: var(--tlr-text-secondary) !important;
+
+                .alert-count {
+                    color: var(--tlr-accent) !important;
+                    font-family: var(--tlr-font-numeric);
+                    text-shadow: 0 0 6px rgba(126, 200, 232, 0.22);
+                }
+
+                .group-timestamp {
+                    color: var(--tlr-text-secondary) !important;
+                    font-family: var(--tlr-font-numeric);
+                }
+
+                .alert-separator {
+                    color: var(--tlr-text-secondary) !important;
+                }
+            }
+        }
+
+        .mat-expansion-panel-body {
+            background: transparent !important;
+            border-top: 1px solid var(--tlr-header-divider);
+        }
+
+        &.mat-expanded > .mat-expansion-panel-header {
+            background: var(--tlr-lcd-gradient) !important;
+        }
     }
 
-    ::ng-deep .tone-alert-group .mat-expansion-panel-header,
-    ::ng-deep .channel-alert-group .mat-expansion-panel-header {
-        background: transparent !important;
+    ::ng-deep mat-expansion-panel.alert-group-panel.tone-alert-group {
+        border-left: 4px solid var(--tlr-warning) !important;
+    }
+
+    ::ng-deep mat-expansion-panel.alert-group-panel.channel-alert-group {
+        border-left: 4px solid var(--tlr-primary) !important;
     }
 }

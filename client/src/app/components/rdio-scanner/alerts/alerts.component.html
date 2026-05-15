@@ -114,7 +114,8 @@
         
         <div *ngIf="alerts.length > 0" class="alerts-list">
             <!-- All Alerts - Sorted by Most Recent -->
-            <mat-expansion-panel *ngFor="let group of allAlertGroups; trackBy: trackByGroupKey" 
+            <mat-expansion-panel *ngFor="let group of allAlertGroups; trackBy: trackByGroupKey"
+                                 class="alert-group-panel"
                                  [class.tone-alert-group]="group.groupType === 'tone'"
                                  [class.channel-alert-group]="group.groupType === 'channel'">
                 <mat-expansion-panel-header>

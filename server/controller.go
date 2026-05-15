@@ -155,6 +155,9 @@ const (
 	// If tones don't get attached to a voice call within this time, they're considered orphaned
 	// Set to 2 minutes to prevent unrelated incidents from merging together
 	pendingToneTimeoutMinutes = 2
+	// orphanedToneAlertSeconds is how long to wait after the last stacked tone clip before
+	// creating DB alerts when no voice dispatch arrives on this talkgroup.
+	orphanedToneAlertSeconds = 60
 	// shortCallWaitSeconds is how long to wait for a longer voice call before attaching to a short one
 	shortCallWaitSeconds = 15
 )
@@ -794,23 +797,13 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 		system = call.System
 	}
 
-	// Stage 1: Snapshot RAW audio for tone detection.
-	// Tone detection must use the unprocessed signal — tones are strong narrowband signals
-	// that survive noise well, and we don't want any filtering to alter their frequency profile.
+	// Snapshot RAW audio for tone detection (must run on unprocessed signal before AAC conversion).
 	rawAudio := make([]byte, len(call.Audio))
 	copy(rawAudio, call.Audio)
 	rawAudioMime := call.AudioMime
-
-	// Stage 2: Kick off tone detection on raw audio asynchronously (doesn't block call processing).
 	shouldDetectTones := call.Talkgroup != nil && call.Talkgroup.ToneDetectionEnabled && len(call.Talkgroup.ToneSets) > 0
-	if shouldDetectTones {
-		toneDetectionCall := *call
-		toneDetectionCall.Audio = rawAudio
-		toneDetectionCall.AudioMime = rawAudioMime
-		go controller.processToneDetectionAsync(&toneDetectionCall, call)
-	}
 
-	// Stage 3: Snapshot audio for transcription (before AAC conversion).
+	// Stage 2: Snapshot audio for transcription (before AAC conversion).
 	call.OriginalAudio = make([]byte, len(call.Audio))
 	copy(call.OriginalAudio, call.Audio)
 	call.OriginalAudioMime = call.AudioMime
@@ -863,7 +856,14 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 		// IMMEDIATE: Emit call to clients (users can play NOW - zero delay)
 		controller.EmitCall(call)
 
-		// Note: Tone detection already completed above (before encoding)
+		// Tone detection runs after WriteCall so call.Id is valid for DB updates, pending tones, and orphan alerts.
+		if shouldDetectTones {
+			toneDetectionCall := *call
+			toneDetectionCall.Audio = rawAudio
+			toneDetectionCall.AudioMime = rawAudioMime
+			go controller.processToneDetectionAsync(&toneDetectionCall, call)
+		}
+
 		// Queue transcription with tone-aware decision
 		go controller.queueTranscriptionIfNeeded(call)
 
@@ -922,6 +922,19 @@ func (controller *Controller) purgeLegacyDuplicates() {
 
 // processToneDetectionAsync runs tone detection asynchronously and updates the original call object
 func (controller *Controller) processToneDetectionAsync(toneDetectionCall *Call, originalCall *Call) {
+	// Ensure a real database callId (detection is started after WriteCall; this guards legacy races).
+	if toneDetectionCall.Id == 0 && originalCall != nil && originalCall.Id > 0 {
+		toneDetectionCall.Id = originalCall.Id
+	}
+	if toneDetectionCall.Id == 0 && originalCall != nil {
+		for i := 0; i < 100 && originalCall.Id == 0; i++ {
+			time.Sleep(2 * time.Millisecond)
+		}
+		if originalCall.Id > 0 {
+			toneDetectionCall.Id = originalCall.Id
+		}
+	}
+
 	startTime := time.Now()
 	systemId := uint64(0)
 	if toneDetectionCall.System != nil {
@@ -930,6 +943,11 @@ func (controller *Controller) processToneDetectionAsync(toneDetectionCall *Call,
 	talkgroupRef := uint(0)
 	if toneDetectionCall.Talkgroup != nil {
 		talkgroupRef = toneDetectionCall.Talkgroup.TalkgroupRef
+	}
+
+	if toneDetectionCall.Id == 0 {
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("tone detection skipped: call id not assigned (system=%d, talkgroup=%d)", systemId, talkgroupRef))
+		return
 	}
 
 	// Run tone detection on the temporary call
@@ -1417,9 +1435,7 @@ func (controller *Controller) storePendingTones(call *Call, toneSequence *ToneSe
 			controller.DebugLogger.LogPendingTones("STORED", call.Id, call.Talkgroup.TalkgroupRef, fmt.Sprintf("New pending tones stored | ToneSets: %v", toneSetLabels))
 		}
 
-		// Start a timer to check if tones are orphaned (no new tones within 60 seconds)
-		// If they're still pending after 60 seconds, send an alert for "tones detected but no voice call"
-		go controller.checkOrphanedTones(key, call.Id, call.Timestamp.UnixMilli())
+		controller.scheduleOrphanedToneCheck(key, call.Id, call.Timestamp.UnixMilli())
 
 		// Cross-talkgroup voice association (Scenario 2).
 		// If this talkgroup is configured to watch a different talkgroup for its voice dispatch,
@@ -1475,6 +1491,8 @@ func (controller *Controller) storePendingTones(call *Call, toneSequence *ToneSe
 			if controller.DebugLogger != nil {
 				controller.DebugLogger.LogPendingTones("REPLACED", call.Id, call.Talkgroup.TalkgroupRef, fmt.Sprintf("Replaced expired pending tones from call %d (age: %.1f min)", existing.CallId, ageMinutes))
 			}
+
+			controller.scheduleOrphanedToneCheck(key, call.Id, call.Timestamp.UnixMilli())
 			return
 		}
 
@@ -1509,9 +1527,6 @@ func (controller *Controller) storePendingTones(call *Call, toneSequence *ToneSe
 
 		// Update to use the most recent tone sequence structure but with combined tones
 		existing.ToneSequence.Tones = combinedTones
-		existing.CallId = call.Id // Use the most recent call ID
-		// IMPORTANT: Keep the original timestamp! Don't update to now, or it may be AFTER the voice call that's already transcribing
-		// existing.Timestamp = time.Now().UnixMilli() // DON'T DO THIS - it breaks timestamp comparison
 
 		// Accumulate ALL matched tone sets across calls (don't overwrite, merge)
 		// Create a map to track unique tone set IDs
@@ -1559,7 +1574,38 @@ func (controller *Controller) storePendingTones(call *Call, toneSequence *ToneSe
 			}
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("merged pending tones result: %d tone set(s) - %s", len(existing.ToneSequence.MatchedToneSets), strings.Join(mergedToneSetLabels, ", ")))
 		}
+
+		// Reset the orphan timer to the latest tone clip in the stack (earlier goroutines exit via timestamp mismatch).
+		controller.refreshPendingStackAnchor(key, existing, call.Id, call.Timestamp.UnixMilli())
 	}
+}
+
+// scheduleOrphanedToneCheck starts a timer that creates DB tone alerts if no voice call claims pending tones.
+func (controller *Controller) scheduleOrphanedToneCheck(key string, callId uint64, anchorTimestamp int64) {
+	if callId == 0 || anchorTimestamp == 0 {
+		return
+	}
+	go controller.checkOrphanedTones(key, callId, anchorTimestamp)
+}
+
+// refreshPendingStackAnchor moves the stack anchor to the latest tone clip and resets the orphan timer.
+func (controller *Controller) refreshPendingStackAnchor(key string, pending *PendingToneSequence, callId uint64, anchorTimestamp int64) {
+	if pending == nil || callId == 0 || anchorTimestamp == 0 {
+		return
+	}
+	pending.CallId = callId
+	pending.Timestamp = anchorTimestamp
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("pending tone stack for %s: anchor moved to call %d (orphan timer reset to %ds)", key, callId, orphanedToneAlertSeconds))
+	controller.scheduleOrphanedToneCheck(key, callId, anchorTimestamp)
+}
+
+// mergeNextPendingIntoCurrent merges the :next slot into the active pending entry after transcription unlock.
+func (controller *Controller) mergeNextPendingIntoCurrent(key string, current, next *PendingToneSequence) {
+	if current == nil || next == nil {
+		return
+	}
+	current.ToneSequence = controller.mergePendingTones(current.ToneSequence, next.ToneSequence)
+	controller.refreshPendingStackAnchor(key, current, next.CallId, next.Timestamp)
 }
 
 // mergePendingTones merges two tone sequences together (for stacked tones across multiple calls)
@@ -1624,11 +1670,10 @@ func (controller *Controller) mergePendingTones(existing *ToneSequence, new *Ton
 	return merged
 }
 
-// checkOrphanedTones waits 60 seconds and checks if pending tones are still there without being attached
-// If so, triggers an alert for "tones detected but no voice call available"
+// checkOrphanedTones waits after the stack anchor timestamp and checks if pending tones are still unclaimed.
+// Stale invocations exit when refreshPendingStackAnchor advances pending.Timestamp.
 func (controller *Controller) checkOrphanedTones(key string, callId uint64, timestamp int64) {
-	// Wait 60 seconds
-	time.Sleep(60 * time.Second)
+	time.Sleep(time.Duration(orphanedToneAlertSeconds) * time.Second)
 
 	controller.pendingTonesMutex.Lock()
 	pending, exists := controller.pendingTones[key]
@@ -1639,32 +1684,42 @@ func (controller *Controller) checkOrphanedTones(key string, callId uint64, time
 		return
 	}
 
-	// Check if this is still the same pending tone sequence (same timestamp)
-	// If timestamp changed, it means new tones were added (merged), so don't trigger alert yet
+	// If the stack anchor moved (another tone clip merged), this timer is stale.
 	if pending.Timestamp != timestamp {
-		// Timestamp changed - new tones were merged, so not orphaned
+		return
+	}
+
+	loadCallId := pending.CallId
+	if loadCallId == 0 {
+		loadCallId = callId
+	}
+	if loadCallId == 0 {
+		controller.Logs.LogEvent(LogLevelWarn, "orphaned tones: no valid call id on pending entry, cannot trigger alert")
 		return
 	}
 
 	// Tones have been sitting for 60 seconds without new tones or voice call
 	// Trigger an alert for the tone-only call
-	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("orphaned tones detected after 60 seconds for call %d - triggering alert without voice", callId))
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("orphaned tones detected after %d seconds for call %d - triggering alert without voice", orphanedToneAlertSeconds, loadCallId))
 
 	if controller.DebugLogger != nil {
-		controller.DebugLogger.LogPendingTones("ORPHANED", callId, 0, "Tones pending for 60+ seconds without voice - triggering alert")
+		controller.DebugLogger.LogPendingTones("ORPHANED", loadCallId, 0, "Tones pending for 60+ seconds without voice - triggering alert")
 	}
 
-	// Load the original call that had the tones
-	call, err := controller.Calls.GetCall(callId)
+	// Load the original call that had the tones (use pending.CallId — updated on stacked-tone merges)
+	call, err := controller.Calls.GetCall(loadCallId)
 	if err != nil || call == nil {
-		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to load orphaned tone call %d: %v", callId, err))
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to load orphaned tone call %d: %v", loadCallId, err))
 		return
 	}
 
-	// Ensure the call has the tone sequence attached
-	if call.ToneSequence == nil && pending.ToneSequence != nil {
+	// Ensure the call has the merged pending tone sequence (stacked pages accumulate multiple tone sets)
+	if pending.ToneSequence != nil {
 		call.ToneSequence = pending.ToneSequence
-		call.HasTones = true
+		call.HasTones = len(pending.ToneSequence.Tones) > 0
+		if len(pending.ToneSequence.MatchedToneSets) > 0 || pending.ToneSequence.MatchedToneSet != nil {
+			controller.updateCallToneSequence(loadCallId, pending.ToneSequence)
+		}
 	}
 
 	// Set a special transcript to indicate no voice was available
@@ -1673,7 +1728,7 @@ func (controller *Controller) checkOrphanedTones(key string, callId uint64, time
 
 		// Update the call in the database with this transcript
 		query := fmt.Sprintf(`UPDATE "calls" SET "transcript" = '%s', "transcriptionStatus" = 'completed' WHERE "callId" = %d`,
-			escapeQuotes(call.Transcript), callId)
+			escapeQuotes(call.Transcript), loadCallId)
 		if _, err := controller.Database.Sql.Exec(query); err != nil {
 			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to update orphaned call transcript: %v", err))
 		}

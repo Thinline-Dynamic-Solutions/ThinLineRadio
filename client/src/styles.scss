@@ -9,6 +9,7 @@
  * to <body> or a subtree. See docs/THINLINE_SKIN.md. */
 @import "./styles/thinline-fonts";
 @import "./styles/thinline-tokens";
+@import "./styles/thinline-material";
 
 @include mat.core();
 

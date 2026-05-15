@@ -365,9 +365,22 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 						go queue.controller.AlertEngine.TriggerToneAlerts(call)
 					}
 				} else {
-					// No voice - if this call has tones, they should have been stored as pending earlier
-					// No alert needed for tone-only calls
+					// No voice on this clip — matched tones are stored as pending; DB alerts fire when a
+					// later voice call attaches them or when the orphan timer fires (~60s).
 					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription completed for call %d: no voice detected (tone-only), no alert created", job.CallId))
+
+					if dbCall, err := queue.controller.Calls.GetCall(job.CallId); err == nil && dbCall != nil && dbCall.HasTones {
+						matched := 0
+						if dbCall.ToneSequence != nil {
+							matched = len(dbCall.ToneSequence.MatchedToneSets)
+							if matched == 0 && dbCall.ToneSequence.MatchedToneSet != nil {
+								matched = 1
+							}
+						}
+						if matched > 0 {
+							queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d tone-only with %d matched tone set(s) on talkgroup %d — pending until voice or orphan alert", job.CallId, matched, call.Talkgroup.TalkgroupRef))
+						}
+					}
 				}
 
 				// UNLOCK PENDING TONES: Transcription is complete, allow new tones to merge
@@ -384,8 +397,7 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 						if nextPending, nextExists := queue.controller.pendingTones[nextKey]; nextExists && nextPending != nil {
 							queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("merging next pending tones into current pending for talkgroup %d (lock cleared after call %d)", call.Talkgroup.TalkgroupRef, job.CallId))
 
-							// Merge next pending tone sequences into current pending
-							pending.ToneSequence = queue.controller.mergePendingTones(pending.ToneSequence, nextPending.ToneSequence)
+							queue.controller.mergeNextPendingIntoCurrent(key, pending, nextPending)
 
 							// Clear next pending slot
 							delete(queue.controller.pendingTones, nextKey)
@@ -408,8 +420,7 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 						if nextPending, nextExists := queue.controller.pendingTones[nextKey]; nextExists && nextPending != nil {
 							queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("merging next pending tones into current pending for system:talkgroup %d:%d (lock cleared after call %d, fallback)", jobSystemId, jobTalkgroupId, job.CallId))
 
-							// Merge next pending tone sequences into current pending
-							pending.ToneSequence = queue.controller.mergePendingTones(pending.ToneSequence, nextPending.ToneSequence)
+							queue.controller.mergeNextPendingIntoCurrent(key, pending, nextPending)
 
 							// Clear next pending slot
 							delete(queue.controller.pendingTones, nextKey)

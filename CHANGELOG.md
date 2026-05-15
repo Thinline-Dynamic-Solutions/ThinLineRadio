@@ -1,5 +1,53 @@
 # Change log
 
+## Version 26.05.004 - Released May 15, 2026
+
+### Fixed
+
+- **Server — Tone detection, stacked pending tones, and orphan alerts (`callId = 0`)**
+  - **First known report:** This is the first production incident of this failure mode we are aware of (investigated May 15, 2026 on system ref 78, talkgroup ref 46036 / 78 FD DISP). It is now fixed.
+  - **Root cause:** Tone detection ran asynchronously on a copy of the call **before** `WriteCall` assigned a database `callId`. All downstream steps used `callId = 0`, so tone results never persisted on the real call rows and the 60-second orphan safety net could not load the call to create alerts.
+
+- **Example failure (May 15, 2026 — stacked tone page, no voice on dispatch)**
+
+  Multiple short clips on one channel within ~20 seconds; detection and pre-alerts worked, but **no rows** were written to the `alerts` table and `hasTones` stayed `false` on every call:
+
+  | Call time (ET) | callId   | Detected / matched        | Pre-alerts | DB `alerts` row |
+  |----------------|----------|---------------------------|------------|-----------------|
+  | 05:03:29       | 39395685 | Champion Duty (376 + 1055 Hz) | 13 users   | None            |
+  | 05:03:34       | 39395698 | Weathersfield 42            | 18 users   | None            |
+  | 05:03:40       | 39395709 | Howland Duty                | 16 users   | None            |
+  | 05:03:45       | 39395718 | Newton Falls Duty           | 13 users   | None            |
+
+  Logs showed detection under the wrong id, for example:
+
+  ```text
+  tone detection starting for call 0 (talkgroup=46036, audioSize=29620 bytes)
+  tones detected for call 0: 376.1 Hz, 1054.7 Hz
+  tone set(s) matched for call 0: Champion Duty
+  storing as pending for talkgroup 46036
+  transcription completed for call 39395685: no voice detected (tone-only), no alert created
+  ```
+
+  Sixty seconds after the **first** pending store, the orphan path ran but could not load call `0`:
+
+  ```text
+  orphaned tones detected after 60 seconds for call 0 - triggering alert without voice
+  failed to load orphaned tone call 0: calls.getcall: cannot retrieve system id 0 for call id 0
+  ```
+
+  By contrast, an earlier page on the same talkgroup at **04:56** attached pending tones to a **voice** call and created alert `321581` (Newton Falls Off Duty on call 39395092) — the same pipeline works when `callId` and voice dispatch align.
+
+- **Fixes in this release**
+  - Run tone detection **after** `WriteCall` so logs, `updateCallToneSequence`, `storePendingTones`, and orphan timers use the real `callId` (with a short wait/sync guard in the async worker).
+  - Orphan handler loads the call via `pending.CallId` when the timer argument is stale, writes the merged `toneSequence` to the database, then triggers `TriggerToneAlerts`.
+  - **Stacked pending:** Each time a new matched tone set is merged into the active pending stack, the stack anchor (`CallId` + call timestamp) moves to the **latest** clip and the **60-second orphan timer resets**; older timer goroutines exit when the anchor timestamp advances. When voice transcription arrives on the talkgroup, all merged tone sets attach to that call, alerts fire, and pending is cleared (unchanged intent, now reliable with valid ids).
+  - Expired-pending replace path schedules an orphan check (was missing).
+  - Clearer log line when a clip is tone-only but has matched tone sets in the database (pending until voice or orphan).
+  - Files modified: `server/controller.go`, `server/transcription_queue.go`, `server/tone_detection_test.go` (new)
+
+---
+
 ## Version 26.05.003 - Released May 10, 2026
 
 ### Changed

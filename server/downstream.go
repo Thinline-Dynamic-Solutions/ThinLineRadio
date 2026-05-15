@@ -98,17 +98,37 @@ func (downstream *Downstream) HasAccess(call *Call) bool {
 			case map[string]any:
 				switch id := v["id"].(type) {
 				case float64:
-					if id == float64(call.System.SystemRef) {
+					systemRef := uint(id)
+
+					var callSystemRef uint
+					if call.System != nil {
+						callSystemRef = call.System.SystemRef
+					} else if call.Meta.SystemRef > 0 {
+						callSystemRef = call.Meta.SystemRef
+					} else if call.SystemId > 0 {
+						callSystemRef = call.SystemId
+					}
+
+					if callSystemRef > 0 && callSystemRef == systemRef {
 						switch tg := v["talkgroups"].(type) {
 						case string:
 							if tg == "*" {
 								return true
 							}
 						case []any:
+							var callTalkgroupRef uint
+							if call.Talkgroup != nil {
+								callTalkgroupRef = call.Talkgroup.TalkgroupRef
+							} else if call.Meta.TalkgroupRef > 0 {
+								callTalkgroupRef = call.Meta.TalkgroupRef
+							} else if call.TalkgroupId > 0 {
+								callTalkgroupRef = call.TalkgroupId
+							}
+
 							for _, f := range tg {
 								switch tg := f.(type) {
 								case float64:
-									if tg == float64(call.Talkgroup.TalkgroupRef) {
+									if callTalkgroupRef > 0 && uint(tg) == callTalkgroupRef {
 										return true
 									}
 								}

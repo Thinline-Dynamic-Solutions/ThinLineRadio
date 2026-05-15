@@ -1,0 +1,87 @@
+/*
+ * ThinLine skin — Material component overrides (global)
+ *
+ * The scanner UI uses mat.define-light-theme(); expansion panels and a few
+ * other widgets stay white unless we override them here. Scoped under
+ * `.thinline-skin` so admin / legacy views are unaffected.
+ */
+
+.thinline-skin rdio-scanner-alerts {
+    .alerts-list .mat-expansion-panel.alert-group-panel {
+        background: var(--tlr-lcd-gradient) !important;
+        color: var(--tlr-text) !important;
+        border: 1px solid var(--tlr-bezel-border) !important;
+        border-radius: var(--tlr-bezel-radius) !important;
+        box-shadow: var(--tlr-bezel-shadow) !important;
+
+        .mat-expansion-panel-header {
+            background: var(--tlr-lcd-gradient) !important;
+            color: var(--tlr-text) !important;
+
+            &:hover,
+            &:focus {
+                background: var(--tlr-lcd-gradient) !important;
+            }
+        }
+
+        &.mat-expanded > .mat-expansion-panel-header {
+            background: var(--tlr-lcd-gradient) !important;
+        }
+
+        .mat-expansion-panel-body {
+            background: var(--tlr-lcd-gradient) !important;
+            border-top: 1px solid var(--tlr-header-divider);
+        }
+
+        .mat-expansion-indicator::after {
+            color: var(--tlr-accent) !important;
+        }
+
+        .mat-expansion-panel-header-title,
+        .mat-expansion-panel-header-description {
+            color: var(--tlr-text) !important;
+        }
+
+        .mat-panel-title {
+            color: var(--tlr-text) !important;
+
+            .group-icon {
+                color: var(--tlr-accent) !important;
+            }
+
+            .group-name {
+                color: var(--tlr-primary) !important;
+                font-family: var(--tlr-font-primary);
+                font-weight: 600;
+                text-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+            }
+        }
+
+        .mat-panel-description {
+            color: var(--tlr-text-secondary) !important;
+
+            .alert-count {
+                color: var(--tlr-accent) !important;
+                font-family: var(--tlr-font-numeric);
+                text-shadow: 0 0 6px rgba(126, 200, 232, 0.22);
+            }
+
+            .group-timestamp,
+            .alert-separator {
+                color: var(--tlr-text-secondary) !important;
+            }
+
+            .group-timestamp {
+                font-family: var(--tlr-font-numeric);
+            }
+        }
+    }
+
+    .alerts-list .mat-expansion-panel.alert-group-panel.tone-alert-group {
+        border-left: 4px solid var(--tlr-warning) !important;
+    }
+
+    .alerts-list .mat-expansion-panel.alert-group-panel.channel-alert-group {
+        border-left: 4px solid var(--tlr-primary) !important;
+    }
+}
