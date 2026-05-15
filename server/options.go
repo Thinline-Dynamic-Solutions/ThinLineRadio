@@ -169,7 +169,7 @@ type Options struct {
 // TranscriptionConfig contains configuration for transcription
 type TranscriptionConfig struct {
 	Enabled                     bool     `json:"enabled"`
-	Provider                    string   `json:"provider"` // "whisper-api", "azure", "google", "assemblyai"
+	Provider                    string   `json:"provider"` // "whisper-api", "azure", "google", "assemblyai", "cloudflare"
 	Language                    string   `json:"language"` // "en", "auto"
 	Prompt                      string   `json:"prompt"`   // Custom prompt for Whisper to guide transcription (e.g., terminology, formatting)
 	WorkerPoolSize              int      `json:"workerPoolSize"`
@@ -184,6 +184,9 @@ type TranscriptionConfig struct {
 	AssemblyAIKey               string   `json:"assemblyAIKey"`               // AssemblyAI API key
 	AssemblyAISpeechModel       string   `json:"assemblyAISpeechModel"`       // Speech model for AssemblyAI: "universal-2" (default) or "universal-3-pro"
 	AssemblyAIWordBoost         []string `json:"assemblyAIWordBoost"`         // Sent as AssemblyAI keyterms_prompt (max 100 terms, 50 chars each)
+	CloudflareAccountID         string   `json:"cloudflareAccountID"`         // Cloudflare account ID for Workers AI
+	CloudflareAPIToken          string   `json:"cloudflareAPIToken"`          // Cloudflare API token for Workers AI
+	CloudflareModel             string   `json:"cloudflareModel"`             // Cloudflare Workers AI model (default: @cf/openai/whisper-large-v3-turbo)
 	HallucinationPatterns       []string `json:"hallucinationPatterns"`       // Patterns to remove from transcripts (Whisper hallucinations)
 	HallucinationDetectionMode  string   `json:"hallucinationDetectionMode"`  // "off", "manual", "auto"
 	HallucinationMinOccurrences int      `json:"hallucinationMinOccurrences"` // Minimum times a phrase must appear in rejected calls before flagging (default: 5)
@@ -926,6 +929,15 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		}
 		if v, ok := tc["assemblyAISpeechModel"].(string); ok {
 			options.TranscriptionConfig.AssemblyAISpeechModel = v
+		}
+		if v, ok := tc["cloudflareAccountID"].(string); ok {
+			options.TranscriptionConfig.CloudflareAccountID = v
+		}
+		if v, ok := tc["cloudflareAPIToken"].(string); ok {
+			options.TranscriptionConfig.CloudflareAPIToken = v
+		}
+		if v, ok := tc["cloudflareModel"].(string); ok {
+			options.TranscriptionConfig.CloudflareModel = v
 		}
 		if v, ok := tc["assemblyAIWordBoost"].([]interface{}); ok {
 			wordBoost := make([]string, 0, len(v))
