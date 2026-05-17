@@ -35,6 +35,7 @@ import {
 } from '../rdio-scanner';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { TagColorService } from '../tag-color.service';
+import { findUnitLabelForSrc } from '../unit-utils';
 import { RdioScannerSupportComponent } from './support/support.component';
 import { AlertsService } from '../alerts/alerts.service';
 import { RdioScannerAlert } from '../rdio-scanner';
@@ -1597,13 +1598,9 @@ export class RdioScannerMainLegacyComponent implements OnDestroy, OnInit {
                         this.callUnit = firstAvailableAlias;
                     } else if (Array.isArray(this.call.systemData?.units)) {
                         // Fall back to admin-configured static unit table
-                        this.callUnit = this.call.systemData?.units?.find((u) => {
-                            if (typeof u.unitFrom === 'number' && typeof u.unitTo === 'number')
-                                if (u.unitFrom <= (source.src as number) && u.unitTo >= (source.src as number))
-                                    return true;
-
-                            return u.id === source.src;
-                        })?.label ?? `${source.src}`;
+                        const units = this.call.systemData!.units;
+                        this.callUnit = findUnitLabelForSrc(units, source.src as number)
+                            ?? `${source.src}`;
                     } else {
                         this.callUnit = `${source.src}`;
                     }
@@ -1612,7 +1609,9 @@ export class RdioScannerMainLegacyComponent implements OnDestroy, OnInit {
             } else {
                 this.callTalkgroupId = isAfs ? this.formatAfs(this.call.talkgroup) : this.call.talkgroup.toString();
 
-                this.callUnit = this.call.systemData?.units?.find((u) => u.id === this.call?.source)?.label ?? `${this.call.source ?? ''}`;
+                this.callUnit = typeof this.call.source === 'number'
+                    ? (findUnitLabelForSrc(this.call.systemData?.units, this.call.source) ?? `${this.call.source}`)
+                    : '';
             }
         }
 

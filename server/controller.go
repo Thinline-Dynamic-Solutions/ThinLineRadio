@@ -1944,33 +1944,9 @@ const (
 
 // callHasVoice determines if a call contains voice/audio content (not just tones)
 func (controller *Controller) callHasVoice(call *Call) bool {
-	// If call already has a transcript, check if it's actual voice (not tones being transcribed)
+	// If call already has a transcript, check if it's voice for tone-alert attach (lenient for short dispatch).
 	if call.Transcript != "" {
-		if !controller.isActualVoice(call.Transcript) {
-			return false
-		}
-
-		if !controller.hasMeaningfulVoiceContent(call.Transcript) {
-			words := len(strings.Fields(call.Transcript))
-			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d transcript too short (%d words) - waiting 15 seconds for longer voice call", call.Id, words))
-
-			// Check if there are pending tones to attach
-			if call.System != nil && call.Talkgroup != nil {
-				key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
-				controller.pendingTonesMutex.Lock()
-				pending, hasPending := controller.pendingTones[key]
-				controller.pendingTonesMutex.Unlock()
-
-				if hasPending && pending != nil {
-					// Store this short call and start a 15-second timer
-					controller.storeWaitingShortCall(call, pending)
-				}
-			}
-
-			return false
-		}
-
-		return true
+		return controller.isVoiceForToneAlerts(call.Transcript)
 	}
 
 	// If transcription is completed with no transcript, it's tone-only
@@ -2067,27 +2043,18 @@ func (controller *Controller) cleanTranscript(transcript string, callId uint64) 
 	return transcript, false
 }
 
-// isActualVoice determines if a transcript contains actual voice content (not just tones being transcribed)
-func (controller *Controller) isActualVoice(transcript string) bool {
+// transcriptLooksLikeTonesOnly detects empty transcripts, tone hallucinations (BEEP), and
+// repeating-character / same-word patterns. Used by both keyword and tone-alert voice checks.
+func (controller *Controller) transcriptLooksLikeTonesOnly(transcript string) bool {
 	if transcript == "" {
-		if controller.DebugLogger != nil {
-			controller.DebugLogger.LogVoiceDetection(0, "", false, "Empty transcript")
-		}
-		return false
+		return true
 	}
 
 	transcript = strings.TrimSpace(transcript)
-
-	// Too short to be voice
 	if len(transcript) < 10 {
-		if controller.DebugLogger != nil {
-			controller.DebugLogger.LogVoiceDetection(0, transcript, false, fmt.Sprintf("Too short (%d chars)", len(transcript)))
-		}
-		return false
+		return true
 	}
 
-	// Check if transcript is mostly repeating the same character (e.g., "BEEEEEE..." from tone transcription)
-	// If a single character makes up more than 70% of the transcript, it's likely just tones
 	transcriptUpper := strings.ToUpper(transcript)
 	runes := []rune(transcriptUpper)
 	if len(runes) > 0 {
@@ -2107,28 +2074,12 @@ func (controller *Controller) isActualVoice(transcript string) bool {
 			}
 		}
 
-		// If most characters are the same (e.g., "BEEEEEE..."), it's likely tones
 		if totalChars > 0 && float64(maxCount)/float64(totalChars) > 0.7 {
-			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcript appears to be tones (repeating characters: %.1f%%), not voice", float64(maxCount)/float64(totalChars)*100))
-			if controller.DebugLogger != nil {
-				controller.DebugLogger.LogVoiceDetection(0, transcript, false, fmt.Sprintf("Repeating characters: %.1f%%", float64(maxCount)/float64(totalChars)*100))
-			}
-			return false
+			return true
 		}
 	}
 
-	// Check if transcript has actual words (contains spaces or multiple distinct words)
 	words := strings.Fields(transcriptUpper)
-	if len(words) < 8 {
-		// Very few words - likely not actual voice
-		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcript has too few words (%d), likely not voice", len(words)))
-		if controller.DebugLogger != nil {
-			controller.DebugLogger.LogVoiceDetection(0, transcript, false, fmt.Sprintf("Too few words (%d)", len(words)))
-		}
-		return false
-	}
-
-	// Check if transcript has meaningful diversity (different words)
 	uniqueWords := make(map[string]bool)
 	for _, word := range words {
 		if len(word) > 1 {
@@ -2136,18 +2087,55 @@ func (controller *Controller) isActualVoice(transcript string) bool {
 		}
 	}
 
-	// If all words are the same (e.g., "BEE BEE BEE..."), it's likely tones
 	if len(uniqueWords) < 2 && len(words) >= 3 {
-		controller.Logs.LogEvent(LogLevelInfo, "transcript has no word diversity (all same), likely not voice")
+		return true
+	}
+
+	return false
+}
+
+// isVoiceForToneAlerts decides whether a transcript is dispatch voice for pending-tone attach
+// and tone DB alerts. Accepts short pages (e.g. station + box) that fail the 8-word isActualVoice rule.
+// Keyword alerts and other paths still use isActualVoice.
+func (controller *Controller) isVoiceForToneAlerts(transcript string) bool {
+	if controller.transcriptLooksLikeTonesOnly(transcript) {
+		return false
+	}
+	// Check meaningful short dispatch before isActualVoice so we do not require 8 words for tone attach.
+	if controller.hasMeaningfulVoiceContent(transcript) {
+		return true
+	}
+	return controller.isActualVoice(transcript)
+}
+
+// isActualVoice determines if a transcript contains actual voice content (not just tones being transcribed)
+func (controller *Controller) isActualVoice(transcript string) bool {
+	if controller.transcriptLooksLikeTonesOnly(transcript) {
 		if controller.DebugLogger != nil {
-			controller.DebugLogger.LogVoiceDetection(0, transcript, false, "No word diversity")
+			controller.DebugLogger.LogVoiceDetection(0, strings.TrimSpace(transcript), false, "Tone-like transcript")
 		}
 		return false
 	}
 
-	// Voice detected - log success
+	transcriptUpper := strings.ToUpper(strings.TrimSpace(transcript))
+	words := strings.Fields(transcriptUpper)
+	if len(words) < 8 {
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcript has too few words (%d), likely not voice", len(words)))
+		if controller.DebugLogger != nil {
+			controller.DebugLogger.LogVoiceDetection(0, transcriptUpper, false, fmt.Sprintf("Too few words (%d)", len(words)))
+		}
+		return false
+	}
+
+	uniqueWords := make(map[string]bool)
+	for _, word := range words {
+		if len(word) > 1 {
+			uniqueWords[word] = true
+		}
+	}
+
 	if controller.DebugLogger != nil {
-		controller.DebugLogger.LogVoiceDetection(0, transcript, true, fmt.Sprintf("Valid voice: %d words, %d unique", len(words), len(uniqueWords)))
+		controller.DebugLogger.LogVoiceDetection(0, transcriptUpper, true, fmt.Sprintf("Valid voice: %d words, %d unique", len(words), len(uniqueWords)))
 	}
 
 	return true

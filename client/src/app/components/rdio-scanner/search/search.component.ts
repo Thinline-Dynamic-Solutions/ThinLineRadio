@@ -22,6 +22,7 @@ import { FormBuilder } from '@angular/forms';
 import { MatDatepicker } from '@angular/material/datepicker';
 import { MatPaginator } from '@angular/material/paginator';
 import { BehaviorSubject } from 'rxjs';
+import { resolveUnitLabelForSrc } from '../unit-utils';
 import {
     RdioScannerCall,
     RdioScannerConfig,
@@ -1133,17 +1134,7 @@ export class RdioScannerSearchComponent implements OnDestroy {
     }
 
     private resolveUnitLabelForSrc(call: RdioScannerCall, src: number): string {
-        const units = call.systemData?.units;
-        if (Array.isArray(units)) {
-            const label = units.find((unit) => {
-                if (typeof unit.unitFrom === 'number' && typeof unit.unitTo === 'number') {
-                    if (unit.unitFrom <= src && unit.unitTo >= src) return true;
-                }
-                return unit.id === src;
-            })?.label;
-            if (label) return label;
-        }
-        return String(src);
+        return resolveUnitLabelForSrc(call.systemData?.units, src);
     }
 
     displayUnitForCall(call: RdioScannerCall | undefined | null): string {

@@ -1,5 +1,6 @@
 # Distribution builds and archives
 dist-*/
+server/dist/
 *.zip
 *.tar.gz
 *.exe
@@ -46,6 +47,8 @@ run-server.sh
 # Temporary files
 *.log
 *.tmp
+.gomodcache/
+.gomodcache-build/
 
 # Docker
 .env
@@ -62,6 +65,12 @@ docker/config/*.ini
 # Separate repositories (Git managed independently)
 relay-server/
 ThinlineRadio-Mobile/
+ThinlineRadio-Website/
+ThinlineRadio-Web/
+
+# Website build artifacts (if working inside ThinlineRadio-Website locally)
+ThinlineRadio-Website/dist/
+ThinlineRadio-Website/*.zip
 ThinlineResponder/
 whisper/
 central-management/

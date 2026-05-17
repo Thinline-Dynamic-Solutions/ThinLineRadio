@@ -138,9 +138,13 @@ cd ThinLineRadio
 
 More detailed instructions are available in the documentation.
 
+# Community
+
+Join the **[ThinLine Radio Discord](https://discord.gg/7AjG8NMCWb)** for announcements, help, and discussion with other users and server operators.
+
 # Need help ?
 
-For issues specific to ThinLine Radio enhancements and general support, please contact ThinLine Dynamic Solutions.
+For issues specific to ThinLine Radio enhancements and general support, please contact ThinLine Dynamic Solutions or ask in [Discord](https://discord.gg/7AjG8NMCWb).
 
 For questions about core Rdio Scanner functionality that may still apply, you can refer to the [Rdio Scanner Discussions](https://github.com/chuot/rdio-scanner/discussions) at **[https://github.com/chuot/rdio-scanner/discussions](https://github.com/chuot/rdio-scanner/discussions)**. However, ThinLine Radio does not provide support for Rdio Scanner and operates as an independent project.
 
@@ -155,6 +159,7 @@ ThinLine Radio operates as an independent project in its own repository under GP
 ThinLine Radio is developed and maintained by ThinLine Dynamic Solutions.
 
 - **GitHub Repository**: [https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio)
+- **Discord**: [https://discord.gg/7AjG8NMCWb](https://discord.gg/7AjG8NMCWb)
 
 # License
 

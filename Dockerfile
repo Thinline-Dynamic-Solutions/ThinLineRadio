@@ -144,4 +144,3 @@ LABEL maintainer="Thinline Dynamic Solutions" \
       version="7.0.0" \
       org.opencontainers.image.source="https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio" \
       org.opencontainers.image.licenses="GPL-3.0"
-

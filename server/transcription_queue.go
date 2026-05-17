@@ -318,32 +318,40 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 				call.Transcript = cleanedTranscript
 				call.TranscriptionStatus = "completed"
 
-				// Check if this call has actual voice (not just tones being transcribed)
-				hasVoice := queue.controller.isActualVoice(cleanedTranscript)
+				// Tone attach uses a lenient check (short dispatch); keywords keep isActualVoice.
+				hasVoiceForTones := queue.controller.isVoiceForToneAlerts(cleanedTranscript)
+				hasVoiceForKeywords := queue.controller.isActualVoice(cleanedTranscript)
+
+				if hasVoiceForTones && !hasVoiceForKeywords {
+					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+						"call %d: short dispatch transcript accepted for tone alerts (%d words, %d chars)",
+						job.CallId, len(strings.Fields(strings.TrimSpace(cleanedTranscript))), len(strings.TrimSpace(cleanedTranscript)),
+					))
+				}
 
 				// Track this phrase for hallucination detection (if enabled)
 				// Track with the original transcript before cleaning to catch hallucinations
 				if call.System != nil && queue.controller.HallucinationDetector != nil {
-					queue.controller.HallucinationDetector.TrackPhrase(result.Transcript, hasVoice, call.System.Id)
+					queue.controller.HallucinationDetector.TrackPhrase(result.Transcript, hasVoiceForKeywords, call.System.Id)
 				}
 
 				// Debug log voice check result with call ID - ONLY for tone-enabled talkgroups
 				if queue.controller.DebugLogger != nil && call.Talkgroup != nil && call.Talkgroup.ToneDetectionEnabled {
-					logMsg := "Transcription completed - voice detected"
+					logMsg := "Transcription completed - voice detected for tone alerts"
 					if hadHallucinations {
 						logMsg += " (after cleaning hallucinations)"
 					}
 
-					if hasVoice {
+					if hasVoiceForTones {
 						queue.controller.DebugLogger.LogVoiceDetection(job.CallId, cleanedTranscript, true, logMsg)
 						// Save audio file labeled as voice
 						go queue.controller.DebugLogger.SaveAudioFile(job.CallId, job.Audio, job.AudioMime, "voice")
 					} else {
-						queue.controller.DebugLogger.LogVoiceDetection(job.CallId, cleanedTranscript, false, "Transcription completed - rejected as not voice")
+						queue.controller.DebugLogger.LogVoiceDetection(job.CallId, cleanedTranscript, false, "Transcription completed - rejected as not voice for tone alerts")
 					}
 				}
 
-				if hasVoice {
+				if hasVoiceForTones {
 					// Reload call from DB to get latest HasTones state
 					// (may have been updated by tone detection earlier)
 					dbCall, err := queue.controller.Calls.GetCall(job.CallId)
@@ -390,7 +398,7 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 					queue.controller.pendingTonesMutex.Lock()
 					if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && pending.Locked {
 						pending.Locked = false
-						queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for talkgroup %d (call %d transcription complete, hasVoice=%t)", workerId, call.Talkgroup.TalkgroupRef, job.CallId, hasVoice))
+						queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for talkgroup %d (call %d transcription complete, hasVoiceForTones=%t)", workerId, call.Talkgroup.TalkgroupRef, job.CallId, hasVoiceForTones))
 
 						// If there are "next pending" tones that arrived during the lock, merge them now
 						nextKey := key + ":next"

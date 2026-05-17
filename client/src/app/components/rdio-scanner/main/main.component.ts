@@ -36,6 +36,7 @@ import {
 } from '../rdio-scanner';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { TranscriptAnnotation, renderAnnotatedTranscript } from '../transcript-utils';
+import { findUnitLabelForSrc, resolveUnitLabelForSrc as resolveUnitLabel } from '../unit-utils';
 import { TagColorService } from '../tag-color.service';
 import { RdioScannerSupportComponent } from './support/support.component';
 import { SettingsService } from '../settings/settings.service';
@@ -1521,13 +1522,9 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
                         this.callUnit = firstAvailableAlias;
                     } else if (Array.isArray(this.call.systemData?.units)) {
                         // Fall back to admin-configured static unit table
-                        this.callUnit = this.call.systemData?.units?.find((u) => {
-                            if (typeof u.unitFrom === 'number' && typeof u.unitTo === 'number')
-                                if (u.unitFrom <= (source.src as number) && u.unitTo >= (source.src as number))
-                                    return true;
-
-                            return u.id === source.src;
-                        })?.label ?? `${source.src}`;
+                        const units = this.call.systemData!.units;
+                        this.callUnit = findUnitLabelForSrc(units, source.src as number)
+                            ?? `${source.src}`;
                     } else {
                         this.callUnit = `${source.src}`;
                     }
@@ -1536,7 +1533,9 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
             } else {
                 this.callTalkgroupId = isAfs ? this.formatAfs(this.call.talkgroup) : this.call.talkgroup.toString();
 
-                this.callUnit = this.call.systemData?.units?.find((u) => u.id === this.call?.source)?.label ?? `${this.call.source ?? ''}`;
+                this.callUnit = typeof this.call.source === 'number'
+                    ? (findUnitLabelForSrc(this.call.systemData?.units, this.call.source) ?? `${this.call.source}`)
+                    : '';
             }
         }
 
@@ -1656,17 +1655,7 @@ export class RdioScannerMainComponent implements OnDestroy, OnInit {
     }
 
     private resolveUnitLabelForSrc(call: RdioScannerCall, src: number): string {
-        const units = call.systemData?.units;
-        if (Array.isArray(units)) {
-            const label = units.find((unit) => {
-                if (typeof unit.unitFrom === 'number' && typeof unit.unitTo === 'number') {
-                    if (unit.unitFrom <= src && unit.unitTo >= src) return true;
-                }
-                return unit.id === src;
-            })?.label;
-            if (label) return label;
-        }
-        return String(src);
+        return resolveUnitLabel(call.systemData?.units, src);
     }
 
     displayUnitForCall(call: RdioScannerCall | undefined): string {

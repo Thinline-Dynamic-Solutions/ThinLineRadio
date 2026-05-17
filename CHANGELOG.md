@@ -1,5 +1,22 @@
 # Change log
 
+## Version 26.05.005 - Released May 17, 2026
+
+### Fixed
+
+- **Server — Tone alerts: short dispatch transcripts no longer blocked by 8-word voice rule**
+  - Pending-tone attach and tone DB alerts now use `isVoiceForToneAlerts`, which accepts meaningful short dispatch (e.g. station names and box numbers) while still rejecting tone-only text (`BEEP`, repeating characters).
+  - **Keyword alerts** and other paths continue to use the stricter `isActualVoice` (minimum 8 words).
+  - Example: call 39912391 (May 17, 2026) had a valid 6-word transcript but was classified as tone-only; orphan alert showed “no voice call available” despite voice on the recording.
+
+- **Server — CORS on public registration endpoints**
+  - `/api/public-registration-info` and `/api/public-registration-channels` now allow browser requests from the ThinLine Radio website and other origins (for public scanner directory pricing).
+
+- **Client — Unit label display**
+  - Search and main views use shared unit formatting so labels display consistently.
+
+---
+
 ## Version 26.05.004 - Released May 15, 2026
 
 ### Fixed
