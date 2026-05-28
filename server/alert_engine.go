@@ -389,6 +389,127 @@ func (engine *AlertEngine) TriggerToneAlerts(call *Call) {
 	}
 }
 
+// TriggerActivityAlert fires an alert on any audio activity for a talkgroup that has
+// ActivityAlertEnabled set in its admin config. Resolves issue #106 (talkgroups that
+// dispatch to unication-style pagers without tones).  Respects the per-talkgroup
+// AlertCooldownSeconds so that back-to-back dispatches don't spam notifications.
+//
+// Users opt in via UserAlertPreference.ActivityAlerts; the master AlertEnabled toggle
+// for the talkgroup is also required.  System- and talkgroup-level AlertsEnabled gating
+// is enforced at the call site in controller.go.
+func (engine *AlertEngine) TriggerActivityAlert(call *Call) {
+	if call == nil || call.Talkgroup == nil || !call.Talkgroup.ActivityAlertEnabled {
+		return
+	}
+	if call.System == nil {
+		return
+	}
+
+	systemId := call.System.Id
+	talkgroupId := call.Talkgroup.Id
+
+	// Resolve DB IDs from refs via cache if they are not yet populated.
+	if systemId == 0 && call.System.SystemRef > 0 {
+		if id, ok := engine.controller.IdLookupsCache.GetSystemId(call.System.SystemRef); ok {
+			systemId = id
+		} else {
+			return
+		}
+	}
+	if talkgroupId == 0 && call.Talkgroup.TalkgroupRef > 0 && systemId > 0 {
+		if id, ok := engine.controller.IdLookupsCache.GetTalkgroupId(systemId, call.Talkgroup.TalkgroupRef); ok {
+			talkgroupId = id
+		} else {
+			return
+		}
+	}
+	if systemId == 0 || talkgroupId == 0 {
+		return
+	}
+
+	// Collect users opted in to activity alerts on this talkgroup.
+	userIds := engine.controller.PreferencesCache.GetUsersForTalkgroup(systemId, talkgroupId)
+	var eligibleUsers []uint64
+	for _, userId := range userIds {
+		pref := engine.controller.PreferencesCache.GetPreference(userId, systemId, talkgroupId)
+		if pref == nil || !pref.AlertEnabled || !pref.ActivityAlerts {
+			continue
+		}
+		eligibleUsers = append(eligibleUsers, userId)
+	}
+
+	// Always create the DB record (for alert history), even if no users are subscribed
+	// — mirrors the existing tone/keyword alert behaviour.
+	_, alertExists := engine.controller.RecentAlertsCache.AlertExists(
+		call.Id, systemId, talkgroupId, "activity", "", "")
+	if !alertExists {
+		engine.createAlert(&AlertRecord{
+			CallId:      call.Id,
+			SystemId:    systemId,
+			TalkgroupId: talkgroupId,
+			AlertType:   "activity",
+			CreatedAt:   time.Now().UnixMilli(),
+		})
+	}
+
+	if len(eligibleUsers) == 0 {
+		return
+	}
+
+	// Per-talkgroup cooldown: reuse the same map/lock used by tone alerts so that
+	// double-pages on a talkgroup don't generate duplicate push notifications.
+	// cooldown == 0 disables the check.
+	if call.Talkgroup.AlertCooldownSeconds > 0 {
+		cooldown := time.Duration(call.Talkgroup.AlertCooldownSeconds) * time.Second
+		engine.cooldownMu.Lock()
+		last, hasPrior := engine.lastAlertFiredAt[call.Talkgroup.Id]
+		engine.cooldownMu.Unlock()
+
+		if hasPrior && time.Since(last) < cooldown {
+			engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"activity alert cooldown active for talkgroup %d: last alert was %.0fs ago (cooldown=%.0fs) — skipping notifications for call %d",
+				call.Talkgroup.Id, time.Since(last).Seconds(), cooldown.Seconds(), call.Id,
+			))
+			return
+		}
+
+		engine.cooldownMu.Lock()
+		engine.lastAlertFiredAt[call.Talkgroup.Id] = time.Now()
+		engine.cooldownMu.Unlock()
+	}
+
+	systemLabel := call.System.Label
+	talkgroupLabel := call.Talkgroup.Label
+
+	// Per-user delay handling mirrors TriggerToneAlerts.
+	for _, userId := range eligibleUsers {
+		userObj := engine.controller.Users.GetUserById(userId)
+		if userObj == nil {
+			go engine.sendAlertNotification(userId, call.Id, "activity")
+			continue
+		}
+
+		defaultDelay := engine.controller.Options.DefaultSystemDelay
+		effectiveDelay := engine.controller.userEffectiveDelay(userObj, call, defaultDelay)
+
+		if effectiveDelay > 0 {
+			delayCompletionTime := call.Timestamp.Add(time.Duration(effectiveDelay) * time.Minute)
+			if time.Now().Before(delayCompletionTime) {
+				remainingDelay := time.Until(delayCompletionTime)
+				go func(uid uint64, cid uint64, d time.Duration) {
+					time.Sleep(d)
+					engine.sendAlertNotification(uid, cid, "activity")
+				}(userId, call.Id, remainingDelay)
+				continue
+			}
+		}
+		go engine.sendAlertNotification(userId, call.Id, "activity")
+	}
+
+	// Batched push notification — push layer handles per-user delays internally.
+	go engine.controller.sendBatchedPushNotification(eligibleUsers, "activity", call, systemLabel, talkgroupLabel, "", nil)
+}
+
 func (engine *AlertEngine) userMatchesToneSetFilter(toneSetIdsRaw string, call *Call) bool {
 	if toneSetIdsRaw == "" || toneSetIdsRaw == "[]" {
 		return true

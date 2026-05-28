@@ -858,6 +858,14 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 		// IMMEDIATE: Emit call to clients (users can play NOW - zero delay)
 		controller.EmitCall(call)
 
+		// Issue #106: fire an "activity" alert for every call on talkgroups flagged as paging-style.
+		// Runs independently of tone detection and transcription so it works for departments that
+		// dispatch without tones. The trigger itself enforces the per-talkgroup cooldown.
+		if controller.AlertEngine != nil && call.System != nil && call.System.AlertsEnabled &&
+			call.Talkgroup != nil && call.Talkgroup.AlertsEnabled && call.Talkgroup.ActivityAlertEnabled {
+			go controller.AlertEngine.TriggerActivityAlert(call)
+		}
+
 		// Tone detection runs after WriteCall so call.Id is valid for DB updates, pending tones, and orphan alerts.
 		if shouldDetectTones {
 			toneDetectionCall := *call

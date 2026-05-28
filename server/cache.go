@@ -33,6 +33,7 @@ type UserAlertPreference struct {
 	AlertEnabled         bool
 	ToneAlerts           bool
 	KeywordAlerts        bool
+	ActivityAlerts       bool // Per-user opt-in for talkgroup activity alerts (issue #106)
 	Keywords             []string
 	KeywordListIds       []uint64
 	ToneSetIds           []string
@@ -75,14 +76,14 @@ func (cache *PreferencesCache) Read(db *Database) error {
 	cache.byTalkgroup = make(map[uint64][]uint64)
 
 	// Query all preferences with talkgroup tone detection status
-	query := `SELECT p."userId", p."systemId", p."talkgroupId", p."alertEnabled", 
-	          p."toneAlerts", p."keywordAlerts", p."keywords", p."keywordListIds", 
+	query := `SELECT p."userId", p."systemId", p."talkgroupId", p."alertEnabled",
+	          p."toneAlerts", p."keywordAlerts", p."activityAlerts", p."keywords", p."keywordListIds",
 	          p."toneSetIds", p."notificationSound", p."toneSetSounds",
 	          p."pagerAlert", p."toneSetPagerAlerts",
 	          COALESCE(t."toneDetectionEnabled", false) as "toneDetectionEnabled"
 	          FROM "userAlertPreferences" p
 	          LEFT JOIN "talkgroups" t ON t."talkgroupId" = p."talkgroupId"
-	          WHERE COALESCE(t."alertsEnabled", true) = true 
+	          WHERE COALESCE(t."alertsEnabled", true) = true
 	          AND COALESCE((SELECT "alertsEnabled" FROM "systems" WHERE "systemId" = p."systemId"), true) = true`
 
 	rows, err := db.Sql.Query(query)
@@ -104,6 +105,7 @@ func (cache *PreferencesCache) Read(db *Database) error {
 			&pref.AlertEnabled,
 			&pref.ToneAlerts,
 			&pref.KeywordAlerts,
+			&pref.ActivityAlerts,
 			&keywordsJson,
 			&keywordListIdsJson,
 			&toneSetIdsJson,

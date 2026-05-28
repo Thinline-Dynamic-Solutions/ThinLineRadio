@@ -145,6 +145,7 @@ export interface RdioScannerAlertPreference {
     alertEnabled: boolean;
     toneAlerts: boolean;
     keywordAlerts: boolean;
+    activityAlerts?: boolean; // Per-user opt-in for talkgroup activity alerts (issue #106)
     keywords: string[];
     keywordListIds: number[];
     toneSetIds?: string[];
@@ -356,6 +357,7 @@ export interface RdioScannerTalkgroup {
     toneDetectionEnabled?: boolean;
     toneSets?: RdioScannerToneSet[];
     alertsEnabled?: boolean;
+    activityAlertEnabled?: boolean; // Issue #106 — admin flag for paging-style talkgroups
     tag: string;
     type?: string;
 }

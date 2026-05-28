@@ -214,6 +214,15 @@
             </mat-card>
         </p>
     </div>
+    <div class="row" *ngIf="form.get('alertsEnabled')?.value">
+        <p>
+            <span class="mat-body">Alert on Any Activity</span><br>
+            <span class="mat-caption">Fire an alert for every call on this talkgroup, regardless of tone detection or keyword matching. Useful for paging-style talkgroups where any TX is a page (e.g. dispatch-only channels with no tones). Users must opt in individually under their alert preferences. Respects the per-talkgroup alert cooldown above.</span>
+        </p>
+        <div>
+            <mat-slide-toggle color="primary" formControlName="activityAlertEnabled"></mat-slide-toggle>
+        </div>
+    </div>
     <div class="row">
         <p>
             <span class="mat-body">Tone Detection</span><br>

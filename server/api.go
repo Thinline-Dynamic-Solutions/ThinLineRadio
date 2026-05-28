@@ -2861,6 +2861,7 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 			alertEnabled   bool
 			toneAlerts     bool
 			keywordAlerts  bool
+			activityAlerts bool
 			toneSetIds     []string
 			keywords       []string
 			keywordListIds []uint64
@@ -2878,6 +2879,7 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 				alertEnabled:   cachePref.AlertEnabled,
 				toneAlerts:     cachePref.ToneAlerts,
 				keywordAlerts:  cachePref.KeywordAlerts,
+				activityAlerts: cachePref.ActivityAlerts,
 				toneSetIds:     cachePref.ToneSetIds,
 				keywords:       cachePref.Keywords,
 				keywordListIds: cachePref.KeywordListIds,
@@ -3201,6 +3203,11 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				matchesPreference = toneMatches && keywordMatches
+			} else if alertType == "activity" {
+				// For activity alerts: user must have activityAlerts enabled (issue #106).
+				// There's nothing further to match — any call on the flagged talkgroup
+				// qualifies, the talkgroup-level admin flag is the gate.
+				matchesPreference = pref.activityAlerts
 			}
 
 			// Only add alert if it matches user's preferences
@@ -3659,6 +3666,7 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				"alertEnabled":       pref.AlertEnabled,
 				"toneAlerts":         pref.ToneAlerts,
 				"keywordAlerts":      pref.KeywordAlerts,
+				"activityAlerts":     pref.ActivityAlerts,
 				"keywords":           pref.Keywords,
 				"keywordListIds":     pref.KeywordListIds,
 				"toneSetIds":         pref.ToneSetIds,
@@ -3709,6 +3717,7 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 				alertEnabled       bool
 				toneAlerts         bool = true
 				keywordAlerts      bool = true
+				activityAlerts     bool
 				keywords           []string
 				keywordListIds     []uint64
 				toneSetIds         []string
@@ -3743,6 +3752,9 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 			}
 			if v, ok := pref["keywordAlerts"].(bool); ok {
 				keywordAlerts = v
+			}
+			if v, ok := pref["activityAlerts"].(bool); ok {
+				activityAlerts = v
 			}
 			if v, ok := pref["keywords"].([]any); ok {
 				for _, kw := range v {
@@ -3865,7 +3877,7 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 			}
 
 			// Upsert preference using verified database talkgroupId
-			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds", "pagerAlert", "toneSetPagerAlerts") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5, %t, $6) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5, "pagerAlert" = %t, "toneSetPagerAlerts" = $6`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, pagerAlert, alertEnabled, toneAlerts, keywordAlerts, pagerAlert)
+			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "activityAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds", "pagerAlert", "toneSetPagerAlerts") VALUES (%d, %d, %d, %t, %t, %t, %t, $1, $2, $3, $4, $5, %t, $6) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "activityAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5, "pagerAlert" = %t, "toneSetPagerAlerts" = $6`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, activityAlerts, pagerAlert, alertEnabled, toneAlerts, keywordAlerts, activityAlerts, pagerAlert)
 
 			if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson), string(toneSetPagerAlertsJson)); err != nil {
 				api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update preference: %v", err))

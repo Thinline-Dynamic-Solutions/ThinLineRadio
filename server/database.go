@@ -386,6 +386,12 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Add activityAlertEnabled (talkgroups) + activityAlerts (userAlertPreferences) for the
+	// per-talkgroup "alert on any activity" feature — issue #106.
+	if err := migrateActivityAlert(db); err != nil {
+		return formatError(err, "")
+	}
+
 	// Add toneSetPagerAlerts JSON column for per-tone-set pager-alert toggles
 	if err := migrateToneSetPagerAlerts(db); err != nil {
 		return formatError(err, "")

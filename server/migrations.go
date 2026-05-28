@@ -2647,6 +2647,25 @@ func migratePagerAlert(db *Database) error {
 	return nil
 }
 
+// migrateActivityAlert adds two columns supporting the "activity alert" feature (issue #106):
+//   - talkgroups.activityAlertEnabled — admin flag marking a talkgroup as paging-style.
+//     When true, every call on that talkgroup triggers an alert regardless of tones/keywords.
+//   - userAlertPreferences.activityAlerts — per-user opt-in to receive these alerts.
+//
+// Both default to false so existing installs are unchanged.
+func migrateActivityAlert(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "talkgroups"            ADD COLUMN IF NOT EXISTS "activityAlertEnabled" boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE "userAlertPreferences"  ADD COLUMN IF NOT EXISTS "activityAlerts"       boolean NOT NULL DEFAULT false`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			return fmt.Errorf("migrateActivityAlert: %w", err)
+		}
+	}
+	return nil
+}
+
 // migrateToneSetPagerAlerts adds the toneSetPagerAlerts JSON column to
 // userAlertPreferences so per-tone-set pager-alert toggles are persisted.
 func migrateToneSetPagerAlerts(db *Database) error {

@@ -186,6 +186,16 @@
                             <p class="tone-set-hint">Leave unchecked to alert on all tone sets.</p>
                           </div>
 
+                          <div class="option-row" *ngIf="talkgroup.activityAlertEnabled">
+                            <label class="option-checkbox" (click)="$event.stopPropagation()">
+                              <input type="checkbox"
+                                     [checked]="preference.activityAlerts"
+                                     (click)="toggleActivityAlerts(ds.id, talkgroup.id, $event); $event.stopPropagation()">
+                              <span>Activity Alerts</span>
+                              <span class="disabled-hint">(Any call on this talkgroup)</span>
+                            </label>
+                          </div>
+
                           <div class="option-row">
                             <label class="option-checkbox" (click)="$event.stopPropagation()">
                               <input type="checkbox"

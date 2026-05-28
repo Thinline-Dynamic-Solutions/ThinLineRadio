@@ -454,6 +454,9 @@ export interface Talkgroup {
     linkedVoiceMinDurationSeconds?: number;
     // Admin toggle: false disables all alerts & transcription for this talkgroup
     alertsEnabled?: boolean;
+    // Issue #106 — fires an alert on any call in this talkgroup, regardless of tone/keyword.
+    // Default false; enable for paging-style talkgroups with no tones.
+    activityAlertEnabled?: boolean;
     // Custom transcription prompt; overrides system and global prompts when non-empty
     transcriptionPrompt?: string;
 }
@@ -1494,6 +1497,7 @@ export class RdioScannerAdminService implements OnDestroy {
             linkedVoiceWindowSeconds: this.ngFormBuilder.control(talkgroup?.linkedVoiceWindowSeconds || 0, Validators.min(0)),
             linkedVoiceMinDurationSeconds: this.ngFormBuilder.control(talkgroup?.linkedVoiceMinDurationSeconds || 0, Validators.min(0)),
             alertsEnabled: this.ngFormBuilder.control(talkgroup?.alertsEnabled !== false), // Default to true
+            activityAlertEnabled: this.ngFormBuilder.control(talkgroup?.activityAlertEnabled === true), // Default false — issue #106
             transcriptionPrompt: this.ngFormBuilder.control(talkgroup?.transcriptionPrompt || ''),
         });
     }

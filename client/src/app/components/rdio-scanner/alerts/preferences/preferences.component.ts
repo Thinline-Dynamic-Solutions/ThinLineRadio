@@ -319,6 +319,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
             alertEnabled: false,
             toneAlerts: true,
             keywordAlerts: true,
+            activityAlerts: false, // Issue #106 — opt-in, default off
             keywords: [],
             keywordListIds: [],
             toneSetIds: [],
@@ -348,6 +349,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
             alertEnabled: pref.alertEnabled,
             toneAlerts: pref.toneAlerts,
             keywordAlerts: pref.keywordAlerts,
+            activityAlerts: pref.activityAlerts === true, // Issue #106
             keywords: pref.keywords,
             keywordListIds: pref.keywordListIds,
             toneSetIds: pref.toneSetIds,
@@ -510,13 +512,27 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     toggleKeywordAlerts(systemId: number, talkgroupId: number, event: Event): void {
         event.stopPropagation();
         event.preventDefault();
-        
+
         const pref = this.getPreference(systemId, talkgroupId);
-        
+
         // Manually toggle the value
         pref.keywordAlerts = !pref.keywordAlerts;
-        
+
         // Store the updated preference back in the map to trigger change detection
+        const key = this.buildPreferenceKey(systemId, talkgroupId);
+        this.preferences.set(key, pref);
+    }
+
+    // Issue #106 — user opt-in for talkgroup activity alerts.
+    // Only meaningful when the talkgroup has activityAlertEnabled set by an admin;
+    // the template hides this toggle otherwise.
+    toggleActivityAlerts(systemId: number, talkgroupId: number, event: Event): void {
+        event.stopPropagation();
+        event.preventDefault();
+
+        const pref = this.getPreference(systemId, talkgroupId);
+        pref.activityAlerts = !pref.activityAlerts;
+
         const key = this.buildPreferenceKey(systemId, talkgroupId);
         this.preferences.set(key, pref);
     }
