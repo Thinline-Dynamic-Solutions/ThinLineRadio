@@ -93,6 +93,14 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 		queue.provider = NewAssemblyAITranscription(&AssemblyAIConfig{
 			APIKey: config.AssemblyAIKey,
 		})
+	case "cloudflare":
+		// Cloudflare Workers AI Whisper
+		queue.provider = NewCloudflareTranscription(&CloudflareConfig{
+			AccountID:      config.CloudflareAccountID,
+			APIToken:       config.CloudflareAPIToken,
+			Model:          config.CloudflareModel,
+			TimeoutSeconds: config.TimeoutSeconds,
+		})
 	case "hydra":
 		// Hydra transcription uses a separate retrieval queue, not the transcription queue
 		// This provider case should not be used, but we handle it gracefully

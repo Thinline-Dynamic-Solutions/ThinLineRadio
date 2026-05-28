@@ -1085,6 +1085,7 @@
               <mat-option value="azure">Azure Speech Services</mat-option>
               <mat-option value="google">Google Speech-to-Text</mat-option>
               <mat-option value="assemblyai">AssemblyAI</mat-option>
+              <mat-option value="cloudflare">Cloudflare Workers AI</mat-option>
             </mat-select>
           </mat-form-field>
         </div>
@@ -1208,6 +1209,44 @@
             <input type="text" matInput [value]="getAssemblyAIWordBoostDisplay()"
                    (input)="setAssemblyAIWordBoost($any($event.target).value)"
                    placeholder="ENGINE,LADDER,MEDIC" autocomplete="off">
+          </mat-form-field>
+        </div>
+
+        <!-- Cloudflare Workers AI Configuration -->
+        <div class="row" *ngIf="form?.get('transcriptionConfig')?.get('provider')?.value === 'cloudflare'">
+          <p>
+            <span class="mat-body">Cloudflare Account ID</span><br>
+            <span class="mat-caption">Your Cloudflare account ID. Found in the Cloudflare dashboard URL or under Workers &amp; Pages.</span>
+          </p>
+          <mat-form-field floatLabel="auto">
+            <input type="text" matInput formControlName="cloudflareAccountID" placeholder="Account ID" autocomplete="off">
+          </mat-form-field>
+        </div>
+
+        <div class="row" *ngIf="form?.get('transcriptionConfig')?.get('provider')?.value === 'cloudflare'">
+          <p>
+            <span class="mat-body">Cloudflare API Token</span><br>
+            <span class="mat-caption">Cloudflare API token with Workers AI permission. Create one at Cloudflare dashboard → My Profile → API Tokens.</span>
+          </p>
+          <mat-form-field floatLabel="auto">
+            <input type="text" matInput formControlName="cloudflareAPIToken" placeholder="API Token" autocomplete="off">
+          </mat-form-field>
+        </div>
+
+        <div class="row" *ngIf="form?.get('transcriptionConfig')?.get('provider')?.value === 'cloudflare'">
+          <p>
+            <span class="mat-body">Model</span><br>
+            <span class="mat-caption">Cloudflare Workers AI Whisper model to use.</span>
+          </p>
+          <mat-form-field floatLabel="auto">
+            <input type="text" matInput formControlName="cloudflareModel"
+                   placeholder="@cf/openai/whisper-large-v3-turbo"
+                   list="cloudflare-model-suggestions" autocomplete="off">
+            <datalist id="cloudflare-model-suggestions">
+              <option value="@cf/openai/whisper-large-v3-turbo">@cf/openai/whisper-large-v3-turbo — faster, recommended</option>
+              <option value="@cf/openai/whisper-large-v3">@cf/openai/whisper-large-v3 — higher accuracy</option>
+              <option value="@cf/openai/whisper">@cf/openai/whisper — original Whisper</option>
+            </datalist>
           </mat-form-field>
         </div>
 

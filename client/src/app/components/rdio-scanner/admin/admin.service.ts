@@ -329,6 +329,9 @@ export interface Options {
         assemblyAIKey?: string;
         assemblyAISpeechModel?: string;
         assemblyAIWordBoost?: string[];
+        cloudflareAccountID?: string;
+        cloudflareAPIToken?: string;
+        cloudflareModel?: string;
         hallucinationPatterns?: string[];
         hallucinationDetectionMode?: string;
         hallucinationMinOccurrences?: number;
@@ -1261,6 +1264,9 @@ export class RdioScannerAdminService implements OnDestroy {
             assemblyAIKey: '',
             assemblyAISpeechModel: '',
             assemblyAIWordBoost: [],
+            cloudflareAccountID: '',
+            cloudflareAPIToken: '',
+            cloudflareModel: '@cf/openai/whisper-large-v3-turbo',
         };
         
 		return this.ngFormBuilder.group({
@@ -1345,6 +1351,9 @@ export class RdioScannerAdminService implements OnDestroy {
                 assemblyAIWordBoost: this.ngFormBuilder.control(
                     (transcriptionConfig?.assemblyAIWordBoost || []).join('\n')
                 ),
+                cloudflareAccountID: this.ngFormBuilder.control(transcriptionConfig?.cloudflareAccountID || ''),
+                cloudflareAPIToken: this.ngFormBuilder.control(transcriptionConfig?.cloudflareAPIToken || ''),
+                cloudflareModel: this.ngFormBuilder.control(transcriptionConfig?.cloudflareModel || '@cf/openai/whisper-large-v3-turbo'),
                 hallucinationPatterns: this.ngFormBuilder.control(
                     (transcriptionConfig?.hallucinationPatterns || []).join('\n')
                 ),
