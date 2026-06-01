@@ -14,6 +14,12 @@
  * incrementally.
  */
 
+:root {
+    /* App Font setting overrides these on <html> at runtime (see app-font.util.ts). */
+    --tlr-font-primary: Roboto, "Helvetica Neue", sans-serif;
+    --tlr-font-numeric: Roboto, "Helvetica Neue", sans-serif;
+}
+
 :root,
 .thinline-skin {
     /* ── Brand & accents ─────────────────────────────────────────────── */
@@ -30,10 +36,6 @@
     --tlr-surface: #2a2a2a;
     --tlr-text: #ffffff;
     --tlr-text-secondary: #888888;
-
-    /* ── Fonts (Rajdhani / Orbitron loaded via thinline-fonts.scss) ──── */
-    --tlr-font-primary: "Rajdhani", "Roboto", "Helvetica Neue", sans-serif;
-    --tlr-font-numeric: "Orbitron", "Rajdhani", "Roboto", monospace;
 
     /* ── ScannerSkin: chassis (full-screen body behind UI) ───────────── */
     --tlr-chassis-stop-1: #0c0e12;

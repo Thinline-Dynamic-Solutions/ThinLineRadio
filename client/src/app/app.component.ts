@@ -24,4 +24,4 @@ import { Component } from '@angular/core';
     styleUrls: ['./app.component.scss'],
     templateUrl: './app.component.html',
 })
-export class AppComponent { }
+export class AppComponent {}

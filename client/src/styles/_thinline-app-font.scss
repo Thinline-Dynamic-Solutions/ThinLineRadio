@@ -1,0 +1,116 @@
+/*
+ * App Font cascade — Material typography is compiled with a CSS variable at build
+ * time, but MDC still emits Roboto in many component rules. These overrides
+ * force the user-selected --tlr-font-primary through the entire scanner UI,
+ * auth screens, and CDK overlays (select panels, dialogs, snackbars, etc.).
+ */
+
+@mixin tlr-app-font-cascade {
+    font-family: var(--tlr-font-primary);
+
+    .mat-typography,
+    .mat-body,
+    .mat-body-1,
+    .mat-body-2,
+    .mat-body-strong,
+    .mat-headline,
+    .mat-headline-1,
+    .mat-headline-2,
+    .mat-headline-3,
+    .mat-headline-4,
+    .mat-headline-5,
+    .mat-headline-6,
+    .mat-title,
+    .mat-subtitle-1,
+    .mat-subtitle-2,
+    .mat-caption,
+    .mat-small,
+    .mat-h1,
+    .mat-h2,
+    .mat-h3,
+    .mat-h4,
+    .mat-h5,
+    .mat-h6,
+    .mat-mdc-form-field,
+    .mat-mdc-form-field-infix,
+    .mat-mdc-floating-label,
+    .mdc-floating-label,
+    .mat-mdc-input-element,
+    .mdc-text-field,
+    .mdc-text-field__input,
+    textarea.mat-mdc-input-element,
+    .mat-mdc-select,
+    .mat-mdc-select-value,
+    .mat-mdc-select-value-text,
+    .mat-mdc-select-placeholder,
+    .mat-mdc-option,
+    .mdc-list-item__primary-text,
+    .mat-mdc-menu-item,
+    .mat-mdc-menu-item-text,
+    .mat-mdc-menu-content,
+    .mat-mdc-button,
+    .mdc-button__label,
+    .mat-mdc-raised-button,
+    .mat-mdc-outlined-button,
+    .mat-mdc-unelevated-button,
+    .mat-mdc-icon-button,
+    .mat-mdc-tab,
+    .mat-mdc-tab-link,
+    .mat-mdc-dialog-container,
+    .mat-mdc-dialog-title,
+    .mat-mdc-dialog-content,
+    .mat-mdc-table,
+    .mat-mdc-header-cell,
+    .mat-mdc-cell,
+    .mat-mdc-row,
+    .mat-mdc-paginator,
+    .mat-mdc-paginator-range-label,
+    .mat-mdc-slide-toggle,
+    .mat-mdc-checkbox,
+    .mdc-label,
+    .mat-toolbar,
+    .mat-expansion-panel-header,
+    .mat-expansion-panel-header-title,
+    .mat-expansion-panel-body,
+    .mat-mdc-snack-bar-container,
+    .mat-mdc-snack-bar-label,
+    .mat-mdc-tooltip,
+    .mat-tooltip,
+    .mat-calendar,
+    .mat-calendar-body-cell-content,
+    .mat-datepicker-content,
+    mat-label,
+    .mat-mdc-form-field-hint,
+    .mat-mdc-form-field-error,
+    h1, h2, h3, h4, h5, h6,
+    p, span, label, a, button, input, textarea, select, td, th, li {
+        font-family: var(--tlr-font-primary) !important;
+    }
+
+    .mat-icon,
+    .material-icons,
+    mat-icon {
+        font-family: "Material Icons" !important;
+    }
+}
+
+html,
+body,
+app-root {
+    font-family: var(--tlr-font-primary);
+}
+
+/* Entire scanner shell (auth, console, classic, sidenavs, settings). */
+.scanner-shell {
+    @include tlr-app-font-cascade;
+}
+
+/* ThinLine skin roots. */
+.thinline-skin {
+    @include tlr-app-font-cascade;
+}
+
+/* All CDK overlays — mat-select, menus, dialogs, snackbars, datepicker. */
+.cdk-overlay-container {
+    @include tlr-app-font-cascade;
+}

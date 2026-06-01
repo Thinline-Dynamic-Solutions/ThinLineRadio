@@ -699,7 +699,22 @@ func (queue *TranscriptionQueue) processKeywords(callId uint64, systemId uint64,
 					queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to get call %d for push notification: %v", callId, err))
 					call = nil // Continue without call object
 				}
-				go queue.controller.sendBatchedPushNotification(eligibleUserIds, "keyword", call, systemLabel, talkgroupLabel, "", keywordsMatched)
+				cooldownTgId := talkgroupId
+				if call != nil && queue.controller.AlertEngine != nil {
+					cooldownTgId = queue.controller.AlertEngine.cooldownTalkgroupId(call)
+				}
+				if queue.controller.AlertEngine != nil && queue.controller.AlertEngine.isToneAlertCooldownActive(cooldownTgId) {
+					secs := queue.controller.AlertEngine.getAlertCooldownSeconds(cooldownTgId)
+					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+						"keyword alert cooldown active for talkgroup %d (cooldown=%ds) — skipping keyword push for call %d",
+						cooldownTgId, secs, callId,
+					))
+				} else {
+					go queue.controller.sendBatchedPushNotification(eligibleUserIds, "keyword", call, systemLabel, talkgroupLabel, "", keywordsMatched)
+					if queue.controller.AlertEngine != nil {
+						queue.controller.AlertEngine.recordToneAlertCooldown(cooldownTgId)
+					}
+				}
 			}
 
 			// Log users who will get tone alerts instead

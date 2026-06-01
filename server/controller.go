@@ -77,6 +77,7 @@ type Controller struct {
 	IdLookupsCache    *IdLookupsCache
 	RecentAlertsCache *RecentAlertsCache
 	DedupCache        *DedupCache
+	PagerAlertDedup   *PagerAlertDedup
 	Register          chan *Client
 	Unregister        chan *Client
 	Ingest            chan *Call
@@ -206,6 +207,7 @@ func NewController(config *Config) *Controller {
 	controller.IdLookupsCache = NewIdLookupsCache(controller)
 	controller.RecentAlertsCache = NewRecentAlertsCache(controller)
 	controller.DedupCache = NewDedupCache(defaults.options.duplicateDetectionTimeFrame)
+	controller.PagerAlertDedup = NewPagerAlertDedup()
 
 	controller.Logs.setDaemon(config.daemon)
 	controller.Logs.setDatabase(controller.Database)
@@ -1882,6 +1884,18 @@ func (controller *Controller) checkAndAttachPendingTones(call *Call) bool {
 	// This is a voice call without its own tones - attach pending tones
 	call.ToneSequence = pending.ToneSequence
 	call.HasTones = pending.ToneSequence != nil && len(pending.ToneSequence.Tones) > 0
+
+	// Cooldown is configured on the talkgroup where tones were detected.
+	if pending.CrossTalkgroupSourceKey != "" {
+		parts := strings.Split(pending.CrossTalkgroupSourceKey, ":")
+		if len(parts) == 2 {
+			if id, err := strconv.ParseUint(parts[1], 10, 64); err == nil {
+				call.ToneSourceTalkgroupId = id
+			}
+		}
+	} else {
+		call.ToneSourceTalkgroupId = pending.TalkgroupId
+	}
 
 	// Use the matched tone sets that were already accumulated during merging
 	// Do NOT re-match here (neither A-B pairs nor long tones), as merging tones from multiple calls can cause false matches

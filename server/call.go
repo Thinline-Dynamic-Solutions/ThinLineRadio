@@ -112,6 +112,11 @@ type Call struct {
 	// downstream forwarding. It is runtime-only (never stored in DB) and prevents
 	// the receiving server from re-forwarding the call, breaking circular loops.
 	IsForwarded bool `json:"-"`
+
+	// ToneSourceTalkgroupId is runtime-only. When pending tones from one talkgroup
+	// attach to a voice call on another (linked-voice), this is the DB id of the
+	// talkgroup where tones were detected — used for alertCooldownSeconds lookup.
+	ToneSourceTalkgroupId uint64 `json:"-"`
 }
 
 func NewCall() *Call {

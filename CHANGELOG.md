@@ -1,5 +1,25 @@
 # Change log
 
+## Version 26.06.01 - Released June 1, 2026
+
+### Fixed
+
+- **Server — One pager alert per call when multiple tone/keyword triggers match**
+  - Users subscribed to several tone sets or keyword triggers for the same call no longer receive multiple Android CallKit / Telecom or iOS pager-style alerts for that call.
+  - Regular push notifications still fire for each matching trigger; only the pager-style alert is deduplicated per user+call.
+
+- **Server — Talkgroup alert cooldown respected on all push paths** ([#205](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/205))
+  - Pre-alerts, tone alerts, and keyword pushes now honor `alertCooldownSeconds` on the configured talkgroup.
+  - Cooldown tracks the tone-source talkgroup on linked-voice setups (not just the voice talkgroup ID).
+  - Pre-alert and full tone alert use separate cooldown timers so a pre-alert followed by voice still sends both; a second double-page within the window is suppressed.
+  - Duplicate `TriggerToneAlerts` dispatches for the same call (tone detection vs transcription race) are deduplicated.
+
+- **Client — App Font setting applies everywhere** ([#211](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/211))
+  - Settings → Display → App Font now updates the entire scanner UI, including Material components, CDK overlays (dropdowns, dialogs, snackbars), and call history (Source column no longer stuck on a separate display font).
+  - Font loads at app bootstrap via `AppFontService`; Material typography uses the `--tlr-font-primary` CSS variable at runtime.
+
+---
+
 ## Version 26.05.009 - Released May 28, 2026
 
 ### Added

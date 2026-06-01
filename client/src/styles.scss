@@ -9,11 +9,12 @@
  * to <body> or a subtree. See docs/THINLINE_SKIN.md. */
 @import "./styles/thinline-fonts";
 @import "./styles/thinline-tokens";
+@import "./styles/thinline-app-font";
 @import "./styles/thinline-material";
 
 @include mat.core();
 
-$rdio-scanner-font-family: Roboto, "Helvetica Neue", sans-serif;
+$rdio-scanner-font-family: var(--tlr-font-primary, Roboto, "Helvetica Neue", sans-serif);
 
 $rdio-scanner-primary: mat.define-palette(mat.$grey-palette, 800, 50);
 $rdio-scanner-accent: mat.define-palette(mat.$green-palette);
@@ -813,7 +814,7 @@ body.tlr-channels-scroll rdio-scanner-select .channels-detail-body {
 }
 
 body {
-	font-family: $rdio-scanner-font-family;
+	font-family: var(--tlr-font-primary, Roboto, "Helvetica Neue", sans-serif);
 	margin: 0;
 }
 

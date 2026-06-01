@@ -17,7 +17,8 @@
  * ****************************************************************************
  */
 
-import { NgModule } from '@angular/core';
+import { APP_INITIALIZER, NgModule } from '@angular/core';
+import { AppFontService } from './components/rdio-scanner/app-font.service';
 import { HttpClientModule } from '@angular/common/http';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
@@ -44,6 +45,16 @@ import { routes } from './app.routes';
             enabled: environment.production,
             registrationStrategy: 'registerWhenStable:30000',
         }),
+    ],
+    providers: [
+        {
+            provide: APP_INITIALIZER,
+            useFactory: (appFontService: AppFontService) => () => {
+                appFontService.init();
+            },
+            deps: [AppFontService],
+            multi: true,
+        },
     ],
 })
 export class AppModule { }

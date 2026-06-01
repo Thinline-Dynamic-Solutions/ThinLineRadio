@@ -28,6 +28,8 @@ import { TagColorService, TagColorConfig } from '../tag-color.service';
 import { AlertSoundService, AlertSound } from '../alert-sound.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { RdioScannerAlertPreference } from '../rdio-scanner';
+import { APP_FONTS } from '../app-font.util';
+import { AppFontService } from '../app-font.service';
 
 @Component({
     selector: 'rdio-scanner-settings',
@@ -49,12 +51,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
     
     // Font selection
     appFont: string = 'Roboto';
-    availableFonts: Array<{name: string, value: string, displayName: string}> = [
-        { name: 'Roboto', value: 'Roboto, sans-serif', displayName: 'Roboto (Default)' },
-        { name: 'Rajdhani', value: 'Rajdhani, sans-serif', displayName: 'Rajdhani (Modern Technical)' },
-        { name: 'ShareTechMono', value: '"Share Tech Mono", monospace', displayName: 'Share Tech Mono (Terminal)' },
-        { name: 'Audiowide', value: 'Audiowide, cursive', displayName: 'Audiowide (Digital Display)' },
-    ];
+    availableFonts = APP_FONTS;
 
     // Per-channel sounds
     channelPreferences: RdioScannerAlertPreference[] = [];
@@ -102,6 +99,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         private tagColorService: TagColorService,
         private alertSoundService: AlertSoundService,
         private alertsService: AlertsService,
+        private appFontService: AppFontService,
         private http: HttpClient,
         private fb: FormBuilder,
         private snackBar: MatSnackBar,
@@ -419,8 +417,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
                 this.alertSound = this.settings.alertSound || 'alert';
                 // Load font setting
                 this.appFont = this.settings.appFont || 'Roboto';
-                // Apply font
-                this.applyFont(this.appFont);
+                this.appFontService.apply(this.appFont);
             },
             error: (error) => {
                 console.error('Error loading settings:', error);
@@ -532,28 +529,12 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
     }
     
     onFontChange(): void {
-        // Apply font and auto-save
-        this.applyFont(this.appFont);
+        this.appFontService.apply(this.appFont);
         this.saveSettings();
     }
 
     getFontDisplayName(fontName: string): string {
         return this.availableFonts.find(f => f.name === fontName)?.displayName ?? fontName;
-    }
-    
-    applyFont(fontName: string): void {
-        const font = this.availableFonts.find(f => f.name === fontName);
-        if (font) {
-            // Apply font to body element
-            document.body.style.fontFamily = font.value;
-            
-            // Adjust font size for Audiowide (15% smaller)
-            if (fontName === 'Audiowide') {
-                document.documentElement.style.fontSize = '14.45px'; // 85% of 17px (default)
-            } else {
-                document.documentElement.style.fontSize = ''; // Reset to default
-            }
-        }
     }
 
     private getAuthHeaders(): HttpHeaders {

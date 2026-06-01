@@ -27,13 +27,15 @@ import (
 type AlertEngine struct {
 	controller *Controller
 
-	// cooldownMu protects lastAlertFiredAt.
+	// cooldownMu protects cooldown and dispatch tracking maps.
 	cooldownMu sync.Mutex
-	// lastAlertFiredAt tracks when the most recent tone alert notification was sent
-	// for each talkgroup (keyed by talkgroupId).  Used to enforce per-talkgroup
-	// alert cooldowns so that departments who double-page don't generate duplicate
-	// push notifications within the configured window.
-	lastAlertFiredAt map[uint64]time.Time
+	// lastPreAlertFiredAt / lastToneAlertFiredAt enforce alertCooldownSeconds independently
+	// so a pre-alert does not block the subsequent full tone alert on the same incident,
+	// but a second double-page pre-alert (or tone alert) within the window is suppressed.
+	lastPreAlertFiredAt map[uint64]time.Time
+	lastToneAlertFiredAt map[uint64]time.Time
+	// toneAlertDispatched prevents duplicate TriggerToneAlerts push batches for the same callId.
+	toneAlertDispatched map[uint64]struct{}
 
 	// lastCleanupUnix is the Unix timestamp (seconds) of the most recent
 	// cleanupOldAlerts run.  Compared atomically so that concurrent createAlert
@@ -44,9 +46,98 @@ type AlertEngine struct {
 // NewAlertEngine creates a new alert engine
 func NewAlertEngine(controller *Controller) *AlertEngine {
 	return &AlertEngine{
-		controller:       controller,
-		lastAlertFiredAt: make(map[uint64]time.Time),
+		controller:           controller,
+		lastPreAlertFiredAt:  make(map[uint64]time.Time),
+		lastToneAlertFiredAt: make(map[uint64]time.Time),
+		toneAlertDispatched:  make(map[uint64]struct{}),
 	}
+}
+
+// cooldownTalkgroupId returns the talkgroup whose alertCooldownSeconds applies.
+// When tones were detected on a different channel than the voice call (linked-voice
+// setups), this is the original tone talkgroup where cooldown was configured.
+func (engine *AlertEngine) cooldownTalkgroupId(call *Call) uint64 {
+	if call == nil {
+		return 0
+	}
+	if call.ToneSourceTalkgroupId > 0 {
+		return call.ToneSourceTalkgroupId
+	}
+	if call.Talkgroup != nil {
+		return call.Talkgroup.Id
+	}
+	return 0
+}
+
+func (engine *AlertEngine) getAlertCooldownSeconds(talkgroupId uint64) uint {
+	if talkgroupId == 0 || engine.controller == nil {
+		return 0
+	}
+	for _, sys := range engine.controller.Systems.List {
+		if tg, ok := sys.Talkgroups.GetTalkgroupById(talkgroupId); ok {
+			return tg.AlertCooldownSeconds
+		}
+	}
+	return 0
+}
+
+func (engine *AlertEngine) isPreAlertCooldownActive(talkgroupId uint64) bool {
+	secs := engine.getAlertCooldownSeconds(talkgroupId)
+	if secs == 0 {
+		return false
+	}
+	engine.cooldownMu.Lock()
+	defer engine.cooldownMu.Unlock()
+	last, ok := engine.lastPreAlertFiredAt[talkgroupId]
+	if !ok {
+		return false
+	}
+	return time.Since(last) < time.Duration(secs)*time.Second
+}
+
+func (engine *AlertEngine) isToneAlertCooldownActive(talkgroupId uint64) bool {
+	secs := engine.getAlertCooldownSeconds(talkgroupId)
+	if secs == 0 {
+		return false
+	}
+	engine.cooldownMu.Lock()
+	defer engine.cooldownMu.Unlock()
+	last, ok := engine.lastToneAlertFiredAt[talkgroupId]
+	if !ok {
+		return false
+	}
+	return time.Since(last) < time.Duration(secs)*time.Second
+}
+
+func (engine *AlertEngine) recordPreAlertCooldown(talkgroupId uint64) {
+	if engine.getAlertCooldownSeconds(talkgroupId) == 0 {
+		return
+	}
+	engine.cooldownMu.Lock()
+	engine.lastPreAlertFiredAt[talkgroupId] = time.Now()
+	engine.cooldownMu.Unlock()
+}
+
+func (engine *AlertEngine) recordToneAlertCooldown(talkgroupId uint64) {
+	if engine.getAlertCooldownSeconds(talkgroupId) == 0 {
+		return
+	}
+	engine.cooldownMu.Lock()
+	engine.lastToneAlertFiredAt[talkgroupId] = time.Now()
+	engine.cooldownMu.Unlock()
+}
+
+func (engine *AlertEngine) claimToneAlertDispatch(callId uint64) bool {
+	if callId == 0 {
+		return true
+	}
+	engine.cooldownMu.Lock()
+	defer engine.cooldownMu.Unlock()
+	if _, ok := engine.toneAlertDispatched[callId]; ok {
+		return false
+	}
+	engine.toneAlertDispatched[callId] = struct{}{}
+	return true
 }
 
 // TriggerPreAlerts triggers immediate pre-alerts when tones are detected (before transcription)
@@ -97,6 +188,15 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 
 	if systemId == 0 || talkgroupId == 0 {
 		engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("pre-alert skipped for call %d: systemId=%d or talkgroupId=%d is 0", call.Id, systemId, talkgroupId))
+		return
+	}
+
+	if engine.isPreAlertCooldownActive(talkgroupId) {
+		secs := engine.getAlertCooldownSeconds(talkgroupId)
+		engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+			"pre-alert cooldown active for talkgroup %d (cooldown=%ds) — skipping pre-alert pushes for call %d",
+			talkgroupId, secs, call.Id,
+		))
 		return
 	}
 
@@ -152,6 +252,7 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 	}
 
 	// Create one pre-alert per matched tone set
+	sentPreAlert := false
 	for _, matchedToneSet := range matchedToneSets {
 		if matchedToneSet == nil || matchedToneSet.Id == "" {
 			continue
@@ -185,10 +286,14 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 
 		// Send batched push notification for all eligible users
 		if len(eligibleUsers) > 0 {
+			sentPreAlert = true
 			toneSetName := matchedToneSet.Label
 			engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sending pre-alert notifications to %d users for tone set '%s'", len(eligibleUsers), toneSetName))
 			go engine.controller.sendBatchedPushNotificationWithToneSet(eligibleUsers, "pre-alert", call, systemLabel, talkgroupLabel, toneSetName, matchedToneSet.Id, nil)
 		}
+	}
+	if sentPreAlert {
+		engine.recordPreAlertCooldown(talkgroupId)
 	}
 }
 
@@ -255,6 +360,26 @@ func (engine *AlertEngine) TriggerToneAlerts(call *Call) {
 		talkgroupLabel = call.Talkgroup.Label
 	}
 
+	if !engine.claimToneAlertDispatch(call.Id) {
+		engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+			"tone alert: push already dispatched for call %d — skipping duplicate TriggerToneAlerts",
+			call.Id,
+		))
+		return
+	}
+
+	cooldownTgId := engine.cooldownTalkgroupId(call)
+	toneCooldownBlocked := engine.isToneAlertCooldownActive(cooldownTgId)
+	if toneCooldownBlocked {
+		secs := engine.getAlertCooldownSeconds(cooldownTgId)
+		engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+			"tone alert cooldown active for talkgroup %d (cooldown=%ds) — skipping tone alert pushes for call %d (DB records still created)",
+			cooldownTgId, secs, call.Id,
+		))
+	}
+
+	sentTonePush := false
+
 	// Create one alert per matched tone set (not per user)
 	for _, matchedToneSet := range matchedToneSets {
 		if matchedToneSet == nil || matchedToneSet.Id == "" {
@@ -285,28 +410,8 @@ func (engine *AlertEngine) TriggerToneAlerts(call *Call) {
 		// Forward to TonesToActive downstream (per-tone-set and/or global)
 		dispatchToneDownstreams(engine.controller, call, matchedToneSet)
 
-		// --- Per-talkgroup alert cooldown ---
-		// If the talkgroup has a cooldown configured and an alert was already sent
-		// within that window, skip push notifications (but keep the DB alert record
-		// above so history is preserved).  cooldown == 0 means disabled.
-		if call.Talkgroup != nil && call.Talkgroup.AlertCooldownSeconds > 0 {
-			cooldown := time.Duration(call.Talkgroup.AlertCooldownSeconds) * time.Second
-			engine.cooldownMu.Lock()
-			last, hasPrior := engine.lastAlertFiredAt[call.Talkgroup.Id]
-			engine.cooldownMu.Unlock()
-
-			if hasPrior && time.Since(last) < cooldown {
-				engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-					"tone alert cooldown active for talkgroup %d: last alert was %.0fs ago (cooldown=%.0fs) — skipping notifications for call %d",
-					call.Talkgroup.Id, time.Since(last).Seconds(), cooldown.Seconds(), call.Id,
-				))
-				continue // next matched tone set; notifications suppressed
-			}
-
-			// Record this alert fire time
-			engine.cooldownMu.Lock()
-			engine.lastAlertFiredAt[call.Talkgroup.Id] = time.Now()
-			engine.cooldownMu.Unlock()
+		if toneCooldownBlocked {
+			continue
 		}
 
 		// Collect users who should get notifications for this tone set
@@ -377,6 +482,7 @@ func (engine *AlertEngine) TriggerToneAlerts(call *Call) {
 
 		// Send batched push notification for all eligible users
 		if len(eligibleUsers) > 0 {
+			sentTonePush = true
 			toneSetName := ""
 			toneSetIdStr := ""
 			if matchedToneSet != nil {
@@ -386,6 +492,9 @@ func (engine *AlertEngine) TriggerToneAlerts(call *Call) {
 			// Include keywords if they were matched (tone alert with keyword info)
 			go engine.controller.sendBatchedPushNotificationWithToneSet(eligibleUsers, "tone", call, systemLabel, talkgroupLabel, toneSetName, toneSetIdStr, keywordsMatched)
 		}
+	}
+	if sentTonePush {
+		engine.recordToneAlertCooldown(cooldownTgId)
 	}
 }
 
@@ -589,6 +698,11 @@ func (engine *AlertEngine) TriggerToneAndKeywordAlerts(call *Call, userId uint64
 	// Create one alert per matched tone set (for stacked tones)
 	// Check if alerts already exist to prevent duplicates
 	keywordsJsonStr := string(keywordsJson)
+
+	cooldownTgId := engine.cooldownTalkgroupId(call)
+	toneCooldownBlocked := engine.isToneAlertCooldownActive(cooldownTgId)
+	sentTonePush := false
+
 	for _, matchedToneSet := range matchedToneSets {
 		if matchedToneSet == nil || matchedToneSet.Id == "" {
 			continue
@@ -643,6 +757,9 @@ func (engine *AlertEngine) TriggerToneAndKeywordAlerts(call *Call, userId uint64
 		}
 
 		// Send push notification (push notifications handle delays internally)
+		if toneCooldownBlocked {
+			continue
+		}
 		systemLabel := ""
 		talkgroupLabel := ""
 		if call.System != nil {
@@ -655,7 +772,11 @@ func (engine *AlertEngine) TriggerToneAndKeywordAlerts(call *Call, userId uint64
 		if matchedToneSet != nil {
 			toneSetName = matchedToneSet.Label
 		}
+		sentTonePush = true
 		go engine.controller.sendPushNotification(userId, "tone+keyword", call, systemLabel, talkgroupLabel, toneSetName, keywordsMatched)
+	}
+	if sentTonePush {
+		engine.recordToneAlertCooldown(cooldownTgId)
 	}
 }
 
@@ -778,13 +899,17 @@ func (engine *AlertEngine) cleanupOldAlerts() {
 		engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to cleanup old alerts: %v", err))
 	}
 
-	// Prune lastAlertFiredAt entries that are older than the longest possible cooldown
-	// (capped at 24 hours) so the map doesn't grow unboundedly over time.
+	// Prune cooldown entries that are older than 24 hours so maps don't grow unboundedly.
 	pruneBefore := time.Now().Add(-24 * time.Hour)
 	engine.cooldownMu.Lock()
-	for talkgroupId, firedAt := range engine.lastAlertFiredAt {
+	for talkgroupId, firedAt := range engine.lastPreAlertFiredAt {
 		if firedAt.Before(pruneBefore) {
-			delete(engine.lastAlertFiredAt, talkgroupId)
+			delete(engine.lastPreAlertFiredAt, talkgroupId)
+		}
+	}
+	for talkgroupId, firedAt := range engine.lastToneAlertFiredAt {
+		if firedAt.Before(pruneBefore) {
+			delete(engine.lastToneAlertFiredAt, talkgroupId)
 		}
 	}
 	engine.cooldownMu.Unlock()
