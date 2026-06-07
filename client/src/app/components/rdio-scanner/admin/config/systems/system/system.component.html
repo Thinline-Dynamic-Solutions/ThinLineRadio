@@ -124,7 +124,7 @@
         <div class="settings-field settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
             <label class="field-label">Auto-learn tone sets</label>
             <div class="toggle-row" style="margin-bottom: 8px;">
-                <span class="field-hint" style="flex: 1;">Discover paging tone patterns from live traffic and auto-add tone sets when confident. Stacked or ambiguous patterns are logged only — add those manually in admin. Pick tags for the channels where tones are heard — typically <strong>Fire dispatch / paging</strong> tags, not every fireground ops channel. Applied when you save config.</span>
+                <span class="field-hint" style="flex: 1;"><strong>Bulk rollout</strong> — turn on auto-learn for talkgroups matching selected tags. Individual talkgroups can also be enabled on their own without this toggle. Stacked or ambiguous patterns are logged only. Applied when you save config.</span>
                 <mat-slide-toggle color="primary" formControlName="autoLearnToneSets"></mat-slide-toggle>
             </div>
             <ng-container *ngIf="form.get('autoLearnToneSets')?.value">
@@ -147,7 +147,7 @@
         <div class="settings-field settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
             <label class="field-label">Auto-learn unit aliases</label>
             <div class="toggle-row" style="margin-bottom: 8px;">
-                <span class="field-hint" style="flex: 1;">Learn radio unit ID → label mappings (e.g. 789001 = Rescue 41). Select tags for channels where units transmit (dispatch, fireground, EMS). Same radio alias on every call auto-adds without OpenAI; otherwise OpenAI names the unit from voice.</span>
+                <span class="field-hint" style="flex: 1;"><strong>Bulk rollout</strong> — turn on unit alias auto-learn for talkgroups matching selected tags. Individual talkgroups can also be enabled on their own without this toggle.</span>
                 <mat-slide-toggle color="primary" formControlName="autoLearnUnitAliases"></mat-slide-toggle>
             </div>
             <ng-container *ngIf="form.get('autoLearnUnitAliases')?.value">

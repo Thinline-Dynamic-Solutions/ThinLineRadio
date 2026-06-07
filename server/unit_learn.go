@@ -81,7 +81,7 @@ func extractUnitObservations(call *Call) []unitObservation {
 
 func unitLearnEnabled(call *Call) bool {
 	return call != nil && call.System != nil && call.Talkgroup != nil &&
-		call.System.AutoLearnUnitAliases && call.Talkgroup.AutoLearnUnitAliases &&
+		call.Talkgroup.AutoLearnUnitAliases &&
 		call.System.AlertsEnabled && call.Talkgroup.AlertsEnabled
 }
 

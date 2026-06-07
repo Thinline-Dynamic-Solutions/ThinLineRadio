@@ -19,39 +19,25 @@ func (system *System) applyAutoLearnToneSetsRollout() {
 	}
 
 	now := time.Now().UnixMilli()
-	if system.AutoLearnToneSets {
-		if system.AutoLearnToneSetsAutoOffDays > 0 && system.AutoLearnToneSetsExpiresAt == 0 {
-			system.AutoLearnToneSetsExpiresAt = now + int64(system.AutoLearnToneSetsAutoOffDays)*24*60*60*1000
-		}
-		for _, tg := range system.Talkgroups.List {
-			if tagSet[tg.TagId] {
-				tg.AutoLearnToneSets = true
-			}
-		}
+	if !system.AutoLearnToneSets {
+		system.AutoLearnToneSetsExpiresAt = 0
 		return
 	}
 
+	if system.AutoLearnToneSetsAutoOffDays > 0 && system.AutoLearnToneSetsExpiresAt == 0 {
+		system.AutoLearnToneSetsExpiresAt = now + int64(system.AutoLearnToneSetsAutoOffDays)*24*60*60*1000
+	}
 	for _, tg := range system.Talkgroups.List {
 		if tagSet[tg.TagId] {
-			tg.AutoLearnToneSets = false
+			tg.AutoLearnToneSets = true
 		}
 	}
-	system.AutoLearnToneSetsExpiresAt = 0
 }
 
 // applyAutoLearnUnitAliasesRollout enables unit alias auto-learn on talkgroups matching selected tags.
 func (system *System) applyAutoLearnUnitAliasesRollout() {
 	if system == nil {
 		return
-	}
-
-	now := time.Now().UnixMilli()
-	if system.AutoLearnUnitAliases {
-		if system.AutoLearnUnitAliasesAutoOffDays > 0 && system.AutoLearnUnitAliasesExpiresAt == 0 {
-			system.AutoLearnUnitAliasesExpiresAt = now + int64(system.AutoLearnUnitAliasesAutoOffDays)*24*60*60*1000
-		}
-	} else {
-		system.AutoLearnUnitAliasesExpiresAt = 0
 	}
 
 	if system.Talkgroups == nil {
@@ -63,18 +49,18 @@ func (system *System) applyAutoLearnUnitAliasesRollout() {
 		return
 	}
 
-	if system.AutoLearnUnitAliases {
-		for _, tg := range system.Talkgroups.List {
-			if tagSet[tg.TagId] {
-				tg.AutoLearnUnitAliases = true
-			}
-		}
+	if !system.AutoLearnUnitAliases {
+		system.AutoLearnUnitAliasesExpiresAt = 0
 		return
 	}
 
+	now := time.Now().UnixMilli()
+	if system.AutoLearnUnitAliasesAutoOffDays > 0 && system.AutoLearnUnitAliasesExpiresAt == 0 {
+		system.AutoLearnUnitAliasesExpiresAt = now + int64(system.AutoLearnUnitAliasesAutoOffDays)*24*60*60*1000
+	}
 	for _, tg := range system.Talkgroups.List {
 		if tagSet[tg.TagId] {
-			tg.AutoLearnUnitAliases = false
+			tg.AutoLearnUnitAliases = true
 		}
 	}
 }

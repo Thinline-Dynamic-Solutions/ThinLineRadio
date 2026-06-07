@@ -65,10 +65,10 @@ type Talkgroup struct {
 	// Custom transcription prompt for this talkgroup. Overrides the system-level and global prompt when non-empty.
 	TranscriptionPrompt string `json:"transcriptionPrompt"`
 
-	// When true (and system auto-learn is on), observe paging patterns for auto-learn.
+	// When true, observe paging patterns for auto-learn on this talkgroup.
 	AutoLearnToneSets bool `json:"autoLearnToneSets"`
 
-	// When true (and system auto-learn is on), learn radio unitRef → label mappings.
+	// When true, learn radio unitRef → label mappings on this talkgroup.
 	AutoLearnUnitAliases bool `json:"autoLearnUnitAliases"`
 }
 

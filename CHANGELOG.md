@@ -1,5 +1,15 @@
 # Change log
 
+## Version 26.06.06 - Released June 7, 2026
+
+### Fixed
+
+- **Server — Auto-learn runs per talkgroup without system master toggle**
+  - Tone and unit alias auto-learn only required the talkgroup flag at runtime; the system master toggle incorrectly blocked individually enabled channels (e.g. one dispatch TG on a system with bulk rollout off).
+  - System-level auto-learn is now **bulk tag rollout only** — turning it off no longer clears talkgroup flags that were enabled individually or via a prior rollout.
+
+---
+
 ## Version 26.06.05 - Released June 6, 2026
 
 ### Fixed

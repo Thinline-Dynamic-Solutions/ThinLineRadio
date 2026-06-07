@@ -2475,7 +2475,7 @@ func (controller *Controller) queueTranscriptionIfNeeded(call *Call) {
 	toneDetectionEnabled := call.Talkgroup != nil && call.Talkgroup.ToneDetectionEnabled
 	alertingTalkgroup := call.Talkgroup != nil && call.Talkgroup.AlertingTalkgroup
 	autoLearnToneSets := call.System != nil && call.Talkgroup != nil &&
-		call.System.AutoLearnToneSets && call.Talkgroup.AutoLearnToneSets &&
+		call.Talkgroup.AutoLearnToneSets &&
 		call.System.AlertsEnabled && call.Talkgroup.AlertsEnabled
 	autoLearnUnitAliases := unitLearnEnabled(call) && callHasUnitRefs(call)
 
@@ -2618,7 +2618,7 @@ func (controller *Controller) transcriptionReasonsForCall(call *Call) []string {
 		return nil
 	}
 	reasons := []string{}
-	if call.System.AutoLearnToneSets && call.Talkgroup.AutoLearnToneSets &&
+	if call.Talkgroup.AutoLearnToneSets &&
 		call.System.AlertsEnabled && call.Talkgroup.AlertsEnabled {
 		reasons = append(reasons, "auto_learn_tone_sets")
 	}

@@ -232,7 +232,7 @@ func (controller *Controller) processToneAutoLearn(call *Call, transcript string
 		return
 	}
 
-	if !call.System.AutoLearnToneSets || !call.Talkgroup.AutoLearnToneSets {
+	if !call.Talkgroup.AutoLearnToneSets {
 		return
 	}
 	if !call.System.AlertsEnabled || !call.Talkgroup.AlertsEnabled {
