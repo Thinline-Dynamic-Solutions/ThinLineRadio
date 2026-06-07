@@ -1,5 +1,30 @@
 # Change log
 
+## Version 26.06.08 - Released June 7, 2026
+
+### Fixed
+
+- **Server — Tone detection on paging audio (tone-then-voice)**
+  - Shared decode path: bandpass without `dynaudnorm` for auto-learn `Discover`; production `Detect` also runs the deployed dynaudnorm chain and merges results so quiet lead-in tones are not lost when dispatch voice follows on the same clip.
+  - FFT analysis uses a **20 s** window (stacked pages) and a **3 s** peak reference for silence gating so later voice does not raise the noise floor and hide paging tones at the start.
+  - Auto-learn keeps looser `Discover` thresholds (0.4 s min tone, include unmatched frequencies); production `Detect` still requires a match to configured tone-set frequencies.
+
+- **Server — Pending tone stacking**
+  - When multiple tone-only calls queue before a voice dispatch, merged pending tones keep the **most recent tone page** as the primary attach label (voice calls inherit the closest preceding page).
+
+- **Server — Tone auto-learn pairing**
+  - Default A-tone duration window **0.5–1.2 s**, B-tone **1.5–4.0 s**; pairs earliest valid A with the longest following B per call.
+
+### Added
+
+- **Server — Analyze tone history diagnostics**
+  - History analyze logs per-call tone discovery details and includes partial patterns in the API response for admin review.
+
+- **Server — Regression tests**
+  - Production export tests for 78 FD DISP (direct `Detect` vs stored tone frequencies) and LFD sample audio (Discover + learned A/B detect).
+
+---
+
 ## Version 26.06.07 - Released June 7, 2026
 
 ### Added

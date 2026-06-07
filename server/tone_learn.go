@@ -33,9 +33,9 @@ type AutoLearnToneSetConfig struct {
 func DefaultAutoLearnToneSetConfig() AutoLearnToneSetConfig {
 	return AutoLearnToneSetConfig{
 		AToneMinDuration:     0.5,
-		AToneMaxDuration:     0.9,
+		AToneMaxDuration:     1.2,
 		BToneMinDuration:     1.5,
-		BToneMaxDuration:     2.5,
+		BToneMaxDuration:     4.0,
 		LongToneMinDuration:  6.0,
 		LongToneMaxDuration:  0,
 		CallsRequired:        3,
@@ -142,55 +142,61 @@ func extractToneLearnCandidates(tones []Tone, cfg AutoLearnToneSetConfig, system
 	var out []toneLearnCandidate
 	used := make(map[int]bool)
 
-	for i := range tones {
-		if used[i] {
-			continue
-		}
-		a := tones[i]
+	// One A+B pair per call: earliest valid A, then the longest valid B that follows it.
+	for i, a := range tones {
 		if a.Duration < cfg.AToneMinDuration || a.Duration > cfg.AToneMaxDuration {
 			continue
 		}
-		for j := range tones {
-			if j <= i || used[j] {
+		bestJ := -1
+		var bestBDur float64
+		for j, b := range tones {
+			if j <= i {
 				continue
 			}
-			b := tones[j]
 			if b.StartTime < a.EndTime-0.1 {
 				continue
 			}
 			if b.Duration < cfg.BToneMinDuration || b.Duration > cfg.BToneMaxDuration {
 				continue
 			}
-			used[i] = true
-			used[j] = true
-			aFreq := roundToneFrequency(a.Frequency)
-			bFreq := roundToneFrequency(b.Frequency)
-			draft := ToneSet{
-				Id:          uuid.New().String(),
-				Tolerance:   cfg.FrequencyToleranceHz,
-				MinDuration: cfg.AToneMinDuration,
-				ATone: &ToneSpec{
-					Frequency:   aFreq,
-					MinDuration: cfg.AToneMinDuration,
-					MaxDuration: cfg.AToneMaxDuration,
-				},
-				BTone: &ToneSpec{
-					Frequency:   bFreq,
-					MinDuration: cfg.BToneMinDuration,
-					MaxDuration: cfg.BToneMaxDuration,
-				},
+			if b.Duration > bestBDur {
+				bestBDur = b.Duration
+				bestJ = j
 			}
-			out = append(out, toneLearnCandidate{
-				SignatureHash: buildABPairSignature(systemId, talkgroupId, aFreq, bFreq, cfg.FrequencyToleranceHz),
-				PatternType:   toneLearnPatternABPair,
-				ToneSetDraft:  draft,
-				AFrequency:    a.Frequency,
-				BFrequency:    b.Frequency,
-				ADuration:     a.Duration,
-				BDuration:     b.Duration,
-			})
-			break
 		}
+		if bestJ < 0 {
+			continue
+		}
+		b := tones[bestJ]
+		used[i] = true
+		used[bestJ] = true
+		aFreq := roundToneFrequency(a.Frequency)
+		bFreq := roundToneFrequency(b.Frequency)
+		draft := ToneSet{
+			Id:          uuid.New().String(),
+			Tolerance:   cfg.FrequencyToleranceHz,
+			MinDuration: cfg.AToneMinDuration,
+			ATone: &ToneSpec{
+				Frequency:   aFreq,
+				MinDuration: cfg.AToneMinDuration,
+				MaxDuration: cfg.AToneMaxDuration,
+			},
+			BTone: &ToneSpec{
+				Frequency:   bFreq,
+				MinDuration: cfg.BToneMinDuration,
+				MaxDuration: cfg.BToneMaxDuration,
+			},
+		}
+		out = append(out, toneLearnCandidate{
+			SignatureHash: buildABPairSignature(systemId, talkgroupId, aFreq, bFreq, cfg.FrequencyToleranceHz),
+			PatternType:   toneLearnPatternABPair,
+			ToneSetDraft:  draft,
+			AFrequency:    a.Frequency,
+			BFrequency:    b.Frequency,
+			ADuration:     a.Duration,
+			BDuration:     b.Duration,
+		})
+		break
 	}
 
 	for i := range tones {

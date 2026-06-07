@@ -48,6 +48,7 @@ export class RdioScannerAdminTalkgroupComponent {
     analyzingToneHistory = false;
     toneHistoryStatus = '';
     toneHistorySuggestions: ToneHistorySuggestion[] = [];
+    toneHistoryPartialPatterns: { patternDesc: string; callCount: number }[] = [];
     toneHistoryCallsRequired = 3;
 
     get groups(): Group[] {
@@ -253,6 +254,7 @@ export class RdioScannerAdminTalkgroupComponent {
         this.analyzingToneHistory = true;
         this.toneHistoryStatus = '';
         this.toneHistorySuggestions = [];
+        this.toneHistoryPartialPatterns = [];
 
         this.adminService.analyzeToneHistory(systemId, talkgroupId)
             .pipe(finalize(() => { this.analyzingToneHistory = false; }))
@@ -260,6 +262,7 @@ export class RdioScannerAdminTalkgroupComponent {
                 next: (response) => {
                     this.toneHistoryCallsRequired = response?.callsRequired ?? 3;
                     this.toneHistorySuggestions = response?.suggestions || [];
+                    this.toneHistoryPartialPatterns = response?.partialPatterns || [];
                     if (this.toneHistorySuggestions.length > 0) {
                         this.toneHistoryStatus = `Found ${this.toneHistorySuggestions.length} pattern${this.toneHistorySuggestions.length === 1 ? '' : 's'} (≥${this.toneHistoryCallsRequired} calls each) in ${response.callsScanned} calls`;
                         this.snackBar.open(this.toneHistoryStatus, '', { duration: 5000 });

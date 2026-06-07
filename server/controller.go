@@ -1680,8 +1680,14 @@ func (controller *Controller) mergePendingTones(existing *ToneSequence, new *Ton
 		for _, ts := range matchedToneSetMap {
 			merged.MatchedToneSets = append(merged.MatchedToneSets, ts)
 		}
-		// Set first one for backward compatibility
-		merged.MatchedToneSet = merged.MatchedToneSets[0]
+		// Voice attach uses the most recent tone-page match (closest preceding page).
+		if new.MatchedToneSet != nil {
+			merged.MatchedToneSet = new.MatchedToneSet
+		} else if existing.MatchedToneSet != nil {
+			merged.MatchedToneSet = existing.MatchedToneSet
+		} else if len(merged.MatchedToneSets) > 0 {
+			merged.MatchedToneSet = merged.MatchedToneSets[0]
+		}
 	}
 
 	return merged

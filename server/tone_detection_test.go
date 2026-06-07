@@ -58,3 +58,36 @@ func TestVoiceForToneAlertsRejectsToneLike(t *testing.T) {
 		t.Fatal("expected tone-like transcript to be rejected for tone alerts")
 	}
 }
+
+func TestMatchToneSetsPrefersYoungstownOverMcDonaldOnStacked566(t *testing.T) {
+	detector := NewToneDetector()
+	ys := ToneSet{
+		Label:     "Youngstown Air Base",
+		Tolerance: 0.03,
+		ATone:     &ToneSpec{Frequency: 566, MinDuration: 0.6},
+		BTone:     &ToneSpec{Frequency: 1155.75, MinDuration: 0.6},
+	}
+	mcd := ToneSet{
+		Label:     "McDonald",
+		Tolerance: 0.04,
+		ATone:     &ToneSpec{Frequency: 566, MinDuration: 0.6},
+		BTone:     &ToneSpec{Frequency: 598, MinDuration: 0.6},
+	}
+	seq := &ToneSequence{
+		HasTones: true,
+		Tones: []Tone{
+			{Frequency: 566.35, StartTime: 1.536, EndTime: 2.656, Duration: 1.12, Magnitude: 0.02},
+			{Frequency: 598.37, StartTime: 2.528, EndTime: 5.664, Duration: 3.14, Magnitude: 0.02},
+			{Frequency: 566.35, StartTime: 12.224, EndTime: 13.344, Duration: 1.12, Magnitude: 0.02},
+			{Frequency: 1156.53, StartTime: 13.248, EndTime: 16.032, Duration: 2.78, Magnitude: 0.02},
+		},
+	}
+
+	matched := detector.MatchToneSets(seq, []ToneSet{ys, mcd})
+	if len(matched) < 2 {
+		t.Fatalf("expected both tone sets to match, got %d", len(matched))
+	}
+	if matched[0].Label != "Youngstown Air Base" {
+		t.Fatalf("expected first configured match Youngstown Air Base, got %s", matched[0].Label)
+	}
+}

@@ -432,9 +432,18 @@ export interface ToneHistorySuggestion {
     toneSet: RdioScannerToneSet;
 }
 
+export interface ToneHistoryPartialPattern {
+    patternDesc: string;
+    callCount: number;
+}
+
 export interface ToneHistoryAnalyzeResponse {
     callsScanned: number;
     callsWithTones: number;
+    callsWithCandidates?: number;
+    discoverErrors?: number;
+    patternsBelowThreshold?: number;
+    partialPatterns?: ToneHistoryPartialPattern[];
     callsRequired: number;
     suggestions: ToneHistorySuggestion[];
     message?: string;
@@ -1482,9 +1491,9 @@ export class RdioScannerAdminService implements OnDestroy {
             }),
             autoLearnToneSetConfig: this.ngFormBuilder.group({
                 aToneMinDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.aToneMinDuration ?? 0.5, [Validators.min(0.1)]),
-                aToneMaxDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.aToneMaxDuration ?? 0.9, [Validators.min(0.1)]),
+                aToneMaxDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.aToneMaxDuration ?? 1.2, [Validators.min(0.1)]),
                 bToneMinDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.bToneMinDuration ?? 1.5, [Validators.min(0.1)]),
-                bToneMaxDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.bToneMaxDuration ?? 2.5, [Validators.min(0.1)]),
+                bToneMaxDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.bToneMaxDuration ?? 4.0, [Validators.min(0.1)]),
                 longToneMinDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.longToneMinDuration ?? 6, [Validators.min(1)]),
                 longToneMaxDuration: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.longToneMaxDuration ?? 0, [Validators.min(0)]),
                 callsRequired: this.ngFormBuilder.control(options?.autoLearnToneSetConfig?.callsRequired ?? 3, [Validators.min(2)]),

@@ -231,6 +231,12 @@
             <span *ngIf="toneHistoryStatus" class="mat-caption" [style.color]="toneHistorySuggestions.length ? '#4caf50' : '#aaa'">
                 {{ toneHistoryStatus }}
             </span>
+            <div *ngIf="toneHistoryPartialPatterns.length > 0" style="margin-top: 4px;">
+                <div class="mat-caption" style="color: #888; margin-bottom: 6px;">Patterns seen but not yet at {{ toneHistoryCallsRequired }} calls:</div>
+                <div *ngFor="let partial of toneHistoryPartialPatterns" class="mat-caption" style="color: #aaa; margin-bottom: 4px;">
+                    {{ partial.patternDesc }} · {{ partial.callCount }}/{{ toneHistoryCallsRequired }} calls
+                </div>
+            </div>
             <div *ngFor="let suggestion of toneHistorySuggestions"
                  style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 12px;">
                 <div style="font-weight: 600; margin-bottom: 4px;">{{ suggestion.label }}</div>

@@ -19,20 +19,29 @@ type ToneHistoryAnalyzeRequest struct {
 }
 
 type ToneHistorySuggestion struct {
-	PatternType string  `json:"patternType"`
-	PatternDesc string  `json:"patternDesc"`
-	CallCount   int     `json:"callCount"`
+	PatternType string   `json:"patternType"`
+	PatternDesc string   `json:"patternDesc"`
+	CallCount   int      `json:"callCount"`
 	CallIds     []uint64 `json:"callIds"`
-	Label       string  `json:"label"`
-	ToneSet     ToneSet `json:"toneSet"`
+	Label       string   `json:"label"`
+	ToneSet     ToneSet  `json:"toneSet"`
+}
+
+type ToneHistoryPartialPattern struct {
+	PatternDesc string `json:"patternDesc"`
+	CallCount   int    `json:"callCount"`
 }
 
 type ToneHistoryAnalyzeResponse struct {
-	CallsScanned   int                     `json:"callsScanned"`
-	CallsWithTones int                     `json:"callsWithTones"`
-	CallsRequired  int                     `json:"callsRequired"`
-	Suggestions    []ToneHistorySuggestion `json:"suggestions"`
-	Message        string                  `json:"message,omitempty"`
+	CallsScanned            int                         `json:"callsScanned"`
+	CallsWithTones          int                         `json:"callsWithTones"`
+	CallsWithCandidates     int                         `json:"callsWithCandidates"`
+	DiscoverErrors          int                         `json:"discoverErrors"`
+	PatternsBelowThreshold  int                         `json:"patternsBelowThreshold"`
+	PartialPatterns         []ToneHistoryPartialPattern `json:"partialPatterns,omitempty"`
+	CallsRequired           int                         `json:"callsRequired"`
+	Suggestions             []ToneHistorySuggestion     `json:"suggestions"`
+	Message                 string                      `json:"message,omitempty"`
 }
 
 type toneHistoryAgg struct {
@@ -49,6 +58,24 @@ func toneLearnPatternDescription(cand toneLearnCandidate) string {
 		return fmt.Sprintf("Long tone: %.1f Hz for %.2fs", cand.LongFrequency, cand.LongDuration)
 	default:
 		return string(cand.PatternType)
+	}
+}
+
+func toneHistoryAudioMime(audioMime, audioFilename string) string {
+	mime := strings.TrimSpace(audioMime)
+	if mime != "" {
+		return mime
+	}
+	lower := strings.ToLower(audioFilename)
+	switch {
+	case strings.HasSuffix(lower, ".m4a"), strings.HasSuffix(lower, ".mp4"):
+		return "audio/mp4"
+	case strings.HasSuffix(lower, ".wav"):
+		return "audio/wav"
+	case strings.HasSuffix(lower, ".mp3"):
+		return "audio/mpeg"
+	default:
+		return "audio/mp4"
 	}
 }
 
@@ -89,9 +116,9 @@ func (controller *Controller) analyzeTalkgroupToneHistory(systemId, talkgroupId 
 
 	var query string
 	if controller.Database.Config.DbType == DbTypePostgresql {
-		query = `SELECT "callId", "audio", "audioMime", "transcript", "reviewedTranscript", "timestamp" FROM "calls" WHERE "systemId" = $1 AND "talkgroupId" = $2 AND "timestamp" >= $3 AND length("audio") > 0 ORDER BY "timestamp" DESC LIMIT $4`
+		query = `SELECT "callId", "audio", "audioMime", "audioFilename", "transcript", "reviewedTranscript", "timestamp" FROM "calls" WHERE "systemId" = $1 AND "talkgroupId" = $2 AND "timestamp" >= $3 AND length("audio") > 0 ORDER BY "timestamp" DESC LIMIT $4`
 	} else {
-		query = `SELECT "callId", "audio", "audioMime", "transcript", "reviewedTranscript", "timestamp" FROM "calls" WHERE "systemId" = ? AND "talkgroupId" = ? AND "timestamp" >= ? AND length("audio") > 0 ORDER BY "timestamp" DESC LIMIT ?`
+		query = `SELECT "callId", "audio", "audioMime", "audioFilename", "transcript", "reviewedTranscript", "timestamp" FROM "calls" WHERE "systemId" = ? AND "talkgroupId" = ? AND "timestamp" >= ? AND length("audio") > 0 ORDER BY "timestamp" DESC LIMIT ?`
 	}
 
 	rows, err := controller.Database.Sql.Query(query, systemId, talkgroupId, since, limit)
@@ -107,23 +134,33 @@ func (controller *Controller) analyzeTalkgroupToneHistory(systemId, talkgroupId 
 
 	aggregates := make(map[string]*toneHistoryAgg)
 	detector := NewToneDetector()
+	var firstDiscoverErr string
 
 	for rows.Next() {
 		var (
-			callId            uint64
-			audio             []byte
-			audioMime         string
-			transcript        sql.NullString
+			callId             uint64
+			audio              []byte
+			audioMime          string
+			audioFilename      string
+			transcript         sql.NullString
 			reviewedTranscript sql.NullString
-			timestamp         int64
+			timestamp          int64
 		)
-		if err := rows.Scan(&callId, &audio, &audioMime, &transcript, &reviewedTranscript, &timestamp); err != nil {
+		if err := rows.Scan(&callId, &audio, &audioMime, &audioFilename, &transcript, &reviewedTranscript, &timestamp); err != nil {
 			return nil, fmt.Errorf("scan call: %w", err)
 		}
 		resp.CallsScanned++
 
-		tones, err := detector.Discover(audio, audioMime)
-		if err != nil || len(tones) == 0 {
+		mime := toneHistoryAudioMime(audioMime, audioFilename)
+		tones, err := detector.Discover(audio, mime)
+		if err != nil {
+			resp.DiscoverErrors++
+			if firstDiscoverErr == "" {
+				firstDiscoverErr = fmt.Sprintf("call %d: %v", callId, err)
+			}
+			continue
+		}
+		if len(tones) == 0 {
 			continue
 		}
 		resp.CallsWithTones++
@@ -132,6 +169,8 @@ func (controller *Controller) analyzeTalkgroupToneHistory(systemId, talkgroupId 
 		if len(candidates) == 0 {
 			continue
 		}
+		resp.CallsWithCandidates++
+
 		stackedCall := len(candidates) > 1
 
 		transcriptText := ""
@@ -174,6 +213,13 @@ func (controller *Controller) analyzeTalkgroupToneHistory(systemId, talkgroupId 
 
 	for _, agg := range aggregates {
 		if len(agg.records) < cfg.CallsRequired {
+			resp.PatternsBelowThreshold++
+			if len(resp.PartialPatterns) < 10 {
+				resp.PartialPatterns = append(resp.PartialPatterns, ToneHistoryPartialPattern{
+					PatternDesc: toneLearnPatternDescription(agg.cand),
+					CallCount:   len(agg.records),
+				})
+			}
 			continue
 		}
 		if toneLearnCandidateNeedsReview(agg.records) {
@@ -206,11 +252,45 @@ func (controller *Controller) analyzeTalkgroupToneHistory(systemId, talkgroupId 
 		})
 	}
 
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+		"tone history analyze: system=%d talkgroup=%d (TGID %d) scanned=%d withTones=%d withCandidates=%d discoverErrors=%d belowThreshold=%d suggestions=%d aDur=%.1f-%.1f bDur=%.1f-%.1f callsRequired=%d%s",
+		systemId, talkgroupId, talkgroup.TalkgroupRef,
+		resp.CallsScanned, resp.CallsWithTones, resp.CallsWithCandidates, resp.DiscoverErrors,
+		resp.PatternsBelowThreshold, len(resp.Suggestions),
+		cfg.AToneMinDuration, cfg.AToneMaxDuration, cfg.BToneMinDuration, cfg.BToneMaxDuration, cfg.CallsRequired,
+		func() string {
+			if firstDiscoverErr != "" {
+				return " firstDiscoverErr=" + firstDiscoverErr
+			}
+			return ""
+		}(),
+	))
+
 	if len(resp.Suggestions) == 0 {
-		resp.Message = fmt.Sprintf(
-			"No new tone patterns with at least %d matching calls in the last %d hours (scanned %d calls, %d with tones).",
-			cfg.CallsRequired, hours, resp.CallsScanned, resp.CallsWithTones,
-		)
+		switch {
+		case resp.CallsScanned == 0:
+			resp.Message = fmt.Sprintf("No calls with audio found in the last %d hours for this talkgroup.", hours)
+		case resp.CallsWithTones == 0:
+			resp.Message = fmt.Sprintf(
+				"Scanned %d calls but FFT found no sustained tones (discover errors: %d). Stored audio may be voice-only or ffmpeg could not decode calls.",
+				resp.CallsScanned, resp.DiscoverErrors,
+			)
+		case resp.CallsWithCandidates == 0:
+			resp.Message = fmt.Sprintf(
+				"Scanned %d calls, %d had raw tones, but none matched auto-learn duration windows (A %.1f–%.1fs, B %.1f–%.1fs, long ≥%.1fs). Check Admin → Options → auto-learn tone durations.",
+				resp.CallsScanned, resp.CallsWithTones, cfg.AToneMinDuration, cfg.AToneMaxDuration, cfg.BToneMinDuration, cfg.BToneMaxDuration, cfg.LongToneMinDuration,
+			)
+		case resp.PatternsBelowThreshold > 0:
+			resp.Message = fmt.Sprintf(
+				"Found %d pattern(s) but none reached %d calls yet (scanned %d calls, %d with matching A+B/long patterns). See partial patterns below.",
+				resp.PatternsBelowThreshold, cfg.CallsRequired, resp.CallsScanned, resp.CallsWithCandidates,
+			)
+		default:
+			resp.Message = fmt.Sprintf(
+				"No new tone patterns with at least %d matching calls in the last %d hours (scanned %d calls, %d with tones).",
+				cfg.CallsRequired, hours, resp.CallsScanned, resp.CallsWithTones,
+			)
+		}
 	}
 
 	return resp, nil
