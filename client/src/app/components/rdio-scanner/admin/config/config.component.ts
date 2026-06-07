@@ -365,7 +365,19 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         this.systemsWithLoadedTalkgroups.clear();
 
         this.form = this.adminService.newConfigForm(config);
-        
+
+        // Users, user groups and keyword lists are managed by their own
+        // API-backed components — these FormArrays are only a shadow copy of the
+        // imported config and are never edited through the config form. Imported
+        // data can contain invalid values (e.g. a user with a missing/blank
+        // email) that would silently mark the whole form invalid and disable the
+        // Save button with no visible error anywhere in the sidebar. Disabling
+        // them excludes them from form validity while getRawValue() still returns
+        // their values for the full-import save path.
+        this.form.get('users')?.disable({ emitEvent: false });
+        this.form.get('userGroups')?.disable({ emitEvent: false });
+        this.form.get('keywordLists')?.disable({ emitEvent: false });
+
         // Track if this reset is from an "Import for Review"
         this.isImportedForReview = options?.isImport === true;
 

@@ -155,7 +155,8 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
 
     updateUsersFromForm(): void {
         if (this.form) {
-            this.users = this.form.value.map((user: any) => ({
+            // Use getRawValue() so the disabled shadow array still reports values.
+            this.users = this.form.getRawValue().map((user: any) => ({
                 id: user.id || 0,
                 email: user.email || '',
                 firstName: user.firstName || '',

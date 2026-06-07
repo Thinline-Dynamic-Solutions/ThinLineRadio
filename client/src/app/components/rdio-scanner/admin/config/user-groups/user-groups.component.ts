@@ -197,7 +197,8 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
 
   updateGroupsFromForm(): void {
     if (this.form) {
-      this.groups = this.form.value.map((group: any) => ({
+      // Use getRawValue() so disabled shadow arrays still report their values.
+      this.groups = this.form.getRawValue().map((group: any) => ({
         id: group.id || 0,
         name: group.name || '',
         description: group.description || '',
