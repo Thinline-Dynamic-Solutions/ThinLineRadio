@@ -1,85 +1,187 @@
-<mat-table [dataSource]="logs">
-    <ng-container matColumnDef="level">
-        <mat-header-cell *matHeaderCellDef>
-            <span>Level</span>
-        </mat-header-cell>
-        <mat-cell *matCellDef="let log">
-            <mat-icon *ngIf="log?.level === 'error'" class="error">error</mat-icon>
-            <mat-icon *ngIf="log?.level === 'info'" class="info">notifications</mat-icon>
-            <mat-icon *ngIf="log?.level === 'warn'" class="warn">warning</mat-icon>
-        </mat-cell>
-    </ng-container>
-    <ng-container matColumnDef="date">
-        <mat-header-cell *matHeaderCellDef>
-            <span>Date</span>
-        </mat-header-cell>
-        <mat-cell *matCellDef="let log">
-            <span>{{ log?.dateTime | date:'MM/dd' }}</span>
-        </mat-cell>
-    </ng-container>
-    <ng-container matColumnDef="time">
-        <mat-header-cell *matHeaderCellDef>
-            <span>Time</span>
-        </mat-header-cell>
-        <mat-cell *matCellDef="let log">
-            <span>{{ log?.dateTime | date:'HH:mm' }}</span>
-        </mat-cell>
-    </ng-container>
-    <ng-container matColumnDef="message">
-        <mat-header-cell *matHeaderCellDef>
-            <span>Message</span>
-        </mat-header-cell>
-        <mat-cell *matCellDef="let log">
-            <span>{{ log?.message }}</span>
-        </mat-cell>
-    </ng-container>
-    <mat-header-row *matHeaderRowDef="['level', 'date', 'time', 'message']">
-    </mat-header-row>
-    <mat-row *matRowDef="let row; columns: ['level', 'date', 'time', 'message']">
-    </mat-row>
-</mat-table>
-<mat-progress-bar color="primary" [mode]="logsQueryPending ? 'query' : 'determinate'">
-</mat-progress-bar>
-<mat-paginator [disabled]="logsQueryPending" [length]="logsQuery?.count" [hidePageSize]="true"
-    [pageSize]="logs.value.length" [showFirstLastButtons]="true" (page)="refresh()">
-</mat-paginator>
-<form autocomplete="off" [formGroup]="form">
-    <mat-form-field>
-        <mat-label>
-            Sort order
-        </mat-label>
-        <mat-select formControlName="sort" (selectionChange)="formHandler()">
-            <mat-option [value]="1">
-                Ascending
-            </mat-option>
-            <mat-option [value]="-1">
-                Descending
-            </mat-option>
-        </mat-select>
-    </mat-form-field>
-    <mat-form-field>
-        <mat-label>
-            Date
-        </mat-label>
-        <input matInput type="datetime-local" formControlName="date" [max]="logsQuery?.dateStop"
-            [min]="logsQuery?.dateStart" placeholder="Choose a date" (change)="formHandler()" autocomplete="off">
-    </mat-form-field>
-    <mat-form-field>
-        <mat-label>
-            Level
-        </mat-label>
-        <mat-select formControlName="level" (selectionChange)="formHandler()">
-            <mat-option value="info">Informative</mat-option>
-            <mat-option value="warn">Warning</mat-option>
-            <mat-option value="error">Error</mat-option>
-        </mat-select>
-    </mat-form-field>
-    <div class="reset">
-        <button type="button" mat-raised-button [disabled]="logsQueryPending" (click)="reload()">
-            Reload
-        </button>
-        <button type="button" mat-raised-button [disabled]="logsQueryPending || form.pristine" (click)="reset()">
-            Reset
-        </button>
+<div class="logs-container">
+
+    <form autocomplete="off" class="logs-filters" [formGroup]="form">
+        <div class="logs-filter-row">
+            <mat-form-field appearance="outline" class="logs-field logs-field--sort" subscriptSizing="dynamic">
+                <mat-label>Sort</mat-label>
+                <mat-select formControlName="sort" (selectionChange)="formHandler()">
+                    <mat-option [value]="1">Oldest first</mat-option>
+                    <mat-option [value]="-1">Newest first</mat-option>
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="logs-field logs-field--level" subscriptSizing="dynamic">
+                <mat-label>Level</mat-label>
+                <mat-select formControlName="level" (selectionChange)="formHandler()">
+                    <mat-option [value]="null">All levels</mat-option>
+                    <mat-option value="info">Info</mat-option>
+                    <mat-option value="warn">Warning</mat-option>
+                    <mat-option value="error">Error</mat-option>
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="logs-field logs-field--search" subscriptSizing="dynamic">
+                <mat-label>Search message</mat-label>
+                <input matInput formControlName="search" (keyup.enter)="formHandler()" placeholder="Text in message">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="logs-field logs-field--date" subscriptSizing="dynamic">
+                <mat-label>Date</mat-label>
+                <input matInput
+                       [matDatepicker]="logDatePicker"
+                       [value]="selectedDate"
+                       (dateChange)="onDateSelected($event)"
+                       placeholder="Any date"
+                       autocomplete="off"
+                       [disabled]="logsQueryPending">
+                <button *ngIf="selectedDate"
+                        type="button"
+                        mat-icon-button
+                        matSuffix
+                        class="logs-clear-btn"
+                        (click)="clearDate(); $event.stopPropagation()"
+                        aria-label="Clear date">
+                    <mat-icon>close</mat-icon>
+                </button>
+                <mat-datepicker-toggle matIconSuffix [for]="logDatePicker"></mat-datepicker-toggle>
+                <mat-datepicker #logDatePicker panelClass="admin-datepicker-panel"></mat-datepicker>
+            </mat-form-field>
+
+            <button type="button"
+                    class="logs-time-btn"
+                    [matMenuTriggerFor]="timeMenu"
+                    [disabled]="!selectedDate || logsQueryPending"
+                    [matTooltip]="selectedDate ? 'Filter from this time on the selected date' : 'Pick a date first'">
+                <mat-icon>schedule</mat-icon>
+                <span>{{ selectedTime ? selectedTime : 'Time' }}</span>
+            </button>
+            <mat-menu #timeMenu="matMenu" class="admin-time-menu">
+                <div class="admin-time-picker" (click)="$event.stopPropagation()">
+                    <div class="admin-time-display">{{ getTimeDisplay() }}</div>
+                    <div class="admin-time-cols">
+                        <div class="admin-time-col">
+                            <button type="button" class="admin-time-step" (click)="bumpHour(1); $event.stopPropagation()" aria-label="Hour up">
+                                <mat-icon>keyboard_arrow_up</mat-icon>
+                            </button>
+                            <div class="admin-time-value">{{ pad2(getHour()) }}</div>
+                            <button type="button" class="admin-time-step" (click)="bumpHour(-1); $event.stopPropagation()" aria-label="Hour down">
+                                <mat-icon>keyboard_arrow_down</mat-icon>
+                            </button>
+                            <div class="admin-time-label">HR</div>
+                        </div>
+                        <div class="admin-time-sep">:</div>
+                        <div class="admin-time-col">
+                            <button type="button" class="admin-time-step" (click)="bumpMinute(1); $event.stopPropagation()" aria-label="Minute up">
+                                <mat-icon>keyboard_arrow_up</mat-icon>
+                            </button>
+                            <div class="admin-time-value">{{ pad2(getMinute()) }}</div>
+                            <button type="button" class="admin-time-step" (click)="bumpMinute(-1); $event.stopPropagation()" aria-label="Minute down">
+                                <mat-icon>keyboard_arrow_down</mat-icon>
+                            </button>
+                            <div class="admin-time-label">MIN</div>
+                        </div>
+                    </div>
+                    <div class="admin-time-actions">
+                        <button type="button" class="admin-time-action" (click)="clearTime(); $event.stopPropagation()">Clear</button>
+                        <button type="button" class="admin-time-action admin-time-action--primary" (click)="setTimeNow(); $event.stopPropagation()">Now</button>
+                    </div>
+                </div>
+            </mat-menu>
+
+            <mat-paginator
+                class="logs-paginator"
+                [disabled]="logsQueryPending"
+                [length]="logsQuery?.count"
+                [hidePageSize]="true"
+                [pageSize]="pageSize"
+                [showFirstLastButtons]="true"
+                (page)="refresh()">
+            </mat-paginator>
+
+            <div class="logs-filter-actions">
+                <button type="button" mat-stroked-button [disabled]="logsQueryPending" (click)="formHandler()">
+                    <mat-icon>search</mat-icon>
+                    Search
+                </button>
+                <button type="button" mat-stroked-button [disabled]="logsQueryPending" (click)="reload()">
+                    <mat-icon>refresh</mat-icon>
+                    Reload
+                </button>
+                <button type="button" mat-stroked-button [disabled]="logsQueryPending || (form.pristine && !selectedDate && !selectedTime && selectedCategories.size === 0)" (click)="reset()">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <div class="logs-categories" *ngIf="logCategories.length">
+            <div class="logs-categories-bar">
+                <span class="logs-categories-label">Categories</span>
+                <button type="button"
+                        class="logs-categories-clear"
+                        *ngIf="selectedCategories.size"
+                        (click)="clearCategories()">
+                    Clear ({{ selectedCategories.size }})
+                </button>
+            </div>
+            <mat-chip-set class="logs-chip-set" aria-label="Log categories">
+                <mat-chip *ngFor="let cat of logCategories"
+                          class="logs-cat-chip"
+                          [class.logs-cat-chip--active]="isCategorySelected(cat.key)"
+                          (click)="toggleCategory(cat.key)">
+                    {{ cat.label }}
+                </mat-chip>
+            </mat-chip-set>
+        </div>
+
+        <p class="logs-filter-hint">
+            No date = last 24 hours when sorting newest first. Pick categories to narrow (e.g. Email, Stripe, Push). No categories selected = all.
+        </p>
+    </form>
+
+    <div class="logs-table-section">
+    <div class="logs-table-wrap">
+        <mat-table [dataSource]="logs">
+            <ng-container matColumnDef="level">
+                <mat-header-cell *matHeaderCellDef>Level</mat-header-cell>
+                <mat-cell *matCellDef="let log">
+                    <span *ngIf="log?.level"
+                          class="log-level"
+                          [class.log-level--error]="log.level === 'error'"
+                          [class.log-level--warn]="log.level === 'warn'"
+                          [class.log-level--info]="log.level === 'info'">
+                        {{ levelLabel(log.level) }}
+                    </span>
+                </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="category">
+                <mat-header-cell *matHeaderCellDef>Category</mat-header-cell>
+                <mat-cell *matCellDef="let log">
+                    <span class="log-category" [attr.data-cat]="log?.category">{{ categoryLabel(log?.category) }}</span>
+                </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="date">
+                <mat-header-cell *matHeaderCellDef>Date</mat-header-cell>
+                <mat-cell *matCellDef="let log">
+                    <span>{{ log?.dateTime | date:'MM/dd/yy' }}</span>
+                </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="time">
+                <mat-header-cell *matHeaderCellDef>Time</mat-header-cell>
+                <mat-cell *matCellDef="let log">
+                    <span>{{ log?.dateTime | date:'HH:mm:ss' }}</span>
+                </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="message">
+                <mat-header-cell *matHeaderCellDef>Message</mat-header-cell>
+                <mat-cell *matCellDef="let log">
+                    <span class="log-message">{{ log?.message }}</span>
+                </mat-cell>
+            </ng-container>
+            <mat-header-row *matHeaderRowDef="['level', 'category', 'date', 'time', 'message']; sticky: true"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: ['level', 'category', 'date', 'time', 'message']"></mat-row>
+        </mat-table>
     </div>
-</form>
+
+    <mat-progress-bar color="primary" [mode]="logsQueryPending ? 'query' : 'determinate'"></mat-progress-bar>
+    </div>
+</div>

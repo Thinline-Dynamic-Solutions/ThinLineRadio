@@ -16,16 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
 -->
-<!-- Tags Header -->
-<div class="section-header">
-    <div class="section-intro">
-        <mat-icon>label</mat-icon>
-        <div>
-            <h3>Tags</h3>
-            <p class="mat-caption">Tags are assigned to talkgroups and used to filter calls on the main screen.</p>
-        </div>
-    </div>
-    <div class="section-actions">
+<div class="admin-section-bar">
+    <p class="admin-section-hint">Tags are assigned to talkgroups and used to filter calls on the main screen.</p>
+    <div class="admin-section-actions">
+        <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
+            <mat-icon>save</mat-icon>
+            {{ saving ? 'Saving…' : 'Save' }}
+        </button>
         <button type="button" mat-stroked-button (click)="add()">
             <mat-icon>add</mat-icon>
             New Tag
@@ -73,7 +70,7 @@
             <td mat-cell *matCellDef="let tag; let i = index" class="color-col">
                 <div class="cell-content" [formGroup]="tag">
                     <mat-form-field appearance="outline" class="color-field" subscriptSizing="dynamic">
-                        <mat-select formControlName="color">
+                        <mat-select formControlName="color" (selectionChange)="onColorChange()">
                             <mat-select-trigger>
                                 <span class="color-swatch"
                                       [style.background-color]="tag.value.color || '#ffffff'"

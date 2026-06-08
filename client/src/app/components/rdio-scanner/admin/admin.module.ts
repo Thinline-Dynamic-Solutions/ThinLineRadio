@@ -66,6 +66,7 @@ import { RdioScannerAdminConfigSyncComponent } from './tools/config-sync/config-
 import { RdioScannerAdminStripeSyncComponent } from './tools/stripe-sync/stripe-sync.component';
 import { RdioScannerAdminPurgeDataComponent } from './tools/purge-data/purge-data.component';
 import { RdioScannerAdminSystemHealthComponent } from './system-health/system-health.component';
+import { RdioScannerAdminAssistantComponent } from './assistant/assistant.component';
 
 @NgModule({
     declarations: [
@@ -108,6 +109,7 @@ import { RdioScannerAdminSystemHealthComponent } from './system-health/system-he
         RdioScannerAdminStripeSyncComponent,
         RdioScannerAdminPurgeDataComponent,
         RdioScannerAdminSystemHealthComponent,
+        RdioScannerAdminAssistantComponent,
     ],
     entryComponents: [RdioScannerAdminSystemsSelectComponent],
     exports: [RdioScannerAdminComponent],

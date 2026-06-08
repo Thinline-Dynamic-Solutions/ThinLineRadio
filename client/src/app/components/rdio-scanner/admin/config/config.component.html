@@ -139,21 +139,6 @@
             <span>Transcript Parser</span>
         </button>
 
-        <!-- Save / Reset at bottom of sidebar (hidden when header bar owns them) -->
-        <div class="sidebar-actions" *ngIf="!hideActions">
-            <button type="button" mat-raised-button class="btn-reset"
-                    [disabled]="loading || !form || form.disabled || form.pristine"
-                    (click)="reset()">
-                <mat-icon>undo</mat-icon>
-                Reset
-            </button>
-            <button type="button" mat-raised-button color="primary" class="btn-save"
-                    [disabled]="loading || !form || form.disabled || form.pristine || !form.valid"
-                    (click)="save()">
-                <mat-icon>save</mat-icon>
-                Save
-            </button>
-        </div>
     </nav>
 
     <!-- ── Right Content Area ────────────────────────────────── -->
@@ -169,18 +154,10 @@
         <ng-container [ngSwitch]="activeSection">
 
             <ng-container *ngSwitchCase="'user-groups'">
-                <div class="section-header">
-                    <mat-icon>group_work</mat-icon>
-                    <h3>User Groups</h3>
-                </div>
                 <rdio-scanner-admin-user-groups [form]="userGroups"></rdio-scanner-admin-user-groups>
             </ng-container>
 
             <ng-container *ngSwitchCase="'users'">
-                <div class="section-header">
-                    <mat-icon>people</mat-icon>
-                    <h3>Users</h3>
-                </div>
                 <rdio-scanner-admin-users
                     [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value"
                     [form]="users">
@@ -188,51 +165,27 @@
             </ng-container>
 
             <ng-container *ngSwitchCase="'apikeys'">
-                <div class="section-header">
-                    <mat-icon>vpn_key</mat-icon>
-                    <h3>API Keys</h3>
-                </div>
                 <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-apikeys>
             </ng-container>
 
             <ng-container *ngSwitchCase="'dirwatch'">
-                <div class="section-header">
-                    <mat-icon>folder</mat-icon>
-                    <h3>Dirwatch</h3>
-                </div>
-                <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch"></rdio-scanner-admin-dirwatch>
+                <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-dirwatch>
             </ng-container>
 
             <ng-container *ngSwitchCase="'downstreams'">
-                <div class="section-header">
-                    <mat-icon>share</mat-icon>
-                    <h3>Downstreams</h3>
-                </div>
                 <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-downstreams>
             </ng-container>
 
             <ng-container *ngSwitchCase="'groups'">
-                <div class="section-header">
-                    <mat-icon>workspaces</mat-icon>
-                    <h3>Groups</h3>
-                </div>
                 <rdio-scanner-admin-groups [form]="groups" [originalConfig]="originalConfig"></rdio-scanner-admin-groups>
             </ng-container>
 
             <ng-container *ngSwitchCase="'options'">
-                <div class="section-header">
-                    <mat-icon>tune</mat-icon>
-                    <h3>Options</h3>
-                </div>
-                <rdio-scanner-admin-options [form]="options" [systemsForm]="systems" (saveRequested)="save()"></rdio-scanner-admin-options>
+                <rdio-scanner-admin-options [form]="options" [systemsForm]="systems"></rdio-scanner-admin-options>
             </ng-container>
 
             <!-- Systems overview (landing when none selected) -->
             <ng-container *ngSwitchCase="'systems'">
-                <div class="section-header">
-                    <mat-icon>podcasts</mat-icon>
-                    <h3>Systems</h3>
-                </div>
                 <rdio-scanner-admin-systems
                     [form]="systems"
                     (systemSelected)="selectSystem($event)"
@@ -249,33 +202,26 @@
                         [tags]="tagsValue"
                         [apikeys]="apikeysValue"
                         [systemData]="getSystemData(activeSystemForm)"
+                        [saving]="savingSystem"
+                        [saveSuccess]="systemSaveSuccess"
                         (remove)="removeCurrentSystem()"
+                        (save)="saveCurrentSystem()"
                         (onTalkgroupsLoaded)="markSystemTalkgroupsLoaded(activeSystemForm)">
                     </rdio-scanner-admin-system>
                 </ng-container>
             </ng-container>
 
             <ng-container *ngSwitchCase="'tags'">
-                <div class="section-header">
-                    <mat-icon>sell</mat-icon>
-                    <h3>Tags</h3>
-                </div>
                 <rdio-scanner-admin-tags [form]="tags" [originalConfig]="originalConfig"></rdio-scanner-admin-tags>
             </ng-container>
 
             <ng-container *ngSwitchCase="'keyword-lists'">
-                <div class="section-header">
-                    <mat-icon>format_list_bulleted</mat-icon>
-                    <h3>Keyword Lists</h3>
-                </div>
-                <rdio-scanner-admin-keyword-lists></rdio-scanner-admin-keyword-lists>
+                <rdio-scanner-admin-keyword-lists
+                    [initialLists]="originalConfig.keywordLists">
+                </rdio-scanner-admin-keyword-lists>
             </ng-container>
 
             <ng-container *ngSwitchCase="'transcript-parser'">
-                <div class="section-header">
-                    <mat-icon>record_voice_over</mat-icon>
-                    <h3>Transcript Parser</h3>
-                </div>
                 <rdio-scanner-admin-transcript-parser
                     [initialConfig]="originalConfig.options?.transcriptParserConfig">
                 </rdio-scanner-admin-transcript-parser>

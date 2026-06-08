@@ -16,83 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
  */
-/* ── Section header ──────────────────────────────────────────── */
-.section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-    gap: 12px;
-
-    .section-intro {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-
-        mat-icon {
-            font-size: 28px;
-            width: 28px;
-            height: 28px;
-            color: #cc0000;
-            flex-shrink: 0;
-        }
-
-        h3 {
-            margin: 0 0 2px;
-            font-size: 16px;
-            font-weight: 600;
-            color: #e0e0e0;
-        }
-
-        .mat-caption {
-            color: #999;
-            margin: 0;
-        }
-    }
-
-    .section-actions {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-
-        button {
-            font-size: 13px;
-            color: #ccc;
-            border-color: #444;
-
-            mat-icon {
-                font-size: 18px;
-                width: 18px;
-                height: 18px;
-            }
-
-            &:hover:not([disabled]) {
-                color: #fff;
-                border-color: #666;
-            }
-        }
-    }
-}
-
 /* ── Empty state ─────────────────────────────────────────────── */
 .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 40px 20px;
     color: #666;
-    gap: 8px;
-
-    mat-icon {
-        font-size: 48px;
-        width: 48px;
-        height: 48px;
-        opacity: 0.4;
-    }
-
-    .mat-body { color: #999; margin: 0; }
-    .mat-caption { color: #666; margin: 0; }
 }
 
 /* ── Table wrapper ───────────────────────────────────────────── */
@@ -111,7 +40,7 @@
     .mat-mdc-header-row {
         background: #141414;
         border-bottom: 1px solid #2a2a2a;
-        height: 44px;
+        height: 36px;
     }
 
     .mat-mdc-header-cell {
@@ -128,7 +57,7 @@
         border-bottom: 1px solid #222;
         background: #1a1a1a;
         transition: background 0.15s;
-        height: 56px;
+        height: 44px;
 
         &:last-child { border-bottom: none; }
         &:hover { background: #1f1f1f; }
@@ -212,7 +141,7 @@
     }
 
     ::ng-deep .mat-mdc-form-field-flex {
-        height: 38px;
+        height: 34px;
         align-items: center;
     }
 

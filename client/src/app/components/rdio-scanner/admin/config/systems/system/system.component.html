@@ -34,9 +34,18 @@
         <mat-icon *ngIf="form.invalid" color="warn" class="header-error"
                   [matTooltip]="'Validation errors: ' + getTalkgroupsErrorSummary()">error</mat-icon>
     </div>
-    <button type="button" mat-stroked-button color="warn" (click)="remove.emit()">
-        <mat-icon>delete</mat-icon> Delete System
-    </button>
+    <div class="system-header-actions">
+        <button type="button" mat-raised-button
+                [color]="saveSuccess ? 'accent' : 'primary'"
+                (click)="save.emit()"
+                [disabled]="saving || saveSuccess || !form.dirty || form.invalid">
+            <mat-icon>{{ saveSuccess ? 'check_circle' : 'save' }}</mat-icon>
+            {{ saving ? 'Saving…' : (saveSuccess ? 'Saved!' : 'Save System') }}
+        </button>
+        <button type="button" mat-stroked-button color="warn" (click)="remove.emit()">
+            <mat-icon>delete</mat-icon> Delete System
+        </button>
+    </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -121,65 +130,57 @@
             <span class="field-hint">Allow alerts &amp; transcription for this system</span>
         </div>
 
-        <div class="settings-field settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
-            <label class="field-label">Auto-learn tone sets</label>
-            <div class="toggle-row" style="margin-bottom: 8px;">
-                <span class="field-hint" style="flex: 1;"><strong>Bulk rollout</strong> — turn on auto-learn for talkgroups matching selected tags. Individual talkgroups can also be enabled on their own without this toggle. Stacked or ambiguous patterns are logged only. Applied when you save config.</span>
+        <div class="settings-field settings-field--toggle settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+            <div class="toggle-row">
+                <label class="field-label">Auto-learn tone sets</label>
                 <mat-slide-toggle color="primary" formControlName="autoLearnToneSets"></mat-slide-toggle>
             </div>
             <ng-container *ngIf="form.get('autoLearnToneSets')?.value">
-                <mat-form-field appearance="outline" class="compact-field" style="width: 100%;">
+                <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 100%;">
                     <mat-label>Tags to enable</mat-label>
                     <mat-select formControlName="autoLearnToneSetsTagIds" multiple>
-                        <mat-option *ngFor="let tag of tagsUsedInSystem" [value]="tag.id">{{ tag.label }}</mat-option>
+                        <mat-option *ngFor="let tag of tagsUsedInSystemList" [value]="tag.id">{{ tag.label }}</mat-option>
                     </mat-select>
-                    <mat-hint>{{ toneLearnTargetCount }} talkgroup(s) match — you can still override individual talkgroups</mat-hint>
                 </mat-form-field>
-                <mat-form-field appearance="outline" class="compact-field" style="width: 220px; margin-top: 8px;">
+                <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 220px; margin-top: 8px;">
                     <mat-label>Auto-off after (days)</mat-label>
                     <input type="number" min="0" step="1" matInput formControlName="autoLearnToneSetsAutoOffDays" placeholder="0 = never">
-                    <mat-hint>0 = run until you turn it off manually</mat-hint>
                 </mat-form-field>
                 <span class="field-hint" *ngIf="toneLearnExpiresLabel" style="display: block; margin-top: 8px;">{{ toneLearnExpiresLabel }}</span>
             </ng-container>
         </div>
 
-        <div class="settings-field settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
-            <label class="field-label">Auto-learn unit aliases</label>
-            <div class="toggle-row" style="margin-bottom: 8px;">
-                <span class="field-hint" style="flex: 1;"><strong>Bulk rollout</strong> — turn on unit alias auto-learn for talkgroups matching selected tags. Individual talkgroups can also be enabled on their own without this toggle.</span>
+        <div class="settings-field settings-field--toggle settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+            <div class="toggle-row">
+                <label class="field-label">Auto-learn unit aliases</label>
                 <mat-slide-toggle color="primary" formControlName="autoLearnUnitAliases"></mat-slide-toggle>
             </div>
             <ng-container *ngIf="form.get('autoLearnUnitAliases')?.value">
-                <mat-form-field appearance="outline" class="compact-field" style="width: 100%;">
+                <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 100%;">
                     <mat-label>Tags to enable</mat-label>
                     <mat-select formControlName="autoLearnUnitAliasesTagIds" multiple>
-                        <mat-option *ngFor="let tag of tagsUsedInSystem" [value]="tag.id">{{ tag.label }}</mat-option>
+                        <mat-option *ngFor="let tag of tagsUsedInSystemList" [value]="tag.id">{{ tag.label }}</mat-option>
                     </mat-select>
-                    <mat-hint>{{ unitLearnTargetCount }} talkgroup(s) match — you can still override individual talkgroups</mat-hint>
                 </mat-form-field>
-                <mat-form-field appearance="outline" class="compact-field" style="width: 220px; margin-top: 8px;">
+                <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 220px; margin-top: 8px;">
                     <mat-label>Auto-off after (days)</mat-label>
                     <input type="number" min="0" step="1" matInput formControlName="autoLearnUnitAliasesAutoOffDays" placeholder="0 = never">
-                    <mat-hint>0 = run until you turn it off manually</mat-hint>
                 </mat-form-field>
                 <span class="field-hint" *ngIf="unitAliasExpiresLabel" style="display: block; margin-top: 8px;">{{ unitAliasExpiresLabel }}</span>
             </ng-container>
         </div>
 
-        <div class="settings-field settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
-            <label class="field-label">Bulk tone detection</label>
-            <div class="toggle-row" style="margin-bottom: 8px;">
-                <span class="field-hint" style="flex: 1;"><strong>Production matching</strong> — turn on tone detection where tone sets are already configured (alerts, keyword gates, etc.). Different from auto-learn above, which <em>discovers</em> new tone sets. Pick Fire/EMS tags; skip PD. Stays on until you turn it off. Applied when you save config.</span>
+        <div class="settings-field settings-field--toggle settings-field--wide" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+            <div class="toggle-row">
+                <label class="field-label">Bulk tone detection</label>
                 <mat-slide-toggle color="primary" formControlName="bulkToneDetectionEnabled"></mat-slide-toggle>
             </div>
             <ng-container *ngIf="form.get('bulkToneDetectionEnabled')?.value">
-                <mat-form-field appearance="outline" class="compact-field" style="width: 100%;">
+                <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 100%;">
                     <mat-label>Tags to enable</mat-label>
                     <mat-select formControlName="bulkToneDetectionTagIds" multiple>
-                        <mat-option *ngFor="let tag of tagsUsedInSystem" [value]="tag.id">{{ tag.label }}</mat-option>
+                        <mat-option *ngFor="let tag of tagsUsedInSystemList" [value]="tag.id">{{ tag.label }}</mat-option>
                     </mat-select>
-                    <mat-hint>{{ bulkToneTargetCount }} talkgroup(s) on this system match the selected tags</mat-hint>
                 </mat-form-field>
             </ng-container>
         </div>
@@ -265,7 +266,7 @@
         <button type="button" mat-button (click)="unselectAllTalkgroups()" [disabled]="!hasSelectedTalkgroups">
             Deselect All
         </button>
-        <span class="mat-caption selection-count">{{ selectedTalkgroupIndices.size }} selected</span>
+        <span class="mat-caption selection-count">{{ selectedTalkgroups.size }} selected</span>
 
         <ng-container *ngIf="hasSelectedTalkgroups">
             <mat-form-field appearance="outline" class="bulk-select">
@@ -390,8 +391,8 @@
             <ng-container matColumnDef="tag">
                 <th mat-header-cell *matHeaderCellDef>Tag</th>
                 <td mat-cell *matCellDef="let tg">
-                    <span class="tag-chip" *ngIf="getTagLabel(tg.value.tagId)">{{ getTagLabel(tg.value.tagId) }}</span>
-                    <span class="no-value" *ngIf="!getTagLabel(tg.value.tagId)">—</span>
+                    <span class="tag-chip" *ngIf="tg.value.tagId">{{ tagLabel(tg.value.tagId) }}</span>
+                    <span class="no-value" *ngIf="!tg.value.tagId">—</span>
                 </td>
             </ng-container>
 
@@ -430,6 +431,8 @@
                     <div *ngIf="expandedTalkgroup === tg" class="expanded-form-wrapper">
                         <rdio-scanner-admin-talkgroup
                             [form]="tg"
+                            [groups]="groups"
+                            [tags]="tags"
                             (blacklist)="blacklistTalkgroup(tg)"
                             (remove)="removeTalkgroup(tg)">
                         </rdio-scanner-admin-talkgroup>

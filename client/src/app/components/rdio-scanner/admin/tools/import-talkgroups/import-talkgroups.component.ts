@@ -99,6 +99,18 @@ export class RdioScannerAdminImportTalkgroupsComponent implements OnInit {
 
         this.csv = [];
 
+        // Persist directly — the global Save bar was removed. Bulk imports are a
+        // whole-config write (the loaded config holds every system/talkgroup).
+        // Strip the user-scoped collections so we never clobber them; they are
+        // managed by their own dedicated endpoints.
+        const payload: any = { ...this.baseConfig };
+        delete payload.users;
+        delete payload.userGroups;
+        delete payload.keywordLists;
+        delete payload.userAlertPreferences;
+        delete payload.deviceTokens;
+        await this.adminService.saveConfig(payload);
+
         this.config.emit(this.baseConfig);
     }
 

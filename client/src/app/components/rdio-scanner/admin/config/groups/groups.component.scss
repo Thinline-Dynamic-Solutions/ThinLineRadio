@@ -18,23 +18,8 @@
  */
 // ─── Top Bar ─────────────────────────────────────────────────────────────────
 .row.top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    gap: 16px;
-
     p {
         margin: 0;
-        flex: 1;
-        color: #aaa;
-    }
-
-    .top-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-shrink: 0;
     }
 }
 
@@ -43,17 +28,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 48px 16px;
-    gap: 8px;
     color: #666;
     text-align: center;
-
-    mat-icon {
-        font-size: 48px;
-        width: 48px;
-        height: 48px;
-        margin-bottom: 8px;
-    }
 
     p { margin: 0; }
 }

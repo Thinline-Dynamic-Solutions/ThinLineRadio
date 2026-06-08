@@ -325,6 +325,11 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Categorize logs for admin filtering (email, stripe, push, etc.)
+	if err := migrateLogsCategory(db); err != nil {
+		return formatError(err, "")
+	}
+
 	// Add label column to callUnits for P25 talker aliases
 	if err := migrateCallUnitsLabel(db); err != nil {
 		return formatError(err, "")

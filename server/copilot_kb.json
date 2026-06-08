@@ -1,0 +1,89 @@
+{
+  "version": "26.06.11",
+  "articles": [
+    {
+      "id": "admin-tabs",
+      "title": "Admin tabs overview",
+      "keywords": "admin tabs config logs health tools assistant navigation",
+      "body": "The TLR admin UI has top-level tabs: Config (systems, users, options, tags, dirwatch, downstreams), Logs (filterable categorized server logs), System Health (alerts and monitoring), Tools (import, purge, Stripe sync), and Assistant (this AI copilot). Use the search bar at the top of admin to jump to a setting."
+    },
+    {
+      "id": "tone-sets-talkgroup",
+      "title": "Talkgroup tone sets",
+      "keywords": "tone set toneset a-tone b-tone detection twotone import talkgroup",
+      "body": "Per talkgroup under Config → Systems → talkgroup → Tone Detection: enable tone detection, then add tone sets with label, A-tone/B-tone/long-tone frequency (Hz) and min/max duration (seconds), and tolerance (0.02 = ±10 Hz). The Assistant uses get_admin_config section=talkgroup to read current toneSets, then apply_admin_change action=update_talkgroup_tone_sets with mode append or replace. parse_tone_import converts TwoTone Detect or CSV export into toneSets JSON. sync_tone_sets only syncs labels to an external TonesToActive server."
+    },
+    {
+      "id": "assistant-capabilities",
+      "title": "Admin Assistant capabilities",
+      "keywords": "assistant copilot ai automate rename tag options users apikeys",
+      "body": "The Admin Assistant mirrors the admin UI via get_admin_config (read) and apply_admin_change (write). Call get_admin_config section=capabilities for the full catalog: every read section, read/write action, payload shapes, workflows, and limitations. Covers tags, systems, talkgroups, tone sets, Radio Reference import, users, billing groups, invitations, transcription failures, hallucinations, options, health alerts, logs, calls, Stripe sync, and more. Write actions need confirmed=true after the admin agrees. Cannot upload logo/favicon images or apply server binary updates."
+    },
+    {
+      "id": "logs-tab",
+      "title": "Logs tab",
+      "keywords": "logs filter category level search pagination invalid pin stripe email",
+      "body": "Open Admin → Logs. Filter by level, category chips (Authentication, Email, Billing, Call Ingestion, etc.), message search, and date/time. Categories help isolate auth failures, Stripe webhooks, transcription errors, and push notifications. No date selected with newest-first sort shows the last 24 hours."
+    },
+    {
+      "id": "openai-integration",
+      "title": "OpenAI integration",
+      "keywords": "openai api key model tone auto-learn assistant copilot",
+      "body": "Configure OpenAI under Config → Options → Integrations → OpenAI Integration (API key, optional base URL, chat model). Used for tone/unit auto-learn naming and the Admin Assistant. Without an API key the Assistant cannot run."
+    },
+    {
+      "id": "tags-talkgroups",
+      "title": "Tags and talkgroups",
+      "keywords": "tags talkgroup assign fire law ems wrong tag filter",
+      "body": "Tags label talkgroups for client filtering (Fire, Law, EMS, etc.). Each talkgroup has one tag under Config → Systems → select system → talkgroup. Global tag definitions live under Config → Tags — renaming a tag there updates the label for every talkgroup already using that tag. Reassigning a talkgroup to a different tag is done per talkgroup under Systems. The Admin Assistant renames tags via apply_admin_change action=update_tags, or reassigns talkgroup tags via action=update_talkgroup_tags, after you confirm. Wrong tags break user channel filters and alert routing. After tag changes, config is pushed to connected clients automatically."
+    },
+    {
+      "id": "system-health",
+      "title": "System Health",
+      "keywords": "no audio transcription failure tone detection alert health monitoring",
+      "body": "Admin → System Health shows active system alerts: no-audio on a system, transcription failure spikes, tone detection issues. Thresholds are under Config → Options → Alert & Health. Dismiss alerts after fixing the root cause."
+    },
+    {
+      "id": "stripe",
+      "title": "Stripe billing",
+      "keywords": "stripe paywall webhook subscription billing sync customer",
+      "body": "Stripe settings: Config → Options → Stripe (publishable key, secret, webhook secret, grace period). Tools → Stripe Customer Sync matches Stripe customers to local users. Stripe webhook and billing logs appear under Logs → Billing & Stripe category."
+    },
+    {
+      "id": "email-push",
+      "title": "Email and push",
+      "keywords": "email sendgrid mailgun smtp push relay verification",
+      "body": "Email: Config → Options → Email (SendGrid, Mailgun, or SMTP). Push notifications require relay server URL and API key under Integrations. Email and push delivery logs use Logs categories Email and Push Notifications."
+    },
+    {
+      "id": "transcription",
+      "title": "Transcription",
+      "keywords": "transcription whisper hydra cloudflare worker queue failure",
+      "body": "Transcription: Config → Options → Transcription (provider, worker pool, language). Failures appear in Logs → Transcription and System Health. Hydra retrieval is used when Central Management provisions Hydra transcription."
+    },
+    {
+      "id": "dirwatch-downstream",
+      "title": "Dirwatch and downstreams",
+      "keywords": "dirwatch folder ingest downstream forward sync tone",
+      "body": "Dirwatch monitors folders for new audio files (Config → Dirwatch). Downstreams forward calls to other TLR instances (Config → Downstreams). Tone-set sync pushes tone definitions between servers. Related logs: Dirwatch and Downstreams categories."
+    },
+    {
+      "id": "central-management",
+      "title": "Central Management",
+      "keywords": "central management cm pairing hub relay hydra",
+      "body": "When paired with Central Management, user provisioning and some relay/Hydra settings are pushed from CM. Config → Options → User Registration shows CM status. Leave CM from that panel with a removal code. CM-related logs use the Central Management category when CM mode is enabled."
+    },
+    {
+      "id": "auth-troubleshooting",
+      "title": "Authentication troubleshooting",
+      "keywords": "invalid pin unauthorized login credentials api auth",
+      "body": "Repeated Invalid PIN or unauthorized API errors are usually wrong ingest credentials, expired user PINs, or brute-force attempts. Check Logs → Authentication. Verify API keys under Config → API Keys and user PINs under Config → Users."
+    },
+    {
+      "id": "purge-import",
+      "title": "Tools import and purge",
+      "keywords": "import talkgroups units purge calls logs backup config",
+      "body": "Tools tab: Import Talkgroups/Units, Radio Reference import, full config import/export, purge old calls/audio/logs. Purge is destructive—use Logs tab filters first to confirm issues are resolved before purging."
+    }
+  ]
+}

@@ -52,9 +52,15 @@ $admin-dark-theme: mat.define-dark-theme((
 
 .admin-dark-theme {
   @include mat.all-component-colors($admin-dark-theme);
+  @include mat.form-field-density(-2);
+  @include mat.button-density(-1);
+  @include mat.icon-button-density(-2);
+  @include mat.table-density(-2);
+  @include mat.expansion-density(-2);
 
   // Force high-contrast text everywhere inside admin
   color: #e0e0e0;
+  font-size: 13px;
 
   // Form field label & text
   .mat-mdc-form-field {
@@ -154,6 +160,95 @@ $admin-dark-theme: mat.define-dark-theme((
   }
   .mat-mdc-icon-button:not([color]):not(:disabled) {
     color: #ccc;
+  }
+
+  // ── Compact admin layout utilities ─────────────────────────────────────────
+  .admin-section-bar,
+  .row.top,
+  .kw-page-header,
+  .overview-header,
+  .header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  .admin-section-hint,
+  .row.top > p,
+  .kw-page-title .mat-caption,
+  .overview-intro .mat-caption {
+    flex: 1;
+    min-width: 180px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #888;
+  }
+
+  .admin-section-actions,
+  .section-actions,
+  .top-actions,
+  .overview-actions,
+  .kw-page-header > button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .admin-section-actions button,
+  .section-actions button,
+  .top-actions button,
+  .overview-actions button {
+    font-size: 12px;
+    height: 32px;
+    line-height: 32px;
+    padding: 0 10px;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .empty-state,
+  .kw-empty {
+    padding: 24px 12px !important;
+    gap: 6px !important;
+
+    > mat-icon,
+    mat-icon:first-child {
+      font-size: 32px !important;
+      width: 32px !important;
+      height: 32px !important;
+      margin-bottom: 0 !important;
+    }
+
+    .mat-body,
+    p.mat-body {
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .mat-caption {
+      font-size: 11px;
+      margin: 0;
+    }
+  }
+
+  .mat-mdc-tab {
+    min-width: 96px !important;
+  }
+
+  .mat-mdc-tab .mdc-tab__text-label {
+    font-size: 13px !important;
   }
 }
 
@@ -471,6 +566,159 @@ $admin-dark-theme: mat.define-dark-theme((
       background: rgba(57, 255, 20, 0.22);
       border-color: var(--tlr-primary);
       color: var(--tlr-primary);
+    }
+  }
+}
+
+/* ── Admin datepicker (logs tab, etc.) ───────────────────────────────────── */
+.mat-datepicker-content:has(.admin-datepicker-panel) {
+  background: #1e1e1e !important;
+  color: #e0e0e0 !important;
+  border: 1px solid #333 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.mat-calendar.admin-datepicker-panel {
+  background: transparent !important;
+  color: #e0e0e0 !important;
+
+  .mat-calendar-header {
+    border-bottom: 1px solid #333;
+  }
+
+  .mat-calendar-period-button,
+  .mat-calendar-previous-button,
+  .mat-calendar-next-button {
+    color: #ccc !important;
+  }
+
+  .mat-calendar-body-cell-content {
+    color: #ddd !important;
+  }
+
+  .mat-calendar-body-selected {
+    background-color: #cc0000 !important;
+    color: #fff !important;
+  }
+
+  .mat-calendar-body-today:not(.mat-calendar-body-selected) {
+    border-color: #cc0000 !important;
+  }
+}
+
+/* ── Admin time picker menu (logs tab) ───────────────────────────────────── */
+.admin-time-menu.mat-mdc-menu-panel .mat-mdc-menu-content {
+  padding: 0 !important;
+}
+
+.admin-time-picker {
+  padding: 10px 12px 8px;
+  min-width: 160px;
+  color: #e0e0e0;
+  background: #1e1e1e;
+}
+
+.admin-time-display {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  color: #fff;
+}
+
+.admin-time-cols {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.admin-time-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.admin-time-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+}
+
+.admin-time-value {
+  font-size: 18px;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: center;
+}
+
+.admin-time-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.admin-time-sep {
+  font-size: 20px;
+  font-weight: 600;
+  color: #666;
+  padding-bottom: 14px;
+}
+
+.admin-time-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #333;
+}
+
+.admin-time-action {
+  flex: 1;
+  height: 28px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: transparent;
+  color: #aaa;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #666;
+    color: #fff;
+  }
+
+  &--primary {
+    border-color: #cc0000;
+    color: #ff8a80;
+
+    &:hover {
+      background: rgba(204, 0, 0, 0.12);
+      color: #fff;
     }
   }
 }

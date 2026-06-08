@@ -1019,6 +1019,20 @@ func (users *Users) GetAllUsers() []*User {
 	return userList
 }
 
+// HasSystemAdmin reports whether at least one system administrator user exists.
+// Used to prevent disabling admin password login when no SSO-capable admin remains.
+func (users *Users) HasSystemAdmin() bool {
+	users.mutex.RLock()
+	defer users.mutex.RUnlock()
+
+	for _, user := range users.users {
+		if user.SystemAdmin {
+			return true
+		}
+	}
+	return false
+}
+
 // CheckDuplicateEmails finds users with duplicate emails (case-insensitive)
 // Returns a map of normalized email -> list of users with that email
 func (users *Users) CheckDuplicateEmails() map[string][]*User {

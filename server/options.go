@@ -2015,6 +2015,48 @@ func (options *Options) Write(db *Database) error {
 	return nil
 }
 
+// ApplyPartial merges the provided keys over the current options and persists.
+// Only keys present in `partial` change; every other option keeps its current
+// value (unlike FromMap, which resets missing keys to defaults). Nested objects
+// (transcriptionConfig, openAIIntegration, autoLearnToneSetConfig) are deep-merged
+// so a partial nested update does not drop sibling fields.
+//
+// This is the single entry point used by the API-driven admin UI to save one or
+// more option fields at a time. Callers should trigger EmitConfig() afterwards so
+// live clients pick up the change.
+func (options *Options) ApplyPartial(db *Database, partial map[string]any) error {
+	options.mutex.Lock()
+	currentJSON, err := json.Marshal(options)
+	options.mutex.Unlock()
+	if err != nil {
+		return fmt.Errorf("options ApplyPartial marshal: %w", err)
+	}
+
+	merged := map[string]any{}
+	if err := json.Unmarshal(currentJSON, &merged); err != nil {
+		return fmt.Errorf("options ApplyPartial unmarshal: %w", err)
+	}
+
+	for k, v := range partial {
+		if existing, ok := merged[k].(map[string]any); ok {
+			if incoming, ok := v.(map[string]any); ok {
+				for ik, iv := range incoming {
+					existing[ik] = iv
+				}
+				merged[k] = existing
+				continue
+			}
+		}
+		merged[k] = v
+	}
+
+	// FromMap mutates the same Options in place, only overwriting fields it knows
+	// about; unhandled fields (e.g. transcriptParserConfig) keep their values.
+	options.FromMap(merged)
+
+	return options.Write(db)
+}
+
 // WriteKey writes a single options key directly to the database and updates
 // the in-memory value via the provided setter function.  This avoids the
 // bulk Options.Write overwriting keys that are managed by dedicated endpoints.

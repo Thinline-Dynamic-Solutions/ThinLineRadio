@@ -158,15 +158,16 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       isPublicRegistration: [false],
       allowAddExistingUsers: [false],
       groupAdminUserId: [0],
-      newGroupAdminEmail: ['', [Validators.email]],
-      newGroupAdminPassword: ['', [Validators.minLength(6)]],
+      newGroupAdminEmail: [''],
+      newGroupAdminPassword: [''],
       newGroupAdminFirstName: [''],
       newGroupAdminLastName: [''],
-      newGroupAdminZipCode: ['', [Validators.pattern(/^\d{5}(-\d{4})?$/)]]
+      newGroupAdminZipCode: ['']
     });
 
     // Add at least one pricing option by default
     this.addPricingOption();
+    this.updateGroupAdminValidators();
 
     // Set initial validators based on billingEnabled default value
     const initialBillingEnabled = this.groupForm.get('billingEnabled')?.value ?? false;
@@ -270,6 +271,41 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       formGroup.get('amount')?.setValidators(validators);
       formGroup.get('amount')?.updateValueAndValidity();
     });
+  }
+
+  /**
+   * "Create new group admin" fields are hidden when editing an existing group, but
+   * they still lived on the FormGroup with minLength/pattern validators. That kept
+   * the Update button greyed out even when only changing talkgroup access.
+   */
+  updateGroupAdminValidators(): void {
+    const requireNewAdmin = !this.editingGroup && this.groupAdminMode === 'new';
+    const zipPattern = /^\d{5}(-\d{4})?$/;
+
+    const set = (name: string, validators: any[]) => {
+      const ctrl = this.groupForm.get(name);
+      ctrl?.setValidators(validators);
+      ctrl?.updateValueAndValidity({ emitEvent: false });
+    };
+
+    if (requireNewAdmin) {
+      set('newGroupAdminEmail', [Validators.required, Validators.email]);
+      set('newGroupAdminPassword', [Validators.required, Validators.minLength(6)]);
+      set('newGroupAdminFirstName', [Validators.required]);
+      set('newGroupAdminLastName', [Validators.required]);
+      set('newGroupAdminZipCode', [Validators.required, Validators.pattern(zipPattern)]);
+    } else {
+      set('newGroupAdminEmail', []);
+      set('newGroupAdminPassword', []);
+      set('newGroupAdminFirstName', []);
+      set('newGroupAdminLastName', []);
+      set('newGroupAdminZipCode', []);
+    }
+    this.groupForm.updateValueAndValidity();
+  }
+
+  onGroupAdminModeChange(): void {
+    this.updateGroupAdminValidators();
   }
 
   loadUsers(): void {
@@ -397,6 +433,8 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       newGroupAdminZipCode: ''
     });
     this.groupAdminMode = 'none';
+    this.updateGroupAdminValidators();
+    this.updatePricingOptionValidators(false);
     this.showCreateForm = true;
   }
   
@@ -609,6 +647,7 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     // Update validators based on the group's billingEnabled value
     const billingEnabled = group.billingEnabled ?? false;
     this.updatePricingOptionValidators(billingEnabled);
+    this.updateGroupAdminValidators();
     
     this.showCreateForm = true;
   }
@@ -759,6 +798,7 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     this.selectedSystemAccess = [];
     this.groupForm.reset();
     this.groupAdminMode = 'none';
+    this.updateGroupAdminValidators();
     this.userSearchQuery = '';
     this.systemDelayEntries = [];
     this.talkgroupDelayEntries = [];

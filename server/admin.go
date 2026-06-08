@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -2206,6 +2207,505 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// OptionsPatchHandler is the API-driven entry point for the admin Options screens.
+// It accepts a partial JSON object of option keys and persists only those keys,
+// leaving every other option untouched, then broadcasts the new config to live
+// clients via EmitConfig (same mechanism the old whole-config save used).
+//
+//	PATCH /api/admin/options   body: { "<optionKey>": <value>, ... }
+func (admin *Admin) OptionsPatchHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch && r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	partial := map[string]any{}
+	if err := json.NewDecoder(r.Body).Decode(&partial); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if len(partial) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "no option keys provided"})
+		return
+	}
+
+	// Guard: refuse to disable password login when no system admin exists, so the
+	// operator cannot lock themselves out (mirrors the whole-config save guard).
+	if v, ok := partial["adminPasswordLoginDisabled"].(bool); ok && v {
+		if !admin.Controller.Users.HasSystemAdmin() {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "cannot disable password login: no system administrator user exists",
+			})
+			return
+		}
+	}
+
+	admin.mutex.Lock()
+	err := admin.Controller.Options.ApplyPartial(admin.Controller.Database, partial)
+	admin.mutex.Unlock()
+
+	if err != nil {
+		admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.options.patch: %s", err.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
+
+	admin.Controller.Logs.LogEvent(LogLevelInfo, "options changed")
+
+	w.Header().Set("Content-Type", "application/json")
+	admin.SendConfig(w)
+}
+
+// ApikeysHandler is the API-driven endpoint for the admin API Keys screen.
+//
+//	GET /api/admin/apikeys        -> { "apikeys": [...] }
+//	PUT /api/admin/apikeys        body: [...]  (full list; replaces + diffs)
+//
+// The PUT path reuses the same FromMap/Write/Read collection logic the old
+// whole-config save used, then broadcasts the new config to live clients.
+func (admin *Admin) ApikeysHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(map[string]any{"apikeys": admin.Controller.Apikeys.List})
+
+	case http.MethodPut:
+		var list []any
+		if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		admin.mutex.Lock()
+		admin.Controller.Apikeys.FromMap(list)
+		err := admin.Controller.Apikeys.Write(admin.Controller.Database)
+		if err == nil {
+			err = admin.Controller.Apikeys.Read(admin.Controller.Database)
+		}
+		admin.mutex.Unlock()
+
+		if err != nil {
+			admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.apikeys.put: %s", err.Error()))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		go admin.Controller.EmitConfig()
+		admin.Controller.SyncConfigToFile()
+
+		json.NewEncoder(w).Encode(map[string]any{"apikeys": admin.Controller.Apikeys.List})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// TagsHandler is the API-driven endpoint for the admin Tags screen.
+//
+//	GET /api/admin/tags    -> { "tags": [...] }
+//	PUT /api/admin/tags    body: [...]  (full list)
+func (admin *Admin) TagsHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(map[string]any{"tags": admin.Controller.Tags.List})
+
+	case http.MethodPut:
+		var list []any
+		if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		admin.mutex.Lock()
+		admin.Controller.Tags.FromMap(list)
+		err := admin.Controller.Tags.Write(admin.Controller.Database)
+		if err == nil {
+			err = admin.Controller.Tags.Read(admin.Controller.Database)
+		}
+		admin.mutex.Unlock()
+
+		if err != nil {
+			admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.tags.put: %s", err.Error()))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		go admin.Controller.EmitConfig()
+		admin.Controller.SyncConfigToFile()
+
+		json.NewEncoder(w).Encode(map[string]any{"tags": admin.Controller.Tags.List})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// GroupsConfigHandler is the API-driven endpoint for the admin (talkgroup) Groups screen.
+// Named to avoid collision with the user-group handlers under /api/admin/groups.
+//
+//	GET /api/admin/talkgroup-groups    -> { "groups": [...] }
+//	PUT /api/admin/talkgroup-groups    body: [...]  (full list)
+func (admin *Admin) GroupsConfigHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(map[string]any{"groups": admin.Controller.Groups.List})
+
+	case http.MethodPut:
+		var list []any
+		if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		admin.mutex.Lock()
+		admin.Controller.Groups.FromMap(list)
+		err := admin.Controller.Groups.Write(admin.Controller.Database)
+		if err == nil {
+			err = admin.Controller.Groups.Read(admin.Controller.Database)
+		}
+		admin.mutex.Unlock()
+
+		if err != nil {
+			admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.groups.put: %s", err.Error()))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		go admin.Controller.EmitConfig()
+		admin.Controller.SyncConfigToFile()
+
+		json.NewEncoder(w).Encode(map[string]any{"groups": admin.Controller.Groups.List})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// DownstreamsHandler is the API-driven endpoint for the admin Downstreams screen.
+//
+//	GET /api/admin/downstreams    -> { "downstreams": [...] }
+//	PUT /api/admin/downstreams    body: [...]  (full list)
+func (admin *Admin) DownstreamsHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(map[string]any{"downstreams": admin.Controller.Downstreams.List})
+
+	case http.MethodPut:
+		var list []any
+		if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		admin.mutex.Lock()
+		admin.Controller.Downstreams.FromMap(list)
+		err := admin.Controller.Downstreams.Write(admin.Controller.Database)
+		if err == nil {
+			err = admin.Controller.Downstreams.Read(admin.Controller.Database)
+		}
+		admin.mutex.Unlock()
+
+		if err != nil {
+			admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.downstreams.put: %s", err.Error()))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		go admin.Controller.EmitConfig()
+		admin.Controller.SyncConfigToFile()
+
+		json.NewEncoder(w).Encode(map[string]any{"downstreams": admin.Controller.Downstreams.List})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// DirwatchConfigHandler is the API-driven endpoint for the admin Dirwatch screen.
+// Like the whole-config save, it stops the watchers before writing and restarts
+// them afterwards so the new directory watches take effect immediately.
+//
+//	GET /api/admin/dirwatch    -> { "dirwatch": [...] }
+//	PUT /api/admin/dirwatch    body: [...]  (full list)
+func (admin *Admin) DirwatchConfigHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(map[string]any{"dirwatch": admin.Controller.Dirwatches.List})
+
+	case http.MethodPut:
+		var list []any
+		if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		admin.mutex.Lock()
+		admin.Controller.Dirwatches.Stop()
+		admin.Controller.Dirwatches.FromMap(list)
+		err := admin.Controller.Dirwatches.Write(admin.Controller.Database)
+		if err == nil {
+			err = admin.Controller.Dirwatches.Read(admin.Controller.Database)
+		}
+		admin.Controller.Dirwatches.Start(admin.Controller)
+		admin.mutex.Unlock()
+
+		if err != nil {
+			admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.dirwatch.put: %s", err.Error()))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		go admin.Controller.EmitConfig()
+		admin.Controller.SyncConfigToFile()
+
+		json.NewEncoder(w).Encode(map[string]any{"dirwatch": admin.Controller.Dirwatches.List})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// SystemSaveHandler is the API-driven endpoint for saving a SINGLE system.
+//
+//	PUT/POST /api/admin/systems/save   body: { ...one system... }
+//
+// Saving one system at a time is required because the admin UI lazily loads a
+// system's talkgroups only when it is opened. The opened system is therefore the
+// only one guaranteed to be fully populated, so we merge just that system into the
+// existing in-memory list (preserving every other system's talkgroups untouched),
+// then persist + broadcast. Mirrors the no-audio-preservation + ID-lookups-reload
+// behaviour of the old whole-config save.
+func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	incoming := map[string]any{}
+	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	// Resolve the existing system (by id, then systemRef) to preserve the
+	// System Health no-audio settings when the payload omits them.
+	var existing *System
+	if idVal, ok := incoming["id"].(float64); ok && idVal > 0 {
+		existing, _ = admin.Controller.Systems.GetSystemById(uint64(idVal))
+	}
+	if existing == nil {
+		if refVal, ok := incoming["systemRef"].(float64); ok {
+			existing, _ = admin.Controller.Systems.GetSystemByRef(uint(refVal))
+		}
+	}
+	if existing != nil {
+		if _, has := incoming["noAudioAlertsEnabled"]; !has {
+			incoming["noAudioAlertsEnabled"] = existing.NoAudioAlertsEnabled
+		}
+		if _, has := incoming["noAudioThresholdMinutes"]; !has {
+			incoming["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
+		}
+	}
+
+	admin.mutex.Lock()
+
+	// Serialize the current list, replace/insert the one system, rebuild via FromMap.
+	currentJSON, err := json.Marshal(admin.Controller.Systems.List)
+	if err == nil {
+		var arr []any
+		if err = json.Unmarshal(currentJSON, &arr); err == nil {
+			replaced := false
+			if idVal, ok := incoming["id"].(float64); ok && idVal > 0 {
+				for i, r := range arr {
+					if m, ok := r.(map[string]any); ok {
+						if mid, ok := m["id"].(float64); ok && mid == idVal {
+							arr[i] = incoming
+							replaced = true
+							break
+						}
+					}
+				}
+			}
+			if !replaced {
+				arr = append(arr, incoming)
+			}
+
+			admin.Controller.Systems.FromMap(arr)
+			err = admin.Controller.Systems.Write(admin.Controller.Database)
+			if err == nil {
+				err = admin.Controller.Systems.Read(admin.Controller.Database)
+				if err == nil {
+					if e := admin.Controller.IdLookupsCache.Read(admin.Controller.Database); e != nil {
+						admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload ID lookups cache: %v", e))
+					}
+				}
+			} else {
+				// Restore a clean in-memory state after a failed write.
+				if readErr := admin.Controller.Systems.Read(admin.Controller.Database); readErr != nil {
+					admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.systems.save.recover: %s", readErr.Error()))
+				}
+			}
+		}
+	}
+
+	admin.mutex.Unlock()
+
+	if err != nil {
+		admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.systems.save: %s", err.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"systems": admin.Controller.Systems.List})
+}
+
+// SystemDeleteHandler deletes a SINGLE system by id.
+//
+//	DELETE /api/admin/systems/delete/{id}
+func (admin *Admin) SystemDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/admin/systems/delete/")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid system id"})
+		return
+	}
+
+	admin.mutex.Lock()
+
+	currentJSON, mErr := json.Marshal(admin.Controller.Systems.List)
+	if mErr == nil {
+		var arr []any
+		if mErr = json.Unmarshal(currentJSON, &arr); mErr == nil {
+			filtered := make([]any, 0, len(arr))
+			for _, r := range arr {
+				if m, ok := r.(map[string]any); ok {
+					if mid, ok := m["id"].(float64); ok && uint64(mid) == id {
+						continue
+					}
+				}
+				filtered = append(filtered, r)
+			}
+
+			admin.Controller.Systems.FromMap(filtered)
+			mErr = admin.Controller.Systems.Write(admin.Controller.Database)
+			if mErr == nil {
+				mErr = admin.Controller.Systems.Read(admin.Controller.Database)
+				if mErr == nil {
+					if e := admin.Controller.IdLookupsCache.Read(admin.Controller.Database); e != nil {
+						admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to reload ID lookups cache: %v", e))
+					}
+				}
+			} else {
+				if readErr := admin.Controller.Systems.Read(admin.Controller.Database); readErr != nil {
+					admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.systems.delete.recover: %s", readErr.Error()))
+				}
+			}
+		}
+	}
+
+	admin.mutex.Unlock()
+
+	if mErr != nil {
+		admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.systems.delete: %s", mErr.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": mErr.Error()})
+		return
+	}
+
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"systems": admin.Controller.Systems.List})
+}
+
 func (admin *Admin) StripeSyncHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -2510,6 +3010,30 @@ func (admin *Admin) GetConfig() map[string]any {
 		"userAlertPreferences": userAlertPrefList,
 		"version":              Version,
 	}
+}
+
+func (admin *Admin) LogsCategoriesHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	b, err := json.Marshal(map[string]any{
+		"categories": LogCategoryInfoForAdmin(admin.Controller.Options.CentralManagementEnabled),
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusExpectationFailed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(b)
 }
 
 func (admin *Admin) LogsHandler(w http.ResponseWriter, r *http.Request) {
@@ -4357,61 +4881,35 @@ func (v *rrSiteImportID) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// RadioReferenceImportToSystemHandler directly writes RR talkgroups or sites into a local
-// system, creating any missing groups/tags in the database on the fly.
-func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r *http.Request) {
-	t := admin.GetAuthorization(r)
-	if !admin.ValidateToken(t) {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
+type radioReferenceImportBody struct {
+	SystemId   float64 `json:"systemId"`
+	Talkgroups []struct {
+		Id          float64 `json:"id"`
+		AlphaTag    string  `json:"alphaTag"`
+		Description string  `json:"description"`
+		Group       string  `json:"group"`
+		Tag         string  `json:"tag"`
+		Enc         float64 `json:"enc"`
+	} `json:"talkgroups"`
+	Sites []struct {
+		Id          rrSiteImportID `json:"id"`
+		Name        string         `json:"name"`
+		Rfss        float64        `json:"rfss"`
+		Frequencies []float64      `json:"frequencies"`
+	} `json:"sites"`
+}
 
-	var body struct {
-		SystemId   float64 `json:"systemId"`
-		Talkgroups []struct {
-			Id          float64 `json:"id"`
-			AlphaTag    string  `json:"alphaTag"`
-			Description string  `json:"description"`
-			Group       string  `json:"group"`
-			Tag         string  `json:"tag"`
-			Enc         float64 `json:"enc"`
-		} `json:"talkgroups"`
-		Sites []struct {
-			Id          rrSiteImportID `json:"id"`
-			Name        string         `json:"name"`
-			Rfss        float64        `json:"rfss"`
-			Frequencies []float64      `json:"frequencies"`
-		} `json:"sites"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid JSON: " + err.Error()})
-		return
-	}
+func (admin *Admin) radioReferenceImportToSystemCore(body radioReferenceImportBody) (created, updated int, err error) {
 	if body.SystemId == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "systemId is required (select a target system in the import UI)"})
-		return
+		return 0, 0, fmt.Errorf("systemId is required")
 	}
-
 	ctrl := admin.Controller
 	systemId := uint64(body.SystemId)
-
 	system, ok := ctrl.Systems.GetSystemById(systemId)
 	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "system not found"})
-		return
+		return 0, 0, fmt.Errorf("system not found")
 	}
 
-	created := 0
-	updated := 0
-
-	// ── Talkgroups ────────────────────────────────────────────────────────────
 	for _, tg := range body.Talkgroups {
 		groupLabel := tg.Group
 		if groupLabel == "" {
@@ -4428,20 +4926,14 @@ func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r
 			group = &Group{Label: groupLabel}
 			ctrl.Groups.List = append(ctrl.Groups.List, group)
 			if err := ctrl.Groups.Write(ctrl.Database); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "failed to write group: " + err.Error()})
-				return
+				return created, updated, fmt.Errorf("failed to write group: %w", err)
 			}
 			if err := ctrl.Groups.Read(ctrl.Database); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "failed to read groups: " + err.Error()})
-				return
+				return created, updated, fmt.Errorf("failed to read groups: %w", err)
 			}
 			group, ok = ctrl.Groups.GetGroupByLabel(groupLabel)
 			if !ok {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "group disappeared after write: " + groupLabel})
-				return
+				return created, updated, fmt.Errorf("group disappeared after write: %s", groupLabel)
 			}
 		}
 
@@ -4451,20 +4943,14 @@ func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r
 			tag = &Tag{Label: tagLabel}
 			ctrl.Tags.List = append(ctrl.Tags.List, tag)
 			if err := ctrl.Tags.Write(ctrl.Database); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "failed to write tag: " + err.Error()})
-				return
+				return created, updated, fmt.Errorf("failed to write tag: %w", err)
 			}
 			if err := ctrl.Tags.Read(ctrl.Database); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "failed to read tags: " + err.Error()})
-				return
+				return created, updated, fmt.Errorf("failed to read tags: %w", err)
 			}
 			tag, ok = ctrl.Tags.GetTagByLabel(tagLabel)
 			if !ok {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "tag disappeared after write: " + tagLabel})
-				return
+				return created, updated, fmt.Errorf("tag disappeared after write: %s", tagLabel)
 			}
 		}
 
@@ -4527,19 +5013,62 @@ func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r
 		}
 	}
 
-	// ── Persist ───────────────────────────────────────────────────────────────
 	if err := ctrl.Systems.Write(ctrl.Database); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to write systems: " + err.Error()})
-		return
+		return created, updated, fmt.Errorf("failed to write systems: %w", err)
 	}
 	if err := ctrl.Systems.Read(ctrl.Database); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to read systems: " + err.Error()})
+		return created, updated, fmt.Errorf("failed to read systems: %w", err)
+	}
+	ctrl.SyncConfigToFile()
+	return created, updated, nil
+}
+
+func (admin *Admin) radioReferenceImportToSystemFromJSON(payloadJSON []byte) (created, updated int, err error) {
+	var body radioReferenceImportBody
+	if err = json.Unmarshal(payloadJSON, &body); err != nil {
+		return 0, 0, err
+	}
+	return admin.radioReferenceImportToSystemCore(body)
+}
+
+// RadioReferenceImportToSystemHandler directly writes RR talkgroups or sites into a local
+// system, creating any missing groups/tags in the database on the fly.
+func (admin *Admin) RadioReferenceImportToSystemHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	ctrl.SyncConfigToFile()
+	var body radioReferenceImportBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if body.SystemId == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "systemId is required (select a target system in the import UI)"})
+		return
+	}
+
+	created, updated, err := admin.radioReferenceImportToSystemCore(body)
+	if err != nil {
+		switch err.Error() {
+		case "system not found":
+			w.WriteHeader(http.StatusNotFound)
+		case "systemId is required":
+			w.WriteHeader(http.StatusBadRequest)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
 
 	json.NewEncoder(w).Encode(map[string]any{
 		"success": true,
@@ -4684,6 +5213,9 @@ func (admin *Admin) EmailLogoUploadHandler(w http.ResponseWriter, r *http.Reques
 		log.Printf("Failed to reload options: %v", err)
 	}
 
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":  true,
@@ -4767,6 +5299,9 @@ func (admin *Admin) EmailLogoDeleteHandler(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		log.Printf("Failed to reload options: %v", err)
 	}
+
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -4877,6 +5412,9 @@ func (admin *Admin) FaviconUploadHandler(w http.ResponseWriter, r *http.Request)
 		log.Printf("Failed to reload options: %v", err)
 	}
 
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success":  true,
@@ -4919,6 +5457,9 @@ func (admin *Admin) FaviconDeleteHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("Failed to reload options: %v", err)
 	}
+
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -5596,18 +6137,29 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate input
-	if request.Email == "" || request.FirstName == "" || request.LastName == "" || request.ZipCode == "" {
+	// Email is the only required field on update. firstName, lastName and zipCode
+	// are optional (SSO/invited users often have them blank).
+	if err := ValidateEmail(request.Email); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "All fields are required"})
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
+	zipCode := strings.TrimSpace(request.ZipCode)
+	if zipCode != "" {
+		zipOk, _ := regexp.MatchString(`^\d{5}(-\d{4})?$`, zipCode)
+		if !zipOk {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid zip code format (use 12345 or 12345-6789)"})
+			return
+		}
+	}
+
 	// Update user fields
-	user.Email = request.Email
-	user.FirstName = request.FirstName
-	user.LastName = request.LastName
-	user.ZipCode = request.ZipCode
+	user.Email = NormalizeEmail(request.Email)
+	user.FirstName = strings.TrimSpace(request.FirstName)
+	user.LastName = strings.TrimSpace(request.LastName)
+	user.ZipCode = zipCode
 	user.Verified = request.Verified
 	user.Systems = strings.TrimSpace(request.Systems)
 	if request.Delay < 0 {

@@ -23,19 +23,19 @@ rdio-scanner-admin-tools {
         display: flex;
         flex-direction: row;
         gap: 0;
-        min-height: 500px;
+        min-height: 360px;
         align-items: flex-start;
     }
 
     /* ── Sidebar ───────────────────────────────────────────── */
     .tools-sidebar {
-        width: 220px;
-        min-width: 220px;
+        width: 188px;
+        min-width: 188px;
         flex-shrink: 0;
         background: #161616;
         border-right: 1px solid #2a2a2a;
         border-radius: 0 0 0 8px;
-        padding: 12px 0 16px;
+        padding: 8px 0 10px;
         display: flex;
         flex-direction: column;
         gap: 2px;
@@ -57,7 +57,7 @@ rdio-scanner-admin-tools {
             align-items: center;
             gap: 10px;
             width: 100%;
-            padding: 10px 16px;
+            padding: 7px 12px;
             background: none;
             border: none;
             border-left: 3px solid transparent;
@@ -102,38 +102,37 @@ rdio-scanner-admin-tools {
     /* ── Content area ──────────────────────────────────────── */
     .tools-content {
         flex: 1;
-        padding: 20px 24px;
+        padding: 12px 14px 14px;
         min-width: 0;
 
         .section-header {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
-            margin-bottom: 24px;
-            padding-bottom: 14px;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
             border-bottom: 1px solid #2a2a2a;
 
             > mat-icon {
                 color: #cc0000;
-                font-size: 24px;
-                width: 24px;
-                height: 24px;
-                margin-top: 2px;
+                font-size: 18px;
+                width: 18px;
+                height: 18px;
+                margin-top: 1px;
                 flex-shrink: 0;
             }
 
             > div {
                 h3 {
-                    margin: 0 0 3px;
-                    font-size: 17px;
+                    margin: 0 0 2px;
+                    font-size: 14px;
                     font-weight: 600;
                     color: #eee;
-                    letter-spacing: 0.3px;
                 }
 
                 .section-subtitle {
                     margin: 0;
-                    font-size: 12px;
+                    font-size: 11px;
                     color: #666;
                 }
             }

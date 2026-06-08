@@ -1,7 +1,8 @@
 <div class="tp-container">
 
-    <!-- Top action bar -->
-    <div class="tp-actions">
+    <div class="admin-section-bar tp-actions">
+        <p class="admin-section-hint">Configure unit types, dispatch names, and fuzzy matching for transcript highlighting.</p>
+        <div class="admin-section-actions">
         <button mat-raised-button color="primary" (click)="save()" [disabled]="saving || loading">
             <mat-icon>save</mat-icon>
             {{ saving ? 'Saving…' : 'Save' }}
@@ -10,6 +11,7 @@
             <mat-icon>refresh</mat-icon>
             Reset
         </button>
+        </div>
     </div>
 
     <mat-spinner *ngIf="loading" diameter="40" class="tp-spinner"></mat-spinner>

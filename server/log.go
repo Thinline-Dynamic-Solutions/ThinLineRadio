@@ -19,7 +19,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"math"
 	"strings"
 	"sync"
@@ -36,6 +35,7 @@ type Log struct {
 	Id       any       `json:"id"`
 	DateTime time.Time `json:"dateTime"`
 	Level    string    `json:"level"`
+	Category string    `json:"category"`
 	Message  string    `json:"message"`
 }
 
@@ -56,6 +56,8 @@ func NewLogs() *Logs {
 }
 
 func (logs *Logs) LogEvent(level string, message string) error {
+	category := CategorizeLogMessage(message)
+
 	logs.mutex.Lock()
 	defer logs.mutex.Unlock()
 
@@ -70,18 +72,19 @@ func (logs *Logs) LogEvent(level string, message string) error {
 		}
 
 	} else {
-		log.Println(message)
+		writeLogStdout(message)
 	}
 
 	if logs.database != nil {
 		l := Log{
 			DateTime: time.Now().UTC(),
 			Level:    level,
+			Category: category,
 			Message:  message,
 		}
 
-		query := `INSERT INTO "logs" ("level", "message", "timestamp") VALUES ($1, $2, $3)`
-		if _, err := logs.database.Sql.Exec(query, l.Level, l.Message, l.DateTime.UnixMilli()); err != nil {
+		query := `INSERT INTO "logs" ("level", "category", "message", "timestamp") VALUES ($1, $2, $3, $4)`
+		if _, err := logs.database.Sql.Exec(query, l.Level, l.Category, l.Message, l.DateTime.UnixMilli()); err != nil {
 			return fmt.Errorf("logs.logevent: %s in %s", err, query)
 		}
 	}
@@ -162,6 +165,7 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		whereConditions []string
 
 		level     sql.NullString
+		category  sql.NullString
 		logId     sql.NullInt64
 		message   sql.NullString
 		timestamp sql.NullInt64
@@ -182,16 +186,22 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 	// Level filter
 	switch v := searchOptions.Level.(type) {
 	case string:
-		whereConditions = append(whereConditions, fmt.Sprintf(`"level" = '%s'`, v))
+		whereConditions = append(whereConditions, fmt.Sprintf(`"level" = '%s'`, escapeSQLString(v)))
+	}
+
+	// Category filter
+	if cats := FilterLogCategories(searchOptions.Categories); len(cats) > 0 {
+		quoted := make([]string, len(cats))
+		for i, c := range cats {
+			quoted[i] = "'" + escapeSQLString(c) + "'"
+		}
+		whereConditions = append(whereConditions, `"category" IN (`+strings.Join(quoted, ",")+`)`)
 	}
 
 	// Keyword / text search filter — case-insensitive substring match on the message.
-	// PostgreSQL ILIKE is safe here because the timestamp window already limits the
-	// scan to a small fraction of the table via the logs_timestamp_idx index.
 	switch v := searchOptions.Search.(type) {
 	case string:
 		if v != "" {
-			// Escape SQL wildcards in the user's term so they are treated as literals
 			escaped := strings.ReplaceAll(v, `\`, `\\`)
 			escaped = strings.ReplaceAll(escaped, `%`, `\%`)
 			escaped = strings.ReplaceAll(escaped, `_`, `\_`)
@@ -211,35 +221,25 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		order = ascOrder
 	}
 
-	// Hard-clamp timestamps to the range that time.Time.MarshalJSON accepts (years 0–9999).
-	// Rows outside this range have corrupt/wrong-unit timestamps and cannot be serialised;
-	// filtering them in SQL avoids a json.Marshal failure that causes HTTP 417.
-	const maxSafeTimestampMs = int64(253402300800000) // 9999-12-31 23:59:59 UTC in ms
+	const maxSafeTimestampMs = int64(253402300800000)
 	whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" > 0 AND "timestamp" < %d`, maxSafeTimestampMs))
 
 	// Date filter
 	switch v := searchOptions.Date.(type) {
 	case time.Time:
-		// When the user picks a specific date, show logs from that point forward (>=).
-		// Sort order (ASC/DESC) controls oldest-first vs newest-first within the window.
 		whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %d`, v.UnixMilli()))
 	default:
-		// No date selected — apply a 24-hour lookback for DESC (newest-first) searches
-		// to avoid a full table scan on tables with millions of rows.
-		// ASC (oldest-first) has no default restriction so the user can still browse history.
 		if order == descOrder {
 			defaultLookback := time.Now().Add(-24 * time.Hour)
 			whereConditions = append(whereConditions, fmt.Sprintf(`"timestamp" >= %d`, defaultLookback.UnixMilli()))
 		}
 	}
 
-	// Build WHERE clause
 	where := "TRUE"
 	if len(whereConditions) > 0 {
 		where = strings.Join(whereConditions, " AND ")
 	}
 
-	// Limit / offset
 	switch v := searchOptions.Limit.(type) {
 	case uint:
 		limit = uint(math.Min(float64(500), float64(v)))
@@ -252,12 +252,10 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 		offset = v
 	}
 
-	// Fetch limit+1 rows so we can detect whether there are more pages without COUNT(*)
 	queryLimit := limit + 1
 
-	query = fmt.Sprintf(`SELECT "logId", "level", "message", "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" %s LIMIT %d OFFSET %d`, where, order, queryLimit, offset)
+	query = fmt.Sprintf(`SELECT "logId", "level", "category", "message", "timestamp" FROM "logs" WHERE %s ORDER BY "timestamp" %s LIMIT %d OFFSET %d`, where, order, queryLimit, offset)
 
-	// 30-second timeout matches the calls search timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -273,7 +271,7 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 
 		l := NewLog()
 
-		if err = rows.Scan(&logId, &level, &message, &timestamp); err != nil {
+		if err = rows.Scan(&logId, &level, &category, &message, &timestamp); err != nil {
 			continue
 		}
 
@@ -289,6 +287,12 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 			continue
 		}
 
+		if category.Valid && len(category.String) > 0 {
+			l.Category = category.String
+		} else {
+			l.Category = CategorizeLogMessage(message.String)
+		}
+
 		if message.Valid && len(message.String) > 0 {
 			l.Message = message.String
 		} else {
@@ -297,10 +301,6 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 
 		if timestamp.Valid && timestamp.Int64 > 0 {
 			t := time.UnixMilli(timestamp.Int64)
-			// Skip rows whose converted time falls outside the year range that
-			// time.Time.MarshalJSON accepts (0–9999). Such rows have corrupt or
-			// wrong-unit timestamps; marshalling them would return an error and
-			// cause the handler to respond with HTTP 417.
 			if y := t.Year(); y < 1 || y > 9999 {
 				continue
 			}
@@ -309,7 +309,6 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 			continue
 		}
 
-		// Only keep up to limit rows; the extra row just tells us HasMore
 		if uint(len(logResults.Logs)) < limit {
 			logResults.Logs = append(logResults.Logs, *l)
 		}
@@ -321,9 +320,6 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 
 	logResults.HasMore = totalRows > int(limit)
 
-	// Expose an approximate total that keeps the paginator working:
-	//   - exact when on the last page (HasMore == false)
-	//   - offset + results + 1 when more pages exist, so the paginator shows a next-page button
 	if logResults.HasMore {
 		logResults.Count = uint64(offset) + uint64(len(logResults.Logs)) + 1
 	} else {
@@ -331,6 +327,10 @@ func (logs *Logs) Search(searchOptions *LogsSearchOptions, db *Database) (*LogsS
 	}
 
 	return logResults, nil
+}
+
+func escapeSQLString(s string) string {
+	return strings.ReplaceAll(s, `'`, `''`)
 }
 
 func (logs *Logs) setDaemon(d *Daemon) {
@@ -342,12 +342,13 @@ func (logs *Logs) setDatabase(d *Database) {
 }
 
 type LogsSearchOptions struct {
-	Date   any `json:"date,omitempty"`
-	Level  any `json:"level,omitempty"`
-	Limit  any `json:"limit,omitempty"`
-	Offset any `json:"offset,omitempty"`
-	Search any `json:"search,omitempty"`
-	Sort   any `json:"sort,omitempty"`
+	Categories []string `json:"categories,omitempty"`
+	Date       any      `json:"date,omitempty"`
+	Level      any      `json:"level,omitempty"`
+	Limit      any      `json:"limit,omitempty"`
+	Offset     any      `json:"offset,omitempty"`
+	Search     any      `json:"search,omitempty"`
+	Sort       any      `json:"sort,omitempty"`
 }
 
 func NewLogSearchOptions() *LogsSearchOptions {
@@ -355,6 +356,17 @@ func NewLogSearchOptions() *LogsSearchOptions {
 }
 
 func (searchOptions *LogsSearchOptions) FromMap(m map[string]any) *LogsSearchOptions {
+	switch v := m["categories"].(type) {
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				searchOptions.Categories = append(searchOptions.Categories, s)
+			}
+		}
+	case []string:
+		searchOptions.Categories = append(searchOptions.Categories, v...)
+	}
+
 	switch v := m["date"].(type) {
 	case string:
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
@@ -397,4 +409,36 @@ type LogsSearchResults struct {
 	DateStop  time.Time          `json:"dateStop"`
 	Options   *LogsSearchOptions `json:"options"`
 	Logs      []Log              `json:"logs"`
+}
+
+type LogCategoryInfo struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+func AllLogCategoryInfo() []LogCategoryInfo {
+	out := make([]LogCategoryInfo, len(AllLogCategories))
+	for i, key := range AllLogCategories {
+		out[i] = LogCategoryInfo{
+			Key:   key,
+			Label: LogCategoryLabels[key],
+		}
+	}
+	return out
+}
+
+// LogCategoryInfoForAdmin returns categories for the admin UI, omitting Central
+// Management when the server is not paired with CM.
+func LogCategoryInfoForAdmin(centralManagementEnabled bool) []LogCategoryInfo {
+	all := AllLogCategoryInfo()
+	if centralManagementEnabled {
+		return all
+	}
+	out := make([]LogCategoryInfo, 0, len(all))
+	for _, c := range all {
+		if c.Key != LogCategoryCentral {
+			out = append(out, c)
+		}
+	}
+	return out
 }

@@ -1,0 +1,19 @@
+.field-error-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.row.row-invalid > p .mat-body {
+    color: #f44336;
+}
+
+.dirwatch-talkgroup-search input {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+}

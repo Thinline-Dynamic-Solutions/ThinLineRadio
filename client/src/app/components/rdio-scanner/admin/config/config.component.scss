@@ -22,7 +22,7 @@ rdio-scanner-admin-config {
     .config-layout {
         display: flex;
         gap: 0;
-        min-height: 500px;
+        min-height: 360px;
         align-items: flex-start;
     }
 
@@ -50,12 +50,12 @@ rdio-scanner-admin-config {
 
     /* ── Sidebar ───────────────────────────────────────────── */
     .config-sidebar {
-        width: 220px;
+        width: 188px;
         flex-shrink: 0;
         background: #161616;
         border-right: 1px solid #2a2a2a;
-        border-radius: 0 0 0 8px;
-        padding: 12px 0 16px;
+        border-radius: 0;
+        padding: 8px 0 10px;
         display: flex;
         flex-direction: column;
         gap: 2px;
@@ -75,16 +75,16 @@ rdio-scanner-admin-config {
         .sidebar-item {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             width: 100%;
-            padding: 10px 16px;
+            padding: 7px 12px;
             background: none;
             border: none;
             border-left: 3px solid transparent;
             border-radius: 0;
             cursor: pointer;
             text-align: left;
-            font-size: 13.5px;
+            font-size: 12.5px;
             color: #ccc;
             transition: all 0.15s ease;
 
@@ -268,32 +268,8 @@ rdio-scanner-admin-config {
     /* ── Content area ──────────────────────────────────────── */
     .config-content {
         flex: 1;
-        padding: 20px 24px;
+        padding: 12px 14px 14px;
         min-width: 0;
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #2a2a2a;
-
-            mat-icon {
-                color: #cc0000;
-                font-size: 22px;
-                width: 22px;
-                height: 22px;
-            }
-
-            h3 {
-                margin: 0;
-                font-size: 17px;
-                font-weight: 600;
-                color: #eee;
-                letter-spacing: 0.3px;
-            }
-        }
     }
 
     /* ── Shared form helpers ───────────────────────────────── */
@@ -348,8 +324,8 @@ rdio-scanner-admin-config {
     .section-panel {
         background: #1e1e1e !important;
         border: 1px solid #2a2a2a !important;
-        border-radius: 8px !important;
-        margin-bottom: 10px !important;
+        border-radius: 6px !important;
+        margin-bottom: 6px !important;
         box-shadow: none !important;
 
         &::before {
@@ -357,9 +333,9 @@ rdio-scanner-admin-config {
         }
 
         .mat-expansion-panel-header {
-            padding: 10px 18px !important;
+            padding: 6px 12px !important;
             height: auto !important;
-            min-height: 48px !important;
+            min-height: 40px !important;
 
             &:hover {
                 background: rgba(255, 255, 255, 0.03) !important;
@@ -373,23 +349,23 @@ rdio-scanner-admin-config {
         .mat-expansion-panel-header-title {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 14px;
+            gap: 8px;
+            font-size: 13px;
             font-weight: 600;
             color: #eee;
 
             mat-icon {
                 color: #cc0000;
-                font-size: 20px;
-                width: 20px;
-                height: 20px;
+                font-size: 17px;
+                width: 17px;
+                height: 17px;
             }
         }
 
         .mat-expansion-panel-header-description {
             color: #888;
-            font-size: 12px;
-            margin-left: 30px;
+            font-size: 11px;
+            margin-left: 24px;
         }
 
         .mat-expansion-panel-body {
@@ -397,7 +373,7 @@ rdio-scanner-admin-config {
         }
 
         .panel-content {
-            padding: 16px 18px 18px;
+            padding: 10px 12px 12px;
         }
     }
 
@@ -412,6 +388,25 @@ rdio-scanner-admin-config {
         background-color: rgba(244, 67, 54, 0.1) !important;
         border: 1px solid rgba(244, 67, 54, 0.3) !important;
         color: #ef9a9a !important;
+    }
+}
+
+/* Save confirmation snackbars (system save, etc.) */
+.success-snackbar {
+    --mdc-snackbar-container-color: #4caf50;
+
+    .mat-mdc-snack-bar-label,
+    .mat-mdc-button {
+        color: #fff !important;
+    }
+}
+
+.error-snackbar {
+    --mdc-snackbar-container-color: #f44336;
+
+    .mat-mdc-snack-bar-label,
+    .mat-mdc-button {
+        color: #fff !important;
     }
 }
 

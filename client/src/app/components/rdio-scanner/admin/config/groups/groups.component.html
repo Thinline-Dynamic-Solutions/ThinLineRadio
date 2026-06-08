@@ -16,10 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
 -->
-<!-- Top Bar -->
-<div class="row top">
-    <p class="mat-body">All system talkgroups must be associated with a group, which is then used to toggle between active talkgroups.</p>
-    <div class="top-actions">
+<div class="row top admin-section-bar">
+    <p class="admin-section-hint">All talkgroups must belong to a group — used to toggle active talkgroups on the main screen.</p>
+    <div class="admin-section-actions top-actions">
+        <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
+            <mat-icon>save</mat-icon>
+            {{ saving ? 'Saving…' : 'Save' }}
+        </button>
         <button type="button" mat-raised-button color="primary" (click)="add()">
             <mat-icon>add</mat-icon>
             New Group

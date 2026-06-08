@@ -1,0 +1,78 @@
+.options-hint {
+    opacity: 0.8;
+}
+
+.options-top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    background: var(--mat-card-background, #1e1e1e);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+
+    &--warn {
+        border-color: rgba(244, 67, 54, 0.45);
+        background: rgba(244, 67, 54, 0.08);
+    }
+}
+
+.options-top-bar-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.options-top-bar-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.options-unsaved-groups {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: grid;
+    gap: 12px;
+}
+
+.options-unsaved-group {
+    margin: 0;
+}
+
+.options-unsaved-section {
+    appearance: none;
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0 0 4px;
+    color: #90caf9;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.options-unsaved-fields {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    opacity: 0.92;
+
+    li + li {
+        margin-top: 2px;
+    }
+}
+
+.panel-save-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}

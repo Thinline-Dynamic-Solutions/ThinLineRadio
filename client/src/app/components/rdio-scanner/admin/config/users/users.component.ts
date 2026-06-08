@@ -20,7 +20,7 @@
 import { Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
-import { FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, FormArray, ValidationErrors, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { PageEvent } from '@angular/material/paginator';
 import { RdioScannerAdminService, System } from '../../admin.service';
@@ -106,6 +106,15 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     systemDelayEntries: Array<{systemId: number, delay: number}> = [];
     talkgroupDelayEntries: Array<{systemId: number, talkgroupId: number, delay: number}> = [];
 
+    /** Only validate ZIP format when the field has a value — blank is allowed. */
+    private static optionalZipValidator(control: AbstractControl): ValidationErrors | null {
+        const v = (control.value ?? '').toString().trim();
+        if (!v) {
+            return null;
+        }
+        return /^\d{5}(-\d{4})?$/.test(v) ? null : { pattern: true };
+    }
+
     constructor(
         private adminService: RdioScannerAdminService,
         private matSnackBar: MatSnackBar,
@@ -116,9 +125,13 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     ) {
         this.editForm = this.fb.group({
             email: ['', [Validators.required, Validators.email]],
-            firstName: ['', [Validators.required]],
-            lastName: ['', [Validators.required]],
-            zipCode: ['', [Validators.required, Validators.pattern(/^\d{5}(-\d{4})?$/)]],
+            // firstName/lastName/zipCode are optional on the User model — many users
+            // (SSO / invited) have them blank. Requiring them here left the form
+            // permanently invalid and greyed out the Save button. Keep the ZIP format
+            // check (it passes when empty) but don't force these fields.
+            firstName: [''],
+            lastName: [''],
+            zipCode: ['', [RdioScannerAdminUsersComponent.optionalZipValidator]],
             verified: [false],
             systems: ['*'], // System and talkgroup access - '*' for all or JSON array
             delay: [0, [Validators.min(0)]],
@@ -183,9 +196,22 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 accountExpiresAt: user.accountExpiresAt || 0,
                 pinExpired: false // Will be calculated if needed
             }));
+            this.sortUsers();
             this.applyFilter();
             this.cdr.detectChanges();
         }
+    }
+
+    /** Sort key for A–Z list order: last/first name when present, otherwise email. */
+    private getUserSortKey(user: User): string {
+        const name = `${user.lastName || ''} ${user.firstName || ''}`.trim();
+        return (name || user.email || '').toLowerCase();
+    }
+
+    private sortUsers(): void {
+        this.users.sort((a, b) =>
+            this.getUserSortKey(a).localeCompare(this.getUserSortKey(b), undefined, { sensitivity: 'base' })
+        );
     }
 
     async loadSystems(): Promise<void> {
@@ -464,7 +490,8 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         try {
             const users = await this.adminService.getAllUsers();
             this.users = users;
-            
+            this.sortUsers();
+
             // Also update the parent form if it exists
             if (this.form) {
                 this.form.clear();

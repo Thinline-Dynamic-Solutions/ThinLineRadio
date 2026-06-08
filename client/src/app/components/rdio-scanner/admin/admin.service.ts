@@ -66,6 +66,17 @@ export interface Alerts {
     [key: string]: Alert[];
 }
 
+export interface CopilotMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface CopilotChatResponse {
+    message: CopilotMessage;
+    toolsUsed?: string[];
+    error?: string;
+}
+
 export interface AdminEvent {
     authenticated?: boolean;
     config?: Config;
@@ -210,8 +221,14 @@ export interface Group {
 export interface Log {
     id?: number;
     dateTime: Date;
-    level: number;
+    level: 'error' | 'info' | 'warn' | string;
+    category?: string;
     message: string;
+}
+
+export interface LogCategory {
+    key: string;
+    label: string;
 }
 
 export interface LogsQuery {
@@ -223,10 +240,12 @@ export interface LogsQuery {
 }
 
 export interface LogsQueryOptions {
+    categories?: string[];
     date?: Date;
     level?: 'error' | 'info' | 'warn';
     limit: number;
     offset: number;
+    search?: string;
     sort: number;
 }
 
@@ -563,6 +582,9 @@ enum url {
     login = 'login',
     logout = 'logout',
     logs = 'logs',
+    logsCategories = 'logs/categories',
+    copilotChat = 'copilot/chat',
+    options = 'options',
     password = 'password',
     purge = 'purge',
     systemhealth = 'systemhealth',
@@ -710,11 +732,35 @@ export class RdioScannerAdminService implements OnDestroy {
         return {};
     } // end _fetchConfig
 
+    async getLogCategories(): Promise<LogCategory[]> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.get<{ categories: LogCategory[] }>(
+                this.getUrl(url.logsCategories),
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res?.categories ?? [];
+        } catch (error) {
+            this.errorHandler(error);
+            return [];
+        }
+    }
+
     async getLogs(options: LogsQueryOptions): Promise<LogsQuery | undefined> {
         try {
+            const payload: Record<string, unknown> = { ...options };
+            if (payload['date'] instanceof Date) {
+                payload['date'] = (payload['date'] as Date).toISOString();
+            }
+            if (Array.isArray(payload['categories']) && (payload['categories'] as string[]).length === 0) {
+                delete payload['categories'];
+            }
+            if (payload['search'] === '') {
+                delete payload['search'];
+            }
+
             const res = await firstValueFrom(this.ngHttpClient.post<LogsQuery>(
                 this.getUrl(url.logs),
-                options,
+                payload,
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
 
@@ -812,6 +858,27 @@ export class RdioScannerAdminService implements OnDestroy {
             ));
         } catch (error) {
             this.errorHandler(error);
+            throw error;
+        }
+    }
+
+    async copilotChat(messages: CopilotMessage[]): Promise<CopilotChatResponse> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.post<CopilotChatResponse>(
+                this.getUrl(url.copilotChat),
+                { messages },
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res;
+        } catch (error) {
+            this.errorHandler(error);
+            if (error instanceof HttpErrorResponse) {
+                const body = error.error;
+                const msg = typeof body === 'object' && body?.error
+                    ? String(body.error)
+                    : error.message;
+                throw new Error(msg);
+            }
             throw error;
         }
     }
@@ -1181,6 +1248,198 @@ export class RdioScannerAdminService implements OnDestroy {
             this.errorHandler(error);
 
             return config;
+        }
+    }
+
+    /**
+     * API-driven option save. Sends only the provided keys to PATCH /api/admin/options;
+     * the server merges them over current options, persists, and broadcasts the new
+     * config to live clients. Returns the updated full config on success.
+     */
+    async updateOptions(partial: { [key: string]: any }): Promise<Config | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.patch<{ config: Config }>(
+                this.getUrl(url.options),
+                partial,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+
+            return res.config;
+
+        } catch (error) {
+            this.errorHandler(error);
+
+            return undefined;
+        }
+    }
+
+    /** API-driven save for the API Keys list. Sends the full list; server diffs + persists + emits. */
+    async getApikeys(): Promise<any[]> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.get<{ apikeys: any[] }>(
+                this.getUrl('apikeys'),
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.apikeys || [];
+        } catch (error) {
+            this.errorHandler(error);
+            return [];
+        }
+    }
+
+    async saveApikeys(apikeys: any[]): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.put<{ apikeys: any[] }>(
+                this.getUrl('apikeys'),
+                apikeys,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.apikeys;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    /** API-driven save for the Tags list. */
+    async saveTags(tags: any[]): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.put<{ tags: any[] }>(
+                this.getUrl('tags'), tags,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.tags;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    /** API-driven save for the (talkgroup) Groups list. */
+    async saveGroups(groups: any[]): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.put<{ groups: any[] }>(
+                this.getUrl('talkgroup-groups'), groups,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.groups;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    /** API-driven save for the Downstreams list. */
+    async saveDownstreams(downstreams: any[]): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.put<{ downstreams: any[] }>(
+                this.getUrl('downstreams'), downstreams,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.downstreams;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    async getKeywordLists(): Promise<KeywordList[] | undefined> {
+        try {
+            return await firstValueFrom(this.ngHttpClient.get<KeywordList[]>(
+                '/api/keyword-lists',
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    async createKeywordList(list: Partial<KeywordList>): Promise<boolean> {
+        try {
+            await firstValueFrom(this.ngHttpClient.post(
+                '/api/keyword-lists',
+                list,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return true;
+        } catch (error) {
+            this.errorHandler(error);
+            return false;
+        }
+    }
+
+    async updateKeywordList(listId: number, list: Partial<KeywordList>): Promise<boolean> {
+        try {
+            await firstValueFrom(this.ngHttpClient.put(
+                `/api/keyword-lists/${listId}`,
+                list,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return true;
+        } catch (error) {
+            this.errorHandler(error);
+            return false;
+        }
+    }
+
+    async deleteKeywordList(listId: number): Promise<boolean> {
+        try {
+            await firstValueFrom(this.ngHttpClient.delete(
+                `/api/keyword-lists/${listId}`,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return true;
+        } catch (error) {
+            this.errorHandler(error);
+            return false;
+        }
+    }
+
+    /** API-driven save for the Dirwatch list. */
+    async saveDirwatch(dirwatch: any[]): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.put<{ dirwatch: any[] }>(
+                this.getUrl('dirwatch'), dirwatch,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.dirwatch;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    /**
+     * API-driven save for a SINGLE system. The server merges this one system into
+     * the in-memory list, leaving every other system's talkgroups untouched (which
+     * is essential because the UI lazy-loads talkgroups per system). Returns the
+     * full, freshly-read systems list so the caller can pick up server-assigned ids.
+     */
+    async saveSystem(system: any): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.put<{ systems: any[] }>(
+                this.getUrl('systems/save'), system,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.systems;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    /** API-driven delete for a SINGLE system by id. Returns the updated systems list. */
+    async deleteSystem(id: number): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.delete<{ systems: any[] }>(
+                this.getUrl(`systems/delete/${id}`),
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.systems;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
         }
     }
 
@@ -1818,7 +2077,15 @@ export class RdioScannerAdminService implements OnDestroy {
 
             const type = dirwatch.type;
 
-            return ['dsdplus', 'sdr-trunk', 'trunk-recorder'].includes(type) || control.value !== null || /#SYS/.test(mask) ? null : { required: true };
+            if (['sdr-trunk', 'trunk-recorder'].includes(type)) {
+                return null;
+            }
+
+            if (type === 'default' && /#SYS/.test(mask)) {
+                return null;
+            }
+
+            return control.value !== null ? null : { required: true };
         };
     }
 
@@ -1830,7 +2097,15 @@ export class RdioScannerAdminService implements OnDestroy {
 
             const type = dirwatch.type;
 
-            return ['dsdplus', 'sdr-trunk', 'trunk-recorder'].includes(type) || control.value !== null || /#TG/.test(mask) ? null : { required: true };
+            if (['sdr-trunk', 'trunk-recorder'].includes(type)) {
+                return null;
+            }
+
+            if (type === 'default' && /#TG/.test(mask)) {
+                return null;
+            }
+
+            return control.value !== null ? null : { required: true };
         };
     }
 

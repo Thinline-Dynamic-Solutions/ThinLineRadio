@@ -1,0 +1,108 @@
+{
+  "version": "26.06.12",
+  "summary": "The Admin Assistant mirrors the TLR admin UI via get_admin_config (read) and apply_admin_change (write). Always read capabilities or the relevant section before acting.",
+  "limitations": [
+    "Cannot upload binary files: email logo, favicon (use Config → Branding UI)",
+    "Cannot apply server binary updates (Tools → update apply UI only)",
+    "Cannot perform admin login/logout on behalf of the user",
+    "Full config JSON import/export is not automated — use granular save_* actions or Tools UI for full import"
+  ],
+  "readSections": {
+    "summary": "Server overview + lists of available sections and write actions",
+    "capabilities": "This full catalog (workflows, payloads, limitations)",
+    "tags": "Global tag definitions",
+    "talkgroup_groups": "Talkgroup organizational groups (Config → Groups)",
+    "apikeys": "Ingest API keys",
+    "dirwatch": "Directory watch folders",
+    "downstreams": "Downstream forwarding rules",
+    "options": "All server options (integrations, transcription, stripe, email, etc.)",
+    "systems": "System list summary (id, label, talkgroup counts)",
+    "system": "One full system — requires systemId",
+    "talkgroup": "One talkgroup with toneSets schema — requires systemId + talkgroupId",
+    "users": "User list (no passwords)",
+    "user_groups": "Billing/registration user groups",
+    "keyword_lists": "Alert keyword lists",
+    "health_settings": "System health alert thresholds",
+    "log_categories": "Log filter category IDs",
+    "calls": "Search calls — pass params: limit, search, date, system, talkgroup",
+    "transcription_failures": "Calls that failed transcription (last 24h)",
+    "transcript_parser": "Transcript parser config",
+    "relay_status": "Relay suspension / public listener block status",
+    "hallucinations": "Pending transcription hallucination suggestions",
+    "all": "Full admin config export (large)"
+  },
+  "readActions": {
+    "radioreference_search": { "payload": { "query": "system name search" } },
+    "radioreference_browse": {
+      "payload": {
+        "step": "countries | states | counties | systems | talkgroups | talkgroup_categories | talkgroups_by_category | sites",
+        "countryId": "for states",
+        "stateId": "for counties",
+        "countyId": "for systems",
+        "systemId": "for talkgroups/sites/categories",
+        "categoryId": "for talkgroups_by_category",
+        "categoryName": "for talkgroups_by_category"
+      }
+    },
+    "parse_tone_import": { "payload": { "format": "twotone | csv", "content": "paste import text" } },
+    "tone_history_analyze": { "payload": { "systemId": 0, "talkgroupId": 0, "limit": 50, "hours": 24 } },
+    "check_server_update": { "payload": {} }
+  },
+  "writeActions": {
+    "save_tags": { "payload": { "tags": "full tags array" }, "note": "Replaces entire tags list" },
+    "update_tags": { "payload": { "updates": [{ "tagId": 0, "currentLabel": "", "newLabel": "", "color": "" }] } },
+    "save_talkgroup_groups": { "payload": { "groups": "full groups array" } },
+    "save_apikeys": { "payload": { "apikeys": "full apikeys array" } },
+    "save_dirwatch": { "payload": { "dirwatch": "full dirwatch array" } },
+    "save_downstreams": { "payload": { "downstreams": "full downstreams array" } },
+    "save_system": { "payload": { "system": "one complete system object with all talkgroups" }, "warning": "Must include ALL talkgroups for that system or others will be deleted" },
+    "delete_system": { "payload": { "systemId": 0 } },
+    "update_talkgroup": { "payload": { "systemId": 0, "talkgroupId": 0, "patch": { "label": "", "name": "", "tagId": 0, "toneDetectionEnabled": true, "alertsEnabled": true } } },
+    "update_talkgroup_tags": { "payload": { "updates": [{ "systemId": 0, "talkgroupId": 0, "tagId": 0 }] } },
+    "update_talkgroup_tone_sets": {
+      "payload": {
+        "systemId": 0,
+        "talkgroupId": 0,
+        "mode": "append | replace",
+        "toneSets": [{ "label": "Fire", "tolerance": 0.02, "aTone": { "frequency": 1234.5, "minDuration": 1, "maxDuration": 3 } }]
+      }
+    },
+    "patch_options": { "payload": { "stripePaywallEnabled": false, "transcriptionConfig": {}, "openAIIntegration": {} }, "note": "Any option key from section=options" },
+    "patch_health_settings": { "payload": { "transcriptionFailureThreshold": 10, "noAudioThresholdMinutes": 30 } },
+    "save_system_no_audio_settings": { "payload": { "systemId": 0, "noAudioAlertsEnabled": true, "noAudioThresholdMinutes": 30 } },
+    "dismiss_health_alert": { "payload": { "alertId": 0 } },
+    "purge_data": { "payload": { "type": "calls | logs", "ids": [] }, "destructive": true },
+    "stripe_sync": { "payload": {} },
+    "sync_tone_sets": { "payload": { "url": "TonesToActive URL", "apiKey": "", "toneSets": [{ "id": "", "label": "" }] }, "note": "Remote TonesToActive only, NOT local talkgroup tone sets" },
+    "radioreference_import_to_system": { "payload": { "systemId": 0, "talkgroups": [], "sites": [] } },
+    "create_user": { "payload": { "email": "", "password": "", "firstName": "", "lastName": "", "userGroupId": 0 } },
+    "update_user": { "payload": { "userId": 0, "email": "", "verified": true, "pin": "" } },
+    "delete_user": { "payload": { "userId": 0 }, "destructive": true },
+    "reset_user_password": { "payload": { "userId": 0, "newPassword": "" } },
+    "invite_user": { "payload": { "email": "", "groupId": 0 } },
+    "transfer_user": { "payload": { "userId": 0, "targetGroupId": 0 } },
+    "save_billing_group": { "payload": { "name": "", "systemAccess": "*", "billingEnabled": false }, "note": "Same fields as POST /api/admin/groups/create" },
+    "update_billing_group": { "payload": { "id": 0, "name": "" }, "note": "Same fields as PUT /api/admin/groups/update" },
+    "delete_billing_group": { "payload": { "groupId": 0 }, "destructive": true },
+    "create_keyword_list": { "payload": { "label": "", "keywords": [], "description": "" } },
+    "update_keyword_list": { "payload": { "id": 0, "keywordList": { "label": "", "keywords": [] } } },
+    "delete_keyword_list": { "payload": { "id": 0 } },
+    "patch_transcript_parser": { "payload": "TranscriptConfig object — read section=transcript_parser first" },
+    "reset_transcription_failures": { "payload": { "callIds": [] } },
+    "approve_hallucination": { "payload": { "id": 0 } },
+    "reject_hallucination": { "payload": { "id": 0 } },
+    "send_test_email": { "payload": { "toEmail": "" } },
+    "change_admin_password": { "payload": { "currentPassword": "", "newPassword": "" } },
+    "config_reload": { "payload": {} },
+    "relay_unlock_public_client": { "payload": {} },
+    "test_central_connection": { "payload": {} }
+  },
+  "workflows": [
+    { "task": "Rename a tag", "steps": ["get_admin_config section=tags", "apply_admin_change action=update_tags"] },
+    { "task": "Add tone set to talkgroup", "steps": ["get_admin_config section=talkgroup", "apply_admin_change action=update_talkgroup_tone_sets mode=append", "Or parse_tone_import then apply toneSets"] },
+    { "task": "Change talkgroup label or enable tone detection", "steps": ["get_admin_config section=talkgroup", "apply_admin_change action=update_talkgroup"] },
+    { "task": "Fix Stripe billing", "steps": ["get_admin_config section=options (stripe keys)", "search_logs categories=[billing]", "apply_admin_change patch_options or stripe_sync"] },
+    { "task": "Import RR talkgroups", "steps": ["radioreference_browse to find system", "radioreference_browse step=talkgroups", "radioreference_import_to_system"] },
+    { "task": "Invite a user", "steps": ["get_admin_config section=user_groups", "apply_admin_change action=invite_user"] }
+  ]
+}

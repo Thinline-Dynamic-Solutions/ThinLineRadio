@@ -31,7 +31,7 @@ export interface SearchResult {
     keywords: string;
     breadcrumb: string;
     icon: string;
-    tab: number;          // 0=Config, 1=Logs, 2=SystemHealth, 3=Tools
+    tab: number;          // 0=Config, 1=Logs, 2=SystemHealth, 3=Tools, 4=Assistant
     configSection?: string;
     optionPanel?: string;
     toolSection?: string;
@@ -113,6 +113,8 @@ const SETTINGS_INDEX: SearchResult[] = [
     { label: 'Config Sync Tool', keywords: 'config sync remote server tool', breadcrumb: 'Tools → Config Sync', icon: 'cloud_sync', tab: 3, toolSection: 'config-sync' },
     { label: 'Stripe Customer Sync', keywords: 'stripe customer sync subscription billing', breadcrumb: 'Tools → Stripe Sync', icon: 'payment', tab: 3, toolSection: 'stripe-sync' },
     { label: 'Purge Data', keywords: 'purge delete data audio calls records', breadcrumb: 'Tools → Purge Data', icon: 'delete_forever', tab: 3, toolSection: 'purge-data' },
+    // ── Assistant ───────────────────────────────────────────────────────────
+    { label: 'Admin Assistant', keywords: 'assistant copilot ai help diagnose chat openai', breadcrumb: 'Assistant', icon: 'smart_toy', tab: 4 },
 ];
 
 @Component({
@@ -124,7 +126,7 @@ const SETTINGS_INDEX: SearchResult[] = [
 export class RdioScannerAdminComponent implements OnDestroy {
     authenticated = false;
 
-    /** Controls which top-level tab is active (0=Config, 1=Logs, 2=System Health, 3=Tools) */
+    /** Controls which top-level tab is active (0=Config, 1=Logs, 2=System Health, 3=Tools, 4=Assistant) */
     selectedTabIndex = 0;
 
     // ── Search ────────────────────────────────────────────────────────────────
@@ -141,9 +143,6 @@ export class RdioScannerAdminComponent implements OnDestroy {
     get formDirty(): boolean { return !!(this.configComponent?.form?.dirty); }
     get formValid(): boolean { return !!(this.configComponent?.form?.valid); }
     get configLoading(): boolean { return !!(this.configComponent?.loading); }
-
-    saveConfig(): void { this.configComponent?.save(); }
-    resetConfig(): void { this.configComponent?.reset(); }
 
     onSearch(): void {
         const q = this.searchQuery.trim().toLowerCase();

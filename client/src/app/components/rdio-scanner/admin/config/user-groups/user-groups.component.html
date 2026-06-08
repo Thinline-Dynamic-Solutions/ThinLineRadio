@@ -1,12 +1,14 @@
 <div class="user-groups-admin">
-  <div class="header-actions">
-    <h3>User Groups Management</h3>
+  <div class="header-actions admin-section-bar">
+    <p class="admin-section-hint">Create groups, set access limits, and assign system/talkgroup permissions.</p>
+    <div class="admin-section-actions">
     <button mat-raised-button color="primary" (click)="createGroup()" *ngIf="!showCreateForm">
       Create New Group
     </button>
     <button mat-raised-button (click)="loadGroups()" [disabled]="loading">
       Refresh
     </button>
+    </div>
   </div>
 
   <div *ngIf="showCreateForm" class="create-form">
@@ -255,7 +257,7 @@
       <div class="form-section" *ngIf="!editingGroup">
         <h4>Group Admin (Optional)</h4>
         <p class="mat-caption">Assign an existing user or create a new user as the group admin.</p>
-        <mat-radio-group [(ngModel)]="groupAdminMode" [ngModelOptions]="{standalone: true}">
+        <mat-radio-group [(ngModel)]="groupAdminMode" [ngModelOptions]="{standalone: true}" (ngModelChange)="onGroupAdminModeChange()">
           <mat-radio-button value="none">No Group Admin</mat-radio-button>
           <mat-radio-button value="existing">Assign Existing User</mat-radio-button>
           <mat-radio-button value="new">Create New User</mat-radio-button>

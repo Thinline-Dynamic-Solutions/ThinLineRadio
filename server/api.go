@@ -3201,6 +3201,10 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				matchesPreference = toneMatches && keywordMatches
+			} else if alertType == "transcript" {
+				// Alerting-talkgroup transcript alerts: alertEnabled on this talkgroup
+				// is enough (no tone/keyword prefs required).
+				matchesPreference = true
 			}
 
 			// Only add alert if it matches user's preferences
@@ -3275,8 +3279,8 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				toneGroupMap[toneSetKey] = append(toneGroupMap[toneSetKey], alert)
-			} else if alertType == "keyword" {
-				// Group keyword alerts by channel (system + talkgroup)
+			} else if alertType == "keyword" || alertType == "transcript" {
+				// Group keyword and alerting-talkgroup transcript alerts by channel
 				systemLabel, _ := alert["systemLabel"].(string)
 				if systemLabel == "" {
 					systemId, _ := alert["systemId"].(uint64)

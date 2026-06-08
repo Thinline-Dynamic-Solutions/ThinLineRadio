@@ -20,6 +20,7 @@
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Component, Input, QueryList, ViewChildren } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormArray, FormGroup } from '@angular/forms';
 import { MatExpansionPanel } from '@angular/material/expansion';
 import { RdioScannerAdminService } from '../../admin.service';
@@ -33,6 +34,8 @@ export class RdioScannerAdminDownstreamsComponent {
     @Input() form: FormArray | undefined;
     @Input() rawSystems: any[] | undefined;
 
+    saving = false;
+
     get downstreams(): FormGroup[] {
         return this.form?.controls
             .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
@@ -40,7 +43,11 @@ export class RdioScannerAdminDownstreamsComponent {
 
     @ViewChildren(MatExpansionPanel) private panels: QueryList<MatExpansionPanel> | undefined;
 
-    constructor(private adminService: RdioScannerAdminService, private matDialog: MatDialog) { }
+    constructor(
+        private adminService: RdioScannerAdminService,
+        private matDialog: MatDialog,
+        private snackBar: MatSnackBar,
+    ) { }
 
     add(): void {
         const downstream = this.adminService.newDownstreamForm({ systems: '*' });
@@ -63,6 +70,7 @@ export class RdioScannerAdminDownstreamsComponent {
             event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
 
             this.form?.markAsDirty();
+            this.saveAll(false);
         }
     }
 
@@ -70,6 +78,7 @@ export class RdioScannerAdminDownstreamsComponent {
         this.form?.removeAt(index);
 
         this.form?.markAsDirty();
+        this.saveAll(false);
     }
 
     select(access: FormGroup): void {
@@ -82,7 +91,36 @@ export class RdioScannerAdminDownstreamsComponent {
                 access.get('systems')?.setValue(data);
 
                 access.markAsDirty();
+                this.saveAll(false);
             }
         });
+    }
+
+    /**
+     * API-driven save: PUT /api/admin/downstreams with the full list.
+     * Auto-invoked for reorder/remove/systems-select; the Save button covers
+     * URL/API-key text edits inside the expansion panels.
+     */
+    async saveAll(showToast = true): Promise<void> {
+        if (!this.form) return;
+        if (this.form.invalid) {
+            if (showToast) {
+                this.snackBar.open('Fix the highlighted fields before saving.', 'Close', { duration: 4000 });
+            }
+            return;
+        }
+
+        this.saving = true;
+        const updated = await this.adminService.saveDownstreams(this.form.getRawValue());
+        this.saving = false;
+
+        if (updated) {
+            this.form.markAsPristine();
+            if (showToast) {
+                this.snackBar.open('Downstreams saved', 'Close', { duration: 1500 });
+            }
+        } else if (showToast) {
+            this.snackBar.open('Failed to save downstreams. Please try again.', 'Close', { duration: 4000 });
+        }
     }
 }

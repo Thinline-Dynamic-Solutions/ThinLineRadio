@@ -40,6 +40,8 @@ export class RdioScannerAdminApikeysComponent {
     // Per-row key visibility state
     keyVisible: boolean[] = [];
 
+    saving = false;
+
     get apikeys(): FormGroup[] {
         // Spread into a new array so mat-table always receives a new reference
         // and correctly detects additions/removals even inside an OnPush parent.
@@ -82,6 +84,8 @@ export class RdioScannerAdminApikeysComponent {
         this.keyVisible.splice(index, 1);
 
         this.form?.markAsDirty();
+        // Removal is structural — persist immediately.
+        this.saveAll(false);
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
@@ -95,6 +99,8 @@ export class RdioScannerAdminApikeysComponent {
             this.keyVisible.splice(event.currentIndex, 0, ...vis);
 
             this.form?.markAsDirty();
+            // Reorder is structural — persist immediately.
+            this.saveAll(false);
         }
     }
 
@@ -107,6 +113,8 @@ export class RdioScannerAdminApikeysComponent {
             if (data) {
                 access.get('systems')?.setValue(data);
                 access.markAsDirty();
+                // Systems-access change — persist immediately.
+                this.saveAll(false);
             }
         });
     }
@@ -116,7 +124,42 @@ export class RdioScannerAdminApikeysComponent {
         if (ctrl) {
             ctrl.setValue(!ctrl.value);
             apikey.markAsDirty();
+            // Toggle auto-saves.
+            this.saveAll(false);
         }
+    }
+
+    /**
+     * API-driven save: sends the full list to PUT /api/admin/apikeys.
+     * Called automatically for structural changes (toggle/reorder/remove/access)
+     * and explicitly via the Save button for text edits (ident/key).
+     */
+    async saveAll(showToast = true): Promise<void> {
+        if (!this.form) return;
+
+        // Never persist an invalid list (e.g. a half-entered new row). Only the
+        // explicit Save button surfaces the reason to the user.
+        if (this.form.invalid) {
+            if (showToast) {
+                this.snackBar.open('Fix the highlighted fields before saving.', 'Close', { duration: 4000 });
+            }
+            return;
+        }
+
+        this.saving = true;
+        const list = this.form.getRawValue();
+        const updated = await this.adminService.saveApikeys(list);
+        this.saving = false;
+
+        if (updated) {
+            this.form.markAsPristine();
+            if (showToast) {
+                this.snackBar.open('API keys saved', 'Close', { duration: 1500 });
+            }
+        } else if (showToast) {
+            this.snackBar.open('Failed to save API keys. Please try again.', 'Close', { duration: 4000 });
+        }
+        this.cdr.markForCheck();
     }
 
     toggleKeyVisible(index: number): void {

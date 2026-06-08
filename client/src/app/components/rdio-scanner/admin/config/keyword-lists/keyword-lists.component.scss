@@ -16,50 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
  */
-/* ── Page header ─────────────────────────────────────────────── */
-.kw-page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 12px;
-
-    .kw-page-title {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-
-        > mat-icon {
-            font-size: 28px;
-            width: 28px;
-            height: 28px;
-            color: #cc0000;
-            flex-shrink: 0;
-        }
-
-        h3 { margin: 0 0 2px; font-size: 16px; font-weight: 600; color: #e0e0e0; }
-        .mat-caption { margin: 0; color: #999; }
-    }
-
-    button {
-        font-size: 13px;
-        color: #ccc;
-        border-color: #444;
-
-        mat-icon { font-size: 18px; width: 18px; height: 18px; }
-        &:hover { color: #fff; border-color: #666; }
-    }
-}
-
 /* ── Loading ─────────────────────────────────────────────────── */
 .kw-loading {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 32px 0;
+    gap: 8px;
+    padding: 16px 0;
     color: #888;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 /* ── Empty state ─────────────────────────────────────────────── */
@@ -67,28 +31,22 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 48px 0;
     color: #666;
-
-    > mat-icon { font-size: 48px; width: 48px; height: 48px; opacity: 0.35; }
-    .mat-body  { color: #999; margin: 0; }
-    .mat-caption { color: #666; margin: 0; }
 }
 
 /* ── Cards container ─────────────────────────────────────────── */
 .kw-cards {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
 }
 
 /* ── Individual card ─────────────────────────────────────────── */
 .kw-card {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
-    border-radius: 10px;
-    padding: 16px 18px;
+    border-radius: 6px;
+    padding: 10px 12px;
     transition: border-color 0.15s;
 
     &:hover:not(.kw-card--editing) { border-color: #383838; }
@@ -115,7 +73,7 @@
 }
 
 .kw-card-name {
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
     color: #e0e0e0;
 }

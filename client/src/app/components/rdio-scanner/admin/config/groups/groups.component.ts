@@ -21,6 +21,7 @@
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Component, Input } from '@angular/core';
 import { FormArray, FormGroup } from '@angular/forms';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
 
 @Component({
@@ -34,12 +35,17 @@ export class RdioScannerAdminGroupsComponent {
 
     displayedColumns: string[] = ['drag', 'label', 'usage', 'id', 'actions'];
 
+    saving = false;
+
     get groups(): FormGroup[] {
         return this.form?.controls
             .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
     }
 
-    constructor(private adminService: RdioScannerAdminService) { }
+    constructor(
+        private adminService: RdioScannerAdminService,
+        private snackBar: MatSnackBar,
+    ) { }
 
     isGroupUnused(groupId: number): boolean {
         if (!this.originalConfig || !this.originalConfig.systems) return false;
@@ -76,6 +82,7 @@ export class RdioScannerAdminGroupsComponent {
             event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
 
             this.form?.markAsDirty();
+            this.saveAll(false);
         }
     }
 
@@ -83,6 +90,34 @@ export class RdioScannerAdminGroupsComponent {
         this.form?.removeAt(index);
 
         this.form?.markAsDirty();
+        this.saveAll(false);
+    }
+
+    /**
+     * API-driven save: PUT /api/admin/talkgroup-groups with the full list.
+     * Auto-invoked for reorder/remove/cleanup; the Save button covers label text edits.
+     */
+    async saveAll(showToast = true): Promise<void> {
+        if (!this.form) return;
+        if (this.form.invalid) {
+            if (showToast) {
+                this.snackBar.open('Fix the highlighted fields before saving.', 'Close', { duration: 4000 });
+            }
+            return;
+        }
+
+        this.saving = true;
+        const updated = await this.adminService.saveGroups(this.form.getRawValue());
+        this.saving = false;
+
+        if (updated) {
+            this.form.markAsPristine();
+            if (showToast) {
+                this.snackBar.open('Talkgroup groups saved', 'Close', { duration: 1500 });
+            }
+        } else if (showToast) {
+            this.snackBar.open('Failed to save talkgroup groups. Please try again.', 'Close', { duration: 4000 });
+        }
     }
 
     cleanupUnused(): void {
@@ -109,5 +144,6 @@ export class RdioScannerAdminGroupsComponent {
         }
 
         this.form.markAsDirty();
+        this.saveAll(false);
     }
 }

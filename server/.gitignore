@@ -2,6 +2,8 @@
 /*.db-journal
 /*.crt
 /*.json
+!/copilot_kb.json
+!/copilot_capabilities.json
 /*.key
 /*.ini
 /*.exe

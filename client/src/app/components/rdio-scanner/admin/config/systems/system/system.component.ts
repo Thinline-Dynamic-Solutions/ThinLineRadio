@@ -36,8 +36,11 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     @Input() tags: Tag[] = [];
     @Input() apikeys: any[] = [];
     @Input() systemData: any; // Original system data for lazy loading
+    @Input() saving = false;
+    @Input() saveSuccess = false;
 
     @Output() remove = new EventEmitter<void>();
+    @Output() save = new EventEmitter<void>();
     @Output() onTalkgroupsLoaded = new EventEmitter<void>();
 
     // ─── Expanded row state ────────────────────────────────────────────────────
@@ -49,6 +52,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     expandedRawUnit:  any | null     = null;
     expandedUnitForm: FormGroup|null = null;
     private expandedUnitFormSub: Subscription | null = null;
+    private expandedTalkgroupSub: Subscription | null = null;
 
     // ─── Column definitions ────────────────────────────────────────────────────
     talkgroupDisplayedColumns = ['select', 'drag', 'talkgroupRef', 'label', 'name', 'groups', 'tag', 'alertsEnabled', 'actions'];
@@ -63,7 +67,8 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     unitCurrentPage = 0;
 
     // ─── Bulk selection ────────────────────────────────────────────────────────
-    selectedTalkgroupIndices: Set<number> = new Set();
+    /** Selected talkgroups by FormGroup reference — O(1) lookup in the table. */
+    selectedTalkgroups: Set<FormGroup> = new Set();
     bulkAssignGroupId: number | null = null;
     bulkAssignTagId: number | null = null;
 
@@ -78,12 +83,20 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     private _lastSitesVersion:      number = 0;
     private _lastTalkgroupsVersion: number = 0;
 
+    private tagLabelById = new Map<number, string>();
+    private groupLabelById = new Map<number, string>();
+    tagsUsedInSystemList: Tag[] = [];
+
     constructor(
         private adminService: RdioScannerAdminService,
         private cdr: ChangeDetectorRef
     ) { }
 
     ngOnChanges(changes: SimpleChanges) {
+        if (changes['tags'] || changes['groups']) {
+            this.rebuildLabelMaps();
+        }
+
         if (changes['systemData']) {
             this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
             this.unitCurrentPage = 0;
@@ -98,7 +111,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
             const tgArray = this.form.get('talkgroups') as FormArray | null;
             this.talkgroupsLoaded = tgArray ? tgArray.length > 0 : false;
             this.talkgroupCurrentPage = 0;
-            this.selectedTalkgroupIndices.clear();
+            this.selectedTalkgroups.clear();
             this.talkgroupsSearchTerm = '';
 
             if (!this.talkgroupsLoaded) {
@@ -108,6 +121,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     }
 
     ngOnInit() {
+        this.rebuildLabelMaps();
         // Initialize raw units instantly from systemData — no FormGroups needed for display
         this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
 
@@ -115,6 +129,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         const tgArray = this.form.get('talkgroups') as FormArray | null;
         if (tgArray && tgArray.length > 0) {
             this.talkgroupsLoaded = true;
+            this.invalidateTagsUsedInSystem();
         } else {
             setTimeout(() => { this.loadTalkgroupsProgressively(); }, 100);
         }
@@ -154,6 +169,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
             // Check if we're done
             if (currentIndex >= talkgroups.length) {
                 this.talkgroupsLoaded = true;
+                this.invalidateTagsUsedInSystem();
                 this.onTalkgroupsLoaded.emit();
                 this.cdr.markForCheck();
             } else {
@@ -206,6 +222,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
                 });
             }
             this.talkgroupsLoaded = true;
+            this.invalidateTagsUsedInSystem();
             this.onTalkgroupsLoaded.emit();
             this.cdr.markForCheck();
         }
@@ -222,22 +239,16 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     // ─── Filtered / paginated ──────────────────────────────────────────────────
 
     get filteredTalkgroups(): FormGroup[] {
-        let filtered = this.talkgroupsSearchTerm.trim() 
-            ? this.talkgroups.filter(tg => {
-                const s = this.talkgroupsSearchTerm.toLowerCase();
-                return (tg.value.label || '').toLowerCase().includes(s) ||
-                       (tg.value.name  || '').toLowerCase().includes(s) ||
-                       String(tg.value.talkgroupRef).includes(s);
-              })
-            : this.talkgroups;
-        
-        // Reset to page 1 if we're beyond the available pages
-        const totalPages = Math.ceil(filtered.length / this.talkgroupPageSize);
-        if (this.talkgroupCurrentPage >= totalPages && totalPages > 0) {
-            this.talkgroupCurrentPage = 0;
+        const term = this.talkgroupsSearchTerm.trim();
+        if (!term) {
+            return this.talkgroups;
         }
-        
-        return filtered;
+        const s = term.toLowerCase();
+        return this.talkgroups.filter(tg =>
+            (tg.value.label || '').toLowerCase().includes(s) ||
+            (tg.value.name || '').toLowerCase().includes(s) ||
+            String(tg.value.talkgroupRef).includes(s)
+        );
     }
 
     get paginatedTalkgroups(): FormGroup[] {
@@ -261,24 +272,24 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     nextTalkgroupPage(): void {
         if (this.talkgroupCurrentPage < this.talkgroupTotalPages - 1) {
             this.talkgroupCurrentPage++;
-            // Collapse expanded talkgroup when changing pages
-            this.expandedTalkgroup = null;
+            this.collapseExpandedTalkgroup();
+            this.cdr.markForCheck();
         }
     }
 
     prevTalkgroupPage(): void {
         if (this.talkgroupCurrentPage > 0) {
             this.talkgroupCurrentPage--;
-            // Collapse expanded talkgroup when changing pages
-            this.expandedTalkgroup = null;
+            this.collapseExpandedTalkgroup();
+            this.cdr.markForCheck();
         }
     }
 
     goToTalkgroupPage(page: number): void {
         if (page >= 0 && page < this.talkgroupTotalPages) {
             this.talkgroupCurrentPage = page;
-            // Collapse expanded talkgroup when changing pages
-            this.expandedTalkgroup = null;
+            this.collapseExpandedTalkgroup();
+            this.cdr.markForCheck();
         }
     }
 
@@ -353,7 +364,26 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     // ─── Expand / collapse rows ────────────────────────────────────────────────
 
     toggleTalkgroupExpand(tg: FormGroup): void {
-        this.expandedTalkgroup = this.expandedTalkgroup === tg ? null : tg;
+        if (this.expandedTalkgroup === tg) {
+            this.collapseExpandedTalkgroup();
+            return;
+        }
+        this.collapseExpandedTalkgroup();
+        this.expandedTalkgroup = tg;
+        const tagControl = tg.get('tagId');
+        if (tagControl) {
+            this.expandedTalkgroupSub = tagControl.valueChanges.subscribe(() => {
+                this.invalidateTagsUsedInSystem();
+                this.cdr.markForCheck();
+            });
+        }
+        this.cdr.markForCheck();
+    }
+
+    private collapseExpandedTalkgroup(): void {
+        this.expandedTalkgroupSub?.unsubscribe();
+        this.expandedTalkgroupSub = null;
+        this.expandedTalkgroup = null;
     }
 
     toggleSiteExpand(site: FormGroup): void {
@@ -401,76 +431,57 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
 
     ngOnDestroy(): void {
         this.expandedUnitFormSub?.unsubscribe();
+        this.expandedTalkgroupSub?.unsubscribe();
     }
 
     // ─── Helper: look up labels ────────────────────────────────────────────────
 
-    getGroupLabels(groupIds: number[]): string[] {
-        if (!groupIds || !groupIds.length) return [];
-        return groupIds.map(id => {
-            const g = this.groups.find(gr => gr.id === id);
-            return (g ? g.label : `#${id}`) as string;
-        });
-    }
-
-    getTagLabel(tagId: number): string {
-        if (!tagId) return '';
-        const t = this.tags.find(tg => tg.id === tagId);
-        return (t ? t.label : `#${tagId}`) as string;
-    }
-
-    /** Tags assigned to at least one talkgroup on this system (for bulk tone rollout picker). */
-    get tagsUsedInSystem(): Tag[] {
-        const tagIds = new Set<number>();
-        const collect = (talkgroups: { tagId?: number }[]) => {
-            for (const tg of talkgroups || []) {
-                if (tg?.tagId) {
-                    tagIds.add(tg.tagId);
-                }
+    private rebuildLabelMaps(): void {
+        this.tagLabelById.clear();
+        for (const tag of this.tags) {
+            if (tag.id != null && tag.label) {
+                this.tagLabelById.set(tag.id, tag.label);
             }
-        };
+        }
+        this.groupLabelById.clear();
+        for (const group of this.groups) {
+            if (group.id != null && group.label) {
+                this.groupLabelById.set(group.id, group.label);
+            }
+        }
+    }
+
+    tagLabel(tagId: number | null | undefined): string {
+        if (!tagId) return '';
+        return this.tagLabelById.get(tagId) ?? `#${tagId}`;
+    }
+
+    getGroupLabels(groupIds: number[]): string[] {
+        if (!groupIds?.length) return [];
+        return groupIds.map(id => this.groupLabelById.get(id) ?? `#${id}`);
+    }
+
+    /** Rebuild tags assigned to talkgroups on this system (bulk rollout pickers). */
+    invalidateTagsUsedInSystem(): void {
+        const tagIds = new Set<number>();
         if (this.talkgroupsLoaded) {
             for (const tg of this.talkgroups) {
                 const id = tg.get('tagId')?.value;
                 if (id) tagIds.add(id);
             }
         } else if (this.systemData?.talkgroups) {
-            collect(this.systemData.talkgroups);
-        }
-        return this.tags.filter(t => t.id != null && tagIds.has(t.id));
-    }
-
-    private talkgroupCountForTags(controlName: string): number {
-        const selected: number[] = this.form.get(controlName)?.value || [];
-        if (!selected.length) return 0;
-        const tagSet = new Set(selected);
-        let count = 0;
-        const countIn = (talkgroups: { tagId?: number }[]) => {
-            for (const tg of talkgroups || []) {
-                if (tg?.tagId && tagSet.has(tg.tagId)) count++;
+            for (const tg of this.systemData.talkgroups) {
+                if (tg?.tagId) tagIds.add(tg.tagId);
             }
-        };
-        if (this.talkgroupsLoaded) {
-            for (const tg of this.talkgroups) {
-                const id = tg.get('tagId')?.value;
-                if (id && tagSet.has(id)) count++;
-            }
-        } else if (this.systemData?.talkgroups) {
-            countIn(this.systemData.talkgroups);
         }
-        return count;
+        this.tagsUsedInSystemList = this.tags.filter(t => t.id != null && tagIds.has(t.id));
     }
 
-    get bulkToneTargetCount(): number {
-        return this.talkgroupCountForTags('bulkToneDetectionTagIds');
-    }
-
-    get toneLearnTargetCount(): number {
-        return this.talkgroupCountForTags('autoLearnToneSetsTagIds');
-    }
-
-    get unitLearnTargetCount(): number {
-        return this.talkgroupCountForTags('autoLearnUnitAliasesTagIds');
+    private clampTalkgroupPage(): void {
+        const totalPages = this.talkgroupTotalPages;
+        if (totalPages > 0 && this.talkgroupCurrentPage >= totalPages) {
+            this.talkgroupCurrentPage = 0;
+        }
     }
 
     get toneLearnExpiresLabel(): string {
@@ -489,49 +500,41 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
 
     // ─── Bulk selection ────────────────────────────────────────────────────────
 
-    get hasSelectedTalkgroups(): boolean { return this.selectedTalkgroupIndices.size > 0; }
+    get hasSelectedTalkgroups(): boolean { return this.selectedTalkgroups.size > 0; }
 
     /** True when every currently-visible (filtered) talkgroup is selected. */
     get allTalkgroupsSelected(): boolean {
         const visible = this.filteredTalkgroups;
         if (visible.length === 0) return false;
-        return visible.every(tg => {
-            const idx = this.talkgroups.indexOf(tg);
-            return idx !== -1 && this.selectedTalkgroupIndices.has(idx);
-        });
+        return visible.every(tg => this.selectedTalkgroups.has(tg));
     }
 
-    /** Toggle selection by FormGroup reference — immune to filtered-index drift. */
     toggleTalkgroupSelection(tg: FormGroup): void {
-        const idx = this.talkgroups.indexOf(tg);
-        if (idx === -1) return;
-        if (this.selectedTalkgroupIndices.has(idx)) {
-            this.selectedTalkgroupIndices.delete(idx);
+        if (this.selectedTalkgroups.has(tg)) {
+            this.selectedTalkgroups.delete(tg);
         } else {
-            this.selectedTalkgroupIndices.add(idx);
+            this.selectedTalkgroups.add(tg);
         }
+        this.cdr.markForCheck();
     }
 
-    /** Check selection by FormGroup reference — immune to filtered-index drift. */
     isTalkgroupSelected(tg: FormGroup): boolean {
-        const idx = this.talkgroups.indexOf(tg);
-        return idx !== -1 && this.selectedTalkgroupIndices.has(idx);
+        return this.selectedTalkgroups.has(tg);
     }
 
-    /** Select only the currently visible (filtered) talkgroups. */
     selectAllTalkgroups(): void {
-        this.filteredTalkgroups.forEach(tg => {
-            const idx = this.talkgroups.indexOf(tg);
-            if (idx !== -1) this.selectedTalkgroupIndices.add(idx);
-        });
+        this.filteredTalkgroups.forEach(tg => this.selectedTalkgroups.add(tg));
+        this.cdr.markForCheck();
     }
 
-    unselectAllTalkgroups(): void { this.selectedTalkgroupIndices.clear(); }
+    unselectAllTalkgroups(): void {
+        this.selectedTalkgroups.clear();
+        this.cdr.markForCheck();
+    }
 
     bulkAssignGroup(): void {
         if (this.bulkAssignGroupId === null || !this.hasSelectedTalkgroups) return;
-        this.selectedTalkgroupIndices.forEach(i => {
-            const tg = this.talkgroups[i];
+        this.selectedTalkgroups.forEach(tg => {
             const ids: number[] = tg.get('groupIds')?.value || [];
             if (!ids.includes(this.bulkAssignGroupId!)) {
                 tg.get('groupIds')?.setValue([...ids, this.bulkAssignGroupId]);
@@ -541,12 +544,12 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         this.form.markAsDirty();
         this.unselectAllTalkgroups();
         this.bulkAssignGroupId = null;
+        this.cdr.markForCheck();
     }
 
     bulkRemoveGroup(): void {
         if (this.bulkAssignGroupId === null || !this.hasSelectedTalkgroups) return;
-        this.selectedTalkgroupIndices.forEach(i => {
-            const tg = this.talkgroups[i];
+        this.selectedTalkgroups.forEach(tg => {
             const ids: number[] = tg.get('groupIds')?.value || [];
             tg.get('groupIds')?.setValue(ids.filter(id => id !== this.bulkAssignGroupId));
             tg.markAsDirty();
@@ -554,18 +557,20 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         this.form.markAsDirty();
         this.unselectAllTalkgroups();
         this.bulkAssignGroupId = null;
+        this.cdr.markForCheck();
     }
 
     bulkAssignTag(): void {
         if (this.bulkAssignTagId === null || !this.hasSelectedTalkgroups) return;
-        this.selectedTalkgroupIndices.forEach(i => {
-            const tg = this.talkgroups[i];
+        this.selectedTalkgroups.forEach(tg => {
             tg.get('tagId')?.setValue(this.bulkAssignTagId);
             tg.markAsDirty();
         });
         this.form.markAsDirty();
+        this.invalidateTagsUsedInSystem();
         this.unselectAllTalkgroups();
         this.bulkAssignTagId = null;
+        this.cdr.markForCheck();
     }
 
     // ─── CRUD ──────────────────────────────────────────────────────────────────
@@ -595,10 +600,8 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
 
     /** Remove a talkgroup by FormGroup reference — immune to filtered-index drift. */
     removeTalkgroup(tg: FormGroup): void {
-        if (this.expandedTalkgroup === tg) this.expandedTalkgroup = null;
-        // Deselect it if currently selected
-        const selIdx = this.talkgroups.indexOf(tg);
-        if (selIdx !== -1) this.selectedTalkgroupIndices.delete(selIdx);
+        if (this.expandedTalkgroup === tg) this.collapseExpandedTalkgroup();
+        this.selectedTalkgroups.delete(tg);
         // Find its actual position in the raw FormArray by reference, not by index
         const arr = this.form.get('talkgroups') as FormArray | null;
         if (!arr) return;
@@ -606,6 +609,8 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         if (arrIdx !== -1) arr.removeAt(arrIdx);
         arr.markAsDirty();
         this._lastTalkgroupsVersion++;
+        this.invalidateTagsUsedInSystem();
+        this.cdr.markForCheck();
     }
 
     /** Remove by FormGroup reference — table rows are sorted by order, not FormArray index. */
@@ -717,6 +722,11 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
 
     // ─── Search handlers ───────────────────────────────────────────────────────
 
-    onTalkgroupsSearchChange(s: string): void { this.talkgroupsSearchTerm = s; }
+    onTalkgroupsSearchChange(s: string): void {
+        this.talkgroupsSearchTerm = s;
+        this.talkgroupCurrentPage = 0;
+        this.clampTalkgroupPage();
+        this.cdr.markForCheck();
+    }
     onSitesSearchChange(s: string): void { this.sitesSearchTerm = s; }
 }

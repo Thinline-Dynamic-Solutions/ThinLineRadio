@@ -1,5 +1,61 @@
 # Change log
 
+## Version 26.06.12 - Released June 8, 2026
+
+### Added
+
+- **Admin — Admin Assistant (AI copilot)**
+  - New **Assistant** tab with OpenAI chat backed by server-side tool calling (`POST /api/admin/copilot/chat`).
+  - Reads and changes admin settings with the same data paths as the UI: tags, systems, talkgroups, tone sets, options, users, billing groups, keyword lists, health alerts, logs, calls, Stripe sync, Radio Reference browse/import, and more.
+  - Embedded capabilities catalog (`get_admin_config section=capabilities`) documents every read section, read/write action, payload shapes, workflows, and limitations.
+  - Confirm-before-write flow: destructive or config changes require explicit admin approval (`confirmed: true`).
+  - Tools include log search, health alerts, talkgroup tag audit, tone import parsing, tone history analysis, transcription failure reset, hallucination approve/reject, user invite/transfer, and embedded admin help articles.
+
+- **Admin — Global settings search**
+  - Search bar at the top of admin jumps to Config options panels, config sections, Tools, and the Assistant tab via a searchable settings index.
+
+- **Admin — Config sidebar navigation**
+  - Config tab uses a left sidebar (User Groups, Users, API Keys, Dirwatch, Downstreams, Systems, Groups, Tags, Keyword Lists, Options, Transcript Parser) instead of a flat tab strip.
+
+- **Admin — Log categories**
+  - Server logs are auto-categorized (auth, billing, email, calls, transcription, tones, relay, health, admin, etc.) with regex-based classification and DB migration.
+  - Logs tab adds category filter chips, a category column, and category-aware search API (`GET /api/admin/logs/categories`).
+  - Standard-library `log` output is captured into the admin logs table alongside structured `LogEvent` entries.
+
+- **Admin — Remote admin access control**
+  - **Admin Allowed IPs** option (CIDR or exact IP list) supplements localhost-only access; localhost is always permitted.
+
+- **Admin — OpenAI integration options**
+  - Config → Options → Integrations exposes OpenAI API key, base URL, and chat model used by the Assistant and tone/unit auto-learn naming.
+
+### Changed
+
+- **Admin — Visual refresh**
+  - Shared dark-theme admin styling (`styles.scss`), updated Config/Logs/System Health/Tools layouts, and cleaner section headers and hints across config editors.
+
+- **Admin — Options editor**
+  - Large refactor: collapsible option panels align with the settings search index; improved field grouping for transcription, alerts, email, Stripe, integrations, and audio settings.
+
+- **Admin — Logs tab**
+  - Redesigned table with category chips, improved filters, and pagination UX.
+
+- **Admin — System Health tab**
+  - Simplified layout and styling aligned with the new admin theme.
+
+- **Admin — Config editors**
+  - Dirwatch, keyword lists, systems/talkgroups, tags, groups, API keys, and downstreams updated for sidebar navigation and consistent save/dirty behavior.
+  - Removed duplicate legacy `api-keys` component (consolidated into `apikeys`).
+
+- **Server — Radio Reference import**
+  - Shared `radioReferenceImportToSystemCore` used by both the HTTP handler and Admin Assistant import action.
+
+### Fixed
+
+- **Admin — Save disabled after config import**
+  - Users, user groups, and keyword lists are API-backed shadow arrays in the config form. Invalid imported data (e.g. blank email) silently marked the whole form invalid and disabled Save. Those arrays no longer gate form validity while `getRawValue()` still feeds the full-import save path.
+
+---
+
 ## Version 26.06.10 - Released June 7, 2026
 
 ### Added

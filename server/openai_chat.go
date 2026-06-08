@@ -107,3 +107,86 @@ func (controller *Controller) openAIChatJSON(systemPrompt, userPrompt string) (s
 	}
 	return chatResp.Choices[0].Message.Content, nil
 }
+
+// OpenAIChatMessage is a chat completion message (user, assistant, system, or tool).
+type OpenAIChatMessage struct {
+	Role       string           `json:"role"`
+	Content    string           `json:"content,omitempty"`
+	ToolCalls  []OpenAIToolCall   `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+	Name       string           `json:"name,omitempty"`
+}
+
+// OpenAIToolCall is a function invocation requested by the model.
+type OpenAIToolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
+type openAIToolDef struct {
+	Type     string `json:"type"`
+	Function struct {
+		Name        string         `json:"name"`
+		Description string         `json:"description"`
+		Parameters  map[string]any `json:"parameters"`
+	} `json:"function"`
+}
+
+func (controller *Controller) openAIChatCompletion(messages []OpenAIChatMessage, tools []openAIToolDef) (*OpenAIChatMessage, error) {
+	oai := controller.Options.OpenAIIntegration
+	apiKey := strings.TrimSpace(oai.APIKey)
+	if apiKey == "" {
+		return nil, fmt.Errorf("openai api key not configured")
+	}
+
+	model := oai.resolvedChatModel()
+	baseURL := resolveOpenAIBaseURL(oai.BaseURL)
+
+	payload := map[string]any{
+		"model":       model,
+		"messages":    messages,
+		"temperature": 0.3,
+	}
+	if len(tools) > 0 {
+		payload["tools"] = tools
+		payload["tool_choice"] = "auto"
+	}
+
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("openai status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var chatResp struct {
+		Choices []struct {
+			Message OpenAIChatMessage `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(respBody, &chatResp); err != nil {
+		return nil, err
+	}
+	if len(chatResp.Choices) == 0 {
+		return nil, fmt.Errorf("openai returned no choices")
+	}
+	msg := chatResp.Choices[0].Message
+	return &msg, nil
+}

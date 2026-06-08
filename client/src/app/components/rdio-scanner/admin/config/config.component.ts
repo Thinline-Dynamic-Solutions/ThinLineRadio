@@ -20,6 +20,7 @@
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnDestroy, OnInit, ViewChild, ViewEncapsulation } from '@angular/core';
 import { FormArray, FormControl, FormGroup } from '@angular/forms';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { AdminEvent, RdioScannerAdminService, Config, Group, Tag } from '../admin.service';
 import { RdioScannerAdminUsersComponent } from './users/users.component';
 import { RdioScannerAdminUserGroupsComponent } from './user-groups/user-groups.component';
@@ -163,9 +164,17 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         setTimeout(() => this.optionsComponent?.openPanel(panelName), 80);
     }
 
+    /** True while a single-system API save is in flight (drives the Save button state). */
+    savingSystem = false;
+
+    /** Brief flash on the Save System button after a successful save. */
+    systemSaveSuccess = false;
+    private systemSaveSuccessTimeout?: ReturnType<typeof setTimeout>;
+
     constructor(
         private adminService: RdioScannerAdminService,
         private ngChangeDetectorRef: ChangeDetectorRef,
+        private matSnackBar: MatSnackBar,
     ) {
         this.eventSubscription = this.adminService.event.subscribe(async (event: AdminEvent) => {
             if ('authenticated' in event && event.authenticated === true) {
@@ -202,6 +211,9 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         this.groupsSubscription?.unsubscribe();
         this.tagsSubscription?.unsubscribe();
         this.statusSubscription?.unsubscribe();
+        if (this.systemSaveSuccessTimeout) {
+            clearTimeout(this.systemSaveSuccessTimeout);
+        }
     }
 
     async ngOnInit(): Promise<void> {
@@ -269,13 +281,187 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         this.ngChangeDetectorRef.markForCheck();
     }
 
-    /** Remove the currently selected system and return to the overview */
-    removeCurrentSystem(): void {
+    /**
+     * Save ONLY the currently open system via the dedicated API endpoint.
+     * No page reload — the server merges this one system (preserving other systems'
+     * lazily-loaded talkgroups) and broadcasts the new config to live clients.
+     */
+    async saveCurrentSystem(): Promise<void> {
         if (!this.activeSystemForm) return;
+
+        if (this.activeSystemForm.invalid) {
+            this.activeSystemForm.markAllAsTouched();
+            this.matSnackBar.open('Fix the highlighted fields before saving.', 'Close', { duration: 4000 });
+            return;
+        }
+
+        const raw = this.activeSystemForm.getRawValue();
+        const system = this.convertSystemForSave(raw);
+
+        this.savingSystem = true;
+        const systems = await this.adminService.saveSystem(system);
+        this.savingSystem = false;
+
+        if (systems) {
+            this.activeSystemForm.markAsPristine();
+            this.applySavedSystems(systems, raw);
+            // Suppress the EmitConfig echo (arrives within ~5 s) so the open system
+            // view isn't torn down and rebuilt right after our own save.
+            this._lastResetTime = Date.now();
+            this.showSystemSaveSuccess();
+        } else {
+            this.matSnackBar.open('Failed to save system. Please try again.', 'Close', { duration: 4000 });
+        }
+        this.ngChangeDetectorRef.markForCheck();
+    }
+
+    private showSystemSaveSuccess(): void {
+        const label = this.activeSystemForm?.get('label')?.value?.trim() || 'System';
+        this.matSnackBar.open(`${label} saved`, 'Close', { duration: 1500 });
+        this.systemSaveSuccess = true;
+        if (this.systemSaveSuccessTimeout) {
+            clearTimeout(this.systemSaveSuccessTimeout);
+        }
+        this.systemSaveSuccessTimeout = setTimeout(() => {
+            this.systemSaveSuccess = false;
+            this.ngChangeDetectorRef.markForCheck();
+        }, 2500);
+    }
+
+    /**
+     * After a single-system save, reconcile local state with the server response:
+     * propagate a server-assigned id into the form (new systems) and refresh the
+     * originalConfig entry so lazy-load + getSystemData stay correct without a reload.
+     */
+    private applySavedSystems(systems: any[], savedRaw: any): void {
+        let saved = savedRaw.id ? systems.find(s => s.id === savedRaw.id) : undefined;
+        if (!saved && savedRaw.systemRef != null) {
+            saved = systems.find(s => s.systemRef === savedRaw.systemRef);
+        }
+        if (!saved) return;
+
+        if (!savedRaw.id && saved.id) {
+            this.activeSystemForm?.get('id')?.setValue(saved.id, { emitEvent: false });
+        }
+
+        if (!this.originalConfig.systems) this.originalConfig.systems = [];
+        const idx = this.originalConfig.systems.findIndex(s => s.id === saved.id);
+        if (idx !== -1) {
+            this.originalConfig.systems[idx] = saved;
+        } else {
+            this.originalConfig.systems.push(saved);
+        }
+
+        if (saved.id) this.systemsWithLoadedTalkgroups.add(saved.id);
+    }
+
+    /**
+     * Apply the flat-form → nested tone-set conversion (and units/talkgroup
+     * restoration) for a single system. Shared by the whole-config save and the
+     * per-system API save.
+     */
+    private convertSystemForSave(system: any): any {
+        // Units are managed as raw objects (not FormGroups) — always restore
+        // from originalConfig which is mutated in-place by the system component
+        if (system.id) {
+            const originalSystem = this.originalConfig.systems?.find(s => s.id === system.id);
+            if (originalSystem) {
+                system.units = originalSystem.units || [];
+            }
+        }
+
+        // Restore talkgroups from original config if they weren't loaded
+        if (system.id && !this.systemsWithLoadedTalkgroups.has(system.id)) {
+            const originalSystem = this.originalConfig.systems?.find(s => s.id === system.id);
+            if (originalSystem?.talkgroups) {
+                system.talkgroups = originalSystem.talkgroups;
+                return system;
+            }
+        }
+
+        if (system.talkgroups) {
+            system.talkgroups = system.talkgroups.map((talkgroup: any) => {
+                if (talkgroup.toneSets && Array.isArray(talkgroup.toneSets)) {
+                    talkgroup.toneSets = talkgroup.toneSets.map((toneSet: any) => {
+                        const converted: any = {
+                            id: toneSet.id,
+                            label: toneSet.label,
+                            tolerance: toneSet.tolerance || 10,
+                        };
+
+                        if (toneSet.aToneFrequency || toneSet.aToneMinDuration) {
+                            converted.aTone = {
+                                frequency: toneSet.aToneFrequency,
+                                minDuration: toneSet.aToneMinDuration || 0,
+                            };
+                            if (toneSet.aToneMaxDuration) {
+                                converted.aTone.maxDuration = toneSet.aToneMaxDuration;
+                            }
+                        }
+
+                        if (toneSet.bToneFrequency || toneSet.bToneMinDuration) {
+                            converted.bTone = {
+                                frequency: toneSet.bToneFrequency,
+                                minDuration: toneSet.bToneMinDuration || 0,
+                            };
+                            if (toneSet.bToneMaxDuration) {
+                                converted.bTone.maxDuration = toneSet.bToneMaxDuration;
+                            }
+                        }
+
+                        if (toneSet.longToneFrequency || toneSet.longToneMinDuration) {
+                            converted.longTone = {
+                                frequency: toneSet.longToneFrequency,
+                                minDuration: toneSet.longToneMinDuration || 0,
+                            };
+                            if (toneSet.longToneMaxDuration) {
+                                converted.longTone.maxDuration = toneSet.longToneMaxDuration;
+                            }
+                        }
+
+                        // Preserve TonesToActive downstream fields
+                        converted.downstreamEnabled = toneSet.downstreamEnabled || false;
+                        if (toneSet.downstreamURL) {
+                            converted.downstreamURL = toneSet.downstreamURL;
+                        }
+                        if (toneSet.downstreamAPIKey) {
+                            converted.downstreamAPIKey = toneSet.downstreamAPIKey;
+                        }
+
+                        return converted;
+                    });
+                }
+                return talkgroup;
+            });
+        }
+        return system;
+    }
+
+    /** Remove the currently selected system and return to the overview */
+    async removeCurrentSystem(): Promise<void> {
+        if (!this.activeSystemForm) return;
+
+        const id = this.activeSystemForm.get('id')?.value;
         const idx = this.systems.controls.indexOf(this.activeSystemForm);
+
+        // Persisted systems are deleted via the API; brand-new (unsaved) systems
+        // only need to be dropped from the form.
+        if (id) {
+            const systems = await this.adminService.deleteSystem(id);
+            if (!systems) {
+                return; // error already surfaced by the service
+            }
+            if (this.originalConfig.systems) {
+                this.originalConfig.systems = this.originalConfig.systems.filter(s => s.id !== id);
+            }
+            this.systemsWithLoadedTalkgroups.delete(id);
+            // Suppress the EmitConfig echo rebuild.
+            this._lastResetTime = Date.now();
+            this.matSnackBar.open('System deleted', 'Close', { duration: 1500 });
+        }
+
         if (idx !== -1) {
             this.systems.removeAt(idx);
-            this.form?.markAsDirty();
         }
         this.activeSystemForm = null;
         this.activeSection = 'systems';
@@ -462,173 +648,4 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         }, 100);
     }
 
-    async save(): Promise<void> {
-        this.form?.markAsPristine();
-
-        const formValue = this.form?.getRawValue();
-        
-        const isFullImport = this.isImportedForReview;
-        
-        if (!isFullImport) {
-            delete formValue.users;
-            delete formValue.userGroups;
-            delete formValue.keywordLists;
-            delete formValue.userAlertPreferences;
-            delete formValue.deviceTokens;
-        } else {
-            // Splice in the arrays that never live inside the Angular form
-            if (this.importedUserAlertPreferences !== null) {
-                formValue.userAlertPreferences = this.importedUserAlertPreferences;
-            }
-            if (this.importedDeviceTokens !== null) {
-                formValue.deviceTokens = this.importedDeviceTokens;
-            }
-        }
-        
-        this.isImportedForReview = false;
-        this.importedUserAlertPreferences = null;
-        this.importedDeviceTokens = null;
-
-        // Convert tone sets from flat form structure to nested structure
-        if (formValue?.systems) {
-            formValue.systems = formValue.systems.map((system: any) => {
-                // Units are managed as raw objects (not FormGroups) — always restore
-                // from originalConfig which is mutated in-place by the system component
-                if (system.id) {
-                    const originalSystem = this.originalConfig.systems?.find(s => s.id === system.id);
-                    if (originalSystem) {
-                        system.units = originalSystem.units || [];
-                    }
-                }
-
-                // Restore talkgroups from original config if they weren't loaded
-                if (system.id && !this.systemsWithLoadedTalkgroups.has(system.id)) {
-                    const originalSystem = this.originalConfig.systems?.find(s => s.id === system.id);
-                    if (originalSystem?.talkgroups) {
-                        system.talkgroups = originalSystem.talkgroups;
-                        return system;
-                    }
-                }
-                
-                if (system.talkgroups) {
-                    system.talkgroups = system.talkgroups.map((talkgroup: any) => {
-                        if (talkgroup.toneSets && Array.isArray(talkgroup.toneSets)) {
-                            talkgroup.toneSets = talkgroup.toneSets.map((toneSet: any) => {
-                                const converted: any = {
-                                    id: toneSet.id,
-                                    label: toneSet.label,
-                                    tolerance: toneSet.tolerance || 10,
-                                };
-
-                                if (toneSet.aToneFrequency || toneSet.aToneMinDuration) {
-                                    converted.aTone = {
-                                        frequency: toneSet.aToneFrequency,
-                                        minDuration: toneSet.aToneMinDuration || 0,
-                                    };
-                                    if (toneSet.aToneMaxDuration) {
-                                        converted.aTone.maxDuration = toneSet.aToneMaxDuration;
-                                    }
-                                }
-                                
-                                if (toneSet.bToneFrequency || toneSet.bToneMinDuration) {
-                                    converted.bTone = {
-                                        frequency: toneSet.bToneFrequency,
-                                        minDuration: toneSet.bToneMinDuration || 0,
-                                    };
-                                    if (toneSet.bToneMaxDuration) {
-                                        converted.bTone.maxDuration = toneSet.bToneMaxDuration;
-                                    }
-                                }
-                                
-                                if (toneSet.longToneFrequency || toneSet.longToneMinDuration) {
-                                    converted.longTone = {
-                                        frequency: toneSet.longToneFrequency,
-                                        minDuration: toneSet.longToneMinDuration || 0,
-                                    };
-                                    if (toneSet.longToneMaxDuration) {
-                                        converted.longTone.maxDuration = toneSet.longToneMaxDuration;
-                                    }
-                                }
-
-                                // Preserve TonesToActive downstream fields
-                                converted.downstreamEnabled = toneSet.downstreamEnabled || false;
-                                if (toneSet.downstreamURL) {
-                                    converted.downstreamURL = toneSet.downstreamURL;
-                                }
-                                if (toneSet.downstreamAPIKey) {
-                                    converted.downstreamAPIKey = toneSet.downstreamAPIKey;
-                                }
-                                
-                                return converted;
-                            });
-                        }
-                        return talkgroup;
-                    });
-                }
-                return system;
-            });
-        }
-
-        // Flatten rate limiting toggle into maxDownloadsPerWindow
-        if (formValue?.options) {
-            if (!formValue.options.rateLimitingEnabled) {
-                formValue.options.maxDownloadsPerWindow = 0;
-            }
-            delete formValue.options.rateLimitingEnabled;
-        }
-
-        // Convert transcription config from form structure
-        if (formValue?.options) {
-            if (formValue.options.transcriptionEnabled !== undefined) {
-                formValue.options.transcriptionConfig = formValue.options.transcriptionConfig || {};
-                formValue.options.transcriptionConfig.enabled = formValue.options.transcriptionEnabled;
-            }
-            if (formValue.options.transcriptionEnabled !== undefined && formValue.options.transcriptionConfig) {
-                formValue.options.transcriptionConfig.enabled = formValue.options.transcriptionEnabled;
-            }
-            
-            if (formValue.options.transcriptionConfig) {
-                const rawPatterns = formValue.options.transcriptionConfig.hallucinationPatterns;
-                if (typeof rawPatterns === 'string') {
-                    formValue.options.transcriptionConfig.hallucinationPatterns = rawPatterns
-                        .split('\n')
-                        .map((line: string) => line.trim())
-                        .filter((line: string) => line.length > 0);
-                } else if (Array.isArray(rawPatterns)) {
-                    formValue.options.transcriptionConfig.hallucinationPatterns = rawPatterns
-                        .map((line: string) => String(line).trim())
-                        .filter((line: string) => line.length > 0);
-                }
-            }
-            
-            if (formValue.options.transcriptionConfig) {
-                const wordBoostString = formValue.options.transcriptionConfig.assemblyAIWordBoost;
-                if (typeof wordBoostString === 'string') {
-                    formValue.options.transcriptionConfig.assemblyAIWordBoost = wordBoostString
-                        .split('\n')
-                        .map((line: string) => line.trim())
-                        .filter((line: string) => line.length > 0);
-                }
-            }
-
-            // Collector URL/key are managed from the Transcripts tab — preserve existing values on save.
-            const savedCollector = this.config?.options?.transcriptionConfig;
-            if (formValue.options.transcriptionConfig && savedCollector) {
-                if (savedCollector.collectorURL) {
-                    formValue.options.transcriptionConfig.collectorURL = savedCollector.collectorURL;
-                }
-                if (savedCollector.collectorAPIKey) {
-                    formValue.options.transcriptionConfig.collectorAPIKey = savedCollector.collectorAPIKey;
-                }
-            }
-            
-            formValue.options.relayServerURL = 'https://tlradioserver.thinlineds.com';
-        }
-
-        const updatedConfig = await this.adminService.saveConfig(formValue, isFullImport);
-        
-        if (updatedConfig) {
-            window.location.reload();
-        }
-    }
 }

@@ -215,58 +215,6 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
         }
     }
 
-    async saveSetting(field: string, value: any): Promise<void> {
-        try {
-            const update: any = {};
-            update[field] = value;
-            await this.adminService.updateSystemHealthAlertSettings(update);
-            (this.settings as any)[field] = value;
-            // Show brief success feedback
-            this.showSaveFeedback(field);
-            // Show success message
-            this.snackBar.open('Setting saved', '', {
-                duration: 2000,
-                horizontalPosition: 'center',
-                verticalPosition: 'bottom',
-                panelClass: ['success-snackbar']
-            });
-            // Trigger change detection to show the feedback icon
-            this.cdr.detectChanges();
-        } catch (error: any) {
-            console.error(`Failed to save ${field}:`, error);
-            this.snackBar.open(`Failed to save setting: ${error.message || 'Unknown error'}`, 'Close', {
-                duration: 4000,
-                horizontalPosition: 'center',
-                verticalPosition: 'bottom',
-                panelClass: ['error-snackbar']
-            });
-        }
-    }
-
-    showSaveFeedback(field: string): void {
-        // Add field to feedback set
-        this.saveFeedbackFields.add(field);
-        
-        // Clear existing timeout for this field
-        if (this.saveFeedbackTimeouts.has(field)) {
-            clearTimeout(this.saveFeedbackTimeouts.get(field));
-        }
-        
-        // Remove feedback after 2 seconds
-        const timeout = setTimeout(() => {
-            this.saveFeedbackFields.delete(field);
-            this.saveFeedbackTimeouts.delete(field);
-            this.cdr.detectChanges();
-        }, 2000);
-        
-        this.saveFeedbackTimeouts.set(field, timeout);
-    }
-
-    hasSaveFeedback(field: string): boolean {
-        return this.saveFeedbackFields.has(field);
-    }
-
-
     async resetFailures(callIds?: number[]): Promise<void> {
         if (!confirm(callIds ? 'Reset selected transcription failures?' : 'Reset all transcription failures from the last 24 hours?')) {
             return;

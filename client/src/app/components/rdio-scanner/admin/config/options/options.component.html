@@ -14,6 +14,41 @@
     </div>
   </div>
   
+  <div class="options-top-bar" [class.options-top-bar--warn]="hasUnsavedChanges">
+    <div class="options-top-bar-main">
+      <mat-icon *ngIf="hasUnsavedChanges" color="warn">warning</mat-icon>
+      <div class="options-top-bar-text">
+        <ng-container *ngIf="hasUnsavedChanges; else optionsHint">
+          <span class="mat-body"><strong>Unsaved changes</strong> — save each section below or review what changed:</span>
+        </ng-container>
+        <ng-template #optionsHint>
+          <span class="mat-caption options-hint">Toggles save automatically. Use each section's Save button for text fields and other entries.</span>
+        </ng-template>
+      </div>
+    </div>
+    <div *ngIf="hasUnsavedChanges" class="options-unsaved-groups">
+      <div *ngFor="let group of unsavedChanges" class="options-unsaved-group">
+        <button type="button" class="options-unsaved-section" (click)="goToUnsavedPanel(group.panelId)">
+          {{ group.panelLabel }}
+        </button>
+        <ul class="options-unsaved-fields">
+          <li *ngFor="let field of group.fields">{{ field }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <ng-template #panelSaveBar let-panelId="panelId">
+    <div class="panel-save-bar">
+      <button mat-stroked-button color="primary" type="button"
+        (click)="savePanel(panelId)"
+        [disabled]="!isPanelDirty(panelId) || savingPanel === panelId">
+        <mat-icon>save</mat-icon>
+        {{ savingPanel === panelId ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </ng-template>
+
   <!-- ═══════════════════════════════════════════════════════════════════════════ -->
   <!-- ALERT & HEALTH MONITORING SETTINGS -->
   <!-- ═══════════════════════════════════════════════════════════════════════════ -->
@@ -30,6 +65,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'alerts' }"></ng-container>
       <div class="row">
         <p>
           <span class="mat-body">Alert Retention Days</span><br>
@@ -267,6 +303,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'security' }"></ng-container>
 
       <!-- Audio Conversion -->
       <div class="row">
@@ -393,6 +430,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'branding' }"></ng-container>
       <div class="row">
         <p>
           <span class="mat-body">Branding Label</span><br>
@@ -503,6 +541,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'notifications' }"></ng-container>
       <!-- Email Service -->
       <div class="row">
         <p>
@@ -706,6 +745,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'integrations' }"></ng-container>
 
       <!-- OpenAI Integration -->
       <div id="opt-openai-integration" class="row">
@@ -892,6 +932,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'general' }"></ng-container>
       <div class="row">
         <p>
           <span class="mat-body">12-Hour Time Format</span><br>
@@ -1067,6 +1108,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'stripe' }"></ng-container>
       <!-- Stripe Paywall -->
       <div class="row">
         <p>
@@ -1141,6 +1183,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'transcription' }"></ng-container>
       <div class="row">
         <p>
           <span class="mat-body">Transcription Enabled</span><br>
@@ -1502,6 +1545,7 @@
     </mat-expansion-panel-header>
 
     <div class="panel-content">
+      <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'userRegistration' }"></ng-container>
       <rdio-scanner-admin-user-registration
         *ngIf="isCentrallyManaged"
         [form]="form">

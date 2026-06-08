@@ -335,6 +335,14 @@ func main() {
 	http.HandleFunc("/api/admin/tone-history-analyze", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ToneHistoryAnalyzeHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/config", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ConfigHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/options", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.OptionsPatchHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/apikeys", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ApikeysHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/tags", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.TagsHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/talkgroup-groups", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.GroupsConfigHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/downstreams", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.DownstreamsHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/dirwatch", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.DirwatchConfigHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/systems/save", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemSaveHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/systems/delete/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemDeleteHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/email-logo", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.EmailLogoUploadHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/email-logo/delete", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.EmailLogoDeleteHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/favicon", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.FaviconUploadHandler)).ServeHTTP)
@@ -386,6 +394,8 @@ func main() {
 	http.HandleFunc("/api/admin/logout", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.LogoutHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/logs", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.LogsHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/logs/categories", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.LogsCategoriesHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/copilot/chat", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.CopilotChatHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/calls", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.CallsHandler)).ServeHTTP)
 

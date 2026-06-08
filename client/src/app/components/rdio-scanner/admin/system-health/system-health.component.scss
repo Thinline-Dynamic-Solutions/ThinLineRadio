@@ -17,390 +17,42 @@
  * ****************************************************************************
  */
 .system-health-container {
-    padding: 16px;
+    padding: 12px 14px 14px;
 }
 
-.help-info-box {
-    background: rgba(33, 150, 243, 0.08);
-    border: 1px solid #1565C0;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 20px;
+.sh-options-hint {
+    margin-bottom: 10px;
 
-    h4 {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0 0 12px 0;
-        color: #64B5F6;
-        font-size: 16px;
-        font-weight: 500;
-
-        mat-icon {
-            font-size: 20px;
-            width: 20px;
-            height: 20px;
-        }
-    }
-
-    .help-content {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .help-item {
-        font-size: 13px;
-        line-height: 1.6;
-        color: #ccc;
-
-        strong {
-            color: #64B5F6;
-            font-weight: 600;
-        }
-
-        em {
-            color: #999;
-            font-size: 12px;
-            display: block;
-            margin-top: 4px;
-            padding-left: 12px;
-        }
-
-        &.notification-info {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid #ffc107;
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 8px;
-
-            .notification-icon {
-                color: #ff9800;
-                font-size: 24px;
-                width: 24px;
-                height: 24px;
-                flex-shrink: 0;
-                margin-top: 2px;
-            }
-
-            div {
-                flex: 1;
-            }
-        }
-    }
-}
-
-.settings-section {
-    margin-bottom: 24px;
-    background: #1e1e1e;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-
-    .settings-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    .setting-item {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-
-        label {
-            font-weight: 500;
-            color: #e0e0e0;
-            font-size: 14px;
-        }
-
-        &.toggle-setting {
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-
-            .setting-label-group {
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-        }
-    }
-
-    // Toggle switch styling - green when enabled, red when disabled
-    ::ng-deep mat-slide-toggle {
-        &.mat-checked {
-            .mdc-switch__track {
-                background-color: #4caf50 !important;
-                border-color: #4caf50 !important;
-            }
-            .mdc-switch__handle {
-                background-color: #4caf50 !important;
-                border-color: #4caf50 !important;
-            }
-        }
-
-        &:not(.mat-checked) {
-            .mdc-switch__track {
-                background-color: #f44336 !important;
-                border-color: #f44336 !important;
-            }
-            .mdc-switch__handle {
-                background-color: #f44336 !important;
-                border-color: #f44336 !important;
-            }
-        }
-
-        &[disabled] {
-            opacity: 0.5;
-        }
-    }
-
-    .setting-control {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        .setting-value {
-            font-size: 16px;
-            color: #aaa;
-            font-weight: 500;
-        }
-
-        .setting-edit {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-
-            .threshold-input {
-                width: 120px;
-            }
-        }
-    }
-
-    .setting-description {
-        font-size: 12px;
-        color: #999;
-        font-style: italic;
-    }
-
-    .alert-settings-table {
-        margin-top: 20px;
-        overflow-x: auto;
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #1e1e1e;
-
-            thead {
-                background: #242424;
-
-                th {
-                    padding: 12px 16px;
-                    text-align: left;
-                    font-weight: 600;
-                    font-size: 13px;
-                    color: #999;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    border-bottom: 2px solid #333;
-                }
-            }
-
-            tbody {
-                tr {
-                    border-bottom: 1px solid #2a2a2a;
-                    transition: background-color 0.2s;
-
-                    &:hover {
-                        background: #2a2a2a;
-                    }
-
-                    &:last-child {
-                        border-bottom: none;
-                    }
-                }
-
-                td {
-                    padding: 16px;
-                    vertical-align: middle;
-                }
-            }
-
-            .alert-type-cell {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-
-                strong {
-                    font-size: 14px;
-                    color: #e0e0e0;
-                    font-weight: 500;
-                }
-
-                .alert-description {
-                    font-size: 12px;
-                    color: #999;
-                    font-style: italic;
-                }
-            }
-
-            .compact-field {
-                width: 140px;
-                margin: 0;
-
-                ::ng-deep .mat-mdc-form-field-subscript-wrapper {
-                    display: block;
-                    margin-top: 4px;
-                    position: relative;
-                    height: auto;
-                    min-height: 20px;
-                }
-
-                ::ng-deep .mat-mdc-form-field-hint-wrapper {
-                    padding: 0;
-                    width: 100%;
-                }
-
-                ::ng-deep .mat-mdc-form-field-hint {
-                    font-size: 11px;
-                    color: #999;
-                    margin-top: 2px;
-                    white-space: normal;
-                    word-wrap: break-word;
-                    line-height: 1.4;
-                    display: block;
-                    width: 100%;
-                }
-
-                ::ng-deep .mat-mdc-form-field-label {
-                    white-space: normal;
-                    overflow: visible;
-                    text-overflow: clip;
-                    word-wrap: break-word;
-                    max-width: 100%;
-                }
-
-                ::ng-deep .mat-mdc-form-field-label-wrapper {
-                    width: 100%;
-                    overflow: visible;
-                }
-
-                ::ng-deep .mat-mdc-text-field-wrapper {
-                    padding-bottom: 0;
-                }
-
-                ::ng-deep .mat-mdc-form-field-infix {
-                    min-height: 40px;
-                }
-            }
-
-            .additional-settings {
-                display: flex;
-                gap: 12px;
-                align-items: flex-start;
-                flex-wrap: wrap;
-
-                .compact-field {
-                    width: 180px;
-                    min-width: 180px;
-
-                    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
-                        display: block;
-                        margin-top: 4px;
-                        position: relative;
-                        height: auto;
-                        min-height: 20px;
-                    }
-
-                    ::ng-deep .mat-mdc-form-field-hint-wrapper {
-                        padding: 0;
-                        width: 100%;
-                    }
-
-                    ::ng-deep .mat-mdc-form-field-hint {
-                        font-size: 11px;
-                        color: #999;
-                        margin-top: 2px;
-                        white-space: normal;
-                        word-wrap: break-word;
-                        line-height: 1.4;
-                        display: block;
-                        width: 100%;
-                    }
-
-                    ::ng-deep .mat-mdc-form-field-label {
-                        white-space: normal;
-                        overflow: visible;
-                        text-overflow: clip;
-                        word-wrap: break-word;
-                        max-width: 100%;
-                    }
-
-                    ::ng-deep .mat-mdc-text-field-wrapper {
-                        padding-bottom: 0;
-                    }
-
-                    ::ng-deep .mat-mdc-form-field-infix {
-                        min-height: 40px;
-                        padding-top: 0;
-                    }
-                }
-
-                .save-feedback-icon {
-                    color: #4caf50;
-                    font-size: 20px;
-                    width: 20px;
-                    height: 20px;
-                    animation: fadeInOut 2s ease-in-out;
-                }
-            }
-        }
-    }
-}
-
-@keyframes fadeInOut {
-    0% {
-        opacity: 0;
-        transform: scale(0.8);
-    }
-    20% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    80% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    100% {
-        opacity: 0;
-        transform: scale(0.8);
+    .admin-section-hint strong {
+        color: #ddd;
+        font-weight: 600;
     }
 }
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+
+    @media (max-width: 900px) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 480px) {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 .stat-card {
-    background: #1e1e1e;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    border-left: 4px solid #333;
+    background: #1a1a1a;
+    border-radius: 6px;
+    padding: 8px 10px;
+    border: 1px solid #2a2a2a;
+    border-left-width: 3px;
+    border-left-color: #444;
 
-    &.critical {
-        border-left-color: #dc3545;
-    }
-
+    &.critical,
     &.error {
         border-left-color: #dc3545;
     }
@@ -410,48 +62,44 @@
     }
 
     h3 {
-        font-size: 14px;
-        color: #999;
-        margin-bottom: 10px;
+        font-size: 10px;
+        color: #888;
+        margin: 0 0 4px;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-weight: 500;
+        letter-spacing: 0.6px;
+        font-weight: 600;
     }
 
     .value {
-        font-size: 32px;
-        font-weight: bold;
-        color: #e0e0e0;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.1;
+        color: #e8e8e8;
     }
 }
 
 .alerts-section {
-    background: #1e1e1e;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    padding: 10px 12px 12px;
 }
 
 .alerts-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-
-    h2 {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 500;
-    }
+    margin-bottom: 8px;
 }
 
 .loading {
-    text-align: center;
-    padding: 40px;
-    color: #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px 12px;
+    color: #888;
+    font-size: 12px;
 
     p {
-        margin-top: 16px;
+        margin: 0;
     }
 }
 
@@ -459,54 +107,66 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 16px;
+    padding: 8px 10px;
     background: rgba(220, 53, 69, 0.1);
-    border: 1px solid #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.45);
     border-radius: 4px;
     color: #ef9a9a;
+    font-size: 12px;
 
     mat-icon {
         color: #dc3545;
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
     }
 }
 
 .no-alerts {
-    text-align: center;
-    padding: 40px;
-    color: #999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 24px 12px;
+    color: #888;
+    font-size: 12px;
 
     mat-icon {
-        font-size: 48px;
-        width: 48px;
-        height: 48px;
+        font-size: 32px;
+        width: 32px;
+        height: 32px;
         color: #4caf50;
-        margin-bottom: 16px;
+    }
+
+    p {
+        margin: 0;
     }
 }
 
 .alerts-list {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 8px;
 }
 
 .alert-group {
-    background: #242424;
-    border-radius: 8px;
-    padding: 16px;
-    border: 1px solid #333;
+    background: #161616;
+    border-radius: 6px;
+    padding: 8px 10px;
+    border: 1px solid #2a2a2a;
 
     .alert-group-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid #333;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #2a2a2a;
 
         h3 {
             margin: 0;
-            font-size: 18px;
+            font-size: 13px;
             font-weight: 600;
             color: #e0e0e0;
         }
@@ -514,29 +174,30 @@
         .alert-group-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 6px;
+            flex-shrink: 0;
         }
 
         .alert-count {
-            font-size: 14px;
-            color: #ccc;
-            background: #333;
-            padding: 4px 12px;
-            border-radius: 12px;
+            font-size: 11px;
+            color: #bbb;
+            background: #2a2a2a;
+            padding: 2px 8px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
         }
 
-        button {
-            mat-icon {
-                font-size: 18px;
-                width: 18px;
-                height: 18px;
-                margin-right: 4px;
-            }
+        button mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            margin-right: 2px;
         }
     }
 
     .alert-item {
-        margin-bottom: 12px;
+        margin-bottom: 6px;
 
         &:last-child {
             margin-bottom: 0;
@@ -545,34 +206,25 @@
 }
 
 .alert-item {
-    border-left: 4px solid #444;
-    padding: 16px;
-    background: #242424;
+    border-left: 3px solid #444;
+    padding: 8px 10px;
+    background: #1e1e1e;
     border-radius: 4px;
-    transition: box-shadow 0.2s;
 
-    &:hover {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    }
-
-    &.critical {
-        border-left-color: #dc3545;
-        background: rgba(220, 53, 69, 0.08);
-    }
-
+    &.critical,
     &.error {
         border-left-color: #dc3545;
-        background: rgba(220, 53, 69, 0.08);
+        background: rgba(220, 53, 69, 0.06);
     }
 
     &.warning {
         border-left-color: #ffc107;
-        background: rgba(255, 193, 7, 0.06);
+        background: rgba(255, 193, 7, 0.05);
     }
 
     &.info {
         border-left-color: #17a2b8;
-        background: rgba(23, 162, 184, 0.06);
+        background: rgba(23, 162, 184, 0.05);
     }
 }
 
@@ -580,14 +232,14 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 12px;
-    gap: 16px;
+    gap: 8px;
+    margin-bottom: 4px;
 }
 
 .alert-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 2px;
     flex-shrink: 0;
 }
 
@@ -598,81 +250,60 @@
 
 .alert-title {
     font-weight: 600;
-    font-size: 16px;
-    margin-bottom: 6px;
+    font-size: 13px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    line-height: 1.35;
 }
 
 .alert-icon {
-    font-size: 20px;
-}
-
-.alert-meta {
-    display: none;
+    font-size: 14px;
+    flex-shrink: 0;
 }
 
 .alert-time {
-    font-size: 12px;
-    color: #999;
+    font-size: 11px;
+    color: #888;
     white-space: nowrap;
 }
 
 .alert-message {
     color: #aaa;
-    line-height: 1.6;
-    margin-bottom: 12px;
-}
-
-.alert-data {
-    display: none;
+    font-size: 12px;
+    line-height: 1.45;
+    margin-bottom: 6px;
 }
 
 .transcription-failure-details {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid #333;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #2a2a2a;
 }
 
 .failure-controls {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.threshold-control {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    label {
-        font-weight: 500;
-        color: #aaa;
-    }
-
-    .threshold-edit {
-        display: flex;
-        align-items: center;
-    }
+    justify-content: flex-end;
+    margin-bottom: 8px;
 }
 
 .loading-calls {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 16px;
-    color: #999;
+    gap: 8px;
+    padding: 8px 0;
+    color: #888;
+    font-size: 12px;
 }
 
 .failed-calls-list {
     h4 {
-        margin: 0 0 12px 0;
-        font-size: 16px;
-        font-weight: 500;
+        margin: 0 0 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #ccc;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
     }
 }
 
@@ -680,62 +311,82 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px;
-    margin-bottom: 8px;
+    gap: 8px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
     background: #242424;
     border-radius: 4px;
-    border-left: 3px solid #ff9800;
+    border-left: 2px solid #ff9800;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
 
     .call-info {
         flex: 1;
+        min-width: 0;
     }
 
     .call-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 4px;
+        gap: 8px;
+        margin-bottom: 2px;
 
         strong {
             color: #e0e0e0;
+            font-size: 12px;
         }
 
         .call-time {
-            font-size: 12px;
-            color: #999;
+            font-size: 11px;
+            color: #888;
         }
     }
 
     .call-details {
-        font-size: 14px;
-        color: #aaa;
-        margin-bottom: 8px;
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 4px;
     }
 
     .failure-reason {
         display: flex;
         align-items: flex-start;
-        gap: 8px;
-        margin-top: 8px;
-        padding: 8px;
-        background: rgba(220, 53, 69, 0.1);
-        border-left: 3px solid #dc3545;
-        border-radius: 4px;
-        font-size: 13px;
+        gap: 6px;
+        margin-top: 4px;
+        padding: 4px 6px;
+        background: rgba(220, 53, 69, 0.08);
+        border-left: 2px solid #dc3545;
+        border-radius: 3px;
+        font-size: 11px;
 
         .error-icon {
             color: #dc3545;
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
+            font-size: 14px;
+            width: 14px;
+            height: 14px;
             flex-shrink: 0;
-            margin-top: 2px;
         }
 
         .failure-text {
             color: #ef9a9a;
-            line-height: 1.5;
+            line-height: 1.4;
             word-break: break-word;
+        }
+    }
+
+    button {
+        flex-shrink: 0;
+        height: 30px;
+        font-size: 11px;
+        padding: 0 8px;
+
+        mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
         }
     }
 }
@@ -743,30 +394,15 @@
 .no-failed-calls {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 16px;
+    gap: 6px;
+    padding: 8px 0;
     color: #4caf50;
+    font-size: 12px;
 
     mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
         color: #4caf50;
-    }
-}
-
-// Snackbar styles
-::ng-deep .success-snackbar {
-    background-color: #4caf50 !important;
-    color: white !important;
-
-    .mat-mdc-snack-bar-label {
-        color: white !important;
-    }
-}
-
-::ng-deep .error-snackbar {
-    background-color: #f44336 !important;
-    color: white !important;
-
-    .mat-mdc-snack-bar-label {
-        color: white !important;
     }
 }

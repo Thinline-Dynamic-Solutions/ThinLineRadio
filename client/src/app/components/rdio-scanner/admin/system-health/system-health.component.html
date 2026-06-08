@@ -17,13 +17,17 @@
  * ****************************************************************************
 -->
 <div class="system-health-container">
-    <div style="margin-bottom: 16px; padding: 12px 16px; background: #1a1a2e; border-left: 4px solid #cc0000; border-radius: 4px; display: flex; align-items: center; gap: 10px;">
-        <mat-icon style="color: #cc0000;">settings</mat-icon>
-        <span style="color: #bbb; font-size: 14px;">Alert thresholds and settings are configured under <strong style="color: #f0f0f0;">Options → Alert & Health Monitoring</strong>.</span>
+
+    <div class="admin-section-bar sh-options-hint">
+        <p class="admin-section-hint">
+            Alert thresholds and monitoring settings live under
+            <strong>Options → Alert &amp; Health Monitoring</strong>.
+        </p>
     </div>
+
     <div class="stats-grid">
         <div class="stat-card">
-            <h3>Total Alerts</h3>
+            <h3>Total</h3>
             <div class="value">{{ stats.total }}</div>
         </div>
         <div class="stat-card critical">
@@ -41,17 +45,19 @@
     </div>
 
     <div class="alerts-section">
-        <div class="alerts-header">
-            <h2>System Alerts</h2>
-            <button mat-raised-button color="primary" (click)="loadAlerts()" [disabled]="loading">
-                <mat-icon>refresh</mat-icon>
-                Refresh
-            </button>
+        <div class="admin-section-bar alerts-header">
+            <p class="admin-section-hint">Active system alerts grouped by type.</p>
+            <div class="admin-section-actions">
+                <button mat-stroked-button color="primary" (click)="loadAlerts()" [disabled]="loading">
+                    <mat-icon>refresh</mat-icon>
+                    Refresh
+                </button>
+            </div>
         </div>
 
         <div *ngIf="loading" class="loading">
-            <mat-spinner diameter="40"></mat-spinner>
-            <p>Loading alerts...</p>
+            <mat-spinner diameter="28"></mat-spinner>
+            <p>Loading alerts…</p>
         </div>
 
         <div *ngIf="error" class="error-message">
@@ -61,7 +67,7 @@
 
         <div *ngIf="!loading && !error && alerts.length === 0" class="no-alerts">
             <mat-icon>check_circle</mat-icon>
-            <p>No alerts found</p>
+            <p>No alerts</p>
         </div>
 
         <div *ngIf="!loading && !error && alerts.length > 0" class="alerts-list">
@@ -69,10 +75,10 @@
                 <div class="alert-group-header">
                     <h3>{{ getAlertTypeLabel(groupType) }}</h3>
                     <div class="alert-group-actions">
-                        <span class="alert-count">{{ getGroupedAlerts()[groupType].length }} alert{{ getGroupedAlerts()[groupType].length !== 1 ? 's' : '' }}</span>
-                        <button mat-stroked-button color="warn" (click)="dismissAllAlertsInGroup(groupType)" [title]="'Dismiss all alerts in this group'">
+                        <span class="alert-count">{{ getGroupedAlerts()[groupType].length }}</span>
+                        <button mat-stroked-button color="warn" (click)="dismissAllAlertsInGroup(groupType)" title="Dismiss all alerts in this group">
                             <mat-icon>clear_all</mat-icon>
-                            Clear All
+                            Clear
                         </button>
                     </div>
                 </div>
@@ -86,57 +92,56 @@
                         </div>
                         <div class="alert-actions">
                             <div class="alert-time">{{ formatDate(alert.createdAt) }}</div>
-                            <button mat-icon-button (click)="dismissAlert(alert.id)" [title]="'Dismiss alert'">
+                            <button mat-icon-button (click)="dismissAlert(alert.id)" title="Dismiss alert">
                                 <mat-icon>close</mat-icon>
                             </button>
                         </div>
                     </div>
                     <div class="alert-message">{{ alert.message }}</div>
 
-                    <!-- Transcription Failure Details -->
                     <div *ngIf="alert.alertType === 'transcription_failure'" class="transcription-failure-details">
-                    <div class="failure-controls">
-                        <button mat-raised-button color="warn" (click)="resetFailures()" [disabled]="loadingFailedCalls">
-                            <mat-icon>refresh</mat-icon>
-                            Reset All Failures
-                        </button>
-                    </div>
-
-                    <div *ngIf="loadingFailedCalls" class="loading-calls">
-                        <mat-spinner diameter="30"></mat-spinner>
-                        <span>Loading failed calls...</span>
-                    </div>
-
-                    <div *ngIf="!loadingFailedCalls && failedCalls.length > 0" class="failed-calls-list">
-                        <h4>Failed Calls ({{ failedCalls.length }}):</h4>
-                        <div class="failed-call-item" *ngFor="let call of failedCalls">
-                            <div class="call-info">
-                                <div class="call-header">
-                                    <strong>Call #{{ call.callId }}</strong>
-                                    <span class="call-time">{{ formatDate(call.timestamp) }}</span>
-                                </div>
-                                <div class="call-details">
-                                    <span *ngIf="call.systemLabel">{{ call.systemLabel }}</span>
-                                    <span *ngIf="call.systemLabel && call.talkgroupLabel"> / </span>
-                                    <span *ngIf="call.talkgroupLabel">{{ call.talkgroupLabel }}</span>
-                                    <span *ngIf="call.talkgroupName && call.talkgroupLabel"> ({{ call.talkgroupName }})</span>
-                                </div>
-                                <div *ngIf="call.failureReason" class="failure-reason">
-                                    <mat-icon class="error-icon">error</mat-icon>
-                                    <span class="failure-text">{{ call.failureReason }}</span>
-                                </div>
-                            </div>
-                            <button mat-stroked-button (click)="playCall(call.callId)" [title]="isPlaying(call.callId) ? 'Stop' : 'Play'">
-                                <mat-icon>{{ isPlaying(call.callId) ? 'pause' : 'play_arrow' }}</mat-icon>
-                                {{ isPlaying(call.callId) ? 'Stop' : 'Play' }}
+                        <div class="failure-controls">
+                            <button mat-stroked-button color="warn" (click)="resetFailures()" [disabled]="loadingFailedCalls">
+                                <mat-icon>refresh</mat-icon>
+                                Reset failures
                             </button>
                         </div>
-                    </div>
 
-                    <div *ngIf="!loadingFailedCalls && failedCalls.length === 0" class="no-failed-calls">
-                        <mat-icon>check_circle</mat-icon>
-                        <span>No failed calls found</span>
-                    </div>
+                        <div *ngIf="loadingFailedCalls" class="loading-calls">
+                            <mat-spinner diameter="22"></mat-spinner>
+                            <span>Loading failed calls…</span>
+                        </div>
+
+                        <div *ngIf="!loadingFailedCalls && failedCalls.length > 0" class="failed-calls-list">
+                            <h4>Failed calls ({{ failedCalls.length }})</h4>
+                            <div class="failed-call-item" *ngFor="let call of failedCalls">
+                                <div class="call-info">
+                                    <div class="call-header">
+                                        <strong>Call #{{ call.callId }}</strong>
+                                        <span class="call-time">{{ formatDate(call.timestamp) }}</span>
+                                    </div>
+                                    <div class="call-details">
+                                        <span *ngIf="call.systemLabel">{{ call.systemLabel }}</span>
+                                        <span *ngIf="call.systemLabel && call.talkgroupLabel"> / </span>
+                                        <span *ngIf="call.talkgroupLabel">{{ call.talkgroupLabel }}</span>
+                                        <span *ngIf="call.talkgroupName && call.talkgroupLabel"> ({{ call.talkgroupName }})</span>
+                                    </div>
+                                    <div *ngIf="call.failureReason" class="failure-reason">
+                                        <mat-icon class="error-icon">error</mat-icon>
+                                        <span class="failure-text">{{ call.failureReason }}</span>
+                                    </div>
+                                </div>
+                                <button mat-stroked-button (click)="playCall(call.callId)" [title]="isPlaying(call.callId) ? 'Stop' : 'Play'">
+                                    <mat-icon>{{ isPlaying(call.callId) ? 'pause' : 'play_arrow' }}</mat-icon>
+                                    {{ isPlaying(call.callId) ? 'Stop' : 'Play' }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div *ngIf="!loadingFailedCalls && failedCalls.length === 0" class="no-failed-calls">
+                            <mat-icon>check_circle</mat-icon>
+                            <span>No failed calls</span>
+                        </div>
                     </div>
                 </div>
             </div>

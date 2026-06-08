@@ -73,10 +73,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding-bottom: 16px;
-    margin-bottom: 20px;
+    gap: 10px;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
     border-bottom: 1px solid #2a2a2a;
+
+    .system-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
 
     .system-title {
         display: flex;
@@ -84,15 +91,15 @@
         gap: 12px;
 
         > mat-icon:first-child {
-            font-size: 32px;
-            width: 32px;
-            height: 32px;
+            font-size: 22px;
+            width: 22px;
+            height: 22px;
             color: #cc0000;
         }
 
         h3 {
             margin: 0 0 2px;
-            font-size: 20px;
+            font-size: 15px;
             font-weight: 600;
             color: #eee;
         }
@@ -193,21 +200,11 @@
 .compact-field {
     width: 100%;
 
-    &.compact-field--hint-outside {
+    &.compact-field--hint-outside,
+    &.compact-field--no-hint {
         ::ng-deep .mat-mdc-form-field-subscript-wrapper {
             display: none;
         }
-    }
-
-    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
-        margin-top: 2px;
-        overflow: visible;
-        position: static;
-    }
-
-    ::ng-deep .mat-mdc-form-field-hint {
-        white-space: normal;
-        line-height: 1.45;
     }
 }
 
@@ -220,8 +217,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .sub-section-title {

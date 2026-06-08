@@ -19,16 +19,9 @@
 <!-- Systems Overview -->
 <div class="systems-overview">
 
-    <!-- Header -->
-    <div class="overview-header">
-        <div class="overview-intro">
-            <mat-icon>podcasts</mat-icon>
-            <div>
-                <h3>Systems</h3>
-                <p class="mat-caption">Define radio systems and their talkgroups. Select a system from the sidebar to edit it, or add a new one.</p>
-            </div>
-        </div>
-        <div class="overview-actions">
+    <div class="admin-section-bar overview-header">
+        <p class="admin-section-hint">Define radio systems and talkgroups. Select a system from the sidebar to edit, or add a new one.</p>
+        <div class="admin-section-actions overview-actions">
             <button type="button" mat-raised-button color="primary" (click)="addSystem.emit()">
                 <mat-icon>add</mat-icon>
                 Add System

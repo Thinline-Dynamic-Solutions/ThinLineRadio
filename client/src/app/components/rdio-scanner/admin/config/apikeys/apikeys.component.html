@@ -16,13 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
 -->
-<!-- Top bar -->
-<div class="row top">
-    <p class="mat-body">API keys authenticate recorder upload scripts and downstream instances. Each must present a valid key to exchange audio files.</p>
-    <button type="button" mat-raised-button color="primary" (click)="add()">
-        <mat-icon>add</mat-icon>
-        New API Key
-    </button>
+<div class="row top admin-section-bar">
+    <p class="admin-section-hint">Authenticate recorder uploads and downstream instances. Status, order, and system access auto-save; use Save after editing names or keys.</p>
+    <div class="admin-section-actions">
+        <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
+            <mat-icon>save</mat-icon>
+            {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+        <button type="button" mat-raised-button color="primary" (click)="add()">
+            <mat-icon>add</mat-icon>
+            New API Key
+        </button>
+    </div>
 </div>
 
 <!-- Empty state -->

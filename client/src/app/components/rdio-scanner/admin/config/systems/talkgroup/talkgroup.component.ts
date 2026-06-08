@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatSelectChange } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -29,9 +29,12 @@ import { RdioScannerToneSet } from '../../../../rdio-scanner';
     selector: 'rdio-scanner-admin-talkgroup',
     templateUrl: './talkgroup.component.html',
     styleUrls: ['./talkgroup.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RdioScannerAdminTalkgroupComponent {
     @Input() form: FormGroup | undefined;
+    @Input() groups: Group[] = [];
+    @Input() tags: Tag[] = [];
 
     @Output() blacklist = new EventEmitter<void>();
 
@@ -53,14 +56,6 @@ export class RdioScannerAdminTalkgroupComponent {
     toneHistoryPartialPatterns: { patternDesc: string; callCount: number }[] = [];
     toneHistoryCallsRequired = 3;
     toneHistoryStats: Pick<ToneHistoryAnalyzeResponse, 'callsScanned' | 'callsWithTones' | 'callsWithCandidates' | 'discoverErrors' | 'patternsBelowThreshold' | 'lookbackHours'> | null = null;
-
-    get groups(): Group[] {
-        return this.form?.root.get('groups')?.value as Group[];
-    }
-
-    get tags(): Tag[] {
-        return this.form?.root.get('tags')?.value as Tag[];
-    }
 
     get apikeys(): any[] {
         return this.form?.root.get('apikeys')?.value as any[] || [];

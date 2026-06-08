@@ -16,15 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
 -->
-<!-- Page Header -->
-<div class="kw-page-header">
-    <div class="kw-page-title">
-        <mat-icon>list_alt</mat-icon>
-        <div>
-            <h3>Keyword Lists</h3>
-            <p class="mat-caption">Keyword lists drive real-time call alerting based on transcript matching.</p>
-        </div>
-    </div>
+<div class="admin-section-bar kw-page-header">
+    <p class="admin-section-hint">Keyword lists drive real-time call alerting based on transcript matching.</p>
     <button type="button" mat-stroked-button (click)="addNew()">
         <mat-icon>add</mat-icon>
         Add Keyword List
@@ -74,8 +67,8 @@
             <p *ngIf="list.description" class="kw-description">{{ list.description }}</p>
             <div class="kw-preview" *ngIf="list.keywords?.length">
                 <span *ngFor="let kw of (list.keywords | slice:0:12)" class="kw-chip">{{ kw }}</span>
-                <span *ngIf="list.keywords.length > 12" class="kw-chip kw-chip--more">
-                    +{{ list.keywords.length - 12 }} more
+                <span *ngIf="(list.keywords?.length || 0) > 12" class="kw-chip kw-chip--more">
+                    +{{ (list.keywords?.length || 0) - 12 }} more
                 </span>
             </div>
             <p *ngIf="!list.keywords?.length" class="kw-none">No keywords defined yet</p>

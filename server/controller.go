@@ -211,6 +211,7 @@ func NewController(config *Config) *Controller {
 
 	controller.Logs.setDaemon(config.daemon)
 	controller.Logs.setDatabase(controller.Database)
+	controller.Logs.InstallLogCapture()
 
 	// Initialize debug logger for tones/keywords if enabled in config
 	if config.EnableDebugLog {

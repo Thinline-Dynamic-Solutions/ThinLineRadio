@@ -191,12 +191,14 @@ var PostgresqlSchema = []string{
 	`CREATE TABLE IF NOT EXISTS "logs" (
     "logId" bigserial NOT NULL PRIMARY KEY,
     "level" text NOT NULL,
+    "category" text NOT NULL DEFAULT 'system',
     "message" text NOT NULL,
     "timestamp" bigint NOT NULL
   );`,
 
 	// Index for fast timestamp-based sorting and filtering on the logs table
 	`CREATE INDEX IF NOT EXISTS "logs_timestamp_idx" ON "logs" ("timestamp" DESC);`,
+	// logs_category_timestamp_idx is created in migrateLogsCategory after the column is added.
 
 	`CREATE TABLE IF NOT EXISTS "options" (
     "optionId" bigserial NOT NULL PRIMARY KEY,

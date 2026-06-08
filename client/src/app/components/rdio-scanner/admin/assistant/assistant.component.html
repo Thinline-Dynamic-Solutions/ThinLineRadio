@@ -1,0 +1,82 @@
+<div class="assistant-container">
+    <div class="assistant-header">
+        <div class="assistant-title">
+            <mat-icon>smart_toy</mat-icon>
+            <div>
+                <h2>Admin Assistant</h2>
+                <p class="assistant-subtitle">Diagnose issues, search logs, and get help with TLR admin settings.</p>
+            </div>
+        </div>
+        <button mat-stroked-button type="button" (click)="clearChat()" [disabled]="!messages.length || loading">
+            <mat-icon>delete_outline</mat-icon>
+            Clear chat
+        </button>
+    </div>
+
+    <div class="assistant-hint admin-section-hint">
+        Requires an OpenAI API key under <strong>Config → Options → Integrations → OpenAI Integration</strong>.
+        The assistant can read and change admin settings (tags, systems, options, users, etc.) — reply <strong>yes</strong> or <strong>go ahead</strong> to confirm changes.
+    </div>
+
+    <div class="suggestion-chips" *ngIf="!messages.length">
+        <span class="chips-label">Try asking:</span>
+        <button
+            mat-stroked-button
+            type="button"
+            class="suggestion-chip"
+            *ngFor="let s of suggestions"
+            (click)="useSuggestion(s)">
+            {{ s }}
+        </button>
+    </div>
+
+    <div class="chat-thread" #thread>
+        <div class="chat-empty" *ngIf="!messages.length && !loading">
+            <mat-icon>forum</mat-icon>
+            <span>Ask about logs, health alerts, tags, Stripe, transcription, or how to use admin tabs.</span>
+        </div>
+
+        <div
+            *ngFor="let msg of messages"
+            class="chat-bubble"
+            [class.user]="msg.role === 'user'"
+            [class.assistant]="msg.role === 'assistant'">
+            <div class="bubble-role">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</div>
+            <div class="bubble-content">{{ msg.content }}</div>
+        </div>
+
+        <div class="chat-bubble assistant loading-bubble" *ngIf="loading">
+            <div class="bubble-role">Assistant</div>
+            <div class="bubble-content">
+                <mat-spinner diameter="20"></mat-spinner>
+                <span>Thinking…</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-error" *ngIf="error">
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ error }}</span>
+    </div>
+
+    <div class="chat-input-row">
+        <textarea
+            #inputBox
+            class="chat-input"
+            rows="2"
+            placeholder="Ask the assistant… (Enter to send, Shift+Enter for newline)"
+            [(ngModel)]="input"
+            [disabled]="loading"
+            (keydown)="onKeydown($event)"></textarea>
+        <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            class="send-btn"
+            (click)="send()"
+            [disabled]="loading || !input.trim()">
+            <mat-icon>send</mat-icon>
+            Send
+        </button>
+    </div>
+</div>

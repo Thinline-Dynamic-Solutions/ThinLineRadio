@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, AfterViewInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges, AfterViewInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { FormGroup, FormArray, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -26,18 +26,217 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { RequestAPIKeyDialogComponent } from './request-api-key-dialog.component';
 import { RecoverAPIKeyDialogComponent } from './recover-api-key-dialog.component';
 import { LocationDataService } from 'src/app/services/location-data.service';
-import { OPENAI_CHAT_MODEL_OPTIONS, OpenAIChatModelOption } from '../../admin.service';
+import { OPENAI_CHAT_MODEL_OPTIONS, OpenAIChatModelOption, RdioScannerAdminService } from '../../admin.service';
+
+export type OptionsPanelId =
+    | 'alerts' | 'security' | 'branding' | 'notifications'
+    | 'integrations' | 'general' | 'stripe' | 'transcription' | 'userRegistration';
+
+interface OptionsPanelDef {
+    keys: string[];
+    systemsNoAudio?: boolean;
+}
+
+const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
+    alerts: {
+        keys: [
+            'alertRetentionDays', 'systemHealthAlertsEnabled',
+            'transcriptionFailureAlertsEnabled', 'transcriptionFailureThreshold',
+            'transcriptionFailureTimeWindow', 'transcriptionFailureRepeatMinutes',
+            'toneDetectionAlertsEnabled', 'toneDetectionIssueThreshold',
+            'toneDetectionTimeWindow', 'toneDetectionRepeatMinutes',
+            'autoLearnToneSetConfig',
+            'noAudioAlertsEnabled', 'noAudioThresholdMinutes', 'noAudioRepeatMinutes',
+        ],
+        systemsNoAudio: true,
+    },
+    security: {
+        keys: [
+            'audioConversion', 'disableDuplicateDetection', 'duplicateTimestampWindow',
+            'duplicateDetectionTimeFrame', 'audioEncryptionEnabled', 'rateLimitingEnabled',
+            'maxDownloadsPerWindow', 'downloadWindowMinutes',
+        ],
+    },
+    branding: {
+        keys: ['branding', 'baseUrl', 'email', 'emailLogoBorderRadius', 'faviconFilename', 'emailLogoFilename'],
+    },
+    notifications: {
+        keys: [
+            'emailServiceEnabled', 'emailProvider', 'emailSendGridApiKey',
+            'emailMailgunApiKey', 'emailMailgunDomain', 'emailMailgunApiBase',
+            'emailSmtpHost', 'emailSmtpPort', 'emailSmtpUsername', 'emailSmtpPassword',
+            'emailSmtpUseTLS', 'emailSmtpSkipVerify', 'emailSmtpFromEmail', 'emailSmtpFromName',
+        ],
+    },
+    integrations: {
+        keys: [
+            'openAIIntegration', 'radioReferenceEnabled', 'radioReferenceUsername',
+            'radioReferencePassword', 'relayServerAPIKey',
+        ],
+    },
+    general: {
+        keys: [
+            'time12hFormat', 'autoPopulate', 'defaultSystemDelay', 'playbackGoesLive',
+            'keypadBeeps', 'maxClients', 'pruneDays', 'showListenersCount', 'sortTalkgroups',
+            'reconnectionGracePeriod', 'reconnectionMaxBufferSize', 'configSyncEnabled', 'configSyncPath',
+        ],
+    },
+    stripe: {
+        keys: [
+            'stripePaywallEnabled', 'stripePublishableKey', 'stripeSecretKey',
+            'stripeWebhookSecret', 'stripeGracePeriodDays',
+        ],
+    },
+    transcription: {
+        keys: ['transcriptionEnabled', 'transcriptionEnhancement', 'transcriptionConfig'],
+    },
+    userRegistration: {
+        keys: [
+            'userRegistrationEnabled', 'publicRegistrationEnabled', 'publicRegistrationMode',
+            'emailVerificationRequired', 'turnstileEnabled', 'turnstileSiteKey', 'turnstileSecretKey',
+        ],
+    },
+};
+
+const OPTIONS_PANEL_LABELS: Record<OptionsPanelId, string> = {
+    alerts: 'Alert & Health Monitoring',
+    security: 'Audio Settings',
+    branding: 'Branding',
+    notifications: 'Email',
+    integrations: 'External Integrations',
+    general: 'General Settings',
+    stripe: 'Stripe Payments',
+    transcription: 'Transcription Settings',
+    userRegistration: 'User Registration',
+};
+
+const OPTIONS_FIELD_LABELS: Record<string, string> = {
+    alertRetentionDays: 'Alert retention days',
+    systemHealthAlertsEnabled: 'System health alerts',
+    transcriptionFailureAlertsEnabled: 'Transcription failure alerts',
+    transcriptionFailureThreshold: 'Transcription failure threshold',
+    transcriptionFailureTimeWindow: 'Transcription failure time window',
+    transcriptionFailureRepeatMinutes: 'Transcription failure repeat interval',
+    toneDetectionAlertsEnabled: 'Tone detection alerts',
+    toneDetectionIssueThreshold: 'Tone detection issue threshold',
+    toneDetectionTimeWindow: 'Tone detection time window',
+    toneDetectionRepeatMinutes: 'Tone detection repeat interval',
+    'autoLearnToneSetConfig.aToneMinDuration': 'A-tone min duration',
+    'autoLearnToneSetConfig.aToneMaxDuration': 'A-tone max duration',
+    'autoLearnToneSetConfig.bToneMinDuration': 'B-tone min duration',
+    'autoLearnToneSetConfig.bToneMaxDuration': 'B-tone max duration',
+    'autoLearnToneSetConfig.longToneMinDuration': 'Long-tone min duration',
+    'autoLearnToneSetConfig.longToneMaxDuration': 'Long-tone max duration',
+    'autoLearnToneSetConfig.callsRequired': 'Calls required',
+    'autoLearnToneSetConfig.frequencyToleranceHz': 'Frequency tolerance (Hz)',
+    noAudioAlertsEnabled: 'No-audio alerts',
+    noAudioThresholdMinutes: 'No-audio threshold (minutes)',
+    noAudioRepeatMinutes: 'No-audio repeat interval',
+    audioConversion: 'Audio conversion',
+    disableDuplicateDetection: 'Disable duplicate detection',
+    duplicateTimestampWindow: 'Duplicate timestamp window',
+    duplicateDetectionTimeFrame: 'Duplicate cache retention',
+    audioEncryptionEnabled: 'Audio encryption',
+    rateLimitingEnabled: 'Download rate limiting',
+    maxDownloadsPerWindow: 'Max downloads per window',
+    downloadWindowMinutes: 'Download window (minutes)',
+    branding: 'Branding label',
+    baseUrl: 'Base URL',
+    email: 'Support email',
+    emailLogoBorderRadius: 'Logo border radius',
+    faviconFilename: 'Favicon',
+    emailLogoFilename: 'Server logo',
+    emailServiceEnabled: 'Email service',
+    emailProvider: 'Email provider',
+    emailSendGridApiKey: 'SendGrid API key',
+    emailMailgunApiKey: 'Mailgun API key',
+    emailMailgunDomain: 'Mailgun domain',
+    emailMailgunApiBase: 'Mailgun API base',
+    emailSmtpHost: 'SMTP host',
+    emailSmtpPort: 'SMTP port',
+    emailSmtpUsername: 'SMTP username',
+    emailSmtpPassword: 'SMTP password',
+    emailSmtpUseTLS: 'SMTP TLS',
+    emailSmtpSkipVerify: 'SMTP skip certificate verify',
+    emailSmtpFromEmail: 'From email address',
+    emailSmtpFromName: 'From name',
+    'openAIIntegration.baseUrl': 'OpenAI API base URL',
+    'openAIIntegration.apiKey': 'OpenAI API key',
+    'openAIIntegration.model': 'OpenAI chat model',
+    radioReferenceEnabled: 'Radio Reference integration',
+    radioReferenceUsername: 'Radio Reference username',
+    radioReferencePassword: 'Radio Reference password',
+    relayServerAPIKey: 'Relay server API key',
+    time12hFormat: '12-hour time format',
+    autoPopulate: 'Auto-populate',
+    defaultSystemDelay: 'Default system delay',
+    playbackGoesLive: 'Playback goes live',
+    keypadBeeps: 'Keypad beeps',
+    maxClients: 'Max clients',
+    pruneDays: 'Prune days',
+    showListenersCount: 'Show listeners count',
+    sortTalkgroups: 'Sort talkgroups',
+    reconnectionGracePeriod: 'Reconnection grace period',
+    reconnectionMaxBufferSize: 'Reconnection max buffer size',
+    configSyncEnabled: 'Config sync',
+    configSyncPath: 'Config sync path',
+    stripePaywallEnabled: 'Stripe paywall',
+    stripePublishableKey: 'Stripe publishable key',
+    stripeSecretKey: 'Stripe secret key',
+    stripeWebhookSecret: 'Stripe webhook secret',
+    stripeGracePeriodDays: 'Stripe grace period (days)',
+    transcriptionEnabled: 'Transcription enabled',
+    transcriptionEnhancement: 'Transcription audio enhancement',
+    'transcriptionConfig.provider': 'Transcription provider',
+    'transcriptionConfig.whisperAPIURL': 'Whisper API URL',
+    'transcriptionConfig.whisperAPIKey': 'Whisper API key',
+    'transcriptionConfig.whisperAPIModel': 'Whisper model',
+    'transcriptionConfig.azureKey': 'Azure key',
+    'transcriptionConfig.azureRegion': 'Azure region',
+    'transcriptionConfig.googleAPIKey': 'Google API key',
+    'transcriptionConfig.googleCredentials': 'Google credentials',
+    'transcriptionConfig.assemblyAIKey': 'AssemblyAI key',
+    'transcriptionConfig.assemblyAISpeechModel': 'AssemblyAI speech model',
+    'transcriptionConfig.assemblyAIWordBoost': 'AssemblyAI word boost',
+    'transcriptionConfig.cloudflareAccountID': 'Cloudflare account ID',
+    'transcriptionConfig.cloudflareAPIToken': 'Cloudflare API token',
+    'transcriptionConfig.cloudflareModel': 'Cloudflare model',
+    'transcriptionConfig.language': 'Transcription language',
+    'transcriptionConfig.prompt': 'Transcription prompt',
+    'transcriptionConfig.timeoutSeconds': 'Transcription timeout',
+    'transcriptionConfig.minCallDuration': 'Minimum call duration',
+    'transcriptionConfig.workerPoolSize': 'Worker pool size',
+    'transcriptionConfig.hallucinationPatterns': 'Hallucination removal patterns',
+    'transcriptionConfig.hallucinationDetectionMode': 'Hallucination detection mode',
+    'transcriptionConfig.hallucinationMinOccurrences': 'Hallucination min occurrences',
+    userRegistrationEnabled: 'User registration',
+    publicRegistrationEnabled: 'Public registration',
+    publicRegistrationMode: 'Public registration mode',
+    emailVerificationRequired: 'Email verification required',
+    turnstileEnabled: 'Cloudflare Turnstile',
+    turnstileSiteKey: 'Turnstile site key',
+    turnstileSecretKey: 'Turnstile secret key',
+};
+
+export interface UnsavedPanelChanges {
+    panelId: OptionsPanelId;
+    panelLabel: string;
+    fields: string[];
+}
 
 @Component({
     selector: 'rdio-scanner-admin-options',
     templateUrl: './options.component.html',
+    styleUrls: ['./options.component.scss'],
 })
 export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, OnDestroy, OnChanges {
     @Input() form: FormGroup | undefined;
     @Input() systemsForm: FormArray | undefined;
-    @Output() saveRequested = new EventEmitter<void>();
     private radioReferenceSubscription?: Subscription;
+    private formChangeSubscription?: Subscription;
+    private systemsChangeSubscription?: Subscription;
     private initialLoadComplete = false;
+    private panelBaselines: Partial<Record<OptionsPanelId, string>> = {};
     public isEditingRadioReference = false;
     panelsReady = false;
     private originalRadioReferenceUsername = '';
@@ -91,8 +290,411 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         private dialog: MatDialog,
         private locationService: LocationDataService,
         private http: HttpClient,
-        private cdr: ChangeDetectorRef
+        private cdr: ChangeDetectorRef,
+        private adminService: RdioScannerAdminService,
     ) {}
+
+    /** Per-panel save state for inline feedback. */
+    savingPanel: OptionsPanelId | null = null;
+
+    isPanelDirty(panelId: OptionsPanelId): boolean {
+        const baseline = this.panelBaselines[panelId];
+        if (!baseline || !this.form) {
+            return false;
+        }
+
+        return JSON.stringify(this.snapshotPanel(panelId)) !== baseline;
+    }
+
+    get hasUnsavedChanges(): boolean {
+        return this.unsavedChanges.length > 0;
+    }
+
+    get unsavedChanges(): UnsavedPanelChanges[] {
+        if (!this.form || !this.initialLoadComplete) {
+            return [];
+        }
+
+        const groups: UnsavedPanelChanges[] = [];
+        (Object.keys(OPTIONS_PANEL_DEFS) as OptionsPanelId[]).forEach((panelId) => {
+            const fields = this.getPanelFieldChanges(panelId);
+            if (fields.length) {
+                groups.push({
+                    panelId,
+                    panelLabel: OPTIONS_PANEL_LABELS[panelId],
+                    fields,
+                });
+            }
+        });
+
+        return groups;
+    }
+
+    goToUnsavedPanel(panelId: OptionsPanelId): void {
+        this.openPanel(`${panelId}Expanded`);
+    }
+
+    /**
+     * Save one options section. Only sends keys belonging to that panel; toggles in
+     * other sections are unaffected. Per-system no-audio overrides save separately.
+     */
+    async savePanel(panelId: OptionsPanelId): Promise<void> {
+        if (!this.form || !this.isPanelDirty(panelId)) {
+            return;
+        }
+
+        const def = OPTIONS_PANEL_DEFS[panelId];
+        const payload = this.buildPayloadForKeys(def.keys);
+
+        this.savingPanel = panelId;
+        this.cdr.markForCheck();
+
+        const updated = await this.adminService.updateOptions(payload);
+        let ok = !!updated;
+
+        if (ok && def.systemsNoAudio) {
+            ok = await this.saveDirtySystemsNoAudio();
+        }
+
+        this.savingPanel = null;
+        if (ok) {
+            this.refreshPanelBaseline(panelId);
+            this.snackBar.open(`${OPTIONS_PANEL_LABELS[panelId]} saved`, 'Close', { duration: 1500 });
+        } else {
+            this.snackBar.open('Failed to save. Please try again.', 'Close', { duration: 4000 });
+        }
+        this.cdr.markForCheck();
+    }
+
+    private buildPayloadForKeys(keys: string[]): Record<string, any> {
+        const raw = this.form!.getRawValue();
+        const slice: Record<string, any> = {};
+        for (const key of keys) {
+            if (raw[key] !== undefined) {
+                slice[key] = raw[key];
+            }
+        }
+        return this.normalizeOptionsPayload(slice);
+    }
+
+    private normalizeOptionsPayload(payload: Record<string, any>): Record<string, any> {
+        const result = { ...payload };
+
+        if ('rateLimitingEnabled' in result) {
+            if (!result['rateLimitingEnabled']) {
+                result['maxDownloadsPerWindow'] = 0;
+            }
+            delete result['rateLimitingEnabled'];
+        }
+
+        if (result['transcriptionConfig']) {
+            if (result['transcriptionEnabled'] !== undefined) {
+                result['transcriptionConfig'] = {
+                    ...result['transcriptionConfig'],
+                    enabled: result['transcriptionEnabled'],
+                };
+            }
+
+            const patterns = result['transcriptionConfig'].hallucinationPatterns;
+            if (typeof patterns === 'string') {
+                result['transcriptionConfig'].hallucinationPatterns = patterns
+                    .split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+            }
+            const wordBoost = result['transcriptionConfig'].assemblyAIWordBoost;
+            if (typeof wordBoost === 'string') {
+                result['transcriptionConfig'].assemblyAIWordBoost = wordBoost
+                    .split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+            }
+        }
+
+        if ('relayServerAPIKey' in result) {
+            result['relayServerURL'] = 'https://tlradioserver.thinlineds.com';
+        }
+
+        return result;
+    }
+
+    private snapshotPanel(panelId: OptionsPanelId): unknown {
+        const raw = this.form?.getRawValue();
+        const def = OPTIONS_PANEL_DEFS[panelId];
+        const snapshot: Record<string, unknown> = {};
+
+        for (const key of def.keys) {
+            snapshot[key] = raw?.[key];
+        }
+
+        if (def.systemsNoAudio && this.systemsForm) {
+            snapshot['__systemsNoAudio'] = this.systemsForm.controls.map((ctrl) => ({
+                id: ctrl.value.id,
+                noAudioAlertsEnabled: ctrl.value.noAudioAlertsEnabled,
+                noAudioThresholdMinutes: ctrl.value.noAudioThresholdMinutes,
+            }));
+        }
+
+        return snapshot;
+    }
+
+    private captureAllPanelBaselines(): void {
+        (Object.keys(OPTIONS_PANEL_DEFS) as OptionsPanelId[]).forEach((panelId) => {
+            this.refreshPanelBaseline(panelId);
+        });
+    }
+
+    private refreshPanelBaseline(panelId: OptionsPanelId): void {
+        this.panelBaselines[panelId] = JSON.stringify(this.snapshotPanel(panelId));
+    }
+
+    private getPanelFieldChanges(panelId: OptionsPanelId): string[] {
+        const baselineJson = this.panelBaselines[panelId];
+        if (!baselineJson || !this.form) {
+            return [];
+        }
+
+        const baseline = JSON.parse(baselineJson) as Record<string, unknown>;
+        const current = this.snapshotPanel(panelId) as Record<string, unknown>;
+        const labels: string[] = [];
+
+        for (const key of OPTIONS_PANEL_DEFS[panelId].keys) {
+            this.collectFieldChanges(key, baseline[key], current[key], labels);
+        }
+
+        if (OPTIONS_PANEL_DEFS[panelId].systemsNoAudio) {
+            this.collectSystemsNoAudioChanges(
+                baseline['__systemsNoAudio'] as { id: number; noAudioAlertsEnabled: boolean; noAudioThresholdMinutes: number }[] | undefined,
+                current['__systemsNoAudio'] as { id: number; noAudioAlertsEnabled: boolean; noAudioThresholdMinutes: number }[] | undefined,
+                labels,
+            );
+        }
+
+        return labels;
+    }
+
+    private collectFieldChanges(path: string, oldVal: unknown, newVal: unknown, labels: string[]): void {
+        const topKey = path.split('.')[0];
+        if (RdioScannerAdminOptionsComponent.TOGGLE_KEYS.includes(topKey)) {
+            return;
+        }
+
+        if (this.valuesEqual(oldVal, newVal)) {
+            return;
+        }
+
+        const isObject = (v: unknown): v is Record<string, unknown> =>
+            v !== null && typeof v === 'object' && !Array.isArray(v);
+
+        if (isObject(oldVal) || isObject(newVal)) {
+            const oldObj = isObject(oldVal) ? oldVal : {};
+            const newObj = isObject(newVal) ? newVal : {};
+            const keys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
+            keys.forEach((key) => {
+                this.collectFieldChanges(`${path}.${key}`, oldObj[key], newObj[key], labels);
+            });
+            return;
+        }
+
+        labels.push(this.labelForField(path));
+    }
+
+    private collectSystemsNoAudioChanges(
+        baseline: { id: number; noAudioAlertsEnabled: boolean; noAudioThresholdMinutes: number }[] | undefined,
+        current: { id: number; noAudioAlertsEnabled: boolean; noAudioThresholdMinutes: number }[] | undefined,
+        labels: string[],
+    ): void {
+        if (!current?.length) {
+            return;
+        }
+
+        for (const entry of current) {
+            const saved = baseline?.find((s) => s.id === entry.id);
+            if (!saved) {
+                continue;
+            }
+
+            const systemLabel = this.systemsForm?.controls
+                .find((ctrl) => ctrl.value.id === entry.id)?.value?.label || `System ${entry.id}`;
+
+            if (saved.noAudioAlertsEnabled !== entry.noAudioAlertsEnabled) {
+                labels.push(`${systemLabel}: no-audio alerts`);
+            }
+            if (saved.noAudioThresholdMinutes !== entry.noAudioThresholdMinutes) {
+                labels.push(`${systemLabel}: no-audio threshold`);
+            }
+        }
+    }
+
+    private valuesEqual(a: unknown, b: unknown): boolean {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    private labelForField(path: string): string {
+        const known = OPTIONS_FIELD_LABELS[path];
+        if (known) {
+            return known;
+        }
+
+        const leaf = path.split('.').pop() || path;
+        if (this.isSensitiveField(leaf)) {
+            return `${this.humanizeKey(leaf)} (modified)`;
+        }
+
+        return this.humanizeKey(leaf);
+    }
+
+    private isSensitiveField(key: string): boolean {
+        const lower = key.toLowerCase();
+        return lower.includes('password')
+            || lower.includes('secret')
+            || lower.includes('apikey')
+            || lower.includes('credentials')
+            || lower.includes('token');
+    }
+
+    private humanizeKey(key: string): string {
+        const spaced = key
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/_/g, ' ')
+            .trim();
+        return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+    }
+
+    private refreshBaselinesForKey(key: string): void {
+        (Object.keys(OPTIONS_PANEL_DEFS) as OptionsPanelId[]).forEach((panelId) => {
+            const def = OPTIONS_PANEL_DEFS[panelId];
+            if (def.keys.includes(key)
+                || (key === 'rateLimitingEnabled' && panelId === 'security')
+                || (key === 'maxDownloadsPerWindow' && panelId === 'security')
+                || (key === 'transcriptionEnabled' && panelId === 'transcription')) {
+                this.refreshPanelBaseline(panelId);
+            }
+        });
+    }
+
+    /** Keep mirrored form fields aligned after a toggle auto-save (before baseline snapshot). */
+    private syncRelatedFieldsAfterToggleSave(key: string, value: unknown): void {
+        if (key === 'transcriptionEnabled') {
+            this.form?.get('transcriptionConfig')?.get('enabled')?.setValue(!!value, { emitEvent: false });
+        }
+    }
+
+    private async saveDirtySystemsNoAudio(): Promise<boolean> {
+        if (!this.systemsForm) {
+            return true;
+        }
+
+        const baseline = JSON.parse(this.panelBaselines.alerts || '{}').__systemsNoAudio as {
+            id: number;
+            noAudioAlertsEnabled: boolean;
+            noAudioThresholdMinutes: number;
+        }[] | undefined;
+
+        let allOk = true;
+        for (const ctrl of this.systemsForm.controls) {
+            const id = ctrl.value.id;
+            const current = {
+                noAudioAlertsEnabled: ctrl.value.noAudioAlertsEnabled ?? false,
+                noAudioThresholdMinutes: ctrl.value.noAudioThresholdMinutes ?? 0,
+            };
+            const saved = baseline?.find((s) => s.id === id);
+            const changed = !saved
+                || saved.noAudioAlertsEnabled !== current.noAudioAlertsEnabled
+                || saved.noAudioThresholdMinutes !== current.noAudioThresholdMinutes;
+
+            if (!changed) {
+                continue;
+            }
+
+            try {
+                await this.adminService.saveSystemNoAudioSettings(
+                    id,
+                    current.noAudioAlertsEnabled,
+                    current.noAudioThresholdMinutes || 30,
+                );
+                ctrl.markAsPristine();
+            } catch {
+                allOk = false;
+            }
+        }
+
+        return allOk;
+    }
+
+    private setupFormChangeTracking(): void {
+        this.formChangeSubscription?.unsubscribe();
+        this.systemsChangeSubscription?.unsubscribe();
+
+        if (this.form) {
+            this.formChangeSubscription = this.form.valueChanges.subscribe(() => {
+                if (this.initialLoadComplete) {
+                    this.cdr.markForCheck();
+                }
+            });
+        }
+
+        if (this.systemsForm) {
+            this.systemsChangeSubscription = this.systemsForm.valueChanges.subscribe(() => {
+                if (this.initialLoadComplete) {
+                    this.cdr.markForCheck();
+                }
+            });
+        }
+    }
+
+    /** Top-level boolean option controls that auto-save the moment they change. */
+    private static readonly TOGGLE_KEYS = [
+        'systemHealthAlertsEnabled', 'transcriptionFailureAlertsEnabled', 'toneDetectionAlertsEnabled',
+        'noAudioAlertsEnabled', 'disableDuplicateDetection', 'audioEncryptionEnabled', 'rateLimitingEnabled',
+        'time12hFormat', 'autoPopulate', 'playbackGoesLive', 'showListenersCount', 'sortTalkgroups',
+        'emailServiceEnabled', 'emailSmtpUseTLS', 'emailSmtpSkipVerify', 'radioReferenceEnabled',
+        'stripePaywallEnabled', 'transcriptionEnabled', 'transcriptionEnhancement', 'userRegistrationEnabled',
+        'publicRegistrationEnabled', 'emailVerificationRequired', 'turnstileEnabled', 'configSyncEnabled',
+        'adminLocalhostOnly', 'adminPasswordLoginDisabled',
+    ];
+
+    private toggleSubscriptions: Subscription[] = [];
+
+    /** Subscribe each toggle so flipping it immediately persists just that key. */
+    private setupToggleAutoSave(): void {
+        this.toggleSubscriptions.forEach(s => s.unsubscribe());
+        this.toggleSubscriptions = [];
+        if (!this.form) return;
+
+        for (const key of RdioScannerAdminOptionsComponent.TOGGLE_KEYS) {
+            const ctrl = this.form.get(key);
+            if (!ctrl) continue;
+            this.toggleSubscriptions.push(ctrl.valueChanges.subscribe((value) => {
+                if (!this.initialLoadComplete) return;
+                this.saveOptionKey(key, value);
+            }));
+        }
+    }
+
+    /** Persist a single option key (used by toggle auto-save). */
+    private async saveOptionKey(key: string, value: any): Promise<void> {
+        let partial: { [key: string]: any };
+
+        if (key === 'rateLimitingEnabled') {
+            // Synthetic control: maps onto maxDownloadsPerWindow (0 = disabled).
+            const max = this.form?.get('maxDownloadsPerWindow')?.value || 100;
+            partial = { maxDownloadsPerWindow: value ? max : 0 };
+        } else if (key === 'transcriptionEnabled') {
+            // Flat toggle drives transcriptionConfig.enabled server-side.
+            partial = { transcriptionEnabled: value };
+        } else {
+            partial = { [key]: value };
+        }
+
+        this.syncRelatedFieldsAfterToggleSave(key, value);
+
+        const updated = await this.adminService.updateOptions(partial);
+        if (updated) {
+            this.syncRelatedFieldsAfterToggleSave(key, value);
+            this.refreshBaselinesForKey(key);
+            this.snackBar.open('Saved', 'Close', { duration: 1500 });
+        } else {
+            this.snackBar.open('Failed to save. Please try again.', 'Close', { duration: 4000 });
+        }
+        this.cdr.markForCheck();
+    }
 
     asFormGroup(ctrl: any): FormGroup {
         return ctrl as FormGroup;
@@ -129,8 +731,12 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         this.setHardcodedRelayServerURL();
         this.updateFaviconUrl();
         this.updateEmailLogoUrl();
+        this.setupToggleAutoSave();
+        this.setupFormChangeTracking();
         setTimeout(() => {
             this.initialLoadComplete = true;
+            this.captureAllPanelBaselines();
+            this.cdr.markForCheck();
         }, 100);
     }
 
@@ -144,6 +750,9 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
     ngOnDestroy(): void {
         this.radioReferenceSubscription?.unsubscribe();
+        this.formChangeSubscription?.unsubscribe();
+        this.systemsChangeSubscription?.unsubscribe();
+        this.toggleSubscriptions.forEach(s => s.unsubscribe());
     }
 
     ngOnChanges(changes: SimpleChanges): void {
@@ -169,13 +778,23 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             this.setupRateLimitingToggle();
             this.setupAudioEncryptionToggle();
             this.setHardcodedRelayServerURL();
+            this.setupToggleAutoSave();
+            this.setupFormChangeTracking();
             this.isEditingRadioReference = false;
             this.updateEmailLogoUrl();
 
             setTimeout(() => {
                 this.panelsReady = true;
+                this.captureAllPanelBaselines();
                 this.cdr.detectChanges();
             }, 80);
+        }
+
+        if (changes['systemsForm'] && this.systemsForm) {
+            this.setupFormChangeTracking();
+            if (this.initialLoadComplete) {
+                this.refreshPanelBaseline('alerts');
+            }
         }
     }
 
@@ -361,9 +980,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
         toggleControl.valueChanges.subscribe(enabled => {
             applyState(enabled);
-            if (this.form) {
-                this.form.markAsDirty();
-            }
         });
     }
 
@@ -425,7 +1041,8 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         dialogRef.afterClosed().subscribe((apiKey: string | null) => {
             if (apiKey && this.form) {
                 this.form.get('relayServerAPIKey')?.setValue(apiKey);
-                this.saveRequested.emit();
+                // Persist immediately via the dedicated options endpoint (no global save / reload).
+                this.saveOptionKey('relayServerAPIKey', apiKey);
             }
         });
     }
@@ -443,7 +1060,8 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         dialogRef.afterClosed().subscribe((apiKey: string | null) => {
             if (apiKey && this.form) {
                 this.form.get('relayServerAPIKey')?.setValue(apiKey);
-                this.saveRequested.emit();
+                // Persist immediately via the dedicated options endpoint (no global save / reload).
+                this.saveOptionKey('relayServerAPIKey', apiKey);
             }
         });
     }
@@ -507,8 +1125,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                         this.faviconUrl = `${window.location.origin}/favicon?t=${Date.now()}`;
                         this.cdr.detectChanges();
                         this.snackBar.open('Favicon uploaded successfully', 'Close', { duration: 3000 });
-                        // Mark form as dirty so user knows to save
-                        this.form?.markAsDirty();
+                        this.refreshPanelBaseline('branding');
                     } else {
                         alert('Failed to upload favicon: ' + (response.error || 'Unknown error'));
                     }
@@ -549,8 +1166,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                         this.faviconUrl = '';
                         this.cdr.detectChanges();
                         this.snackBar.open('Favicon removed successfully', 'Close', { duration: 3000 });
-                        // Mark form as dirty so user knows to save
-                        this.form?.markAsDirty();
+                        this.refreshPanelBaseline('branding');
                     } else {
                         alert('Failed to remove favicon: ' + (response.error || 'Unknown error'));
                     }
@@ -699,7 +1315,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                         this.emailLogoUrl = `${window.location.origin}/email-logo?t=${Date.now()}`;
                         this.cdr.detectChanges();
                         this.snackBar.open('Email logo uploaded successfully', 'Close', { duration: 3000 });
-                        this.form?.markAsDirty();
+                        this.refreshPanelBaseline('branding');
                     } else {
                         alert('Failed to upload logo: ' + (response.error || 'Unknown error'));
                     }
@@ -737,7 +1353,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                         this.emailLogoErrorRetryCount = 0;
                         this.cdr.detectChanges();
                         this.snackBar.open('Email logo removed successfully', 'Close', { duration: 3000 });
-                        this.form?.markAsDirty();
+                        this.refreshPanelBaseline('branding');
                     } else {
                         alert('Failed to remove logo: ' + (response.error || 'Unknown error'));
                     }

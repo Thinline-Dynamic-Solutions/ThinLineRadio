@@ -17,9 +17,9 @@
  * ****************************************************************************
 -->
 <div class="users-container">
-    <div class="row top">
-        <p class="mat-body">Manage registered users. View user details, edit profiles, resend verifications, and manage access.</p>
-        <div class="top-actions">
+    <div class="row top admin-section-bar">
+        <p class="admin-section-hint">Manage registered users, profiles, verifications, and access.</p>
+        <div class="admin-section-actions top-actions">
             <button type="button" mat-raised-button color="primary" (click)="openCreateUserDialog()">
                 <mat-icon>person_add</mat-icon>
                 Create User
@@ -263,22 +263,19 @@
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>First Name</mat-label>
-                                    <input matInput type="text" formControlName="firstName" required autocomplete="off">
-                                    <mat-error *ngIf="editForm.get('firstName')?.hasError('required')">Required</mat-error>
+                                    <input matInput type="text" formControlName="firstName" autocomplete="off">
                                 </mat-form-field>
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>Last Name</mat-label>
-                                    <input matInput type="text" formControlName="lastName" required autocomplete="off">
-                                    <mat-error *ngIf="editForm.get('lastName')?.hasError('required')">Required</mat-error>
+                                    <input matInput type="text" formControlName="lastName" autocomplete="off">
                                 </mat-form-field>
                             </div>
 
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>ZIP Code</mat-label>
-                                    <input matInput type="text" formControlName="zipCode" placeholder="12345" required autocomplete="off">
-                                    <mat-error *ngIf="editForm.get('zipCode')?.hasError('required')">Required</mat-error>
-                                    <mat-error *ngIf="editForm.get('zipCode')?.hasError('pattern')">Invalid ZIP</mat-error>
+                                    <input matInput type="text" formControlName="zipCode" placeholder="12345" autocomplete="off">
+                                    <mat-error *ngIf="editForm.get('zipCode')?.hasError('pattern')">Invalid ZIP (use 12345 or 12345-6789)</mat-error>
                                 </mat-form-field>
                                 <mat-form-field appearance="outline" class="half-width">
                                     <mat-label>Delay (minutes)</mat-label>

@@ -35,14 +35,6 @@ export class RdioScannerAdminPageComponent implements OnInit, OnDestroy {
 
     @ViewChild('adminComponent') private adminComponent: RdioScannerAdminComponent | undefined;
 
-    get formDirty(): boolean { return !!(this.adminComponent?.formDirty); }
-    get formValid(): boolean { return !!(this.adminComponent?.formValid); }
-    get configLoading(): boolean { return !!(this.adminComponent?.configLoading); }
-    get onConfigTab(): boolean { return this.adminComponent?.selectedTabIndex === 0; }
-
-    saveConfig(): void { this.adminComponent?.saveConfig(); }
-    resetConfig(): void { window.location.reload(); }
-
     private eventSubscription: Subscription | undefined;
 
     constructor(
