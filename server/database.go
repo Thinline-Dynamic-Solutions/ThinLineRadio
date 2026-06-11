@@ -59,7 +59,11 @@ func NewDatabase(config *Config) *Database {
 
 	if err = database.migrate(); err != nil {
 		log.Printf("FATAL: Database migration failed: %v", err)
-		log.Printf("The database schema must be up to date for the server to run. Please fix the migration error and try again.")
+		if strings.Contains(err.Error(), "57P01") || strings.Contains(err.Error(), "administrator command") {
+			log.Printf("The database connection was terminated during migration — usually because the server was stopped mid-startup or PostgreSQL was restarted. Start again and let migration finish without closing the process.")
+		} else {
+			log.Printf("The database schema must be up to date for the server to run. Please fix the migration error and try again.")
+		}
 		os.Exit(1)
 	}
 
@@ -76,8 +80,6 @@ func NewDatabase(config *Config) *Database {
 }
 
 func (db *Database) migrate() error {
-	var schema []string
-
 	formatError := errorFormatter("database", "migrate")
 
 	// Prepare migration table first (v6 style)
@@ -85,25 +87,12 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
-	schema = PostgresqlSchema
-
-	if tx, err := db.Sql.Begin(); err == nil {
-		for i, query := range schema {
-			if _, err = tx.Exec(query); err != nil {
-				log.Printf("ERROR: Failed to execute schema statement %d: %v", i+1, err)
-				tx.Rollback()
-				return formatError(err, query)
-			}
-		}
-
-		if err = tx.Commit(); err != nil {
-			log.Printf("ERROR: Failed to commit schema transaction: %v", err)
-			tx.Rollback()
+	if !postgresqlBootstrapComplete(db) {
+		if err := runPostgresqlBootstrap(db); err != nil {
 			return formatError(err, "")
 		}
 	} else {
-		log.Printf("ERROR: Failed to begin schema transaction: %v", err)
-		return formatError(err, "")
+		log.Println("postgresql bootstrap already complete, skipping")
 	}
 
 	if err := migrateGroups(db); err != nil {

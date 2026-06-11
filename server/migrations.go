@@ -2563,6 +2563,7 @@ func ensureLogsTimestampIndexBackground(db *Database) {
 // deferPostStartupMaintenance runs heavy, non-critical DB work after the server
 // is listening and call workers are running.
 func deferPostStartupMaintenance(db *Database) {
+	go ensureBootstrapIndexesBackground(db)
 	go ensureLogsTimestampIndexBackground(db)
 	startLogsCategoryMaintenance(db)
 }

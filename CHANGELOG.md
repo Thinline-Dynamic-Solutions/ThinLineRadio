@@ -1,5 +1,17 @@
 # Change log
 
+## Version 26.06.15 - Released June 10, 2026
+
+### Fixed
+
+- **Server — PostgreSQL bootstrap no longer re-runs on every restart**
+  - Established databases (options table present) skip full schema DDL and index creation at boot instead of re-executing `calls_idx` and other bootstrap indexes on every cold start.
+  - Fresh installs still run table DDL once, apply indexes outside the bootstrap transaction, and record completion in `rdioScannerMeta`.
+  - Any missing bootstrap indexes are built with `CREATE INDEX CONCURRENTLY` in the background after the server is ready so startup is not blocked on large `calls` tables.
+  - Clearer fatal message when migration fails with `SQLSTATE 57P01` (connection terminated mid-migration).
+
+---
+
 ## Version 26.06.14 - Released June 10, 2026
 
 ### Fixed
