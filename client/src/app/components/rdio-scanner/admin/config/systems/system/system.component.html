@@ -98,6 +98,14 @@
             </mat-form-field>
         </div>
 
+        <div class="settings-field">
+            <label class="field-label">Retention (days)</label>
+            <mat-form-field appearance="outline" class="compact-field">
+                <input type="number" min="0" step="1" matInput formControlName="retentionDays" placeholder="Use global" autocomplete="off">
+            </mat-form-field>
+            <span class="field-hint">Days to keep calls for this system. 0 = use global Prune Days.</span>
+        </div>
+
         <div class="settings-field settings-field--toggle">
             <div class="toggle-row">
                 <label class="field-label">Auto Populate</label>

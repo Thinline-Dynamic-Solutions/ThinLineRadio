@@ -1014,7 +1014,7 @@
       <div class="row">
         <p>
           <span class="mat-body">Prune Days</span><br>
-          <span class="mat-caption">Number of days to retain calls before automatic deletion. Set to 0 to disable.</span>
+          <span class="mat-caption">Default number of days to retain calls before automatic deletion. Set to 0 to disable global pruning. Systems and talkgroups can override this (talkgroup &gt; system &gt; global).</span>
         </p>
         <mat-form-field>
           <input type="number" min="0" step="1" matInput formControlName="pruneDays" autocomplete="off">
@@ -1025,6 +1025,34 @@
             Prune days is invalid
           </mat-error>
         </mat-form-field>
+      </div>
+
+      <div *ngIf="systemsForm && systemsForm.length > 0" style="margin-top: 24px;">
+        <p style="margin-bottom: 8px;">
+          <span class="mat-body"><strong>Per-System Retention</strong></span><br>
+          <span class="mat-caption">Override the global prune days for individual systems. Leave at 0 to use the global default above.</span>
+        </p>
+        <table mat-table [dataSource]="systemsForm.controls" style="width: 100%;">
+
+          <ng-container matColumnDef="label">
+            <th mat-header-cell *matHeaderCellDef>System</th>
+            <td mat-cell *matCellDef="let systemCtrl">{{ systemCtrl.get('label')?.value || 'Unnamed System' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="retentionDays">
+            <th mat-header-cell *matHeaderCellDef>Retention (days)</th>
+            <td mat-cell *matCellDef="let systemCtrl">
+              <ng-container [formGroup]="asFormGroup(systemCtrl)">
+                <mat-form-field style="width: 100px;">
+                  <input type="number" min="0" step="1" matInput formControlName="retentionDays" placeholder="Global" autocomplete="off">
+                </mat-form-field>
+              </ng-container>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="['label', 'retentionDays']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['label', 'retentionDays']"></tr>
+        </table>
       </div>
 
       <div class="row">

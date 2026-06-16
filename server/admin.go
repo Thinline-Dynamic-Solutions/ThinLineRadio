@@ -855,6 +855,7 @@ func (admin *Admin) SystemHealthAlertsEnabledHandler(w http.ResponseWriter, r *h
 		// If enabling, restart no-audio monitoring for all systems
 		if request.Enabled {
 			go admin.Controller.StartNoAudioMonitoringForAllSystems()
+			go admin.Controller.StartNoAudioMonitoringForAllApiKeys()
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -1025,6 +1026,7 @@ func (admin *Admin) SystemHealthAlertSettingsHandler(w http.ResponseWriter, r *h
 		// If no-audio alerts setting was changed, restart monitoring for all systems
 		if request.NoAudioAlertsEnabled != nil {
 			go admin.Controller.StartNoAudioMonitoringForAllSystems()
+			go admin.Controller.StartNoAudioMonitoringForAllApiKeys()
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -1094,6 +1096,58 @@ func (admin *Admin) SystemNoAudioSettingsHandler(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "system no-audio settings updated successfully",
+	})
+}
+
+// SystemRetentionSettingsHandler handles updating per-system call retention overrides.
+func (admin *Admin) SystemRetentionSettingsHandler(w http.ResponseWriter, r *http.Request) {
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		SystemId      uint `json:"systemId"`
+		RetentionDays uint `json:"retentionDays"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	system, ok := admin.Controller.Systems.GetSystemById(uint64(request.SystemId))
+	if !ok || system == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "system not found",
+		})
+		return
+	}
+
+	system.RetentionDays = request.RetentionDays
+
+	if err := admin.Controller.Systems.Write(admin.Controller.Database); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": fmt.Sprintf("failed to save system settings: %v", err),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "system retention settings updated successfully",
 	})
 }
 
@@ -1465,6 +1519,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 						// Restart no-audio monitoring in case health alert settings changed
 						go admin.Controller.StartNoAudioMonitoringForAllSystems()
+						go admin.Controller.StartNoAudioMonitoringForAllApiKeys()
 
 						// If audio encryption is enabled and we don't have a key yet
 						// (or it was just enabled), fetch the key + client token from
@@ -1553,9 +1608,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 					// Only patch fields that are completely absent from the payload
 					_, hasEnabled := m["noAudioAlertsEnabled"]
 					_, hasThreshold := m["noAudioThresholdMinutes"]
-					if hasEnabled && hasThreshold {
-						continue
-					}
+					_, hasRetention := m["retentionDays"]
 					// Try to find the matching existing system by id, then by systemRef
 					var existing *System
 					if idVal, ok := m["id"].(float64); ok {
@@ -1572,6 +1625,33 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						}
 						if !hasThreshold {
 							m["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
+						}
+						if !hasRetention {
+							m["retentionDays"] = existing.RetentionDays
+						}
+					}
+
+					if tgs, ok := m["talkgroups"].([]any); ok && existing != nil {
+						for _, tr := range tgs {
+							tgMap, ok := tr.(map[string]any)
+							if !ok {
+								continue
+							}
+							if _, has := tgMap["retentionDays"]; has {
+								continue
+							}
+							var existingTg *Talkgroup
+							if idVal, ok := tgMap["id"].(float64); ok {
+								existingTg, _ = existing.Talkgroups.GetTalkgroupById(uint64(idVal))
+							}
+							if existingTg == nil {
+								if refVal, ok := tgMap["talkgroupRef"].(float64); ok {
+									existingTg, _ = existing.Talkgroups.GetTalkgroupByRef(uint(refVal))
+								}
+							}
+							if existingTg != nil {
+								tgMap["retentionDays"] = existingTg.RetentionDays
+							}
 						}
 					}
 				}
@@ -2261,6 +2341,8 @@ func (admin *Admin) OptionsPatchHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	admin.Controller.ApplyOptionsRuntimeSideEffects(partial)
+
 	go admin.Controller.EmitConfig()
 	admin.Controller.SyncConfigToFile()
 
@@ -2315,6 +2397,8 @@ func (admin *Admin) ApikeysHandler(w http.ResponseWriter, r *http.Request) {
 
 		go admin.Controller.EmitConfig()
 		admin.Controller.SyncConfigToFile()
+
+		go admin.Controller.StartNoAudioMonitoringForAllApiKeys()
 
 		json.NewEncoder(w).Encode(map[string]any{"apikeys": admin.Controller.Apikeys.List})
 
@@ -2574,6 +2658,33 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if _, has := incoming["noAudioThresholdMinutes"]; !has {
 			incoming["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
+		}
+		if _, has := incoming["retentionDays"]; !has {
+			incoming["retentionDays"] = existing.RetentionDays
+		}
+
+		if tgs, ok := incoming["talkgroups"].([]any); ok {
+			for _, tr := range tgs {
+				tgMap, ok := tr.(map[string]any)
+				if !ok {
+					continue
+				}
+				if _, has := tgMap["retentionDays"]; has {
+					continue
+				}
+				var existingTg *Talkgroup
+				if idVal, ok := tgMap["id"].(float64); ok {
+					existingTg, _ = existing.Talkgroups.GetTalkgroupById(uint64(idVal))
+				}
+				if existingTg == nil {
+					if refVal, ok := tgMap["talkgroupRef"].(float64); ok {
+						existingTg, _ = existing.Talkgroups.GetTalkgroupByRef(uint(refVal))
+					}
+				}
+				if existingTg != nil {
+					tgMap["retentionDays"] = existingTg.RetentionDays
+				}
+			}
 		}
 	}
 

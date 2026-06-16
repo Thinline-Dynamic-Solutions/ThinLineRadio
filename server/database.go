@@ -436,6 +436,14 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	if err := migrateApikeyNoAudioMonitoring(db); err != nil {
+		return formatError(err, "")
+	}
+
+	if err := migrateRetentionDays(db); err != nil {
+		return formatError(err, "")
+	}
+
 	return nil
 }
 

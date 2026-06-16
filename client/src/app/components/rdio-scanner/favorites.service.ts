@@ -20,7 +20,7 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { SettingsService } from './settings/settings.service';
-import { RdioScannerConfig, RdioScannerEvent } from './rdio-scanner';
+import { RdioScannerConfig, RdioScannerEvent, RdioScannerSystem } from './rdio-scanner';
 import { RdioScannerService } from './rdio-scanner.service';
 
 export interface FavoriteItem {
@@ -48,10 +48,9 @@ export class FavoritesService implements OnDestroy {
         
         // Subscribe to config events to get user settings
         this.configSubscription = this.rdioScannerService.event.subscribe((event: RdioScannerEvent) => {
-            if (event.config && event.config.userSettings && event.config.userSettings['favorites']) {
+            if (event.config?.userSettings?.['favorites']) {
                 const favoritesList = event.config.userSettings['favorites'] as FavoriteItem[];
-                this.favorites = new Set(favoritesList.map(f => this.getFavoriteKey(f)));
-                this.favorites$.next(new Set(this.favorites));
+                this.applyFavoritesList(favoritesList, event.config.systems);
             }
         });
     }
@@ -154,6 +153,69 @@ export class FavoritesService implements OnDestroy {
         }
     }
 
+    /**
+     * Drop parent tag/system favorites that are not backed by every talkgroup
+     * in that tag/system (left over from the old single-TG star bug).
+     */
+    normalizeFavoriteItems(items: FavoriteItem[], systems: RdioScannerSystem[]): FavoriteItem[] {
+        const talkgroupKeys = new Set(
+            items
+                .filter(i => i.type === 'talkgroup' && i.systemId !== undefined && i.talkgroupId !== undefined)
+                .map(i => `${i.systemId}:${i.talkgroupId}`),
+        );
+        const result: FavoriteItem[] = [
+            ...items.filter(i => i.type === 'talkgroup'),
+        ];
+
+        for (const item of items) {
+            if (item.type !== 'tag' || item.systemId === undefined || !item.tag) {
+                continue;
+            }
+            const system = systems.find(s => s.id === item.systemId);
+            if (!system) {
+                continue;
+            }
+            const tagTalkgroups = (system.talkgroups || []).filter(
+                tg => (tg.tag || 'Untagged') === item.tag,
+            );
+            if (tagTalkgroups.length > 0 && tagTalkgroups.every(tg => talkgroupKeys.has(`${item.systemId}:${tg.id}`))) {
+                result.push(item);
+            }
+        }
+
+        for (const item of items) {
+            if (item.type !== 'system' || item.systemId === undefined) {
+                continue;
+            }
+            const system = systems.find(s => s.id === item.systemId);
+            if (!system) {
+                continue;
+            }
+            const allTalkgroups = system.talkgroups || [];
+            if (allTalkgroups.length > 0 && allTalkgroups.every(tg => talkgroupKeys.has(`${item.systemId}:${tg.id}`))) {
+                result.push(item);
+            }
+        }
+
+        return result;
+    }
+
+    private applyFavoritesList(favoritesList: FavoriteItem[], systems?: RdioScannerSystem[]): void {
+        const normalized = systems?.length
+            ? this.normalizeFavoriteItems(favoritesList, systems)
+            : favoritesList;
+        const oldKeys = new Set(favoritesList.map(f => this.getFavoriteKey(f)).filter(Boolean));
+        const newKeys = new Set(normalized.map(f => this.getFavoriteKey(f)).filter(Boolean));
+        const changed = oldKeys.size !== newKeys.size || [...oldKeys].some(k => !newKeys.has(k));
+
+        this.favorites = newKeys;
+        this.favorites$.next(new Set(this.favorites));
+
+        if (changed && systems?.length) {
+            this.saveFavorites();
+        }
+    }
+
     getFavoriteItems(): FavoriteItem[] {
         const items: FavoriteItem[] = [];
         this.favorites.forEach(key => {
@@ -172,23 +234,23 @@ export class FavoritesService implements OnDestroy {
     private loadFavorites(): void {
         // First, try to load from config (comes with login)
         const currentConfig = this.rdioScannerService.getConfig();
-        if (currentConfig && currentConfig.userSettings && currentConfig.userSettings['favorites']) {
+        if (currentConfig?.userSettings?.['favorites']) {
             const favoritesList = currentConfig.userSettings['favorites'] as FavoriteItem[];
-            this.favorites = new Set(favoritesList.map(f => this.getFavoriteKey(f)));
-            this.favorites$.next(new Set(this.favorites));
+            this.applyFavoritesList(favoritesList, currentConfig.systems);
             return;
         }
 
         // Fallback: try to load from API
         this.settingsService.getSettings().subscribe({
             next: (settings) => {
-                if (settings && settings.favorites && Array.isArray(settings.favorites)) {
+                if (settings?.favorites && Array.isArray(settings.favorites)) {
                     const favoritesList = settings.favorites as FavoriteItem[];
-                    this.favorites = new Set(favoritesList.map(f => this.getFavoriteKey(f)));
+                    const systems = this.rdioScannerService.getConfig()?.systems;
+                    this.applyFavoritesList(favoritesList, systems);
                 } else {
                     this.favorites = new Set();
+                    this.favorites$.next(new Set(this.favorites));
                 }
-                this.favorites$.next(new Set(this.favorites));
             },
             error: (error) => {
                 console.error('Error loading favorites from settings:', error);

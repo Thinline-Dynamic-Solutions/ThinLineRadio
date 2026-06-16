@@ -219,7 +219,7 @@
           <span class="system-chip-label">{{ system.label }}</span>
           <span class="system-chip-meta">
             <span class="enabled-count">{{ getEnabledCountInSystem(system) }}</span>
-            <span class="total-count">/ {{ getFilteredTalkgroups(system).length }}</span>
+            <span class="total-count">/ {{ getSystemViewTotalCount(system) }}</span>
           </span>
         </span>
         <span class="system-chip-badge">
@@ -248,7 +248,7 @@
             <div class="system-label">{{ ds.label }}</div>
             <div class="system-stats">
               <span class="enabled-count">{{ getEnabledCountInSystem(ds) }}</span>
-              <span class="total-count">/ {{ getFilteredTalkgroups(ds).length }} in view</span>
+              <span class="total-count">/ {{ getSystemViewTotalCount(ds) }} in view</span>
             </div>
           </div>
           <div class="system-status">
@@ -278,7 +278,7 @@
           </div>
         </div>
 
-        <div class="channels-detail-body" *ngIf="getFilteredTalkgroups(ds).length > 0">
+        <div class="channels-detail-body" *ngIf="getTalkgroupsInSystemView(ds).length > 0">
           <div *ngFor="let tagGroup of (navMode === 'favorites' ? getFavoriteTagGroupsForSystem(ds) : groupTalkgroupsByTag(ds))" class="tag-group">
             <div class="tag-header"
                  (click)="toggleTag(ds.id, tagGroup.tag, $event)"
@@ -289,16 +289,16 @@
               <div class="tag-label" [style.color]="getTagColor(tagGroup.tag)">{{ tagGroup.tag || 'Untagged' }}</div>
               <div class="tag-count">{{ tagGroup.talkgroups.length }}</div>
               <div class="tag-status">
-                <mat-icon [class]="getTagStatusClass(ds.id, tagGroup.tag)">{{ getTagStatusIcon(ds.id, tagGroup.tag) }}</mat-icon>
+                <mat-icon [class]="getTagStatusClass(ds.id, tagGroup.tag, tagGroup.talkgroups)">{{ getTagStatusIcon(ds.id, tagGroup.tag, tagGroup.talkgroups) }}</mat-icon>
               </div>
               <div class="tag-toggle">
                 <button type="button"
                         class="toggle-badge"
-                        [class.all]="isAllEnabledInTag(ds.id, tagGroup.tag)"
-                        [class.some]="isSomeEnabledInTag(ds.id, tagGroup.tag)"
-                        [title]="isAllEnabledInTag(ds.id, tagGroup.tag) ? 'All enabled — click to disable' : isSomeEnabledInTag(ds.id, tagGroup.tag) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
+                        [class.all]="isAllEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups)"
+                        [class.some]="isSomeEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups)"
+                        [title]="isAllEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'All enabled — click to disable' : isSomeEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
                         (click)="toggleTagTalkgroups(ds.id, tagGroup.tag, tagGroup.talkgroups, $event)">
-                  {{ isAllEnabledInTag(ds.id, tagGroup.tag) ? 'All' : isSomeEnabledInTag(ds.id, tagGroup.tag) ? 'Some' : 'None' }}
+                  {{ isAllEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'All' : isSomeEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'Some' : 'None' }}
                 </button>
               </div>
               <div class="tag-actions">
@@ -344,7 +344,7 @@
           </div>
         </div>
 
-        <div *ngIf="getFilteredTalkgroups(ds).length === 0" class="channels-detail-empty empty-message">
+        <div *ngIf="getTalkgroupsInSystemView(ds).length === 0" class="channels-detail-empty empty-message">
           No talkgroups match your search
         </div>
       </ng-container>

@@ -26,16 +26,22 @@ import (
 )
 
 type Apikey struct {
-	Id       uint64
-	Disabled bool
-	Ident    string
-	Key      string
-	Order    uint
-	Systems  any
+	Id                       uint64
+	Disabled                 bool
+	Ident                    string
+	Key                      string
+	Order                    uint
+	Systems                  any
+	LastCallAt               int64
+	NoAudioAlertsEnabled     bool
+	NoAudioThresholdMinutes  uint
 }
 
 func NewApikey() *Apikey {
-	return &Apikey{Systems: "*"}
+	return &Apikey{
+		Systems:                 "*",
+		NoAudioThresholdMinutes: 10,
+	}
 }
 
 func (apikey *Apikey) FromMap(m map[string]any) *Apikey {
@@ -64,6 +70,21 @@ func (apikey *Apikey) FromMap(m map[string]any) *Apikey {
 	switch v := m["order"].(type) {
 	case float64:
 		apikey.Order = uint(v)
+	}
+
+	if v, ok := m["lastCallAt"].(float64); ok {
+		apikey.LastCallAt = int64(v)
+	}
+
+	switch v := m["noAudioAlertsEnabled"].(type) {
+	case bool:
+		apikey.NoAudioAlertsEnabled = v
+	}
+
+	if v, ok := m["noAudioThresholdMinutes"].(float64); ok {
+		apikey.NoAudioThresholdMinutes = uint(v)
+	} else if apikey.NoAudioThresholdMinutes == 0 {
+		apikey.NoAudioThresholdMinutes = 10
 	}
 
 	apikey.Systems = m["systems"]
@@ -131,11 +152,14 @@ func (apikey *Apikey) HasAccess(call *Call) bool {
 
 func (apikey *Apikey) MarshalJSON() ([]byte, error) {
 	m := map[string]any{
-		"id":       apikey.Id,
-		"disabled": apikey.Disabled,
-		"ident":    apikey.Ident,
-		"key":      apikey.Key,
-		"systems":  apikey.Systems,
+		"id":                       apikey.Id,
+		"disabled":                 apikey.Disabled,
+		"ident":                    apikey.Ident,
+		"key":                      apikey.Key,
+		"systems":                  apikey.Systems,
+		"lastCallAt":               apikey.LastCallAt,
+		"noAudioAlertsEnabled":     apikey.NoAudioAlertsEnabled,
+		"noAudioThresholdMinutes":  apikey.NoAudioThresholdMinutes,
 	}
 
 	if apikey.Order > 0 {
@@ -186,6 +210,37 @@ func (apikeys *Apikeys) GetApikey(key string) (apikey *Apikey, ok bool) {
 	return nil, false
 }
 
+func (apikeys *Apikeys) GetById(id uint64) (*Apikey, bool) {
+	apikeys.mutex.Lock()
+	defer apikeys.mutex.Unlock()
+
+	for _, apikey := range apikeys.List {
+		if apikey.Id == id {
+			return apikey, true
+		}
+	}
+	return nil, false
+}
+
+// RecordLastCall updates the in-memory and database lastCallAt for an API key.
+func (apikeys *Apikeys) RecordLastCall(db *Database, apikeyId uint64, lastCallAt int64) error {
+	apikeys.mutex.Lock()
+	for _, apikey := range apikeys.List {
+		if apikey.Id == apikeyId {
+			apikey.LastCallAt = lastCallAt
+			break
+		}
+	}
+	apikeys.mutex.Unlock()
+
+	if db == nil || db.Sql == nil {
+		return nil
+	}
+
+	_, err := db.Sql.Exec(`UPDATE "apikeys" SET "lastCallAt" = $1 WHERE "apikeyId" = $2`, lastCallAt, apikeyId)
+	return err
+}
+
 func (apikeys *Apikeys) Read(db *Database) error {
 	var (
 		err   error
@@ -200,7 +255,7 @@ func (apikeys *Apikeys) Read(db *Database) error {
 
 	formatError := apikeys.errorFormatter("read")
 
-	query = `SELECT "apikeyId", "disabled", "ident", "key", "order", "systems" FROM "apikeys"`
+	query = `SELECT "apikeyId", "disabled", "ident", "key", "order", "systems", "lastCallAt", "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "apikeys"`
 	if rows, err = db.Sql.Query(query); err != nil {
 		return formatError(err, query)
 	}
@@ -211,12 +266,16 @@ func (apikeys *Apikeys) Read(db *Database) error {
 			systems string
 		)
 
-		if err = rows.Scan(&apikey.Id, &apikey.Disabled, &apikey.Ident, &apikey.Key, &apikey.Order, &systems); err != nil {
+		if err = rows.Scan(&apikey.Id, &apikey.Disabled, &apikey.Ident, &apikey.Key, &apikey.Order, &systems, &apikey.LastCallAt, &apikey.NoAudioAlertsEnabled, &apikey.NoAudioThresholdMinutes); err != nil {
 			break
 		}
 
 		if len(systems) > 0 {
 			json.Unmarshal([]byte(systems), &apikey.Systems)
+		}
+
+		if apikey.NoAudioThresholdMinutes == 0 {
+			apikey.NoAudioThresholdMinutes = 10
 		}
 
 		apikeys.List = append(apikeys.List, apikey)
@@ -242,7 +301,7 @@ func (apikeys *Apikeys) Read(db *Database) error {
 			enabledCount++
 		}
 	}
-	fmt.Printf("Apikeys.Read: loaded %d total API keys (%d enabled, %d disabled)\n", 
+	fmt.Printf("Apikeys.Read: loaded %d total API keys (%d enabled, %d disabled)\n",
 		len(apikeys.List), enabledCount, disabledCount)
 	if len(apikeys.List) == 0 {
 		fmt.Printf("Apikeys.Read: WARNING - No API keys found in database. Upload sources (SDRTrunk, etc.) will not be able to connect.\n")
@@ -322,6 +381,10 @@ func (apikeys *Apikeys) Write(db *Database) error {
 			}
 		}
 
+		if apikey.NoAudioThresholdMinutes == 0 {
+			apikey.NoAudioThresholdMinutes = 10
+		}
+
 		if apikey.Id > 0 {
 			query = fmt.Sprintf(`SELECT COUNT(*) FROM "apikeys" WHERE "apikeyId" = %d`, apikey.Id)
 			if err = tx.QueryRow(query).Scan(&count); err != nil {
@@ -331,18 +394,16 @@ func (apikeys *Apikeys) Write(db *Database) error {
 
 		if count == 0 {
 			if apikey.Id > 0 {
-				// Preserve the explicit ID when inserting
-				query = fmt.Sprintf(`INSERT INTO "apikeys" ("apikeyId", "disabled", "ident", "key", "order", "systems") VALUES (%d, %t, '%s', '%s', %d, '%s')`, apikey.Id, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems)
+				query = fmt.Sprintf(`INSERT INTO "apikeys" ("apikeyId", "disabled", "ident", "key", "order", "systems", "noAudioAlertsEnabled", "noAudioThresholdMinutes") VALUES (%d, %t, '%s', '%s', %d, '%s', %t, %d)`, apikey.Id, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes)
 			} else {
-				// Let database assign auto-increment ID
-				query = fmt.Sprintf(`INSERT INTO "apikeys" ("disabled", "ident", "key", "order", "systems") VALUES (%t, '%s', '%s', %d, '%s')`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems)
+				query = fmt.Sprintf(`INSERT INTO "apikeys" ("disabled", "ident", "key", "order", "systems", "noAudioAlertsEnabled", "noAudioThresholdMinutes") VALUES (%t, '%s', '%s', %d, '%s', %t, %d)`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes)
 			}
 			if _, err = tx.Exec(query); err != nil {
 				break
 			}
 
 		} else {
-			query = fmt.Sprintf(`UPDATE "apikeys" SET "disabled" = %t, "ident" = '%s', "key" = '%s', "order" = %d, "systems" = '%s' WHERE "apikeyId" = %d`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.Id)
+			query = fmt.Sprintf(`UPDATE "apikeys" SET "disabled" = %t, "ident" = '%s', "key" = '%s', "order" = %d, "systems" = '%s', "noAudioAlertsEnabled" = %t, "noAudioThresholdMinutes" = %d WHERE "apikeyId" = %d`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes, apikey.Id)
 			if _, err = tx.Exec(query); err != nil {
 				break
 			}
@@ -359,7 +420,6 @@ func (apikeys *Apikeys) Write(db *Database) error {
 		return formatError(err, query)
 	}
 
-	// Log successful write operation
 	fmt.Printf("Apikeys.Write: successfully saved %d API keys to database\n", len(apikeys.List))
 
 	return nil

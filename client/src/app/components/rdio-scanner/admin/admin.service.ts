@@ -97,6 +97,9 @@ export interface Apikey {
     ident?: string;
     key?: string;
     order?: number;
+    lastCallAt?: number;
+    noAudioAlertsEnabled?: boolean;
+    noAudioThresholdMinutes?: number;
     systems?: {
         id: number;
         talkgroups: number[] | '*';
@@ -354,6 +357,7 @@ export interface Options {
         hallucinationPatterns?: string[];
         hallucinationDetectionMode?: string;
         hallucinationMinOccurrences?: number;
+        hallucinationConfidenceThreshold?: number;
         timeoutSeconds?: number;
         collectorURL?: string;
         collectorAPIKey?: string;
@@ -501,6 +505,7 @@ export interface System {
     units?: Unit[];
     noAudioAlertsEnabled?: boolean;     // Enable no-audio alerts for this system
     noAudioThresholdMinutes?: number;   // Minutes without audio before alerting
+    retentionDays?: number;             // Days to retain calls; 0 = use global pruneDays
     alertsEnabled?: boolean;            // Admin toggle: false disables all alerts & transcription for this system
     /** When true (default), auto-populated talkgroups are created with alerts enabled */
     autoPopulateAlertsEnabled?: boolean;
@@ -563,6 +568,7 @@ export interface Talkgroup {
     autoLearnToneSets?: boolean;
     autoLearnUnitAliases?: boolean;
     alertingTalkgroup?: boolean;
+    retentionDays?: number;             // Days to retain calls; 0 = inherit system/global
 }
 
 export interface Unit {
@@ -589,6 +595,7 @@ enum url {
     purge = 'purge',
     systemhealth = 'systemhealth',
     systemNoAudioSettings = 'system-no-audio-settings',
+    systemRetentionSettings = 'system-retention-settings',
     toneDetectionIssueThreshold = 'tone-detection-issue-threshold',
     noAudioThresholdMinutes = 'no-audio-threshold-minutes',
     noAudioMultiplier = 'no-audio-multiplier',
@@ -1460,6 +1467,22 @@ export class RdioScannerAdminService implements OnDestroy {
         }
     }
 
+    async saveSystemRetentionSettings(systemId: number, retentionDays: number): Promise<void> {
+        try {
+            await firstValueFrom(this.ngHttpClient.post(
+                this.getUrl(url.systemRetentionSettings),
+                {
+                    systemId,
+                    retentionDays,
+                },
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error) {
+            this.errorHandler(error);
+            throw error;
+        }
+    }
+
     newApikeyForm(apikey?: Apikey): FormGroup {
         return this.ngFormBuilder.group({
             id: this.ngFormBuilder.control(apikey?.id),
@@ -1467,6 +1490,9 @@ export class RdioScannerAdminService implements OnDestroy {
             ident: this.ngFormBuilder.control(apikey?.ident, Validators.required),
             key: this.ngFormBuilder.control(apikey?.key, [Validators.required, this.validateApikey()]),
             order: this.ngFormBuilder.control(apikey?.order),
+            lastCallAt: this.ngFormBuilder.control(apikey?.lastCallAt ?? 0),
+            noAudioAlertsEnabled: this.ngFormBuilder.control(apikey?.noAudioAlertsEnabled ?? false),
+            noAudioThresholdMinutes: this.ngFormBuilder.control(apikey?.noAudioThresholdMinutes ?? 10, [Validators.min(1)]),
             systems: this.ngFormBuilder.control(apikey?.systems, Validators.required),
         });
     }
@@ -1706,6 +1732,10 @@ export class RdioScannerAdminService implements OnDestroy {
                 ),
                 hallucinationDetectionMode: this.ngFormBuilder.control(transcriptionConfig?.hallucinationDetectionMode || 'off'),
                 hallucinationMinOccurrences: this.ngFormBuilder.control(transcriptionConfig?.hallucinationMinOccurrences || 5, [Validators.min(1)]),
+                hallucinationConfidenceThreshold: this.ngFormBuilder.control(
+                    transcriptionConfig?.hallucinationConfidenceThreshold ?? 0.6,
+                    [Validators.min(0), Validators.max(1)],
+                ),
             }),
             alertRetentionDays: this.ngFormBuilder.control(options?.alertRetentionDays || 30, [Validators.min(0)]),
             systemHealthAlertsEnabled: this.ngFormBuilder.control(options?.systemHealthAlertsEnabled ?? false),
@@ -1796,6 +1826,7 @@ export class RdioScannerAdminService implements OnDestroy {
             units: skipUnits ? this.ngFormBuilder.array([]) : this.ngFormBuilder.array(system?.units?.map((unit) => this.newUnitForm(unit)) || []),
             noAudioAlertsEnabled: this.ngFormBuilder.control(system?.noAudioAlertsEnabled !== false),
             noAudioThresholdMinutes: this.ngFormBuilder.control(system?.noAudioThresholdMinutes || 30),
+            retentionDays: this.ngFormBuilder.control(system?.retentionDays ?? 0, [Validators.min(0)]),
             alertsEnabled: this.ngFormBuilder.control(system?.alertsEnabled !== false),
             autoPopulateAlertsEnabled: this.ngFormBuilder.control(system?.autoPopulateAlertsEnabled !== false),
             autoPopulateUnits: this.ngFormBuilder.control(system?.autoPopulateUnits === true),
@@ -1881,6 +1912,7 @@ export class RdioScannerAdminService implements OnDestroy {
             autoLearnToneSets: this.ngFormBuilder.control(talkgroup?.autoLearnToneSets || false),
             autoLearnUnitAliases: this.ngFormBuilder.control(talkgroup?.autoLearnUnitAliases || false),
             alertingTalkgroup: this.ngFormBuilder.control(talkgroup?.alertingTalkgroup || false),
+            retentionDays: this.ngFormBuilder.control(talkgroup?.retentionDays ?? 0, [Validators.min(0)]),
         });
     }
 

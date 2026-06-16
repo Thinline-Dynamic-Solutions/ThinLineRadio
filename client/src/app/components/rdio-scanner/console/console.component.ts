@@ -296,6 +296,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         switch (key) {
             case 'liveFeed':     this.livefeed(); break;
             case 'pause':        this.pause(); break;
+            case 'replayLast':   this.replay(); break;
             case 'skipNext':     this.skip(); break;
             case 'avoid':        this.avoid(); break;
             case 'favorite':     this.toggleFavorite(); break;
@@ -308,6 +309,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         const icons: Record<string, string> = {
             liveFeed:      this.livefeedOnline ? 'radio' : 'radio_button_unchecked',
             pause:         this.livefeedPaused ? 'play_arrow' : 'pause',
+            replayLast:    'replay',
             skipNext:      'skip_next',
             avoid:         'block',
             favorite:      this.isFavorite ? 'star' : 'star_border',
@@ -322,6 +324,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         const tips: Record<string, string> = {
             liveFeed:      this.livefeedOnline ? 'Stop live feed' : 'Start live feed',
             pause:         paused,
+            replayLast:    'Replay last transmission',
             skipNext:      'Skip current call',
             avoid:         'Avoid talkgroup',
             favorite:      'Favorite this talkgroup',
@@ -383,6 +386,16 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         if (this.auth) { this.authFocus(); return; }
         this.rdioScannerService.beep(RdioScannerBeepStyle.Activate);
         this.rdioScannerService.skip(options);
+    }
+
+    replay(): void {
+        if (this.auth) { this.authFocus(); return; }
+        if (!this.livefeedPaused && (this.call || this.callPrevious)) {
+            this.rdioScannerService.beep(RdioScannerBeepStyle.Activate);
+            this.rdioScannerService.replay();
+        } else {
+            this.rdioScannerService.beep(RdioScannerBeepStyle.Denied);
+        }
     }
 
     avoid(options?: RdioScannerAvoidOptions): void {
@@ -654,11 +667,9 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         }
         this.selectedHistoryCall = c;
         this.rdioScannerService.beep();
-        if (c.id != null) {
-            this.rdioScannerService.loadAndPlay(c.id);
-        } else {
-            this.playCallFromHistoryEntry(c);
-        }
+        this.playCallFromHistoryEntry(c, {
+            preserveQueue: this.livefeedOnline && !this.playbackMode,
+        });
     }
 
     getDelayedText(): string {
@@ -1141,14 +1152,17 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         }
     }
 
-    private playCallFromHistoryEntry(entry: RdioScannerCall | undefined): void {
+    private playCallFromHistoryEntry(
+        entry: RdioScannerCall | undefined,
+        options?: { preserveQueue?: boolean },
+    ): void {
         if (!entry) return;
         const d = entry.audio?.data;
         const hasAudio = Array.isArray(d) ? d.length > 0 : false;
         if (hasAudio) {
             this.rdioScannerService.play(entry);
         } else if (entry.id != null) {
-            this.rdioScannerService.loadAndPlay(entry.id);
+            this.rdioScannerService.loadAndPlay(entry.id, options);
         } else {
             this.rdioScannerService.beep(RdioScannerBeepStyle.Denied);
         }

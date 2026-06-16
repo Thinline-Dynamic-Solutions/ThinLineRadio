@@ -473,6 +473,39 @@ func (u *User) UpdateLastLogin() {
 	u.LastLogin = fmt.Sprintf("%d", time.Now().Unix())
 }
 
+// lastLoginPersistInterval avoids rewriting the database on every websocket reconnect.
+const lastLoginPersistInterval = time.Hour
+
+func (u *User) shouldPersistLastLogin() bool {
+	if u == nil {
+		return false
+	}
+	if u.LastLogin == "" || u.LastLogin == "0" {
+		return true
+	}
+	last, err := strconv.ParseInt(u.LastLogin, 10, 64)
+	if err != nil || last <= 0 {
+		return true
+	}
+	return time.Now().Unix()-last >= int64(lastLoginPersistInterval.Seconds())
+}
+
+// RecordLastLogin updates lastLogin in memory and persists a single row when enough
+// time has passed since the previous value (PIN reconnects happen frequently).
+func (users *Users) RecordLastLogin(user *User, db *Database) error {
+	if user == nil || !user.shouldPersistLastLogin() {
+		return nil
+	}
+
+	user.UpdateLastLogin()
+	if err := users.Update(user); err != nil {
+		return err
+	}
+
+	_, err := db.Sql.Exec(`UPDATE "users" SET "lastLogin" = $1 WHERE "userId" = $2`, user.LastLogin, user.Id)
+	return err
+}
+
 func (u *User) GenerateVerificationToken() error {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {

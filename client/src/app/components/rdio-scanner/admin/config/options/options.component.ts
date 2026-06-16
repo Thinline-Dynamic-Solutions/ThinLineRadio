@@ -35,6 +35,7 @@ export type OptionsPanelId =
 interface OptionsPanelDef {
     keys: string[];
     systemsNoAudio?: boolean;
+    systemsRetention?: boolean;
 }
 
 const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
@@ -80,6 +81,7 @@ const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
             'keypadBeeps', 'maxClients', 'pruneDays', 'showListenersCount', 'sortTalkgroups',
             'reconnectionGracePeriod', 'reconnectionMaxBufferSize', 'configSyncEnabled', 'configSyncPath',
         ],
+        systemsRetention: true,
     },
     stripe: {
         keys: [
@@ -209,6 +211,7 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     'transcriptionConfig.hallucinationPatterns': 'Hallucination removal patterns',
     'transcriptionConfig.hallucinationDetectionMode': 'Hallucination detection mode',
     'transcriptionConfig.hallucinationMinOccurrences': 'Hallucination min occurrences',
+    'transcriptionConfig.hallucinationConfidenceThreshold': 'Hallucination confidence threshold',
     userRegistrationEnabled: 'User registration',
     publicRegistrationEnabled: 'Public registration',
     publicRegistrationMode: 'Public registration mode',
@@ -356,6 +359,10 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             ok = await this.saveDirtySystemsNoAudio();
         }
 
+        if (ok && def.systemsRetention) {
+            ok = await this.saveDirtySystemsRetention();
+        }
+
         this.savingPanel = null;
         if (ok) {
             this.refreshPanelBaseline(panelId);
@@ -431,6 +438,13 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             }));
         }
 
+        if (def.systemsRetention && this.systemsForm) {
+            snapshot['__systemsRetention'] = this.systemsForm.controls.map((ctrl) => ({
+                id: ctrl.value.id,
+                retentionDays: ctrl.value.retentionDays ?? 0,
+            }));
+        }
+
         return snapshot;
     }
 
@@ -462,6 +476,14 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             this.collectSystemsNoAudioChanges(
                 baseline['__systemsNoAudio'] as { id: number; noAudioAlertsEnabled: boolean; noAudioThresholdMinutes: number }[] | undefined,
                 current['__systemsNoAudio'] as { id: number; noAudioAlertsEnabled: boolean; noAudioThresholdMinutes: number }[] | undefined,
+                labels,
+            );
+        }
+
+        if (OPTIONS_PANEL_DEFS[panelId].systemsRetention) {
+            this.collectSystemsRetentionChanges(
+                baseline['__systemsRetention'] as { id: number; retentionDays: number }[] | undefined,
+                current['__systemsRetention'] as { id: number; retentionDays: number }[] | undefined,
                 labels,
             );
         }
@@ -520,6 +542,64 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                 labels.push(`${systemLabel}: no-audio threshold`);
             }
         }
+    }
+
+    private collectSystemsRetentionChanges(
+        baseline: { id: number; retentionDays: number }[] | undefined,
+        current: { id: number; retentionDays: number }[] | undefined,
+        labels: string[],
+    ): void {
+        if (!current?.length) {
+            return;
+        }
+
+        for (const entry of current) {
+            const saved = baseline?.find((s) => s.id === entry.id);
+            if (!saved) {
+                continue;
+            }
+
+            const systemLabel = this.systemsForm?.controls
+                .find((ctrl) => ctrl.value.id === entry.id)?.value?.label || `System ${entry.id}`;
+
+            if (saved.retentionDays !== entry.retentionDays) {
+                labels.push(`${systemLabel}: retention days`);
+            }
+        }
+    }
+
+    private async saveDirtySystemsRetention(): Promise<boolean> {
+        if (!this.systemsForm) {
+            return true;
+        }
+
+        const baseline = JSON.parse(this.panelBaselines.general || '{}').__systemsRetention as {
+            id: number;
+            retentionDays: number;
+        }[] | undefined;
+
+        let allOk = true;
+        for (const ctrl of this.systemsForm.controls) {
+            const id = ctrl.value.id;
+            if (!id) {
+                continue;
+            }
+            const current = {
+                retentionDays: ctrl.value.retentionDays ?? 0,
+            };
+            const saved = baseline?.find((s) => s.id === id);
+            if (saved && saved.retentionDays === current.retentionDays) {
+                continue;
+            }
+
+            try {
+                await this.adminService.saveSystemRetentionSettings(id, current.retentionDays);
+            } catch {
+                allOk = false;
+            }
+        }
+
+        return allOk;
     }
 
     private valuesEqual(a: unknown, b: unknown): boolean {

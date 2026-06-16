@@ -363,6 +363,9 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 			// Use a non-blocking send to avoid deadlocks
 			select {
 			case api.Controller.Ingest <- call:
+				if err := api.Controller.Apikeys.RecordLastCall(api.Controller.Database, apikey.Id, time.Now().UnixMilli()); err != nil {
+					api.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to record API key last call time for key %d: %v", apikey.Id, err))
+				}
 			default:
 				w.WriteHeader(http.StatusServiceUnavailable)
 				w.Write([]byte("Server busy, please try again\n"))
@@ -1122,9 +1125,9 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	// when they try to access the service content (calls, etc.)
 
 	// Update last login timestamp
-	user.UpdateLastLogin()
-	api.Controller.Users.Update(user)
-	api.Controller.Users.Write(api.Controller.Database)
+	if err := api.Controller.Users.RecordLastLogin(user, api.Controller.Database); err != nil {
+		log.Printf("failed to record last login for user %s: %v", user.Email, err)
+	}
 
 	// Check if user needs subscription
 	needsSubscription := false
@@ -5146,9 +5149,9 @@ func (api *Api) GroupAdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user.UpdateLastLogin()
-	api.Controller.Users.Update(user)
-	api.Controller.Users.Write(api.Controller.Database)
+	if err := api.Controller.Users.RecordLastLogin(user, api.Controller.Database); err != nil {
+		log.Printf("failed to record last login for group admin %s: %v", user.Email, err)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

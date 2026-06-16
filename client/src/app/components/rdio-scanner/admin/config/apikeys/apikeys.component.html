@@ -17,7 +17,7 @@
  * ****************************************************************************
 -->
 <div class="row top admin-section-bar">
-    <p class="admin-section-hint">Authenticate recorder uploads and downstream instances. Status, order, and system access auto-save; use Save after editing names or keys.</p>
+    <p class="admin-section-hint">Authenticate recorder uploads and downstream instances. Status, order, system access, and no-upload alert settings auto-save; use Save after editing names or keys.</p>
     <div class="admin-section-actions">
         <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
             <mat-icon>save</mat-icon>
@@ -136,6 +136,30 @@
                         <mat-icon>settings</mat-icon>
                     </button>
                 </div>
+            </td>
+        </ng-container>
+
+        <!-- No-audio monitoring Column -->
+        <ng-container matColumnDef="noAudio">
+            <th mat-header-cell *matHeaderCellDef>No-Upload Alerts</th>
+            <td mat-cell *matCellDef="let apikey" (mousedown)="$event.stopPropagation()">
+                <ng-container [formGroup]="apikey">
+                    <div class="no-audio-cell">
+                        <mat-slide-toggle color="primary"
+                                          formControlName="noAudioAlertsEnabled"
+                                          (change)="onNoAudioSettingChange(apikey)"
+                                          matTooltip="Alert when no uploads arrive through this API key">
+                        </mat-slide-toggle>
+                        <mat-form-field appearance="outline" class="threshold-field"
+                                        *ngIf="apikey.get('noAudioAlertsEnabled')?.value">
+                            <mat-label>Min</mat-label>
+                            <input matInput type="number" min="1" step="1"
+                                   formControlName="noAudioThresholdMinutes"
+                                   (change)="onNoAudioSettingChange(apikey)"
+                                   autocomplete="off">
+                        </mat-form-field>
+                    </div>
+                </ng-container>
             </td>
         </ng-container>
 

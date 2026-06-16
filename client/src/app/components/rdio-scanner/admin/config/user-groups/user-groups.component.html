@@ -35,7 +35,7 @@
           <mat-form-field appearance="outline" class="system-select">
             <mat-label>System</mat-label>
             <mat-select [(ngModel)]="access.id" [ngModelOptions]="{standalone: true}" (ngModelChange)="onSystemSelected(i, $event)">
-              <mat-option *ngFor="let system of systems" [value]="system.systemRef">
+              <mat-option *ngFor="let system of getSystemsForAccessRow(i)" [value]="system.systemRef">
                 {{ system.label || ('System ' + system.systemRef) }}
               </mat-option>
             </mat-select>

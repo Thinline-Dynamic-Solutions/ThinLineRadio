@@ -23,7 +23,10 @@ var PostgresqlSchema = []string{
     "ident" text NOT NULL,
     "key" text NOT NULL,
     "order" integer NOT NULL DEFAULT 0,
-    "systems" text NOT NULL DEFAULT ''
+    "systems" text NOT NULL DEFAULT '',
+    "lastCallAt" bigint NOT NULL DEFAULT 0,
+    "noAudioAlertsEnabled" boolean NOT NULL DEFAULT false,
+    "noAudioThresholdMinutes" integer NOT NULL DEFAULT 10
   );`,
 
 	`CREATE TABLE IF NOT EXISTS "downstreams" (

@@ -544,7 +544,7 @@ export class RdioScannerService implements OnDestroy {
         this.getCall(id, WebsocketCallFlag.Download);
     }
 
-    loadAndPlay(id: number): void {
+    loadAndPlay(id: number, options?: { preserveQueue?: boolean }): void {
         if (!id) {
             return;
         }
@@ -562,14 +562,18 @@ export class RdioScannerService implements OnDestroy {
         // Mark as one-off playback if we don't have a playbackList
         // This prevents auto-advancing through old search results when playing from alerts
         this.isOneOffPlayback = !this.playbackList;
-        
+
+        const clearQueueOnPlay = this.isOneOffPlayback && !options?.preserveQueue;
+
         // Clear the call queue when playing a one-off call to prevent queued calls from playing
-        // This is especially important when coming from the playback screen where calls may be queued
-        if (this.isOneOffPlayback) {
+        // This is especially important when coming from the playback screen where calls may be queued.
+        // Live-feed history replay passes preserveQueue so backed-up calls are kept.
+        if (clearQueueOnPlay) {
             this.clearQueue();
-            // Emit queue update to reflect cleared queue in UI
             this.emitEvent({ queue: 0 });
         }
+
+        const queueEventValue = clearQueueOnPlay ? 0 : undefined;
         
         if (this.livefeedMode === RdioScannerLivefeedMode.Offline) {
             // Store previous mode before entering playback (should be Offline in this case)
@@ -588,7 +592,7 @@ export class RdioScannerService implements OnDestroy {
                 this.holdTalkgroup({ resubscribe: false });
             }
 
-            this.emitEvent({ livefeedMode: this.livefeedMode, playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
+            this.emitEvent({ livefeedMode: this.livefeedMode, playbackPending: id, queue: queueEventValue });
         } else if (this.livefeedMode === RdioScannerLivefeedMode.Online) {
             // Keep live feed on - don't switch to Playback mode if live feed is already running
             // Just play the call while live feed continues in the background
@@ -597,7 +601,7 @@ export class RdioScannerService implements OnDestroy {
                 this.playbackList = undefined;
             }
 
-            this.emitEvent({ livefeedMode: this.livefeedMode, playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
+            this.emitEvent({ livefeedMode: this.livefeedMode, playbackPending: id, queue: queueEventValue });
 
         } else if (this.livefeedMode === RdioScannerLivefeedMode.Playback) {
             // If we're already in playback mode but don't have a playbackList, 
@@ -605,7 +609,7 @@ export class RdioScannerService implements OnDestroy {
             if (this.isOneOffPlayback) {
                 this.playbackList = undefined;
             }
-            this.emitEvent({ playbackPending: id, queue: this.isOneOffPlayback ? 0 : undefined });
+            this.emitEvent({ playbackPending: id, queue: queueEventValue });
         }
 
         this.getCall(id, WebsocketCallFlag.Play);

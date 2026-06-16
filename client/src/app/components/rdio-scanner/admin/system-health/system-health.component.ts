@@ -255,7 +255,9 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
     getGroupedAlerts(): { [key: string]: SystemAlert[] } {
         const activeAlerts = this.alerts.filter(a => !a.dismissed);
         const grouped: { [key: string]: SystemAlert[] } = {
+            'no_audio': [],
             'no_audio_received': [],
+            'api_key_no_audio': [],
             'tone_detection_issue': [],
             'transcription_failure': [],
             'other': []
@@ -285,8 +287,11 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
 
     getAlertTypeLabel(type: string): string {
         switch (type) {
+            case 'no_audio':
             case 'no_audio_received':
                 return 'No Audio Received';
+            case 'api_key_no_audio':
+                return 'API Key No Uploads';
             case 'tone_detection_issue':
                 return 'Tone Detection Issues';
             case 'transcription_failure':

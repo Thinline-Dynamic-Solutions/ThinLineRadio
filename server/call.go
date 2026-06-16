@@ -888,11 +888,34 @@ func (calls *Calls) GetCallsBulk(ids []uint64) []*Call {
 	return ordered
 }
 
-func (calls *Calls) Prune(db *Database, pruneDays uint) error {
-	timestamp := time.Now().Add(-24 * time.Hour * time.Duration(pruneDays)).UnixMilli()
-	query := fmt.Sprintf(`DELETE FROM "calls" WHERE "timestamp" < %d`, timestamp)
+func (calls *Calls) Prune(db *Database, defaultPruneDays uint) error {
+	nowMs := time.Now().UnixMilli()
+	dayMs := int64(24 * 60 * 60 * 1000)
 
-	if _, err := db.Sql.Exec(query); err != nil {
+	effectiveDaysExpr := fmt.Sprintf(`CASE
+		WHEN t."retentionDays" > 0 THEN t."retentionDays"
+		WHEN s."retentionDays" > 0 THEN s."retentionDays"
+		ELSE %d
+	END`, defaultPruneDays)
+
+	var query string
+	if db.Config.DbType == DbTypePostgresql {
+		query = fmt.Sprintf(`DELETE FROM "calls" c
+USING "talkgroups" t, "systems" s
+WHERE c."talkgroupId" = t."talkgroupId"
+	AND c."systemId" = s."systemId"
+	AND (%s) > 0
+	AND c."timestamp" < ($1::bigint - (%s) * %d)`, effectiveDaysExpr, effectiveDaysExpr, dayMs)
+	} else {
+		query = fmt.Sprintf(`DELETE FROM "calls" WHERE "callId" IN (
+SELECT c."callId" FROM "calls" c
+INNER JOIN "talkgroups" t ON c."talkgroupId" = t."talkgroupId"
+INNER JOIN "systems" s ON c."systemId" = s."systemId"
+WHERE (%s) > 0
+	AND c."timestamp" < (? - (%s) * %d))`, effectiveDaysExpr, effectiveDaysExpr, dayMs)
+	}
+
+	if _, err := db.Sql.Exec(query, nowMs); err != nil {
 		return fmt.Errorf("%s in %s", err, query)
 	}
 

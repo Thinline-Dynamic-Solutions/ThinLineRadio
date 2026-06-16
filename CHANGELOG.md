@@ -1,5 +1,33 @@
 # Change log
 
+## Version 26.06.16 - Released June 16, 2026
+
+### Added
+
+- **Admin — Per-system and per-talkgroup call retention**
+  - Global **Prune Days** remains the default; systems and talkgroups can override retention (talkgroup → system → global).
+  - Configurable from Options (per-system table), system settings, and individual talkgroup editors.
+
+- **Admin — API key no-audio monitoring (Issue #171, phase 1)**
+  - Per-API-key toggle and threshold for upload liveness alerts when global system health / no-audio options are enabled.
+  - Tracks last successful ingest per key; raises `api_key_no_audio` system health alerts to system admins.
+
+### Fixed
+
+- **Admin — User Groups “Add System”**
+  - Add System now works when systems list is empty, has placeholder rows, or stale entries; save validation and feedback improved.
+
+- **Admin — Transcription confidence threshold**
+  - Hallucination confidence threshold in Options now persists correctly (form, server config, and detector).
+
+- **Server — API key no-audio monitoring**
+  - Last-upload timestamp recorded only after successful ingest; global option toggles restart monitors without restart; alert dedup no longer collides on similar API key IDs; grace period no longer resets when unrelated keys are saved.
+
+- **Admin — Call retention overrides**
+  - Per-system retention from Options General panel saves correctly; partial system/Copilot saves no longer wipe retention settings on systems or talkgroups.
+
+---
+
 ## Version 26.06.15 - Released June 10, 2026
 
 ### Fixed

@@ -35,7 +35,7 @@ export class RdioScannerAdminApikeysComponent {
     @Input() form: FormArray | undefined;
     @Input() rawSystems: any[] | undefined;
 
-    displayedColumns: string[] = ['drag', 'status', 'ident', 'key', 'access', 'actions'];
+    displayedColumns: string[] = ['drag', 'status', 'ident', 'key', 'access', 'noAudio', 'actions'];
 
     // Per-row key visibility state
     keyVisible: boolean[] = [];
@@ -127,6 +127,11 @@ export class RdioScannerAdminApikeysComponent {
             // Toggle auto-saves.
             this.saveAll(false);
         }
+    }
+
+    onNoAudioSettingChange(apikey: FormGroup): void {
+        apikey.markAsDirty();
+        this.saveAll(false);
     }
 
     /**

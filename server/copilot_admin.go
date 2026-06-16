@@ -646,6 +646,33 @@ func (admin *Admin) copilotSaveSystem(payloadJSON []byte) error {
 		if _, has := incoming["noAudioThresholdMinutes"]; !has {
 			incoming["noAudioThresholdMinutes"] = existing.NoAudioThresholdMinutes
 		}
+		if _, has := incoming["retentionDays"]; !has {
+			incoming["retentionDays"] = existing.RetentionDays
+		}
+
+		if tgs, ok := incoming["talkgroups"].([]any); ok {
+			for _, tr := range tgs {
+				tgMap, ok := tr.(map[string]any)
+				if !ok {
+					continue
+				}
+				if _, has := tgMap["retentionDays"]; has {
+					continue
+				}
+				var existingTg *Talkgroup
+				if idVal, ok := tgMap["id"].(float64); ok {
+					existingTg, _ = existing.Talkgroups.GetTalkgroupById(uint64(idVal))
+				}
+				if existingTg == nil {
+					if refVal, ok := tgMap["talkgroupRef"].(float64); ok {
+						existingTg, _ = existing.Talkgroups.GetTalkgroupByRef(uint(refVal))
+					}
+				}
+				if existingTg != nil {
+					tgMap["retentionDays"] = existingTg.RetentionDays
+				}
+			}
+		}
 	}
 
 	admin.mutex.Lock()
@@ -759,6 +786,7 @@ func (admin *Admin) copilotPatchOptions(payloadJSON []byte) error {
 	if err != nil {
 		return err
 	}
+	admin.Controller.ApplyOptionsRuntimeSideEffects(partial)
 	admin.copilotFinishWrite("patch_options")
 	return nil
 }

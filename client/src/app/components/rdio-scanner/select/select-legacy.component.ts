@@ -585,18 +585,9 @@ export class RdioScannerSelectLegacyComponent implements OnDestroy, OnInit {
                 this.favoritesService.removeFavorite({ type: 'system', systemId });
             }
         } else {
-            // Add talkgroup, tag, and system
+            // Only persist the talkgroup — tag/system favorites mean "all in tag/system"
+            // and would expand to every talkgroup on sync and bulk enable/disable.
             this.favoritesService.addFavorite({ type: 'talkgroup', systemId, talkgroupId });
-            
-            // Ensure parent tag is also favorited
-            if (!this.favoritesService.isTagFavorite(systemId, tag)) {
-                this.favoritesService.addFavorite({ type: 'tag', systemId, tag });
-            }
-            
-            // Ensure parent system is also favorited
-            if (!this.favoritesService.isSystemFavorite(systemId)) {
-                this.favoritesService.addFavorite({ type: 'system', systemId });
-            }
         }
     }
 

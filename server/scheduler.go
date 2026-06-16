@@ -36,17 +36,15 @@ func NewScheduler(controller *Controller) *Scheduler {
 }
 
 func (scheduler *Scheduler) pruneDatabase() error {
-	if scheduler.Controller.Options.PruneDays == 0 {
-		return nil
-	}
-
 	scheduler.Controller.Logs.LogEvent(LogLevelInfo, "database pruning (audio and logs)")
 
-	// Prune calls and logs sequentially
-	// Each operation uses a separate connection from the pool, preventing deadlocks
-	// The database connection pool (50-200 connections) ensures other operations aren't blocked
+	// Prune calls using hierarchical retention: talkgroup > system > global pruneDays.
 	if err := scheduler.Controller.Calls.Prune(scheduler.Controller.Database, scheduler.Controller.Options.PruneDays); err != nil {
 		return fmt.Errorf("prune calls failed: %v", err)
+	}
+
+	if scheduler.Controller.Options.PruneDays == 0 {
+		return nil
 	}
 
 	if err := scheduler.Controller.Logs.Prune(scheduler.Controller.Database, scheduler.Controller.Options.PruneDays); err != nil {

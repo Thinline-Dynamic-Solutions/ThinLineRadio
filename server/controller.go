@@ -116,6 +116,11 @@ type Controller struct {
 	noAudioMonitorStops   map[uint64]chan struct{}
 	noAudioMonitorStopsMu sync.Mutex
 
+	// Stop channels and monitor start times for per-API-key no-audio monitoring
+	apikeyNoAudioMonitorStops    map[uint64]chan struct{}
+	apikeyNoAudioMonitorStarted  map[uint64]int64
+	apikeyNoAudioMonitorStopsMu  sync.Mutex
+
 	// Rate limiting
 	RateLimiter         *RateLimiter
 	LoginAttemptTracker *LoginAttemptTracker
@@ -3115,6 +3120,9 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 
 		if user != nil {
 			if !pinExpired {
+				if err := controller.Users.RecordLastLogin(user, controller.Database); err != nil {
+					controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to record last login for user %s: %v", user.Email, err))
+				}
 			} else {
 				controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("user connected with expired pin email=%s ip=%s (sending config for subscription)", user.Email, client.GetRemoteAddr()))
 			}
@@ -3392,6 +3400,22 @@ func (controller *Controller) RestartTranscriptionQueue() {
 		controller.TranscriptionQueue = NewTranscriptionQueue(controller, controller.Options.TranscriptionConfig)
 	} else {
 		controller.Logs.LogEvent(LogLevelInfo, "transcription is disabled in config")
+	}
+}
+
+// ApplyOptionsRuntimeSideEffects applies in-memory runtime updates after a partial
+// options save (PATCH /api/admin/options). Keeps all provider credentials in the
+// database; only rebinds the active transcription queue to the selected provider.
+func (controller *Controller) ApplyOptionsRuntimeSideEffects(partial map[string]any) {
+	if OptionsPatchTouchesTranscription(partial) {
+		controller.RestartTranscriptionQueue()
+	}
+	if _, ok := partial["transcriptParserConfig"]; ok {
+		controller.rebuildTranscriptParser()
+	}
+	if OptionsPatchTouchesNoAudioMonitoring(partial) {
+		go controller.StartNoAudioMonitoringForAllSystems()
+		go controller.StartNoAudioMonitoringForAllApiKeys()
 	}
 }
 
@@ -3726,6 +3750,15 @@ func (controller *Controller) Terminate() {
 	}
 	controller.noAudioMonitorStops = nil
 	controller.noAudioMonitorStopsMu.Unlock()
+
+	// Stop all per-API-key no-audio monitoring goroutines
+	controller.apikeyNoAudioMonitorStopsMu.Lock()
+	for _, ch := range controller.apikeyNoAudioMonitorStops {
+		close(ch)
+	}
+	controller.apikeyNoAudioMonitorStops = nil
+	controller.apikeyNoAudioMonitorStarted = nil
+	controller.apikeyNoAudioMonitorStopsMu.Unlock()
 
 	// Stop auto-updater background goroutine
 	if controller.Updater != nil {

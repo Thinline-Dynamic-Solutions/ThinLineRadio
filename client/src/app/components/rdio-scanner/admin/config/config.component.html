@@ -154,7 +154,7 @@
         <ng-container [ngSwitch]="activeSection">
 
             <ng-container *ngSwitchCase="'user-groups'">
-                <rdio-scanner-admin-user-groups [form]="userGroups"></rdio-scanner-admin-user-groups>
+                <rdio-scanner-admin-user-groups [form]="userGroups" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-user-groups>
             </ng-container>
 
             <ng-container *ngSwitchCase="'users'">

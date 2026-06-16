@@ -86,6 +86,17 @@
     </div>
     <div class="row">
         <p>
+            <span class="mat-body">Retention (days)</span><br>
+            <span class="mat-caption">
+                Days to keep calls for this talkgroup. 0 = inherit from the system, then global Prune Days.
+            </span>
+        </p>
+        <mat-form-field floatLabel="auto">
+            <input type="number" min="0" step="1" matInput formControlName="retentionDays" placeholder="Use system/global" autocomplete="off">
+        </mat-form-field>
+    </div>
+    <div class="row">
+        <p>
             <span class="mat-body">Alert Cooldown</span><br>
             <span class="mat-caption">
                 Suppress repeat alert notifications on this talkgroup for this many seconds after an alert fires.

@@ -208,8 +208,15 @@ func (hd *HallucinationDetector) shouldAutoAdd(sh *SuspectedHallucination) bool 
 		return false
 	}
 
-	// Must have high confidence score (at least 6/10)
-	if sh.ConfidenceScore < 6.0 {
+	// Must have high confidence score (default threshold 0.6 → score 6/10)
+	threshold := config.HallucinationConfidenceThreshold
+	if threshold <= 0 {
+		threshold = 0.6
+	}
+	if threshold > 1 {
+		threshold = 1
+	}
+	if sh.ConfidenceScore < threshold*10 {
 		return false
 	}
 

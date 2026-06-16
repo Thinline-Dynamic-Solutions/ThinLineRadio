@@ -90,6 +90,12 @@
                     <span>{{ livefeedPaused ? 'Resume' : 'Pause' }}</span>
                 </button>
                 <button type="button" class="t-btn"
+                        [matTooltip]="toolbarTooltip('replayLast')"
+                        (click)="executeButtonAction('replayLast')">
+                    <mat-icon>{{ toolbarIcon('replayLast') }}</mat-icon>
+                    <span>Replay</span>
+                </button>
+                <button type="button" class="t-btn"
                         [matTooltip]="toolbarTooltip('skipNext')"
                         (click)="executeButtonAction('skipNext')">
                     <mat-icon>{{ toolbarIcon('skipNext') }}</mat-icon>

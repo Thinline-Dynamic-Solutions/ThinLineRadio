@@ -190,8 +190,9 @@ type TranscriptionConfig struct {
 	CloudflareAPIToken          string   `json:"cloudflareAPIToken"`          // Cloudflare API token for Workers AI
 	CloudflareModel             string   `json:"cloudflareModel"`             // Cloudflare Workers AI model (default: @cf/openai/whisper-large-v3-turbo)
 	HallucinationPatterns       []string `json:"hallucinationPatterns"`       // Patterns to remove from transcripts (Whisper hallucinations)
-	HallucinationDetectionMode  string   `json:"hallucinationDetectionMode"`  // "off", "manual", "auto"
-	HallucinationMinOccurrences int      `json:"hallucinationMinOccurrences"` // Minimum times a phrase must appear in rejected calls before flagging (default: 5)
+	HallucinationDetectionMode         string   `json:"hallucinationDetectionMode"`         // "off", "manual", "auto"
+	HallucinationMinOccurrences        int      `json:"hallucinationMinOccurrences"`        // Minimum times a phrase must appear in rejected calls before flagging (default: 5)
+	HallucinationConfidenceThreshold   float64  `json:"hallucinationConfidenceThreshold"`   // 0.0-1.0; auto-removal requires score >= threshold*10 (default: 0.6)
 	// TimeoutSeconds controls the maximum time to wait for a transcription response.
 	// This sets both the overall HTTP client timeout and the per-transport response-header timeout,
 	// which is the one most likely to fire on slow local Whisper servers (they don't send headers
@@ -975,6 +976,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		}
 		if v, ok := tc["hallucinationMinOccurrences"].(float64); ok {
 			options.TranscriptionConfig.HallucinationMinOccurrences = int(v)
+		}
+		if v, ok := tc["hallucinationConfidenceThreshold"].(float64); ok {
+			options.TranscriptionConfig.HallucinationConfidenceThreshold = v
 		}
 		if v, ok := tc["timeoutSeconds"].(float64); ok && v > 0 {
 			options.TranscriptionConfig.TimeoutSeconds = int(v)
@@ -2055,6 +2059,37 @@ func (options *Options) ApplyPartial(db *Database, partial map[string]any) error
 	options.FromMap(merged)
 
 	return options.Write(db)
+}
+
+// OptionsPatchTouchesTranscription reports whether a partial options update requires
+// restarting the transcription worker queue. The active provider and its credentials
+// are fixed when the queue is created; changing them via PATCH must restart the queue
+// without clearing stored settings for other providers.
+func OptionsPatchTouchesTranscription(partial map[string]any) bool {
+	if partial == nil {
+		return false
+	}
+	if _, ok := partial["transcriptionEnabled"]; ok {
+		return true
+	}
+	if _, ok := partial["transcriptionConfig"]; ok {
+		return true
+	}
+	return false
+}
+
+// OptionsPatchTouchesNoAudioMonitoring reports whether a partial options update
+// requires restarting per-system and per-API-key no-audio monitor goroutines.
+func OptionsPatchTouchesNoAudioMonitoring(partial map[string]any) bool {
+	if partial == nil {
+		return false
+	}
+	for _, key := range []string{"systemHealthAlertsEnabled", "noAudioAlertsEnabled", "noAudioRepeatMinutes"} {
+		if _, ok := partial[key]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // WriteKey writes a single options key directly to the database and updates

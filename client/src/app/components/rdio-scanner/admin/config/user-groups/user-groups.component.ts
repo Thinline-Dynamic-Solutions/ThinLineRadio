@@ -71,6 +71,8 @@ interface RegistrationCode {
 })
 export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   @Input() form?: FormArray;
+  /** Systems from the loaded admin config (preferred over a separate getConfig call). */
+  @Input() rawSystems?: System[];
   
   groups: UserGroup[] = [];
   loading = false;
@@ -190,6 +192,10 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['rawSystems']) {
+      this.applySystemsList(this.rawSystems);
+    }
+
     if (changes['form'] && this.form) {
       // When form data is provided (e.g., from import for review), use it
       this.updateGroupsFromForm();
@@ -361,9 +367,19 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   }
 
   loadSystems(): void {
+    if (this.rawSystems?.length) {
+      this.applySystemsList(this.rawSystems);
+      return;
+    }
+
     this.adminService.getConfig().then(config => {
-      this.systems = config.systems || [];
+      this.applySystemsList(config.systems);
     });
+  }
+
+  private applySystemsList(systems: System[] | undefined): void {
+    this.systems = systems || [];
+    this.cdr.detectChanges();
   }
 
   async loadGroups(forceReload: boolean = false): Promise<void> {
@@ -463,13 +479,50 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     this.cdr.detectChanges();
   }
 
+  /** Systems available for a given access row (excludes systems picked in other rows). */
+  getSystemsForAccessRow(index: number): System[] {
+    const currentId = this.selectedSystemAccess[index]?.id ?? 0;
+    const taken = new Set(
+      this.selectedSystemAccess
+        .map((access, i) => (i === index ? 0 : access.id))
+        .filter(id => id > 0)
+    );
+
+    return this.systems.filter(system =>
+      system.systemRef != null &&
+      system.systemRef > 0 &&
+      (!taken.has(system.systemRef) || system.systemRef === currentId)
+    );
+  }
+
   addSystemAccess(): void {
-    if (this.selectedSystemAccess.length < this.systems.length) {
-      this.selectedSystemAccess.push({
-        id: 0,
-        talkgroups: '*'
-      });
+    if (this.systems.length === 0) {
+      this.snackBar.open('No systems are configured yet. Add systems under Config → Systems first.', 'Close', { duration: 4000 });
+      return;
     }
+
+    if (this.selectedSystemAccess.some(access => !access.id || access.id === 0)) {
+      this.snackBar.open('Select a system for the existing row before adding another.', 'Close', { duration: 3000 });
+      return;
+    }
+
+    const assignedRefs = new Set(
+      this.selectedSystemAccess.map(access => access.id).filter(id => id > 0)
+    );
+    const hasUnassignedSystem = this.systems.some(
+      system => system.systemRef != null && system.systemRef > 0 && !assignedRefs.has(system.systemRef)
+    );
+
+    if (!hasUnassignedSystem) {
+      this.snackBar.open('All configured systems are already assigned to this group.', 'Close', { duration: 3000 });
+      return;
+    }
+
+    this.selectedSystemAccess.push({
+      id: 0,
+      talkgroups: '*'
+    });
+    this.cdr.detectChanges();
   }
 
   removeSystemAccess(index: number): void {
@@ -699,6 +752,12 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     }
 
     if (this.groupForm.invalid) {
+      return;
+    }
+
+    const pendingSystemRows = this.selectedSystemAccess.filter(access => !access.id || access.id === 0);
+    if (pendingSystemRows.length > 0) {
+      this.snackBar.open('Select a system for each system access row, or remove empty rows.', 'Close', { duration: 4000 });
       return;
     }
 
