@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.07.21 - Released July 20, 2026
+
+### Fixed
+
+- **Incident mapping — drop blank natures with “UNKNOWN PROBLEM” suppress**
+  - The map UI labels calls with no nature as **UNKNOWN PROBLEM**, but the suppress toggle only matched the explicit labels (`UNKNOWN PROBLEM`, `UNKNOWN PROBLEM/UNCLASSIFIED`, etc.).
+  - Blank / unclassified natures are now treated the same: when **Drop UNKNOWN PROBLEM from map and geocoding** is enabled, they are not geocoded and do not receive a map pin.
+  - Admin help text updated to mention blank natures.
+
+---
+
 ## Version 26.07.20 - Released July 19, 2026
 
 ### Fixed

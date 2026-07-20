@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-//go:build !remapcall && !reviewmapped && !diagnoselost && !reviewunmapped
+//go:build !remapcall && !reviewmapped && !diagnoselost && !reviewunmapped && !setup_incident_mapping
 
 package main
 

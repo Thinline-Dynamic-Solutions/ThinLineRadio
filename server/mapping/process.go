@@ -424,8 +424,16 @@ func ClearIncidentLocationUnlessGeocoded(curated *CuratedAlert, status *string) 
 // calls. Also invoked from incident_mapping after late geocode fallbacks when
 // MappingIntegration.SuppressUnknownNaturePins is enabled. Transcript, address
 // text, and nature label are preserved — only the map pin is dropped.
+//
+// Blank natures are treated the same as UNKNOWN PROBLEM: the incident map UI
+// labels empty nature as "UNKNOWN PROBLEM", so leaving those pins would still
+// show as unclassified on the map.
 func SuppressUnclassifiedPinOnAlert(curated *CuratedAlert, status *string) {
-	if curated == nil || !IsDefaultUnknownNatureLabel(curated.NatureDesc) {
+	if curated == nil {
+		return
+	}
+	nature := strings.TrimSpace(curated.NatureDesc)
+	if nature != "" && !IsDefaultUnknownNatureLabel(nature) {
 		return
 	}
 	curated.Lat = ""

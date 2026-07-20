@@ -676,8 +676,10 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	// toggle is on, catch-all UNKNOWN PROBLEM natures skip the gateway so we
 	// do not spend geocoding quota on unclassified traffic.
 	geocodedStreetNamed := false
-	skipUnknownGeocode := mapInteg.SuppressUnknownNaturePins &&
+	// Blank nature displays as UNKNOWN PROBLEM on the map — suppress the same way.
+	natureBlankOrUnknown := strings.TrimSpace(out.Primary.NatureDesc) == "" ||
 		mapping.IsDefaultUnknownNatureLabel(out.Primary.NatureDesc)
+	skipUnknownGeocode := mapInteg.SuppressUnknownNaturePins && natureBlankOrUnknown
 	gatewayConfigured := strings.TrimSpace(geo.NominatimDirectURL) != "" &&
 		strings.TrimSpace(geo.NominatimAPIKey) != ""
 	gatewayText := strings.TrimSpace(geo.DispatchTranscript)

@@ -2069,8 +2069,9 @@
           Drop UNKNOWN PROBLEM from map and geocoding
         </mat-slide-toggle>
         <p class="mapping-hint">
-          When enabled, catch-all natures like <strong>UNKNOWN PROBLEM</strong> and
-          <strong>UNKNOWN PROBLEM/UNCLASSIFIED</strong> are not geocoded and do not get a map pin.
+          When enabled, catch-all natures like <strong>UNKNOWN PROBLEM</strong>,
+          <strong>UNKNOWN PROBLEM/UNCLASSIFIED</strong>, and calls with <strong>no nature</strong>
+          (shown on the map as UNKNOWN PROBLEM) are not geocoded and do not get a map pin.
           Nature is checked before geocoding so those calls do not use the geocoding API.
           Classified natures still map normally.
         </p>

@@ -31,4 +31,17 @@ func TestSuppressUnclassifiedPinOnAlert(t *testing.T) {
 	if st != "geocoded" {
 		t.Fatalf("status=%q want geocoded", st)
 	}
+
+	blank := &CuratedAlert{NatureDesc: "", Lat: "41.5", Lon: "-81.5", Address: "9 MAIN"}
+	bst := "geocoded"
+	SuppressUnclassifiedPinOnAlert(blank, &bst)
+	if blank.Lat != "" || blank.Lon != "" {
+		t.Fatalf("blank nature should clear pin, got lat=%q lon=%q", blank.Lat, blank.Lon)
+	}
+	if blank.Address != "9 MAIN" {
+		t.Fatalf("address should be preserved, got %q", blank.Address)
+	}
+	if bst != "failed" {
+		t.Fatalf("status=%q want failed", bst)
+	}
 }
