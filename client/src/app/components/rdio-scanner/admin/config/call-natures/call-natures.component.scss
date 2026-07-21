@@ -86,6 +86,25 @@
     padding: 1px 6px;
 }
 
+.cn-expire-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #d9a441;
+    border: 1px solid rgba(217, 164, 65, 0.4);
+    border-radius: 4px;
+    padding: 1px 6px;
+
+    mat-icon {
+        font-size: 12px;
+        width: 12px;
+        height: 12px;
+    }
+}
+
 .cn-card-actions {
     display: flex;
     gap: 2px;
@@ -145,6 +164,22 @@
 .cn-field-label {
     flex: 1;
     min-width: 240px;
+}
+
+.cn-expire-row {
+    align-items: flex-start;
+}
+
+.cn-field-expire {
+    width: 200px;
+}
+
+.cn-expire-hint {
+    flex: 1;
+    min-width: 220px;
+    margin: 10px 0 0;
+    color: #888;
+    font-size: 12px;
 }
 
 .cn-edit-phrases {

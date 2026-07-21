@@ -15,12 +15,16 @@ import (
 // CallNature is a dispatch incident category with optional transcript phrases
 // that map transcripts to the canonical label shown on call cards.
 type CallNature struct {
-	Id        uint64
-	Label     string
-	Phrases   []string
-	Enabled   bool
-	Order     uint
-	CreatedAt int64
+	Id      uint64
+	Label   string
+	Phrases []string
+	Enabled bool
+	Order   uint
+	// ExpireMinutes force-expires this category's incidents off the live map
+	// that many minutes after dispatch, overriding the viewer's selected time
+	// range. Zero means incidents never force-expire.
+	ExpireMinutes uint
+	CreatedAt     int64
 }
 
 // CallNatureMatchData is the flattened catalog passed into the mapping pipeline.
@@ -45,7 +49,7 @@ func (cache *CallNaturesCache) Read(db *Database) error {
 	if db == nil || db.Sql == nil {
 		return fmt.Errorf("database unavailable")
 	}
-	rows, err := db.Sql.Query(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "createdAt"
+	rows, err := db.Sql.Query(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt"
 		FROM "callNatures" ORDER BY "order" ASC, "label" ASC`)
 	if err != nil {
 		return err
@@ -59,7 +63,7 @@ func (cache *CallNaturesCache) Read(db *Database) error {
 			phrasesJSON string
 			enabled     bool
 		)
-		if err := rows.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.CreatedAt); err != nil {
+		if err := rows.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.ExpireMinutes, &n.CreatedAt); err != nil {
 			continue
 		}
 		n.Enabled = enabled
@@ -133,6 +137,7 @@ func migrateCallNatures(db *Database) error {
 			"createdAt" bigint NOT NULL DEFAULT 0
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS "callNatures_label_uidx" ON "callNatures" ("label")`,
+		`ALTER TABLE "callNatures" ADD COLUMN IF NOT EXISTS "expireMinutes" integer NOT NULL DEFAULT 0`,
 	}
 	for _, q := range queries {
 		if _, err := db.Sql.Exec(q); err != nil {
@@ -173,7 +178,7 @@ func callNatureFromRow(row *sql.Row) (*CallNature, error) {
 		phrasesJSON string
 		enabled     bool
 	)
-	if err := row.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.CreatedAt); err != nil {
+	if err := row.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.ExpireMinutes, &n.CreatedAt); err != nil {
 		return nil, err
 	}
 	n.Enabled = enabled
@@ -189,11 +194,12 @@ func callNatureToJSON(n *CallNature) map[string]any {
 		return nil
 	}
 	return map[string]any{
-		"id":        n.Id,
-		"label":     n.Label,
-		"phrases":   n.Phrases,
-		"enabled":   n.Enabled,
-		"order":     n.Order,
-		"createdAt": n.CreatedAt,
+		"id":            n.Id,
+		"label":         n.Label,
+		"phrases":       n.Phrases,
+		"enabled":       n.Enabled,
+		"order":         n.Order,
+		"expireMinutes": n.ExpireMinutes,
+		"createdAt":     n.CreatedAt,
 	}
 }

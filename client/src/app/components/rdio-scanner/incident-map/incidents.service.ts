@@ -40,6 +40,30 @@ export class IncidentsService {
         );
     }
 
+    /** System-admin correction of an incident pin (address, nature, position). */
+    correctIncidentPin(
+        callId: number,
+        changes: { address?: string; nature?: string; lat?: number; lon?: number },
+        pin?: string,
+    ): Observable<unknown> {
+        let url = `${this.getFullUrl('/api/incidents/pin/')}${callId}`;
+        if (pin) {
+            url += `?pin=${encodeURIComponent(pin)}`;
+        }
+        const headers = pin ? new HttpHeaders().set('Authorization', `Bearer ${pin}`) : undefined;
+        return this.http.put(url, changes, { headers });
+    }
+
+    /** System-admin removal of an incident pin from the map. */
+    removeIncidentPin(callId: number, pin?: string): Observable<unknown> {
+        let url = `${this.getFullUrl('/api/incidents/pin/')}${callId}`;
+        if (pin) {
+            url += `?pin=${encodeURIComponent(pin)}`;
+        }
+        const headers = pin ? new HttpHeaders().set('Authorization', `Bearer ${pin}`) : undefined;
+        return this.http.delete(url, { headers });
+    }
+
     getMapBoundaries(
         west: number,
         south: number,

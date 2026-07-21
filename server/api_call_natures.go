@@ -51,6 +51,7 @@ func (api *Api) CallNaturesHandler(w http.ResponseWriter, r *http.Request) {
 			phrases = []string{label}
 		}
 		order := uintFromAny(body["order"])
+		expireMinutes := clampCallNatureExpireMinutes(uintFromAny(body["expireMinutes"]))
 		enabled := true
 		if v, ok := body["enabled"].(bool); ok {
 			enabled = v
@@ -58,16 +59,16 @@ func (api *Api) CallNaturesHandler(w http.ResponseWriter, r *http.Request) {
 		phrasesJSON, _ := json.Marshal(phrases)
 		var id int64
 		err := api.Controller.Database.Sql.QueryRow(
-			`INSERT INTO "callNatures" ("label", "phrases", "enabled", "order", "createdAt")
-			 VALUES ($1, $2, $3, $4, $5) RETURNING "callNatureId"`,
-			label, string(phrasesJSON), enabled, order, time.Now().UnixMilli(),
+			`INSERT INTO "callNatures" ("label", "phrases", "enabled", "order", "expireMinutes", "createdAt")
+			 VALUES ($1, $2, $3, $4, $5, $6) RETURNING "callNatureId"`,
+			label, string(phrasesJSON), enabled, order, expireMinutes, time.Now().UnixMilli(),
 		).Scan(&id)
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("insert failed: %v", err))
 			return
 		}
 		_ = api.Controller.CallNaturesCache.Read(api.Controller.Database)
-		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "createdAt"
+		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt"
 			FROM "callNatures" WHERE "callNatureId" = $1`, id)
 		n, _ := callNatureFromRow(row)
 		w.Header().Set("Content-Type", "application/json")
@@ -106,21 +107,22 @@ func (api *Api) CallNatureHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		phrases := sanitizeCallNaturePhrases(stringsFromAnySlice(body["phrases"]))
 		order := uintFromAny(body["order"])
+		expireMinutes := clampCallNatureExpireMinutes(uintFromAny(body["expireMinutes"]))
 		enabled := true
 		if v, ok := body["enabled"].(bool); ok {
 			enabled = v
 		}
 		phrasesJSON, _ := json.Marshal(phrases)
 		_, err := api.Controller.Database.Sql.Exec(
-			`UPDATE "callNatures" SET "label" = $1, "phrases" = $2, "enabled" = $3, "order" = $4 WHERE "callNatureId" = $5`,
-			label, string(phrasesJSON), enabled, order, id,
+			`UPDATE "callNatures" SET "label" = $1, "phrases" = $2, "enabled" = $3, "order" = $4, "expireMinutes" = $5 WHERE "callNatureId" = $6`,
+			label, string(phrasesJSON), enabled, order, expireMinutes, id,
 		)
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("update failed: %v", err))
 			return
 		}
 		_ = api.Controller.CallNaturesCache.Read(api.Controller.Database)
-		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "createdAt"
+		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt"
 			FROM "callNatures" WHERE "callNatureId" = $1`, id)
 		n, _ := callNatureFromRow(row)
 		w.Header().Set("Content-Type", "application/json")
@@ -171,15 +173,33 @@ func sanitizeCallNaturePhrases(phrases []string) []string {
 }
 
 func uintFromAny(v any) uint {
+	// Cap at int4 max: every column these values land in is a Postgres
+	// integer, and float64→uint conversion above that range is undefined.
+	const maxInt4 = 2147483647
 	switch n := v.(type) {
 	case float64:
+		if n >= maxInt4 {
+			return maxInt4
+		}
 		if n >= 0 {
 			return uint(n)
 		}
 	case int:
+		if n >= maxInt4 {
+			return maxInt4
+		}
 		if n >= 0 {
 			return uint(n)
 		}
 	}
 	return 0
+}
+
+// clampCallNatureExpireMinutes mirrors the admin UI bound (7 days).
+func clampCallNatureExpireMinutes(v uint) uint {
+	const max = 10080
+	if v > max {
+		return max
+	}
+	return v
 }

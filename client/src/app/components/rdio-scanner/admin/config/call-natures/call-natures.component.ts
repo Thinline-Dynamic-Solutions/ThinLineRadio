@@ -72,6 +72,7 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             phrases: nature.phrases ? [...nature.phrases] : [],
             enabled: nature.enabled !== false,
             order: nature.order ?? 0,
+            expireMinutes: nature.expireMinutes ?? 0,
             createdAt: nature.createdAt,
         };
     }
@@ -100,6 +101,7 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             phrases: [nature.phrases || []],
             enabled: [nature.enabled !== false],
             order: [nature.order || 0],
+            expireMinutes: [nature.expireMinutes || 0, [Validators.min(0), Validators.max(10080), Validators.pattern(/^\d+$/)]],
         });
         this.editingPhrases = [...(nature.phrases || [])];
         const phrasesControl = this.editingForm.get('phrases');
@@ -131,6 +133,7 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             ...formValue,
             label: (formValue.label || '').toUpperCase().trim(),
             phrases: (formValue.phrases || []).map((p: string) => p.toUpperCase().trim()).filter((p: string) => p.length > 0),
+            expireMinutes: Math.max(0, Math.round(Number(formValue.expireMinutes) || 0)),
         };
 
         const ok = natureId
@@ -163,8 +166,22 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             phrases: [],
             enabled: true,
             order: 0,
+            expireMinutes: 0,
         });
         this.startEdit(0);
+    }
+
+    formatExpire(minutes: number | undefined): string {
+        const m = minutes || 0;
+        if (m <= 0) {
+            return '';
+        }
+        if (m < 60) {
+            return `${m} min`;
+        }
+        const hours = Math.floor(m / 60);
+        const rest = m % 60;
+        return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
     }
 
     addPhraseFromInput(): void {

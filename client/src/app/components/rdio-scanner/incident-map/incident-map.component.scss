@@ -282,6 +282,82 @@ select.toolbar-control {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    position: relative;
+}
+
+// System-admin pin correction panel (floats over the map canvas).
+.pin-edit-panel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 1100;
+    width: 280px;
+    background: rgba(18, 18, 18, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pin-edit-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e0e0e0;
+
+    mat-icon {
+        font-size: 17px;
+        width: 17px;
+        height: 17px;
+        color: #d9a441;
+    }
+}
+
+.pin-edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    color: #999;
+
+    input {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+.pin-edit-coords {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pin-edit-coords__value {
+    font-size: 11.5px;
+    color: #bbb;
+    font-variant-numeric: tabular-nums;
+}
+
+.pin-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.pin-edit-save {
+    background: #cc0000;
+    border-color: #cc0000;
+    color: #fff;
+
+    &[disabled] {
+        opacity: 0.6;
+    }
 }
 
 .incident-map-layout__sidebar {
@@ -330,6 +406,59 @@ select.toolbar-control {
         min-height: 0;
         height: 100%;
     }
+}
+
+// Admin actions inside the Leaflet popup (rendered outside Angular's view).
+:host ::ng-deep .tlr-map-info__admin {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+:host ::ng-deep .tlr-map-info__admin-btn {
+    flex: 1;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(217, 164, 65, 0.55);
+    background: transparent;
+    color: #d9a441;
+    cursor: pointer;
+
+    &:hover {
+        background: rgba(217, 164, 65, 0.15);
+    }
+
+    &--danger {
+        border-color: rgba(204, 0, 0, 0.65);
+        color: #e06666;
+
+        &:hover {
+            background: rgba(204, 0, 0, 0.15);
+        }
+    }
+}
+
+// Crosshair cursor while placing a corrected pin location.
+:host ::ng-deep .pin-move-armed {
+    cursor: crosshair !important;
+}
+
+// Temporary marker showing the corrected position before saving.
+:host ::ng-deep .tlr-pin-edit-marker {
+    background: transparent !important;
+    border: 0 !important;
+}
+
+:host ::ng-deep .tlr-pin-edit-marker__dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(217, 164, 65, 0.35);
+    border: 2px solid #d9a441;
+    box-shadow: 0 0 8px rgba(217, 164, 65, 0.8);
 }
 
 // Leaflet custom incident pins
