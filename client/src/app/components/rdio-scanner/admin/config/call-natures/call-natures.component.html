@@ -1,6 +1,7 @@
 <div class="admin-section-bar cn-page-header">
     <p class="admin-section-hint">
         Call natures are the incident categories shown on call cards. Add transcript phrases under each category for automatic matching.
+        A category can also force-expire its incidents off the live map after a set number of minutes, even when the viewer's selected time range would still include them.
     </p>
     <button type="button" mat-stroked-button (click)="addNew()">
         <mat-icon>add</mat-icon>
@@ -44,6 +45,11 @@
                     <span class="cn-card-name">{{ nature.label || 'Unnamed' }}</span>
                     <span class="cn-count-badge">{{ (nature.phrases || []).length }}</span>
                     <span class="cn-disabled-badge" *ngIf="!nature.enabled">Disabled</span>
+                    <span class="cn-expire-badge" *ngIf="nature.expireMinutes"
+                          matTooltip="Incidents in this category are removed from the map {{ formatExpire(nature.expireMinutes) }} after dispatch">
+                        <mat-icon>timer</mat-icon>
+                        Expires {{ formatExpire(nature.expireMinutes) }}
+                    </span>
                 </div>
                 <div class="cn-card-actions">
                     <button mat-icon-button (click)="startEdit(indexOfNature(nature))" matTooltip="Edit phrases">
@@ -75,6 +81,20 @@
                         <input matInput formControlName="label" autocomplete="off">
                     </mat-form-field>
                     <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+                </div>
+
+                <div class="cn-edit-row cn-expire-row">
+                    <mat-form-field appearance="outline" class="cn-field-expire">
+                        <mat-label>Force expire (minutes)</mat-label>
+                        <input matInput type="number" min="0" max="10080" step="5"
+                               formControlName="expireMinutes" autocomplete="off">
+                        <mat-hint>0 = never expire</mat-hint>
+                        <mat-error>Whole number between 0 and 10080 (7 days)</mat-error>
+                    </mat-form-field>
+                    <p class="cn-expire-hint">
+                        Removes this category's incidents from the live map after this many minutes, overriding the viewer's time range.
+                        Disabled categories never expire incidents.
+                    </p>
                 </div>
 
                 <div class="cn-edit-phrases">

@@ -1,5 +1,22 @@
 # Change log
 
+## Unreleased
+
+### Added
+
+- **Call natures — per-category force expiry**
+  - Each call-nature category now has a **Force expire (minutes)** setting (`0` = never), edited from the admin **Options → Incident Mapping → Call Natures** section.
+  - Incidents in a category with a force-expire value are removed from the live incident map that many minutes after dispatch, **overriding** the viewer's selected time range.
+  - Category cards show an **Expires *N* min** badge. Disabled categories never expire incidents. Blank natures (shown on the map as `UNKNOWN PROBLEM`) expire when the `UNKNOWN PROBLEM` category has a force-expire value.
+  - Value is clamped server-side to `0–10080` (7 days); a `since`-less `/api/incidents` request is floored to a 31-day scan window so expiry cannot turn it into a full-history table scan.
+
+- **Incident map — system-admin pin corrections and removal**
+  - System admins (and the admin console) can **correct** a pin's address, nature, and location, or **remove** the plot entirely, from the incident popup on the map.
+  - **Correct Pin** opens an inline editor with **click-to-place** repositioning on the map; **Remove Pin** clears the map plot while keeping the call and its audio.
+  - Backed by `PUT`/`DELETE /api/incidents/pin/{callId}`, gated to system-admin users (or the admin token); corrections are stored with `manual`/`admin` status so they survive the map filter and are distinguishable from geocoded pins.
+
+---
+
 ## Version 26.07.23 - Released July 20, 2026
 
 ### Fixed

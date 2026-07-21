@@ -436,6 +436,20 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("until"); v != "" {
 		until, _ = strconv.ParseInt(v, 10, 64)
 	}
+	nowMs := time.Now().UnixMilli()
+	// The expiry predicate below makes rows older than a nature's window
+	// permanently unmatchable, so a since-less request would walk the whole
+	// timestamp index without ever filling LIMIT on large installs. Floor the
+	// scan window when the caller omits "since" (the shipped map always sends
+	// one).
+	const maxIncidentScanWindowMs = int64(31) * 24 * 60 * 60 * 1000
+	if since <= 0 {
+		if until > 0 {
+			since = until - maxIncidentScanWindowMs
+		} else {
+			since = nowMs - maxIncidentScanWindowMs
+		}
+	}
 	// Nature is optional: geocoded address-only pins must still appear on the
 	// map (client labels blank nature as "UNKNOWN PROBLEM").
 	where := `WHERE c."incidentLat" <> 0 AND c."incidentLon" <> 0
@@ -446,6 +460,19 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 	if until > 0 {
 		where += fmt.Sprintf(` AND c."timestamp" <= %d`, until)
 	}
+	// Call-nature force expiry: an enabled category with expireMinutes > 0
+	// removes its incidents from the map that many minutes after dispatch, no
+	// matter what time range the viewer selected. Disabled categories are inert
+	// here, matching MatchData. Blank natures render as UNKNOWN PROBLEM on the
+	// map, so an expiry on that category covers them too (same equivalence as
+	// SuppressUnknownNaturePins).
+	where += fmt.Sprintf(` AND NOT EXISTS (
+		SELECT 1 FROM "callNatures" n
+		WHERE n."enabled" = true AND n."expireMinutes" > 0
+			AND (UPPER(n."label") = UPPER(c."incidentNature")
+				OR (c."incidentNature" = '' AND UPPER(n."label") = 'UNKNOWN PROBLEM'))
+			AND c."timestamp" + n."expireMinutes"::bigint * 60000 <= %d
+	)`, nowMs)
 	query := fmt.Sprintf(`SELECT c."callId", c."systemId", c."talkgroupId", c."timestamp",
 		c."incidentAddress", c."incidentCrossStreet1", c."incidentCrossStreet2",
 		c."incidentNature", c."incidentCommonName", c."incidentLat", c."incidentLon",
