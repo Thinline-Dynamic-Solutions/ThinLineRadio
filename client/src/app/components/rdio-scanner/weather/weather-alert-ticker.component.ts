@@ -14,6 +14,7 @@ import { AlertSoundService } from '../alert-sound.service';
 import { SettingsService } from '../settings/settings.service';
 import { NwsSevereAlert, NwsService } from './nws.service';
 import { WeatherAlertTickerBridgeService } from './weather-alert-ticker-bridge.service';
+import { WeatherAlertTtsService } from './weather-alert-tts.service';
 
 const TEST_ALERT_DURATION_MS = 25_000;
 
@@ -41,6 +42,7 @@ export class RdioScannerWeatherAlertTickerComponent implements OnInit, OnDestroy
         private settingsService: SettingsService,
         private alertSoundService: AlertSoundService,
         private tickerBridge: WeatherAlertTickerBridgeService,
+        private weatherAlertTtsService: WeatherAlertTtsService,
         private cdr: ChangeDetectorRef,
     ) {}
 
@@ -82,7 +84,7 @@ export class RdioScannerWeatherAlertTickerComponent implements OnInit, OnDestroy
         }
     }
 
-    showTestAlert(playSound: boolean, soundOverride?: string): void {
+    showTestAlert(playSound: boolean, soundOverride?: string, speakTts?: boolean): void {
         if (this.testClearTimer) {
             clearTimeout(this.testClearTimer);
         }
@@ -102,6 +104,9 @@ export class RdioScannerWeatherAlertTickerComponent implements OnInit, OnDestroy
 
         if (playSound) {
             this.playConfiguredSound(soundOverride);
+        }
+        if (speakTts) {
+            this.weatherAlertTtsService.speakAlerts(testAlerts);
         }
 
         this.testClearTimer = setTimeout(() => this.clearTestAlert(), TEST_ALERT_DURATION_MS);
@@ -145,8 +150,10 @@ export class RdioScannerWeatherAlertTickerComponent implements OnInit, OnDestroy
         }
         const newIds = alerts.map((a) => a.id).filter(Boolean);
         const hasNew = newIds.some((id) => !this.knownAlertIds.has(id));
+        const newAlerts = alerts.filter((a) => a.id && !this.knownAlertIds.has(a.id));
         if (hasNew && this.knownAlertIds.size > 0) {
             this.maybePlaySound();
+            this.maybeSpeakAlerts(newAlerts);
         }
         if (hasNew && alerts.length > 0) {
             this.flashing = true;
@@ -177,6 +184,14 @@ export class RdioScannerWeatherAlertTickerComponent implements OnInit, OnDestroy
             return;
         }
         this.playConfiguredSound();
+    }
+
+    private maybeSpeakAlerts(alerts: NwsSevereAlert[]): void {
+        const enabled = !!this.settingsSnapshot['weatherAlertTtsEnabled'];
+        if (!enabled || !alerts.length) {
+            return;
+        }
+        this.weatherAlertTtsService.speakAlerts(alerts);
     }
 
     private playConfiguredSound(soundOverride?: string): void {

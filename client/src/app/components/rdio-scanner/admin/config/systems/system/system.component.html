@@ -42,7 +42,7 @@
             <mat-icon>{{ saveSuccess ? 'check_circle' : 'save' }}</mat-icon>
             {{ saving ? 'Saving…' : (saveSuccess ? 'Saved!' : 'Save System') }}
         </button>
-        <button type="button" mat-stroked-button color="warn" (click)="remove.emit()">
+        <button type="button" mat-stroked-button color="warn" (click)="confirmRemove()">
             <mat-icon>delete</mat-icon> Delete System
         </button>
     </div>

@@ -47,6 +47,7 @@ import { RdioScannerAdminUserRegistrationComponent } from './config/user-registr
 import { RdioScannerAdminUsersComponent } from './config/users/users.component';
 import { InviteUserDialogComponent, InvitationResultsDialogComponent, CreateUserDialogComponent, ResetPasswordDialogComponent } from './config/users/invite-user-dialog.component';
 import { TransferUserDialogComponent } from './config/users/transfer-user-dialog.component';
+import { DeleteSystemDialogComponent } from './config/systems/delete-system-dialog.component';
 import { RequestAPIKeyDialogComponent } from './config/options/request-api-key-dialog.component';
 import { RecoverAPIKeyDialogComponent } from './config/options/recover-api-key-dialog.component';
 import { RelayAccountDialogComponent } from './config/options/relay-account-dialog.component';
@@ -105,6 +106,7 @@ import { TalkgroupLocationDialogComponent } from './config/systems/system/talkgr
         CreateUserDialogComponent,
         ResetPasswordDialogComponent,
         TransferUserDialogComponent,
+        DeleteSystemDialogComponent,
         RequestAPIKeyDialogComponent,
         RecoverAPIKeyDialogComponent,
         RelayAccountDialogComponent,

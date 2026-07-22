@@ -25,6 +25,8 @@ import { AdminEvent, Config, RdioScannerAdminService } from './admin.service';
 import { RdioScannerAdminLogsComponent } from './logs/logs.component';
 import { RdioScannerAdminConfigComponent } from './config/config.component';
 import { RdioScannerAdminToolsComponent } from './tools/tools.component';
+import { TransferUserDialogComponent } from './config/users/transfer-user-dialog.component';
+import { DeleteSystemDialogComponent } from './config/systems/delete-system-dialog.component';
 
 export interface SearchResult {
     label: string;
