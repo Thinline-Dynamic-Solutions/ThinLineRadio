@@ -61,6 +61,7 @@ import { RdioScannerWeatherWidgetComponent } from './weather/weather-widget.comp
 import { RdioScannerWeatherAlertTickerComponent } from './weather/weather-alert-ticker.component';
 import { WeatherAlertTickerBridgeService } from './weather/weather-alert-ticker-bridge.service';
 import { NwsService } from './weather/nws.service';
+import { WeatherAlertTtsService } from './weather/weather-alert-tts.service';
 
 @NgModule({
     declarations: [
@@ -116,6 +117,7 @@ import { NwsService } from './weather/nws.service';
         RdioScannerAdminService,
         TranscriptReviewService,
         NwsService,
+        WeatherAlertTtsService,
         { provide: OverlayContainer, useClass: FullscreenOverlayContainer },
     ],
 })

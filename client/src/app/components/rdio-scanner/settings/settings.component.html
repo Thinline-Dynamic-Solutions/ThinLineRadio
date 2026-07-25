@@ -91,6 +91,27 @@
                     </mat-slide-toggle>
                 </div>
 
+                <div class="setting-header">
+                    <mat-slide-toggle
+                        [(ngModel)]="weatherAlertTtsEnabled"
+                        (ngModelChange)="onWeatherAlertTtsChange()"
+                        [disabled]="!ttsSupported"
+                        color="primary">
+                        Read severe weather alerts aloud (text-to-speech)
+                    </mat-slide-toggle>
+                </div>
+                <p class="setting-hint" *ngIf="!ttsSupported">
+                    Text-to-speech isn't supported in this browser.
+                </p>
+                <div class="sound-actions" *ngIf="ttsSupported">
+                    <button type="button" mat-stroked-button class="sound-action-btn"
+                            [disabled]="!weatherAlertTtsEnabled"
+                            (click)="previewWeatherAlertTts()">
+                        <mat-icon>record_voice_over</mat-icon>
+                        Test Voice
+                    </button>
+                </div>
+
                 <div class="sound-controls">
                     <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
                         <mat-label>Weather Alert Sound</mat-label>

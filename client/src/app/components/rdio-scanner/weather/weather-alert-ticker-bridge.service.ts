@@ -20,11 +20,11 @@ export class WeatherAlertTickerBridgeService {
         }
     }
 
-    triggerTest(playSound: boolean, soundName?: string): boolean {
+    triggerTest(playSound: boolean, soundName?: string, speakTts?: boolean): boolean {
         if (!this.ticker) {
             return false;
         }
-        this.ticker.showTestAlert(playSound, soundName);
+        this.ticker.showTestAlert(playSound, soundName, speakTts);
         return true;
     }
 }

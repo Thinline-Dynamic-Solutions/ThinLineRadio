@@ -27,6 +27,7 @@ import { SettingsService } from './settings.service';
 import { TagColorService, TagColorConfig } from '../tag-color.service';
 import { AlertSoundService, AlertSound } from '../alert-sound.service';
 import { WeatherAlertTickerBridgeService } from '../weather/weather-alert-ticker-bridge.service';
+import { WeatherAlertTtsService } from '../weather/weather-alert-tts.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { RdioScannerAlertPreference } from '../rdio-scanner';
 import { APP_FONTS } from '../app-font.util';
@@ -50,6 +51,8 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
     alertSound: string = 'alert';
     weatherAlertSoundEnabled = false;
     weatherAlertSound: string = 'alert';
+    weatherAlertTtsEnabled = false;
+    ttsSupported = true;
     availableAlertSounds: AlertSound[] = [];
     
     // Font selection
@@ -107,7 +110,9 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         private fb: FormBuilder,
         private snackBar: MatSnackBar,
         private weatherAlertTickerBridge: WeatherAlertTickerBridgeService,
+        private weatherAlertTtsService: WeatherAlertTtsService,
     ) {
+        this.ttsSupported = this.weatherAlertTtsService.isSupported();
         this.emailForm = this.fb.group({
             newEmail: ['', [Validators.required, Validators.email]],
             password: ['', [Validators.required]],
@@ -421,6 +426,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
                 this.alertSound = this.settings.alertSound || 'alert';
                 this.weatherAlertSoundEnabled = !!this.settings.weatherAlertSoundEnabled;
                 this.weatherAlertSound = this.settings.weatherAlertSound || 'alert';
+                this.weatherAlertTtsEnabled = !!this.settings.weatherAlertTtsEnabled;
                 // Load font setting
                 this.appFont = this.settings.appFont || 'Roboto';
                 this.appFontService.apply(this.appFont);
@@ -433,6 +439,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
                 this.alertSound = 'alert';
                 this.weatherAlertSoundEnabled = false;
                 this.weatherAlertSound = 'alert';
+                this.weatherAlertTtsEnabled = false;
                 this.appFont = 'Roboto';
             },
         });
@@ -502,6 +509,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.settings.alertSound = this.alertSound;
         this.settings.weatherAlertSoundEnabled = this.weatherAlertSoundEnabled;
         this.settings.weatherAlertSound = this.weatherAlertSound;
+        this.settings.weatherAlertTtsEnabled = this.weatherAlertTtsEnabled;
         this.settings.appFont = this.appFont;
         this.settingsService.saveSettings(this.settings).subscribe({
             next: () => {
@@ -538,14 +546,25 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.saveSettings();
     }
 
+    onWeatherAlertTtsChange(): void {
+        this.saveSettings();
+    }
+
     previewAlertSound(soundName: string): void {
         this.alertSoundService.previewSound(soundName);
+    }
+
+    previewWeatherAlertTts(): void {
+        this.weatherAlertTtsService.speak(
+            'Severe Thunderstorm Warning for your area. This is a sample of the weather alert reader.',
+        );
     }
 
     testWeatherAlertTicker(): void {
         const played = this.weatherAlertTickerBridge.triggerTest(
             this.weatherAlertSoundEnabled,
             this.weatherAlertSound,
+            this.weatherAlertTtsEnabled,
         );
         if (!played) {
             this.snackBar.open('Could not reach the header ticker. Try refreshing the page.', 'Close', {
