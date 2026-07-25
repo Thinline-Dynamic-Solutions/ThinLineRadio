@@ -456,6 +456,37 @@ func (ms *MappingStore) SaveCallIncident(callId uint64, primary *mapping.Curated
 	return err
 }
 
+// CorrectCallIncident applies a system-admin correction to a call's incident
+// card. Only non-nil fields are written; status/source become manual/admin so
+// the pin survives the map query filter and is distinguishable from geocoding.
+func (ms *MappingStore) CorrectCallIncident(callId uint64, address, nature *string, lat, lon *float64) error {
+	sets := []string{`"incidentGeocodeStatus" = 'manual'`, `"incidentGeocodeSource" = 'admin'`}
+	args := []any{}
+	idx := 1
+	add := func(clause string, v any) {
+		sets = append(sets, fmt.Sprintf(clause, idx))
+		args = append(args, v)
+		idx++
+	}
+	add(`"incidentMappingProcessedAt" = $%d`, time.Now().UnixMilli())
+	if address != nil {
+		add(`"incidentAddress" = $%d`, *address)
+	}
+	if nature != nil {
+		add(`"incidentNature" = $%d`, *nature)
+	}
+	if lat != nil {
+		add(`"incidentLat" = $%d`, *lat)
+	}
+	if lon != nil {
+		add(`"incidentLon" = $%d`, *lon)
+	}
+	args = append(args, callId)
+	query := fmt.Sprintf(`UPDATE "calls" SET %s WHERE "callId" = $%d`, strings.Join(sets, ", "), idx)
+	_, err := ms.db.Sql.Exec(query, args...)
+	return err
+}
+
 func (ms *MappingStore) ClearCallIncident(callId uint64) error {
 	now := time.Now().UnixMilli()
 	_, err := ms.db.Sql.Exec(`UPDATE "calls" SET

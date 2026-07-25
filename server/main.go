@@ -579,6 +579,7 @@ func main() {
 	http.HandleFunc("/api/alerts", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.AlertsHandler))).ServeHTTP)
 	http.HandleFunc("/api/alerts/preferences", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.AlertPreferencesHandler))).ServeHTTP)
 	http.HandleFunc("/api/incidents", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.IncidentsHandler))).ServeHTTP)
+	http.HandleFunc("/api/incidents/pin/", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.IncidentPinHandler))).ServeHTTP)
 	http.HandleFunc("/api/map/boundaries", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.MapBoundariesHandler))).ServeHTTP)
 	http.HandleFunc("/api/map/tiles/", tileWrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.MapTilesHandler))).ServeHTTP)
 	http.HandleFunc("/api/stats", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.StatsHandler))).ServeHTTP)

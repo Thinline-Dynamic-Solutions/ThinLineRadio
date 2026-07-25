@@ -63,6 +63,12 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     /** Stable deduped list for sidebar, markers, and click handlers. */
     private dedupedFilteredIncidents: IncidentRecord[] = [];
 
+    /** System-admin pin correction state (panel over the map). */
+    pinEdit: { incident: IncidentRecord; address: string; nature: string; lat: number; lon: number } | null = null;
+    pinEditSaving = false;
+    movePinArmed = false;
+    private pinEditMarker: L.Marker | null = null;
+
     readonly mapStyleOptions: IncidentMapStyleOption[] = [
         { id: 'voyager', label: 'Voyager' },
         { id: 'dark', label: 'Dark' },
@@ -225,6 +231,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             clearTimeout(this.markerRenderTimer);
             this.markerRenderTimer = null;
         }
+        this.removePinEditMarker();
         if (this.map) {
             this.map.remove();
             this.map = null;
@@ -238,6 +245,11 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
 
     get filteredIncidents(): IncidentRecord[] {
         return this.dedupedFilteredIncidents;
+    }
+
+    /** Gates the map's pin correction/removal controls. */
+    get isSystemAdmin(): boolean {
+        return this.rdioScannerService.isSystemAdmin();
     }
 
     /** Raw filtered rows before location dedupe (for search across all channels). */
@@ -933,6 +945,21 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             this.scheduleBoundaryRefresh();
             this.scheduleMarkerRender();
         });
+        this.map.on('click', (e: L.LeafletMouseEvent) => {
+            if (!this.movePinArmed || !this.pinEdit) {
+                return;
+            }
+            this.ngZone.run(() => {
+                if (!this.pinEdit) {
+                    return;
+                }
+                this.pinEdit.lat = Number(e.latlng.lat.toFixed(6));
+                this.pinEdit.lon = Number(e.latlng.lng.toFixed(6));
+                this.disarmMovePin();
+                this.updatePinEditMarker();
+                this.cdr.markForCheck();
+            });
+        });
         this.map.on('moveend', () => {
             this.radarMapMoving = false;
             this.markersHiddenDuringMove = false;
@@ -1115,6 +1142,12 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
                 if (this.selectedIncident) {
                     const selectedId = this.selectedIncident.callId;
                     this.selectedIncident = this.resolveIncident(selectedId);
+                    if (!this.selectedIncident) {
+                        // The incident aged out (e.g. call-nature force expiry)
+                        // — its standalone popup is not bound to the marker, so
+                        // close it or it floats over an empty spot.
+                        this.map?.closePopup();
+                    }
                 }
                 this.scheduleMarkerRender();
                 this.cdr.markForCheck();
@@ -1345,10 +1378,18 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             ? `<button type="button" class="tlr-map-info__play" id="tlr-map-play-${single.callId}">Play Audio</button>`
             : '';
 
+        const adminActions = this.isSystemAdmin
+            ? `<div class="tlr-map-info__admin">
+                    <button type="button" class="tlr-map-info__admin-btn" id="tlr-map-edit-${incident.callId}">Correct Pin</button>
+                    <button type="button" class="tlr-map-info__admin-btn tlr-map-info__admin-btn--danger" id="tlr-map-remove-${incident.callId}">Remove Pin</button>
+               </div>`
+            : '';
+
         const html = `
             <div class="tlr-map-info${multi ? ' tlr-map-info--multi' : ''}">
                 <div class="tlr-map-info__address">${this.escapeHtml(address)}</div>
                 ${multi ? `<div class="tlr-map-info__segments">${segmentHtml}</div>` : `${legacyNature}${legacyChannel}${legacyTime}${legacyTranscript}${legacyPlay}`}
+                ${adminActions}
             </div>`;
         const popupMaxWidth = multi ? Math.min(920, segments.length * 252 + 48) : 360;
         L.popup({ maxWidth: popupMaxWidth, className: popupClass, autoPan: false })
@@ -1362,7 +1403,136 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
                     this.ngZone.run(() => this.playIncident(seg));
                 });
             }
+            document.getElementById(`tlr-map-edit-${incident.callId}`)?.addEventListener('click', () => {
+                this.ngZone.run(() => this.startPinEdit(incident));
+            });
+            document.getElementById(`tlr-map-remove-${incident.callId}`)?.addEventListener('click', () => {
+                this.ngZone.run(() => this.removePin(incident));
+            });
         }, 0);
+    }
+
+    /** Opens the admin correction panel seeded from the incident. */
+    startPinEdit(incident: IncidentRecord): void {
+        if (!this.isSystemAdmin) {
+            return;
+        }
+        this.pinEdit = {
+            incident,
+            address: incident.address || '',
+            nature: incident.nature || '',
+            lat: Number(incident.lat) || 0,
+            lon: Number(incident.lon) || 0,
+        };
+        this.movePinArmed = false;
+        this.map?.closePopup();
+        this.updatePinEditMarker();
+        this.cdr.markForCheck();
+    }
+
+    toggleMovePin(): void {
+        this.movePinArmed = !this.movePinArmed;
+        const canvas = document.getElementById('tlr-incident-map-canvas');
+        canvas?.classList.toggle('pin-move-armed', this.movePinArmed);
+        this.cdr.markForCheck();
+    }
+
+    cancelPinEdit(): void {
+        this.pinEdit = null;
+        this.pinEditSaving = false;
+        this.disarmMovePin();
+        this.removePinEditMarker();
+        this.cdr.markForCheck();
+    }
+
+    savePinEdit(): void {
+        const edit = this.pinEdit;
+        if (!edit || this.pinEditSaving) {
+            return;
+        }
+        const changes: { address?: string; nature?: string; lat?: number; lon?: number } = {
+            address: edit.address.trim(),
+            nature: edit.nature.trim(),
+        };
+        if (edit.lat !== 0 || edit.lon !== 0) {
+            changes.lat = edit.lat;
+            changes.lon = edit.lon;
+        }
+        this.pinEditSaving = true;
+        const pin = this.rdioScannerService.readPin();
+        this.incidentsService.correctIncidentPin(edit.incident.callId, changes, pin || undefined).subscribe({
+            next: () => {
+                this.snackBar.open('Pin corrected', '', { duration: 2500 });
+                this.cancelPinEdit();
+                this.refreshIncidents();
+            },
+            error: (err) => {
+                this.pinEditSaving = false;
+                this.snackBar.open(this.pinAdminErrorMessage(err, 'Failed to correct pin'), '', { duration: 4000 });
+                this.cdr.markForCheck();
+            },
+        });
+    }
+
+    /** Removes an incident's pin from the map after confirmation. */
+    removePin(incident: IncidentRecord): void {
+        if (!this.isSystemAdmin) {
+            return;
+        }
+        const label = this.incidentAddress(incident);
+        if (!confirm(`Remove the map pin for "${label}"? The call and audio are kept; only the map plot is cleared.`)) {
+            return;
+        }
+        const pin = this.rdioScannerService.readPin();
+        this.incidentsService.removeIncidentPin(incident.callId, pin || undefined).subscribe({
+            next: () => {
+                this.snackBar.open('Pin removed', '', { duration: 2500 });
+                if (this.pinEdit?.incident.callId === incident.callId) {
+                    this.cancelPinEdit();
+                }
+                this.map?.closePopup();
+                this.refreshIncidents();
+            },
+            error: (err) => {
+                this.snackBar.open(this.pinAdminErrorMessage(err, 'Failed to remove pin'), '', { duration: 4000 });
+            },
+        });
+    }
+
+    private pinAdminErrorMessage(err: unknown, fallback: string): string {
+        const status = (err as { status?: number })?.status;
+        if (status === 401 || status === 403) {
+            return 'System admin sign-in required';
+        }
+        return fallback;
+    }
+
+    private disarmMovePin(): void {
+        this.movePinArmed = false;
+        document.getElementById('tlr-incident-map-canvas')?.classList.remove('pin-move-armed');
+    }
+
+    private updatePinEditMarker(): void {
+        this.removePinEditMarker();
+        const edit = this.pinEdit;
+        const map = this.map;
+        if (!edit || !map || (edit.lat === 0 && edit.lon === 0)) {
+            return;
+        }
+        const icon = L.divIcon({
+            className: 'tlr-pin-edit-marker',
+            html: '<div class="tlr-pin-edit-marker__dot"></div>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9],
+        });
+        this.pinEditMarker = L.marker([edit.lat, edit.lon], { icon, zIndexOffset: 2000 }).addTo(map);
+    }
+
+    private removePinEditMarker(): void {
+        if (this.pinEditMarker) {
+            this.pinEditMarker.remove();
+            this.pinEditMarker = null;
+        }
     }
 
     private scrollIncidentIntoView(callId: number): void {

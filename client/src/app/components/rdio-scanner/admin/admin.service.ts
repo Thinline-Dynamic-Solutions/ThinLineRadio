@@ -169,6 +169,7 @@ export interface CallNature {
     phrases?: string[];
     enabled?: boolean;
     order?: number;
+    expireMinutes?: number;
     createdAt?: number;
 }
 

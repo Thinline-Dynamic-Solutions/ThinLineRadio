@@ -134,5 +134,43 @@
         </rdio-scanner-incident-map-sidebar>
 
         <div id="tlr-incident-map-canvas" class="incident-map-canvas"></div>
+
+        <div class="pin-edit-panel" *ngIf="pinEdit">
+            <div class="pin-edit-title">
+                <mat-icon>edit_location_alt</mat-icon>
+                Correct Pin
+            </div>
+            <label class="pin-edit-field">
+                <span>Address</span>
+                <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.address" autocomplete="off">
+            </label>
+            <label class="pin-edit-field">
+                <span>Nature</span>
+                <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.nature" autocomplete="off">
+            </label>
+            <div class="pin-edit-coords">
+                <span class="pin-edit-coords__value" *ngIf="pinEdit.lat !== 0 || pinEdit.lon !== 0">
+                    {{ pinEdit.lat.toFixed(5) }}, {{ pinEdit.lon.toFixed(5) }}
+                </span>
+                <span class="pin-edit-coords__value" *ngIf="pinEdit.lat === 0 && pinEdit.lon === 0">
+                    Not placed
+                </span>
+                <button type="button"
+                        class="toolbar-preset-btn"
+                        [class.active]="movePinArmed"
+                        (click)="toggleMovePin()">
+                    {{ movePinArmed ? 'Click the map…' : 'Move on map' }}
+                </button>
+            </div>
+            <div class="pin-edit-actions">
+                <button type="button" class="toolbar-preset-btn" (click)="cancelPinEdit()">Cancel</button>
+                <button type="button"
+                        class="toolbar-preset-btn pin-edit-save"
+                        [disabled]="pinEditSaving"
+                        (click)="savePinEdit()">
+                    {{ pinEditSaving ? 'Saving…' : 'Save' }}
+                </button>
+            </div>
+        </div>
     </div>
 </div>
