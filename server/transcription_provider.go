@@ -32,7 +32,7 @@ type TranscriptionOptions struct {
 	InitialPrompt  string   // Initial prompt/context
 	AudioMime      string   // MIME type of audio (e.g., "audio/mp4", "audio/mpeg")
 	WordBoost      []string // Word boost/keyterms for AssemblyAI (max 100 terms, 50 chars each)
-	SpeechModel    string   // Speech model for AssemblyAI (e.g., "universal-2", "universal-3-pro")
+	SpeechModel    string   // AssemblyAI speech_models id (e.g. "universal-2", "universal-3-5-pro")
 	SystemLabel    string   // Human-readable system name (passed to Whisper server for logging)
 	TalkgroupLabel string   // Human-readable talkgroup name (passed to Whisper server for logging)
 	CallID         uint64   // Call ID (passed to Whisper server for log correlation)

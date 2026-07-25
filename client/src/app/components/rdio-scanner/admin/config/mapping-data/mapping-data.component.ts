@@ -101,6 +101,9 @@ export class RdioScannerAdminMappingDataComponent implements OnChanges {
         if (!this.canManage) {
             return;
         }
+        if (!confirm('Are you sure you want to delete this mapping correction?')) {
+            return;
+        }
         try {
             await this.adminService.deleteMappingRow('correction', id);
             await this.reload();

@@ -695,17 +695,34 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 			"incident mapping call %d skipped geocode: unknown nature %q",
 			call.Id, strings.TrimSpace(out.Primary.NatureDesc)))
 	} else if out.Primary.Lat == "" && allowGateway && gatewayConfigured && gatewayText != "" && locationLikely {
-		hit := mapping.GeocodeRelayNominatimFromTranscript(
-			geo.NominatimDirectURL, geo.NominatimAPIKey, gatewayText, geo)
-		store.logGeocodeExternal(call.System.Id, "relay_nominatim_transcript",
-			hit.Query, hit.Lat, hit.Lon, hit.DisplayName, hit.OK, hit.Detail)
-		if hit.OK {
-			mapping.ApplyTranscriptGeocodeHit(out.Primary, hit)
-			source = "relay_nominatim"
-			status = "geocoded"
-			out.Query = hit.Query
-			geocodedStreetNamed = strings.TrimSpace(hit.StreetName) != ""
-			stageStart = logSlowStage("transcript→gateway geocode")
+		// Phonetic unit/crime-code traffic ("OVER 2 KING KING ROBBER") must not
+		// hit Nominatim — it invents real streets (King George Avenue).
+		if mapping.TranscriptIsPhoneticUnitCrimeCode(gatewayText) {
+			q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"incident mapping call %d skipped geocode: phonetic unit/crime-code transcript",
+				call.Id))
+		} else {
+			hit := mapping.GeocodeRelayNominatimFromTranscript(
+				geo.NominatimDirectURL, geo.NominatimAPIKey, gatewayText, geo)
+			store.logGeocodeExternal(call.System.Id, "relay_nominatim_transcript",
+				hit.Query, hit.Lat, hit.Lon, hit.DisplayName, hit.OK, hit.Detail)
+			if hit.OK {
+				hitAddr := strings.TrimSpace(strings.TrimSpace(hit.House) + " " + strings.TrimSpace(hit.StreetName))
+				if hitAddr != "" && (mapping.AddressIsPhoneticUnitCrimeMisextract(hitAddr, gatewayText) ||
+					mapping.AddressStreetIsPhoneticAlphabetOnly(hitAddr) ||
+					!mapping.AddressAlignsWithTranscript(hitAddr, gatewayText, scope)) {
+					q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+						"incident mapping call %d rejected gateway hit %q (transcript misalign/phonetic crime)",
+						call.Id, hitAddr))
+				} else {
+					mapping.ApplyTranscriptGeocodeHit(out.Primary, hit)
+					source = "relay_nominatim"
+					status = "geocoded"
+					out.Query = hit.Query
+					geocodedStreetNamed = strings.TrimSpace(hit.StreetName) != ""
+					stageStart = logSlowStage("transcript→gateway geocode")
+				}
+			}
 		}
 	}
 

@@ -1539,6 +1539,20 @@ export class RdioScannerAdminService implements OnDestroy {
      * is essential because the UI lazy-loads talkgroups per system). Returns the
      * full, freshly-read systems list so the caller can pick up server-assigned ids.
      */
+    /** Persist system list order only (admin Systems drag-reorder). */
+    async saveSystemsOrder(orders: { id: number; order: number }[]): Promise<any[] | undefined> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.put<{ systems: any[] }>(
+                this.getUrl('systems/order'), orders,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res.systems;
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
     async saveSystem(system: any): Promise<any[] | undefined> {
         try {
             const res = await firstValueFrom(this.ngHttpClient.put<{ systems: any[] }>(
@@ -1862,7 +1876,12 @@ export class RdioScannerAdminService implements OnDestroy {
                 geminiAPIKey: this.ngFormBuilder.control(transcriptionConfig?.geminiAPIKey || ''),
                 geminiModel: this.ngFormBuilder.control(transcriptionConfig?.geminiModel || 'gemini-3.1-flash-lite'),
                 assemblyAIKey: this.ngFormBuilder.control(transcriptionConfig?.assemblyAIKey || ''),
-                assemblyAISpeechModel: this.ngFormBuilder.control(transcriptionConfig?.assemblyAISpeechModel || ''),
+                assemblyAISpeechModel: this.ngFormBuilder.control(
+                    // Deprecated pin — show blank so we follow AssemblyAI's current default.
+                    (transcriptionConfig?.assemblyAISpeechModel === 'universal-3-pro'
+                        ? ''
+                        : (transcriptionConfig?.assemblyAISpeechModel || '')),
+                ),
                 assemblyAIWordBoost: this.ngFormBuilder.control(
                     (transcriptionConfig?.assemblyAIWordBoost || []).join('\n')
                 ),
@@ -2052,7 +2071,10 @@ export class RdioScannerAdminService implements OnDestroy {
             alert: this.ngFormBuilder.control(talkgroup?.alert),
             delay: this.ngFormBuilder.control(talkgroup?.delay),
             frequency: this.ngFormBuilder.control(talkgroup?.frequency, Validators.min(0)),
-            groupIds: this.ngFormBuilder.control(talkgroup?.groupIds, [Validators.required, this.validateGroup()]),
+            groupIds: this.ngFormBuilder.control(
+                Array.isArray(talkgroup?.groupIds) ? talkgroup!.groupIds : [],
+                [Validators.required, this.validateGroup()],
+            ),
             label: this.ngFormBuilder.control(talkgroup?.label, Validators.required),
             led: this.ngFormBuilder.control(talkgroup?.led || ''),
             name: this.ngFormBuilder.control(talkgroup?.name, Validators.required),
@@ -2455,13 +2477,27 @@ export class RdioScannerAdminService implements OnDestroy {
 
     private validateGroup(): ValidatorFn {
         return (control: AbstractControl): ValidationErrors | null => {
-            if (typeof control.value !== 'number') {
+            const available: Array<number | undefined> =
+                control.root.get('groups')?.value?.map((group: Group) => group.id) || [];
+            // Groups form not ready yet — don't block save with a false invalid state.
+            if (!available.length) {
                 return null;
             }
 
-            const groupIds = control.root.get('groups')?.value.map((group: Group) => group.id);
+            const value = control.value;
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return null; // empty handled by Validators.required
+                }
+                const ok = value.every((id: number) => available.includes(id));
+                return ok ? null : { required: true };
+            }
 
-            return groupIds ? groupIds.includes(control.value) ? null : { required: true } : null;
+            if (typeof value !== 'number') {
+                return null;
+            }
+
+            return available.includes(value) ? null : { required: true };
         };
     }
 

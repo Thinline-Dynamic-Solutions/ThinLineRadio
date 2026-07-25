@@ -177,9 +177,8 @@
                     </mat-panel-title>
                     <mat-panel-description class="group-panel-meta">
                         <span class="group-count-badge" [attr.title]="group.alerts.length + ' alert(s)'">{{ group.alerts.length }}</span>
-                        <span class="group-time">
-                            <span class="group-time-date">{{ formatAlertDate(group.latestTimestamp) }}</span>
-                            <span class="group-time-clock">{{ formatAlertTime(group.latestTimestamp) }}</span>
+                        <span class="group-time" [attr.title]="formatAlertDateTime(group.latestTimestamp)">
+                            {{ formatAlertDateTime(group.latestTimestamp) }}
                         </span>
                     </mat-panel-description>
                 </mat-expansion-panel-header>

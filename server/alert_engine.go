@@ -269,9 +269,23 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 		// DEBUG: Log detected tone set details
 		engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("🔔 [TONE SET DEBUG] Pre-alert processing: Detected tone set ID='%s', Label='%s' on call %d", matchedToneSet.Id, matchedToneSet.Label, call.Id))
 
-		// NOTE: Pre-alerts are NOT saved to database - they're instant notifications only
-		// No need to check for existing alerts or create database records
-		engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("preparing pre-alert notifications for call %d, tone set '%s' (not saving to database)", call.Id, matchedToneSet.Label))
+		// Persist immediately so the Alerts tab shows the same event as the phone push
+		// (issue #229). Later TriggerToneAlerts / orphan path skip via RecentAlertsCache.
+		_, alertExists := engine.controller.RecentAlertsCache.AlertExists(
+			call.Id, systemId, talkgroupId, "tone", matchedToneSet.Id, "")
+		if !alertExists {
+			engine.createAlert(&AlertRecord{
+				CallId:       call.Id,
+				SystemId:     systemId,
+				TalkgroupId:  talkgroupId,
+				AlertType:    "tone",
+				ToneDetected: true,
+				ToneSetId:    matchedToneSet.Id,
+				CreatedAt:    time.Now().UnixMilli(),
+			})
+		}
+
+		engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("preparing pre-alert notifications for call %d, tone set '%s'", call.Id, matchedToneSet.Label))
 
 		// Collect users who should get notifications for this tone set
 		var eligibleUsers []uint64
@@ -298,6 +312,10 @@ func (engine *AlertEngine) TriggerPreAlerts(call *Call) {
 			toneSetName := matchedToneSet.Label
 			engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sending pre-alert notifications to %d users for tone set '%s'", len(eligibleUsers), toneSetName))
 			go engine.controller.sendBatchedPushNotificationWithToneSet(eligibleUsers, "pre-alert", call, systemLabel, talkgroupLabel, toneSetName, matchedToneSet.Id, nil)
+			// WebSocket so an open Alerts tab refreshes without waiting for voice/orphan.
+			for _, userId := range eligibleUsers {
+				go engine.sendAlertNotification(userId, call.Id, "tone")
+			}
 		}
 	}
 	if sentPreAlert {

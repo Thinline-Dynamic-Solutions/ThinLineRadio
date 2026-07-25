@@ -20,8 +20,14 @@
 <div class="systems-overview">
 
     <div class="admin-section-bar overview-header">
-        <p class="admin-section-hint">Define radio systems and talkgroups. Select a system from the sidebar to edit, or add a new one.</p>
+        <p class="admin-section-hint">Define radio systems and talkgroups. Drag rows to reorder (saves automatically). Select a system from the sidebar to edit, or add a new one.</p>
         <div class="admin-section-actions overview-actions">
+            <button type="button" mat-stroked-button color="primary"
+                    (click)="saveOrder()"
+                    [disabled]="saving || !form?.dirty">
+                <mat-icon>save</mat-icon>
+                {{ saving ? 'Saving…' : 'Save Order' }}
+            </button>
             <button type="button" mat-raised-button color="primary" (click)="addSystem.emit()">
                 <mat-icon>add</mat-icon>
                 Add System

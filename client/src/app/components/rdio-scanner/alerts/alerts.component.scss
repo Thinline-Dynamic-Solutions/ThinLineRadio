@@ -1300,26 +1300,17 @@
                     color: rgba(255, 255, 255, 0.95);
                     background: rgba(255, 255, 255, 0.12);
                     border: 1px solid rgba(255, 255, 255, 0.14);
+                    flex-shrink: 0;
                 }
 
                 .group-time {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: flex-end;
-                    line-height: 1.1;
-                    gap: 0;
-                }
-
-                .group-time-date,
-                .group-time-clock {
-                    font-size: 9px;
+                    display: inline-block;
+                    font-size: 10px;
                     font-variant-numeric: tabular-nums;
                     white-space: nowrap;
-                    color: rgba(255, 255, 255, 0.5) !important;
-                }
-
-                .group-time-clock {
+                    line-height: 1.2;
                     color: rgba(255, 255, 255, 0.68) !important;
+                    flex-shrink: 0;
                 }
             }
 
@@ -2504,12 +2495,8 @@
                     text-shadow: none;
                 }
 
-                .group-time-date,
-                .group-time-clock {
+                .group-time {
                     font-family: var(--tlr-font-numeric);
-                }
-
-                .group-time-clock {
                     color: var(--tlr-text-secondary) !important;
                 }
             }

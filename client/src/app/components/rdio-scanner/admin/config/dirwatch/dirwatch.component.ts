@@ -127,6 +127,10 @@ export class RdioScannerAdminDirwatchComponent implements OnChanges {
     }
 
     remove(index: number): void {
+        const dir = (this.form?.at(index)?.get('directory')?.value || '').toString().trim() || 'this dirwatch';
+        if (!confirm(`Are you sure you want to delete dirwatch "${dir}"?`)) {
+            return;
+        }
         this.form?.removeAt(index);
 
         this.form?.markAsDirty();

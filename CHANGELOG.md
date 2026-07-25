@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+---
+
+## Version 26.07.24 - Released July 25, 2026
+
 ### Added
 
 - **Call natures — per-category force expiry**
@@ -14,10 +18,51 @@
   - System admins (and the admin console) can **correct** a pin's address, nature, and location, or **remove** the plot entirely, from the incident popup on the map.
   - **Correct Pin** opens an inline editor with **click-to-place** repositioning on the map; **Remove Pin** clears the map plot while keeping the call and its audio.
   - Backed by `PUT`/`DELETE /api/incidents/pin/{callId}`, gated to system-admin users (or the admin token); corrections are stored with `manual`/`admin` status so they survive the map filter and are distinguishable from geocoded pins.
+
 - **Learned tone patterns — play dispatch audio**
   - In **Systems → Talkgroups → Analyze tone history**, each learned tone pattern (e.g. a learned A/B pair) now has a **play/stop** control on its transcript samples so an operator can hear the dispatch tone-out and name the tone set correctly before adding it.
   - Patterns whose calls have no transcript (tone-only) get a single **Play dispatch audio** button that plays a representative call.
   - Audio streams from the existing admin `/api/admin/call-audio/{callId}` endpoint; playback stops automatically when re-analyzing, adding the tone set, or leaving the editor.
+
+- **Admin → Users — filter by group, subscription, and status** (#236)
+  - Mat-select filters for user group, Stripe subscription state, and account/PIN/verification status, plus Clear filters.
+  - Admin users API now returns `accountExpiresAt` for status filtering.
+
+- **Admin → Systems — persist drag-and-drop order** (#233)
+  - Reordering systems saves via `PUT /api/admin/systems/order` (manual Save and auto-save).
+
+### Fixed
+
+- **Transcription — hallucination Auto-removal mode never fired** (#231)
+  - Admin UI saves `auto-remove` / `learning`, but the server only auto-added when mode was exactly `auto`.
+  - Server now accepts UI values (and legacy `auto` / `manual`); single-system installs no longer require two systems to promote a pattern.
+  - Help text / recommended confidence thresholds aligned with the real 0–10 score scale.
+
+- **Alerts — talkgroup / tone alerts missing from Alerts tab** (#229)
+  - Tone pre-alerts now persist an `alerts` row (and WS notify) so the console Alerts tab matches phone push.
+  - Client fetch race no longer advances `lastFetchTime` on empty results; WS/tab open does a full refresh.
+
+- **Auth — Cloudflare Turnstile `timeout-or-duplicate`** (#239)
+  - Login no longer reuses single-use Turnstile tokens (including sessionStorage); token cleared on submit and widget reset after failures.
+
+- **Admin — confirm before destructive deletes** (#228, #241)
+  - Delete actions across admin config (including systems) require confirmation / type-to-confirm where appropriate.
+
+- **Admin → Alerts — date/time mashup** (#242)
+  - Alert timestamps use a dedicated formatter so date and time no longer collide in the UI.
+
+- **Admin → Systems — invalid talkgroup on edit** (#248)
+  - Talkgroup mat-select options restored correctly when editing (cached groupIds).
+
+- **Admin → Options — auto-learn tone field labels** (#232)
+  - Auto-learn duration/threshold labels remain visible (external labels; removed unsupported `floatLabel="never"` that broke production builds).
+
+- **Transcription — AssemblyAI speech model** (#237)
+  - Speech model is free-text; blank or deprecated values omit `speech_models` so AssemblyAI uses its current default.
+
+- **Incident mapping — phonetic unit / crime-code false pins**
+  - Transcripts like unit/crime-code radio traffic (`OVER 2 KING KING ROBBER …`) no longer geocode through Nominatim into invented streets.
+  - Gateway hits that look like phonetic-alphabet-only “streets” or misaligned extracts are rejected.
 
 ---
 

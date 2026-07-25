@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnDestroy, OnInit, Output, ViewChild } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatSelectChange } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -31,10 +31,16 @@ import { RdioScannerToneSet } from '../../../../rdio-scanner';
     styleUrls: ['./talkgroup.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RdioScannerAdminTalkgroupComponent implements OnDestroy {
+export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
     @Input() form: FormGroup | undefined;
     @Input() groups: Group[] = [];
     @Input() tags: Tag[] = [];
+
+    /** Loose id match so number/string option values don't deselect (issue #248). */
+    compareSelectIds = (a: unknown, b: unknown): boolean => a == b;
+
+    private preservedGroupIds: number[] | null = null;
+    private preservedTagId: number | null = null;
 
     @Output() blacklist = new EventEmitter<void>();
 
@@ -89,8 +95,38 @@ export class RdioScannerAdminTalkgroupComponent implements OnDestroy {
     ) {
     }
 
+    ngOnInit(): void {
+        // Snapshot before mat-select mounts; restore if options remount clears them.
+        const groupIds = this.form?.get('groupIds')?.value;
+        this.preservedGroupIds = Array.isArray(groupIds) ? [...groupIds] : null;
+        const tagId = this.form?.get('tagId')?.value;
+        this.preservedTagId = typeof tagId === 'number' ? tagId : null;
+
+        setTimeout(() => this.restoreSelectValuesIfCleared());
+    }
+
     ngOnDestroy(): void {
         this.stopToneAudio();
+    }
+
+    private restoreSelectValuesIfCleared(): void {
+        if (!this.form) {
+            return;
+        }
+        const groupCtrl = this.form.get('groupIds');
+        if (groupCtrl && this.preservedGroupIds?.length) {
+            const current = groupCtrl.value;
+            if (!Array.isArray(current) || current.length === 0) {
+                groupCtrl.setValue([...this.preservedGroupIds], { emitEvent: false });
+                groupCtrl.updateValueAndValidity({ emitEvent: false });
+            }
+        }
+        const tagCtrl = this.form.get('tagId');
+        if (tagCtrl && this.preservedTagId != null && (tagCtrl.value == null || tagCtrl.value === '')) {
+            tagCtrl.setValue(this.preservedTagId, { emitEvent: false });
+            tagCtrl.updateValueAndValidity({ emitEvent: false });
+        }
+        this.cdr.markForCheck();
     }
 
     /**
@@ -227,7 +263,12 @@ export class RdioScannerAdminTalkgroupComponent implements OnDestroy {
     }
 
     removeToneSet(index: number): void {
-        const id = this.getToneSets().at(index)?.get('id')?.value;
+        const ctrl = this.getToneSets().at(index);
+        const label = (ctrl?.get('label')?.value || '').toString().trim() || `tone set ${index + 1}`;
+        if (!confirm(`Are you sure you want to delete ${label}?`)) {
+            return;
+        }
+        const id = ctrl?.get('id')?.value;
         if (id) {
             this.expandedToneSets.delete(id);
         }

@@ -39,6 +39,11 @@ export class RdioScannerAdminSiteComponent {
     }
 
     removeFrequency(index: number): void {
+        const hz = this.frequencies.at(index)?.value;
+        const label = hz != null && hz !== '' ? `${hz} Hz` : 'this frequency';
+        if (!confirm(`Are you sure you want to delete ${label}?`)) {
+            return;
+        }
         this.frequencies.removeAt(index);
         this.form?.markAsDirty();
     }

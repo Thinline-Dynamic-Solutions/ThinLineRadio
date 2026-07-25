@@ -87,6 +87,10 @@ export class RdioScannerAdminGroupsComponent {
     }
 
     remove(index: number): void {
+        const label = (this.form?.at(index)?.get('label')?.value || '').toString().trim() || 'this group';
+        if (!confirm(`Are you sure you want to delete group "${label}"?`)) {
+            return;
+        }
         this.form?.removeAt(index);
 
         this.form?.markAsDirty();
@@ -136,11 +140,23 @@ export class RdioScannerAdminGroupsComponent {
             }
         }
 
-        for (let i = this.form.controls.length - 1; i >= 0; i--) {
+        const unusedIndexes: number[] = [];
+        for (let i = 0; i < this.form.controls.length; i++) {
             const groupId = this.form.at(i).get('id')?.value;
             if (groupId && !usedGroupIds.has(groupId)) {
-                this.form.removeAt(i);
+                unusedIndexes.push(i);
             }
+        }
+        if (unusedIndexes.length === 0) {
+            this.snackBar.open('No unused groups to remove.', 'Close', { duration: 2500 });
+            return;
+        }
+        if (!confirm(`Are you sure you want to delete ${unusedIndexes.length} unused group${unusedIndexes.length > 1 ? 's' : ''}?`)) {
+            return;
+        }
+
+        for (let i = unusedIndexes.length - 1; i >= 0; i--) {
+            this.form.removeAt(unusedIndexes[i]);
         }
 
         this.form.markAsDirty();

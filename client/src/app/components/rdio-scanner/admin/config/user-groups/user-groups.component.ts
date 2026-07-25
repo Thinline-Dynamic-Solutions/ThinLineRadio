@@ -261,9 +261,15 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   }
 
   removePricingOption(index: number): void {
-    if (this.pricingOptionsArray.length > 1) {
-      this.pricingOptionsArray.removeAt(index);
+    if (this.pricingOptionsArray.length <= 1) {
+      return;
     }
+    const label = (this.pricingOptionsArray.at(index)?.get('label')?.value || '').toString().trim()
+      || 'this pricing option';
+    if (!confirm(`Are you sure you want to delete ${label}?`)) {
+      return;
+    }
+    this.pricingOptionsArray.removeAt(index);
   }
 
   updatePricingOptionValidators(billingEnabled: boolean): void {
@@ -526,6 +532,12 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   }
 
   removeSystemAccess(index: number): void {
+    const entry = this.selectedSystemAccess[index];
+    const system = this.systems.find(s => s.systemRef === entry?.id);
+    const label = system?.label || (entry?.id ? `system ${entry.id}` : 'this system access');
+    if (!confirm(`Are you sure you want to remove access to ${label}?`)) {
+      return;
+    }
     this.selectedSystemAccess.splice(index, 1);
   }
 

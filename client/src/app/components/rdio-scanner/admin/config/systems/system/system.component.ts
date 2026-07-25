@@ -27,6 +27,7 @@ import { Subscription } from 'rxjs';
 import { RdioScannerAdminService, Group, Tag } from '../../../admin.service';
 import { ToneSetLocationDialogComponent } from './tone-set-location-dialog.component';
 import { TalkgroupLocationDialogComponent } from './talkgroup-location-dialog.component';
+import { DeleteSystemDialogComponent } from '../delete-system-dialog.component';
 
 @Component({
     selector: 'rdio-scanner-admin-system',
@@ -102,6 +103,25 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     get systemId(): number | null {
         const id = this.form.get('id')?.value;
         return typeof id === 'number' && id > 0 ? id : null;
+    }
+
+    /** GitHub-style type-to-confirm before deleting a system (issue #241). */
+    confirmRemove(): void {
+        const systemLabel = (this.form.get('label')?.value || '').toString().trim()
+            || `System ${this.form.get('id')?.value ?? ''}`.trim()
+            || 'this system';
+
+        const ref = this.dialog.open(DeleteSystemDialogComponent, {
+            width: '480px',
+            disableClose: true,
+            data: { systemLabel },
+        });
+
+        ref.afterClosed().subscribe((confirmed: boolean | undefined) => {
+            if (confirmed) {
+                this.remove.emit();
+            }
+        });
     }
 
     ngOnChanges(changes: SimpleChanges) {
@@ -611,7 +631,13 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     }
 
     /** Remove a talkgroup by FormGroup reference — immune to filtered-index drift. */
-    removeTalkgroup(tg: FormGroup): void {
+    removeTalkgroup(tg: FormGroup, opts?: { skipConfirm?: boolean }): void {
+        const label = (tg.get('label')?.value || '').toString().trim()
+            || `talkgroup ${tg.get('talkgroupRef')?.value ?? ''}`.trim()
+            || 'this talkgroup';
+        if (!opts?.skipConfirm && !confirm(`Are you sure you want to delete ${label}?`)) {
+            return;
+        }
         if (this.expandedTalkgroup === tg) this.collapseExpandedTalkgroup();
         this.selectedTalkgroups.delete(tg);
         // Find its actual position in the raw FormArray by reference, not by index
@@ -627,6 +653,12 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
 
     /** Remove by FormGroup reference — table rows are sorted by order, not FormArray index. */
     removeSite(site: FormGroup): void {
+        const label = (site.get('label')?.value || '').toString().trim()
+            || `site ${site.get('siteRef')?.value ?? ''}`.trim()
+            || 'this site';
+        if (!confirm(`Are you sure you want to delete ${label}?`)) {
+            return;
+        }
         if (this.expandedSite === site) this.expandedSite = null;
         const arr = this.form.get('sites') as FormArray | null;
         if (!arr) return;
@@ -637,6 +669,12 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     }
 
     removeUnit(unit: any): void {
+        const label = (unit?.label || '').toString().trim()
+            || `unit ${unit?.unitRef ?? ''}`.trim()
+            || 'this unit';
+        if (!confirm(`Are you sure you want to delete ${label}?`)) {
+            return;
+        }
         if (this.expandedRawUnit === unit) {
             this.expandedUnitFormSub?.unsubscribe();
             this.expandedUnitFormSub = null;
@@ -652,11 +690,15 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     blacklistTalkgroup(tg: FormGroup): void {
         const talkgroupRef = tg.value.talkgroupRef;
         if (typeof talkgroupRef !== 'number') return;
+        const label = (tg.get('label')?.value || '').toString().trim() || `talkgroup ${talkgroupRef}`;
+        if (!confirm(`Blacklist and remove ${label}?\n\nIt will be added to this system's blacklist.`)) {
+            return;
+        }
         const blacklists = this.form.get('blacklists') as FormControl | null;
         blacklists?.setValue(blacklists.value?.trim()
             ? `${blacklists.value},${talkgroupRef}`
             : `${talkgroupRef}`);
-        this.removeTalkgroup(tg);
+        this.removeTalkgroup(tg, { skipConfirm: true });
     }
 
     // ─── Drag & drop ───────────────────────────────────────────────────────────
@@ -722,7 +764,14 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         if (tg.get('name')?.hasError('required')) errors.push('Name required');
         if (tg.get('groupIds')?.hasError('required')) errors.push('Group required');
         if (tg.get('tagId')?.hasError('required')) errors.push('Tag required');
-        return errors.join(', ');
+        if (tg.get('frequency')?.invalid) errors.push('Invalid frequency');
+        const toneSets = tg.get('toneSets') as FormArray | null;
+        if (toneSets?.invalid) {
+            const n = toneSets.controls.filter(c => c.invalid).length;
+            errors.push(n ? `${n} invalid tone set${n > 1 ? 's' : ''}` : 'Invalid tone sets');
+        }
+        if (tg.get('incidentMapping')?.invalid) errors.push('Invalid incident mapping');
+        return errors.join(', ') || 'Invalid talkgroup';
     }
 
     getTalkgroupsErrorSummary(): string {

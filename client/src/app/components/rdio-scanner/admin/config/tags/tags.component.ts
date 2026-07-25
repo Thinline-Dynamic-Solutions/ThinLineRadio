@@ -92,6 +92,10 @@ export class RdioScannerAdminTagsComponent {
     }
 
     remove(index: number): void {
+        const label = (this.form?.at(index)?.get('label')?.value || '').toString().trim() || 'this tag';
+        if (!confirm(`Are you sure you want to delete tag "${label}"?`)) {
+            return;
+        }
         this.form?.removeAt(index);
         this.form?.markAsDirty();
         this.saveAll(false);
@@ -155,11 +159,23 @@ export class RdioScannerAdminTagsComponent {
             }
         }
 
-        for (let i = this.form.controls.length - 1; i >= 0; i--) {
+        const unusedIndexes: number[] = [];
+        for (let i = 0; i < this.form.controls.length; i++) {
             const id = this.form.at(i).get('id')?.value;
             if (id && !usedTagIds.has(id)) {
-                this.form.removeAt(i);
+                unusedIndexes.push(i);
             }
+        }
+        if (unusedIndexes.length === 0) {
+            this.snackBar.open('No unused tags to remove.', 'Close', { duration: 2500 });
+            return;
+        }
+        if (!confirm(`Are you sure you want to delete ${unusedIndexes.length} unused tag${unusedIndexes.length > 1 ? 's' : ''}?`)) {
+            return;
+        }
+
+        for (let i = unusedIndexes.length - 1; i >= 0; i--) {
+            this.form.removeAt(unusedIndexes[i]);
         }
 
         this.form.markAsDirty();

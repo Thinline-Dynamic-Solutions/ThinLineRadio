@@ -135,9 +135,10 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
         password: this.loginForm.value.password
       };
       
-      // Add Turnstile token if enabled
+      // Add Turnstile token if enabled, then clear immediately (single-use / issue #239).
       if (this.turnstileEnabled && this.turnstileToken) {
         formData.turnstile_token = this.turnstileToken;
+        this.turnstileToken = '';
       }
 
       this.http.post('/api/group-admin/login', formData).subscribe({
@@ -161,6 +162,7 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           this.loading = false;
+          this.refreshTurnstile();
           // Check if IP is blocked due to too many failed attempts
           if (error.error?.blocked && error.error?.retryAfter) {
             // Navigate with query params to show countdown
@@ -189,6 +191,23 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
         }
       });
     }
+  }
+
+  /** Clear used token and force a new Turnstile challenge (issue #239). */
+  refreshTurnstile(): void {
+    if (!this.turnstileEnabled) {
+      return;
+    }
+    this.turnstileToken = '';
+    if (this.turnstileWidgetId !== null && (window as any).turnstile) {
+      try {
+        (window as any).turnstile.reset(this.turnstileWidgetId);
+        return;
+      } catch {
+        // Fall through to re-init
+      }
+    }
+    this.initTurnstileWidget();
   }
   
   loadTurnstileScript(): void {

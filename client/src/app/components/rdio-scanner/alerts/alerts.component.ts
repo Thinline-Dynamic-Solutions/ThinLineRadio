@@ -232,7 +232,9 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
             this.rdioScannerService.event.subscribe((event: any) => {
                 if (event.alert) {
                     if (this.boardEmbed || this.panelMode !== 'stats') {
-                        this.loadAlerts(false);
+                        // Full refresh — incremental since= can miss a just-persisted
+                        // alerting-talkgroup / tone row (issue #229).
+                        this.loadAlerts(true);
                     }
                     if (!this.boardEmbed && this.panelMode === 'transcripts') {
                         this.onTranscriptsMayHaveChanged();
@@ -655,7 +657,8 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         }
         this.activeTab = tab;
         if (tab === 'alerts') {
-            this.loadAlerts(false);
+            // Full refresh so a just-fired push (pre-alert) is not missed by since=
+            this.loadAlerts(true);
             this.loadSystemAlerts();
         }
     }
@@ -1098,6 +1101,12 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
             hour: 'numeric',
             minute: '2-digit',
         });
+    }
+
+    /** Single-line date + time for group headers (avoids year/time mashup). */
+    formatAlertDateTime(timestamp: number): string {
+        if (!timestamp) return '';
+        return `${this.formatAlertDate(timestamp)} ${this.formatAlertTime(timestamp)}`;
     }
 
     // Update cached grouped alerts (called when alerts change to avoid recalculation on every change detection)

@@ -195,15 +195,30 @@ export class RelayAccountDialogComponent {
         next: (res: any) => {
           this.loading = false;
           if (res?.error) {
-            this.errorMessage = res.error;
+            this.handleCreateError(String(res.error));
             return;
           }
           this.dialogRef.close(true);
         },
         error: (err) => {
           this.loading = false;
-          this.errorMessage = err?.error?.error || err?.message || 'Failed to create account';
+          this.handleCreateError(err?.error?.error || err?.message || 'Failed to create account');
         },
       });
+  }
+
+  /** When the API key is already linked, Create is wrong — steer them to Sign In. */
+  private handleCreateError(message: string): void {
+    const lower = (message || '').toLowerCase();
+    if (lower.includes('already has a linked account') || lower.includes('account with that email already exists')) {
+      this.mode = 'login';
+      this.errorMessage = '';
+      this.infoMessage =
+        'This server’s API key already has a relay account. Use Sign In with the email that created it ' +
+        '(the contact email on the API key — not a different address). ' +
+        'If you forgot the password, use password reset on the Thinline portal.';
+      return;
+    }
+    this.errorMessage = message;
   }
 }

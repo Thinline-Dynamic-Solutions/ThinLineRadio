@@ -1439,10 +1439,13 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
     removeRadioReferenceAccount(): void {
         if (!this.form) return;
-        
+        if (!confirm('Are you sure you want to remove the Radio Reference account from this server?')) {
+            return;
+        }
+
         // Exit edit mode if we were editing
         this.isEditingRadioReference = false;
-        
+
         // Clear credentials and disable Radio Reference
         this.form.get('radioReferenceEnabled')?.setValue(false);
         this.form.get('radioReferenceUsername')?.setValue('');
@@ -1682,6 +1685,9 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     }
 
     removeFavicon(): void {
+        if (!confirm('Are you sure you want to delete the favicon?')) {
+            return;
+        }
         // Get auth token from session storage (admin service sends token without "Bearer" prefix)
         const token = sessionStorage.getItem('rdio-scanner-admin-token');
         if (!token) {
@@ -1872,6 +1878,9 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     }
 
     removeEmailLogo(): void {
+        if (!confirm('Are you sure you want to delete the email logo?')) {
+            return;
+        }
         const token = sessionStorage.getItem('rdio-scanner-admin-token');
         if (!token) {
             alert('Not authenticated. Please log in again.');

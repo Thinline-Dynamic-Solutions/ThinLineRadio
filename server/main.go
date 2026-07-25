@@ -387,6 +387,7 @@ func main() {
 	http.HandleFunc("/api/admin/downstreams", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.DownstreamsHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/dirwatch", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.DirwatchConfigHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/systems/save", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemSaveHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/systems/order", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemsOrderHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/systems/delete/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemDeleteHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/email-logo", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.EmailLogoUploadHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/email-logo/delete", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.EmailLogoDeleteHandler)).ServeHTTP)

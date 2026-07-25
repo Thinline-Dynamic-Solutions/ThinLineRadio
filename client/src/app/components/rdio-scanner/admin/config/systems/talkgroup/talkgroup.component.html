@@ -47,12 +47,12 @@
             <span class="mat-caption">Groups to which this talkgoups belongs.</span>
         </p>
         <mat-form-field floatLabel="auto">
-            <mat-select formControlName="groupIds" placeholder="Groups" [multiple]="true">
+            <mat-select formControlName="groupIds" placeholder="Groups" [multiple]="true" [compareWith]="compareSelectIds">
                 <mat-option *ngFor="let group of groups" [value]="group.id">
                     {{ group.label }}
                 </mat-option>
             </mat-select>
-            <mat-error *ngIf="form?.get('groupId')?.hasError('required')">
+            <mat-error *ngIf="form?.get('groupIds')?.hasError('required')">
                 Group is required
             </mat-error>
         </mat-form-field>
@@ -63,7 +63,7 @@
             <span class="mat-caption">Tag to which this talkgoups belongs.</span>
         </p>
         <mat-form-field floatLabel="auto">
-            <mat-select formControlName="tagId" placeholder="Tag">
+            <mat-select formControlName="tagId" placeholder="Tag" [compareWith]="compareSelectIds">
                 <mat-option *ngFor="let tag of tags" [value]="tag.id">
                     {{ tag.label }} (ID: {{ tag.id }})
                 </mat-option>
@@ -548,7 +548,7 @@
                             <div class="tone-field">
                                 <mat-form-field floatLabel="auto">
                                     <mat-label>Radius (mi)</mat-label>
-                                    <input type="number" matInput formControlName="geoRadiusMiles" min="1" max="40" step="any" autocomplete="off">
+                                    <input type="number" matInput formControlName="geoRadiusMiles" min="0" max="40" step="any" autocomplete="off">
                                 </mat-form-field>
                             </div>
                         </div>

@@ -67,6 +67,8 @@ export interface User {
     stripeCustomerId: string;
     stripeSubscriptionId: string;
     subscriptionStatus: string;
+    /** Unix timestamp; 0 / missing = no account expiration. */
+    accountExpiresAt?: number;
     fcmTokens?: FCMToken[];
 }
 
@@ -89,8 +91,14 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     // Expanded row for inline editing
     expandedUser: User | null = null;
 
-    // Search and pagination
+    // Search, filters, and pagination
     searchText = '';
+    /** '' = all, 'none' = no group, otherwise group id as string. */
+    groupFilter = '';
+    /** '' = all; 'active' includes trialing; 'problem' = past_due/unpaid/incomplete. */
+    subscriptionFilter = '';
+    /** '' = all; pin_expired | account_expired | verified | unverified. */
+    statusFilter = '';
     filteredUsers: User[] = [];
     paginatedUsers: User[] = [];
     pageSize = 25;
@@ -936,29 +944,96 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         this.applyFilter();
     }
 
+    onFiltersChange(): void {
+        this.pageIndex = 0;
+        this.applyFilter();
+    }
+
+    get hasActiveFilters(): boolean {
+        return !!(this.searchText?.trim()
+            || this.groupFilter
+            || this.subscriptionFilter
+            || this.statusFilter);
+    }
+
     clearSearch(): void {
         this.searchText = '';
         this.onSearchChange();
     }
 
-    applyFilter(): void {
-        // Filter users by name, email, or group
-        if (this.searchText && this.searchText.trim() !== '') {
-            const searchLower = this.searchText.toLowerCase();
-            this.filteredUsers = this.users.filter(user => {
-                const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
-                const email = user.email.toLowerCase();
-                const groupName = this.getGroupName(user.userGroupId)?.toLowerCase() || '';
-                
-                return fullName.includes(searchLower) || 
-                       email.includes(searchLower) || 
-                       groupName.includes(searchLower);
-            });
-        } else {
-            this.filteredUsers = [...this.users];
-        }
+    clearFilters(): void {
+        this.searchText = '';
+        this.groupFilter = '';
+        this.subscriptionFilter = '';
+        this.statusFilter = '';
+        this.onFiltersChange();
+    }
 
-        // Apply pagination
+    private matchesSubscriptionFilter(user: User): boolean {
+        const status = (user.subscriptionStatus || '').toLowerCase();
+        switch (this.subscriptionFilter) {
+            case 'active':
+                return status === 'active' || status === 'trialing';
+            case 'trialing':
+                return status === 'trialing';
+            case 'problem':
+                return status === 'past_due' || status === 'unpaid'
+                    || status === 'incomplete' || status === 'incomplete_expired';
+            case 'canceled':
+                return status === 'canceled' || status === 'cancelled';
+            case 'none':
+                return !status;
+            default:
+                return true;
+        }
+    }
+
+    private matchesStatusFilter(user: User): boolean {
+        const now = Math.floor(Date.now() / 1000);
+        switch (this.statusFilter) {
+            case 'pin_expired':
+                return !!user.pinExpired;
+            case 'account_expired':
+                return !!(user.accountExpiresAt && user.accountExpiresAt > 0 && user.accountExpiresAt < now);
+            case 'verified':
+                return !!user.verified;
+            case 'unverified':
+                return !user.verified;
+            default:
+                return true;
+        }
+    }
+
+    private matchesGroupFilter(user: User): boolean {
+        if (!this.groupFilter) {
+            return true;
+        }
+        if (this.groupFilter === 'none') {
+            return !user.userGroupId;
+        }
+        return user.userGroupId === Number(this.groupFilter);
+    }
+
+    applyFilter(): void {
+        const searchLower = this.searchText?.trim().toLowerCase() || '';
+
+        this.filteredUsers = this.users.filter(user => {
+            if (searchLower) {
+                const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
+                const email = (user.email || '').toLowerCase();
+                const groupName = this.getGroupName(user.userGroupId)?.toLowerCase() || '';
+                if (!fullName.includes(searchLower)
+                    && !email.includes(searchLower)
+                    && !groupName.includes(searchLower)) {
+                    return false;
+                }
+            }
+
+            return this.matchesGroupFilter(user)
+                && this.matchesSubscriptionFilter(user)
+                && this.matchesStatusFilter(user);
+        });
+
         this.updatePaginatedUsers();
     }
 

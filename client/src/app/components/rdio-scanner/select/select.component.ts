@@ -282,6 +282,10 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
 
     removeScanListChannel(list: ScanList, ch: ScanListChannel, event: Event): void {
         event.stopPropagation();
+        const label = (ch.talkgroupLabel || ch.talkgroupName || `talkgroup ${ch.talkgroupId}`).toString();
+        if (!confirm(`Remove ${label} from "${list.name}"?`)) {
+            return;
+        }
         this.scanListsService.removeChannel(list.id, ch.systemId, ch.talkgroupId);
     }
 

@@ -176,39 +176,63 @@
             <span class="mat-body"><strong>Auto-learn tone sets</strong></span><br>
             <span class="mat-caption">Duration windows and thresholds when system/talkgroup auto-learn is enabled. <strong>Calls required</strong> also applies to unit alias auto-learn. Single tone patterns are auto-added after enough calls; stacked or ambiguous patterns are logged only (add manually in admin). OpenAI API key and model are configured under <strong>External Integrations</strong> below.</span>
           </p>
-          <div formGroupName="autoLearnToneSetConfig" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px;">
-            <mat-form-field>
-              <mat-label>A-tone min (s)</mat-label>
-              <input type="number" min="0.1" step="0.1" matInput formControlName="aToneMinDuration">
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>A-tone max (s)</mat-label>
-              <input type="number" min="0.1" step="0.1" matInput formControlName="aToneMaxDuration">
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>B-tone min (s)</mat-label>
-              <input type="number" min="0.1" step="0.1" matInput formControlName="bToneMinDuration">
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>B-tone max (s)</mat-label>
-              <input type="number" min="0.1" step="0.1" matInput formControlName="bToneMaxDuration">
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Long tone min (s)</mat-label>
-              <input type="number" min="1" step="0.5" matInput formControlName="longToneMinDuration">
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Long tone max (s, 0=none)</mat-label>
-              <input type="number" min="0" step="0.5" matInput formControlName="longToneMaxDuration">
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Calls required</mat-label>
-              <input type="number" min="2" step="1" matInput formControlName="callsRequired">
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Frequency tolerance (Hz)</mat-label>
-              <input type="number" min="1" step="1" matInput formControlName="frequencyToleranceHz">
-            </mat-form-field>
+          <div formGroupName="autoLearnToneSetConfig" class="auto-learn-tone-config">
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">A-tone min (seconds)</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="0.1" step="0.1" matInput formControlName="aToneMinDuration"
+                       aria-label="A-tone min duration in seconds" autocomplete="off">
+              </mat-form-field>
+            </label>
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">A-tone max (seconds)</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="0.1" step="0.1" matInput formControlName="aToneMaxDuration"
+                       aria-label="A-tone max duration in seconds" autocomplete="off">
+              </mat-form-field>
+            </label>
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">B-tone min (seconds)</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="0.1" step="0.1" matInput formControlName="bToneMinDuration"
+                       aria-label="B-tone min duration in seconds" autocomplete="off">
+              </mat-form-field>
+            </label>
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">B-tone max (seconds)</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="0.1" step="0.1" matInput formControlName="bToneMaxDuration"
+                       aria-label="B-tone max duration in seconds" autocomplete="off">
+              </mat-form-field>
+            </label>
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">Long tone min (seconds)</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="1" step="0.5" matInput formControlName="longToneMinDuration"
+                       aria-label="Long tone min duration in seconds" autocomplete="off">
+              </mat-form-field>
+            </label>
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">Long tone max (seconds, 0 = none)</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="0" step="0.5" matInput formControlName="longToneMaxDuration"
+                       aria-label="Long tone max duration in seconds, zero for none" autocomplete="off">
+              </mat-form-field>
+            </label>
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">Calls required</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="2" step="1" matInput formControlName="callsRequired"
+                       aria-label="Calls required before auto-learn" autocomplete="off">
+              </mat-form-field>
+            </label>
+            <label class="auto-learn-tone-field">
+              <span class="auto-learn-tone-label">Frequency tolerance (Hz)</span>
+              <mat-form-field appearance="outline">
+                <input type="number" min="1" step="1" matInput formControlName="frequencyToleranceHz"
+                       aria-label="Frequency tolerance in hertz" autocomplete="off">
+              </mat-form-field>
+            </label>
           </div>
         </div>
 
@@ -1550,13 +1574,15 @@
         <div class="row" *ngIf="form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai'">
           <p>
             <span class="mat-body">Speech Model</span><br>
-            <span class="mat-caption">Choose between universal-2 (default) or universal-3-pro (higher accuracy, slower).</span>
+            <span class="mat-caption">
+              Leave blank to use AssemblyAI’s current default (recommended — follows their latest,
+              e.g. <code>universal-3-5-pro</code> with <code>universal-2</code> fallback).
+              Or type a specific model id to pin it: <code>universal-2</code>, <code>universal-3-5-pro</code>, etc.
+            </span>
           </p>
           <mat-form-field floatLabel="auto">
-            <mat-select formControlName="assemblyAISpeechModel" placeholder="Speech Model">
-              <mat-option value="universal-2">universal-2 (default)</mat-option>
-              <mat-option value="universal-3-pro">universal-3-pro (higher accuracy)</mat-option>
-            </mat-select>
+            <input type="text" matInput formControlName="assemblyAISpeechModel"
+                   placeholder="AssemblyAI default (recommended)" autocomplete="off">
           </mat-form-field>
         </div>
 
@@ -1716,9 +1742,9 @@
             <span class="mat-body">Automatic Hallucination Detection</span><br>
             <span class="mat-caption">
               <strong>What it does:</strong> Whisper sometimes "hallucinates" phrases when transcribing tone-only audio (e.g., "THE BELL IS INVITED TO SOUND THREE TIMES"). This system automatically detects these fake phrases by tracking which transcripts pass vs fail voice detection.<br><br>
-              <strong>How it works:</strong> When a transcript fails voice detection (no speech detected in audio), its text is flagged. If the same phrase is flagged by multiple different users across multiple calls, it's likely a hallucination and will be automatically removed from future transcripts.<br><br>
-              <strong>Learning mode:</strong> Collects hallucination data without auto-removal — review patterns in the database first, then switch to Auto-removal mode.<br>
-              <strong>Auto-removal mode:</strong> Automatically removes detected hallucinations from transcripts in real-time.
+              <strong>How it works:</strong> When a transcript fails voice detection (no speech detected), the full phrase is tracked. If the same phrase keeps failing voice checks across enough calls (and systems, when you have more than one), it is treated as a hallucination and can be auto-added to the removal list. Applies to all STT providers (Whisper, Cloudflare Workers AI, AssemblyAI, etc.).<br><br>
+              <strong>Learning mode:</strong> Collects hallucination data without auto-removal — review suggestions under Admin tools, then switch to Auto-removal mode.<br>
+              <strong>Auto-removal mode:</strong> Automatically adds high-confidence phrases to the removal patterns list so they are stripped from future transcripts.
             </span>
           </p>
           <mat-form-field floatLabel="auto">
@@ -1734,21 +1760,21 @@
           <p>
             <span class="mat-body">Confidence Threshold (0.0 - 1.0)</span><br>
             <span class="mat-caption">
-              Minimum hallucination detection confidence to trigger auto-removal. Higher = fewer false positives but may miss some hallucinations. Lower = catches more hallucinations but may accidentally remove valid phrases.<br><br>
+              Minimum confidence (0.0–1.0) required before Auto-removal adds a phrase. Maps to an internal 0–10 score (threshold × 10). Higher = fewer false positives; lower = catches more.<br><br>
               <strong>Recommended values:</strong><br>
-              • 0.95+ (very strict) — only remove phrases with overwhelming evidence<br>
-              • 0.85-0.95 (balanced) — good default for most systems<br>
-              • 0.70-0.85 (aggressive) — remove more aggressively<br><br>
+              • 0.70–0.80 (strict) — needs many rejections and/or multiple systems<br>
+              • 0.50–0.60 (balanced) — good default for most installs<br>
+              • 0.30–0.40 (aggressive) — add patterns sooner<br><br>
               <strong>What affects confidence:</strong><br>
-              • How many different users flagged the phrase<br>
-              • How many times it was flagged<br>
-              • Whisper hallucinations<br><br>
-              <strong>Note:</strong> This only applies in Auto-removal mode. Learning mode collects data regardless of threshold.
+              • How many times the phrase failed voice detection<br>
+              • How many radio systems it appeared on<br>
+              • How long it has been repeating<br><br>
+              <strong>Note:</strong> This only applies in Auto-removal mode. Learning mode collects data regardless of threshold. Phrases that ever pass voice detection are never auto-added.
             </span>
           </p>
           <mat-form-field>
-            <input type="number" min="0" max="1" step="0.05" matInput formControlName="hallucinationConfidenceThreshold" placeholder="0.90" autocomplete="off">
-            <mat-hint>Recommended: 0.85-0.95. Higher = fewer false positives.</mat-hint>
+            <input type="number" min="0" max="1" step="0.05" matInput formControlName="hallucinationConfidenceThreshold" placeholder="0.60" autocomplete="off">
+            <mat-hint>Recommended: 0.50–0.60. Higher = fewer false positives.</mat-hint>
           </mat-form-field>
         </div>
 

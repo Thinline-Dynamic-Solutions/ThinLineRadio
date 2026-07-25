@@ -66,11 +66,33 @@ var emergencyVocabulary = []string{
 	"911", "e911",
 }
 
+// hallucinationDetectionEnabled reports whether learning or auto-removal is on.
+// Admin UI values: "off" | "learning" | "auto-remove".
+// Legacy values "manual" (learning) and "auto" (auto-remove) are also accepted.
+func hallucinationDetectionEnabled(mode string) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", "off", "disabled", "false", "0":
+		return false
+	default:
+		return true
+	}
+}
+
+// hallucinationAutoRemovalEnabled reports whether patterns should be auto-added
+// to HallucinationPatterns when confidence thresholds are met.
+func hallucinationAutoRemovalEnabled(mode string) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "auto", "auto-remove", "autoremove", "auto_remove":
+		return true
+	default:
+		return false
+	}
+}
+
 // TrackPhrase tracks a phrase from a transcript based on whether it was accepted or rejected
 func (hd *HallucinationDetector) TrackPhrase(transcript string, wasAccepted bool, systemId uint64) {
-	// Check if detection is enabled
 	mode := hd.controller.Options.TranscriptionConfig.HallucinationDetectionMode
-	if mode == "" || mode == "off" {
+	if !hallucinationDetectionEnabled(mode) {
 		return
 	}
 
@@ -120,8 +142,8 @@ func (hd *HallucinationDetector) TrackPhrase(transcript string, wasAccepted bool
 		return
 	}
 
-	// Check if we should auto-add this pattern
-	if mode == "auto" && existing.Status == "pending" {
+	// Auto-removal mode (UI: "auto-remove"; legacy: "auto")
+	if hallucinationAutoRemovalEnabled(mode) && existing.Status == "pending" {
 		if hd.shouldAutoAdd(existing) {
 			hd.autoAddPattern(existing)
 		}
@@ -220,8 +242,13 @@ func (hd *HallucinationDetector) shouldAutoAdd(sh *SuspectedHallucination) bool 
 		return false
 	}
 
-	// Must appear on at least 2 systems (to avoid system-specific language)
-	if len(sh.SystemIds) < 2 {
+	// Prefer phrases seen on 2+ systems (avoids site-specific jargon).
+	// Single-system installs only have one systemId, so require just one there.
+	minSystems := 2
+	if hd.controller != nil && hd.controller.Systems != nil && len(hd.controller.Systems.List) < 2 {
+		minSystems = 1
+	}
+	if len(sh.SystemIds) < minSystems {
 		return false
 	}
 
@@ -230,8 +257,17 @@ func (hd *HallucinationDetector) shouldAutoAdd(sh *SuspectedHallucination) bool 
 
 // autoAddPattern automatically adds a pattern to the hallucination filter
 func (hd *HallucinationDetector) autoAddPattern(sh *SuspectedHallucination) {
-	// Add to hallucination patterns
 	patterns := hd.controller.Options.TranscriptionConfig.HallucinationPatterns
+	for _, p := range patterns {
+		if strings.EqualFold(p, sh.Phrase) {
+			// Already present — still mark status so we stop re-evaluating
+			sh.Status = "auto_added"
+			sh.AutoAdded = true
+			sh.UpdatedAt = time.Now().UnixMilli()
+			_ = hd.savePhrase(sh)
+			return
+		}
+	}
 	patterns = append(patterns, sh.Phrase)
 	hd.controller.Options.TranscriptionConfig.HallucinationPatterns = patterns
 

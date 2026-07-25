@@ -257,13 +257,13 @@ type TranscriptionConfig struct {
 	GeminiAPIKey                string   `json:"geminiAPIKey"`                // Google AI Studio / Gemini API key
 	GeminiModel                 string   `json:"geminiModel"`                 // Gemini model id (default gemini-3.1-flash-lite)
 	AssemblyAIKey               string   `json:"assemblyAIKey"`               // AssemblyAI API key
-	AssemblyAISpeechModel       string   `json:"assemblyAISpeechModel"`       // Speech model for AssemblyAI: "universal-2" (default) or "universal-3-pro"
+	AssemblyAISpeechModel       string   `json:"assemblyAISpeechModel"`       // AssemblyAI speech_models id; blank = API default (currently universal-3-5-pro + universal-2 fallback)
 	AssemblyAIWordBoost         []string `json:"assemblyAIWordBoost"`         // Sent as AssemblyAI keyterms_prompt (max 100 terms, 50 chars each)
 	CloudflareAccountID         string   `json:"cloudflareAccountID"`         // Cloudflare account ID for Workers AI
 	CloudflareAPIToken          string   `json:"cloudflareAPIToken"`          // Cloudflare API token for Workers AI
 	CloudflareModel             string   `json:"cloudflareModel"`             // Cloudflare Workers AI model (default: @cf/openai/whisper-large-v3-turbo)
 	HallucinationPatterns       []string `json:"hallucinationPatterns"`       // Patterns to remove from transcripts (Whisper hallucinations)
-	HallucinationDetectionMode         string   `json:"hallucinationDetectionMode"`         // "off", "manual", "auto"
+	HallucinationDetectionMode         string   `json:"hallucinationDetectionMode"`         // "off", "learning", "auto-remove" (legacy: "manual", "auto")
 	HallucinationMinOccurrences        int      `json:"hallucinationMinOccurrences"`        // Minimum times a phrase must appear in rejected calls before flagging (default: 5)
 	HallucinationConfidenceThreshold   float64  `json:"hallucinationConfidenceThreshold"`   // 0.0-1.0; auto-removal requires score >= threshold*10 (default: 0.6)
 	// TimeoutSeconds controls the maximum time to wait for a transcription response.
@@ -1049,6 +1049,11 @@ func (options *Options) FromMap(m map[string]any) *Options {
 			options.TranscriptionConfig.AssemblyAIKey = v
 		}
 		if v, ok := tc["assemblyAISpeechModel"].(string); ok {
+			v = strings.TrimSpace(v)
+			// Drop deprecated pin so blank → AssemblyAI's current recommended default.
+			if v == "universal-3-pro" {
+				v = ""
+			}
 			options.TranscriptionConfig.AssemblyAISpeechModel = v
 		}
 		if v, ok := tc["cloudflareAccountID"].(string); ok {

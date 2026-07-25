@@ -75,6 +75,12 @@ export class RdioScannerAdminDownstreamsComponent {
     }
 
     remove(index: number): void {
+        const name = (this.form?.at(index)?.get('name')?.value || '').toString().trim()
+            || (this.form?.at(index)?.get('url')?.value || '').toString().trim()
+            || 'this downstream';
+        if (!confirm(`Are you sure you want to delete downstream "${name}"?`)) {
+            return;
+        }
         this.form?.removeAt(index);
 
         this.form?.markAsDirty();

@@ -68,19 +68,19 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             .sort((a, b) => (a.value.order || 0) - (b.value.order || 0));
     }
 
-    /** Raw group values for passing to the system component */
-    get groupsValue(): Group[] {
-        return this.groups?.value || [];
-    }
+    /**
+     * Stable snapshots for child inputs. FormArray.value returns a new array every
+     * read — passing that straight into [groups]/[tags] remounts mat-select options
+     * on each CD cycle and can wipe talkgroup groupIds/tagId (issue #248).
+     */
+    groupsValue: Group[] = [];
+    tagsValue: Tag[] = [];
+    apikeysValue: any[] = [];
 
-    /** Raw tag values for passing to the system component */
-    get tagsValue(): Tag[] {
-        return this.tags?.value || [];
-    }
-
-    /** Raw apikey values for passing to the system component */
-    get apikeysValue(): any[] {
-        return this.apikeys?.value || [];
+    private refreshSelectOptionCaches(): void {
+        this.groupsValue = this.groups?.getRawValue() || [];
+        this.tagsValue = this.tags?.getRawValue() || [];
+        this.apikeysValue = this.apikeys?.getRawValue() || [];
     }
 
     private isImportedForReview = false;
@@ -600,16 +600,19 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             this.ngChangeDetectorRef.markForCheck();
         });
 
+        this.refreshSelectOptionCaches();
+
         this.groupsSubscription = this.groups.valueChanges.subscribe(() => {
+            this.refreshSelectOptionCaches();
             this.systems.controls.forEach((system) => {
                 const talkgroups = system.get('talkgroups') as FormArray;
 
                 talkgroups.controls.forEach((talkgroup) => {
-                    const groupIds = talkgroup.get('groupIds') as FormArray;
+                    const groupIds = talkgroup.get('groupIds') as FormControl;
 
-                    groupIds.updateValueAndValidity({ onlySelf: true });
+                    groupIds?.updateValueAndValidity({ onlySelf: true });
 
-                    if (groupIds.errors) {
+                    if (groupIds?.errors) {
                         groupIds.markAsDirty({ onlySelf: true });
                     }
                 });
@@ -618,6 +621,7 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         });
 
         this.tagsSubscription = this.tags.valueChanges.subscribe(() => {
+            this.refreshSelectOptionCaches();
             this.systems.controls.forEach((system) => {
                 const talkgroups = system.get('talkgroups') as FormArray;
 

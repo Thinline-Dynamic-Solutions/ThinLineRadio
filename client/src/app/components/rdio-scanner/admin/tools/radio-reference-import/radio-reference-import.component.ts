@@ -624,6 +624,11 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     }
 
     removeImportItem(index: number): void {
+        const item = this.importData[index];
+        const label = (item?.label || item?.name || item?.id || 'this item').toString();
+        if (!confirm(`Remove ${label} from the import list?`)) {
+            return;
+        }
         this.importData.splice(index, 1);
     }
 
@@ -1090,6 +1095,10 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     }
 
     removeSiteFromImportList(site: RadioReferenceSite): void {
+        const label = (site as any)?.name || (site as any)?.label || `site ${site.id}`;
+        if (!confirm(`Remove ${label} from the import list?`)) {
+            return;
+        }
         this.importData = this.importData.filter((s: any) => String(s.id) !== this.siteKey(site));
         this.saveState();
     }

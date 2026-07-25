@@ -80,6 +80,10 @@ export class RdioScannerAdminApikeysComponent {
     }
 
     remove(index: number): void {
+        const ident = (this.form?.at(index)?.get('ident')?.value || '').toString().trim() || 'this API key';
+        if (!confirm(`Are you sure you want to delete API key "${ident}"?\n\nRecorders using this key will stop uploading.`)) {
+            return;
+        }
         this.form?.removeAt(index);
         this.keyVisible.splice(index, 1);
 

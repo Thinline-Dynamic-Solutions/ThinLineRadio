@@ -54,6 +54,12 @@ export class RdioScannerAdminAssistantComponent {
     }
 
     clearChat(): void {
+        if (!this.messages.length) {
+            return;
+        }
+        if (!confirm('Are you sure you want to clear the assistant chat?')) {
+            return;
+        }
         this.messages = [];
         this.error = null;
     }

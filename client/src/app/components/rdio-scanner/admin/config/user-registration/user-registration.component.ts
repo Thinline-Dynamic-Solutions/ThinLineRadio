@@ -528,6 +528,9 @@ export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChan
   }
 
   removeLogo(): void {
+    if (!confirm('Are you sure you want to delete the email logo?')) {
+      return;
+    }
     // Get auth token from session storage (admin service sends token without "Bearer" prefix)
     const token = sessionStorage.getItem('rdio-scanner-admin-token');
     if (!token) {

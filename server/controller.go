@@ -1247,9 +1247,9 @@ func (controller *Controller) processToneDetection(call *Call) {
 			go controller.remapIncidentIfTranscriptReady(call.Id)
 		}
 
-		// IMMEDIATE PRE-ALERT: Send notification as soon as tones are detected
-		// This allows users to tune in right away without waiting for transcription
-		// Pre-alerts are not saved to database - they're instant notifications only
+		// IMMEDIATE PRE-ALERT: notify + persist as soon as tones are detected so the
+		// Alerts tab matches the phone push (issue #229). Voice/orphan paths reuse
+		// the same tone alert row via RecentAlertsCache.
 		if len(matchedToneSets) > 0 {
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sending pre-alert notifications for call with %d matched tone sets", len(matchedToneSets)))
 			if call.System != nil && call.System.AlertsEnabled && call.Talkgroup != nil && call.Talkgroup.AlertsEnabled {

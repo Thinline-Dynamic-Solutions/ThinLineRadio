@@ -337,6 +337,8 @@ func ApplyExtractedAddressGuards(curated *CuratedAlert, transcript string, scope
 	// extract is ambiguous or house-less.
 	strongSpoken := addressIsStrongSpokenDispatch(curated.Address, transcript, scope)
 	if AddressIsUnitPersonIdentifier(curated.Address, transcript) ||
+		AddressIsPhoneticUnitCrimeMisextract(curated.Address, transcript) ||
+		TranscriptIsPhoneticUnitCrimeCode(transcript) ||
 		AddressIsStandByStreetMisSnap(curated.Address, transcript) ||
 		AddressIsLicensePlate(curated.Address, transcript) ||
 		AddressHouseIsLicenseNumberFragment(curated.Address, transcript) ||

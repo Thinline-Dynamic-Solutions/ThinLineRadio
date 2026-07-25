@@ -25,8 +25,29 @@ func (engine *AlertEngine) TriggerTranscriptAlerts(call *Call) {
 		return
 	}
 
+	systemId := call.System.Id
+	talkgroupId := call.Talkgroup.Id
+	// Resolve refs → DB ids (same as pre-alerts) so preference keys match AlertsHandler.
+	if systemId == 0 && call.System.SystemRef > 0 {
+		if id, ok := engine.controller.IdLookupsCache.GetSystemId(call.System.SystemRef); ok {
+			systemId = id
+		}
+	}
+	if talkgroupId == 0 && call.Talkgroup.TalkgroupRef > 0 && systemId > 0 {
+		if id, ok := engine.controller.IdLookupsCache.GetTalkgroupId(systemId, call.Talkgroup.TalkgroupRef); ok {
+			talkgroupId = id
+		}
+	}
+	if systemId == 0 || talkgroupId == 0 {
+		engine.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf(
+			"transcript alert skipped for call %d: systemId=%d talkgroupId=%d unresolved",
+			call.Id, systemId, talkgroupId,
+		))
+		return
+	}
+
 	_, alertExists := engine.controller.RecentAlertsCache.AlertExists(
-		call.Id, call.System.Id, call.Talkgroup.Id, "transcript", "", "",
+		call.Id, systemId, talkgroupId, "transcript", "", "",
 	)
 	if alertExists {
 		return
@@ -39,8 +60,8 @@ func (engine *AlertEngine) TriggerTranscriptAlerts(call *Call) {
 
 	engine.createAlert(&AlertRecord{
 		CallId:            call.Id,
-		SystemId:          call.System.Id,
-		TalkgroupId:       call.Talkgroup.Id,
+		SystemId:          systemId,
+		TalkgroupId:       talkgroupId,
 		AlertType:         "transcript",
 		ToneDetected:      false,
 		TranscriptSnippet: transcriptSnippet,
@@ -50,10 +71,10 @@ func (engine *AlertEngine) TriggerTranscriptAlerts(call *Call) {
 	systemLabel := call.System.Label
 	talkgroupLabel := call.Talkgroup.Label
 
-	userIds := engine.controller.PreferencesCache.GetUsersForTalkgroup(call.System.Id, call.Talkgroup.Id)
+	userIds := engine.controller.PreferencesCache.GetUsersForTalkgroup(systemId, talkgroupId)
 	var eligibleUsers []uint64
 	for _, userId := range userIds {
-		pref := engine.controller.PreferencesCache.GetPreference(userId, call.System.Id, call.Talkgroup.Id)
+		pref := engine.controller.PreferencesCache.GetPreference(userId, systemId, talkgroupId)
 		if pref != nil && pref.AlertEnabled {
 			if !engine.controller.userEligibleForTalkgroupAlert(userId, call) {
 				continue
@@ -72,7 +93,7 @@ func (engine *AlertEngine) TriggerTranscriptAlerts(call *Call) {
 	if engine.isToneAlertCooldownActive(cooldownTgId) {
 		secs := engine.getAlertCooldownSeconds(cooldownTgId)
 		engine.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-			"transcript alert cooldown active for talkgroup %d (cooldown=%ds) — skipping push for call %d",
+			"transcript alert cooldown active for talkgroup %d (cooldown=%ds) — skipping push for call %d (DB record kept)",
 			cooldownTgId, secs, call.Id,
 		))
 		return

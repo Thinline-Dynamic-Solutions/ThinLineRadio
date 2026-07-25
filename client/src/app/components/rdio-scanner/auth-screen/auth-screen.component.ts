@@ -100,40 +100,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   countdownSeconds = 0;
   private countdownInterval: any;
   
-  // Turnstile CAPTCHA
-  private _turnstileToken: string = '';
+  // Turnstile CAPTCHA — tokens are single-use; never persist across attempts (issue #239).
+  turnstileToken = '';
   turnstileWidgetId: any = null;
   turnstileSiteKey: string = '';
   turnstileEnabled: boolean = false;
   private turnstileInitAttempted = false;
-  private turnstileInitializing = false; // New flag to prevent race conditions
-  
-  // Getter/setter for turnstile token
-  // Store token in sessionStorage to survive component recreation
-  get turnstileToken(): string {
-    // Try to get from sessionStorage first (survives component recreation)
-    const storedToken = sessionStorage.getItem('turnstile_token') || '';
-    if (storedToken && !this._turnstileToken) {
-      this._turnstileToken = storedToken;
-    }
-    return this._turnstileToken;
-  }
-  set turnstileToken(value: string) {
-    // Don't allow clearing the token once it's set (unless explicitly cleared via resetTurnstile)
-    if (this._turnstileToken && !value && !this.isResettingTurnstile) {
-      return;
-    }
-    this._turnstileToken = value;
-    
-    // Store in sessionStorage to survive component recreation
-    if (value) {
-      sessionStorage.setItem('turnstile_token', value);
-    } else if (this.isResettingTurnstile) {
-      sessionStorage.removeItem('turnstile_token');
-    }
-  }
-  
-  private isResettingTurnstile = false;
+  private turnstileInitializing = false;
 
   constructor(
     private fb: FormBuilder,
@@ -213,6 +186,9 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.turnstileEnabled = initialConfig.options?.turnstileEnabled || false;
     this.turnstileSiteKey = initialConfig.options?.turnstileSiteKey || '';
     
+    // Drop any leftover single-use token from older builds (issue #239).
+    try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
+
     // Load Turnstile if enabled
     if (this.turnstileEnabled && this.turnstileSiteKey) {
       this.loadTurnstileScript();
@@ -499,11 +475,8 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.showResetPassword = false;
     this.resetEmail = '';
     
-    // Reset the widget initialization flag so it can re-render on the new form
-    // But keep the token (it's stored in sessionStorage)
-    this.turnstileInitAttempted = false;
-    this.turnstileInitializing = false;
-    this.turnstileWidgetId = null;
+    // New mode gets a fresh Turnstile challenge (tokens are single-use).
+    this.refreshTurnstile();
   }
 
   onForgotPassword(): void {
@@ -596,9 +569,10 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         password: this.groupAdminForm.value.password
       };
       
-      // Add Turnstile token if enabled
+      // Add Turnstile token if enabled, then clear immediately (single-use).
       if (this.turnstileEnabled && this.turnstileToken) {
         formData.turnstile_token = this.turnstileToken;
+        this.turnstileToken = '';
       }
 
       this.http.post('/api/group-admin/login', formData).subscribe({
@@ -622,6 +596,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         },
         error: (error) => {
           this.groupAdminLoading = false;
+          this.refreshTurnstile();
           // Check if IP is blocked due to too many failed attempts
           if (error.error?.blocked && error.error?.retryAfter) {
             // Navigate with query params to show countdown
@@ -668,11 +643,12 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         password: this.loginForm.value.password
       };
       
-      // Add Turnstile token if enabled
+      // Add Turnstile token if enabled, then clear immediately (single-use).
       if (this.turnstileEnabled && this.turnstileToken) {
         formData.turnstile_token = this.turnstileToken;
+        this.turnstileToken = '';
       }
-      
+
       this.http.post('/api/user/login', formData).subscribe({
         next: (response: any) => {
           this.loading = false;
@@ -689,6 +665,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         },
         error: (error) => {
           this.loading = false;
+          this.refreshTurnstile();
           
           // Check if IP is blocked due to too many failed attempts
           // MUST check FIRST before any error message processing
@@ -767,14 +744,16 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         return;
       }
       
-      // Add Turnstile token if enabled and available
+      // Add Turnstile token if enabled, then clear immediately (single-use).
       if (this.turnstileEnabled && this.turnstileToken) {
         formData.turnstile_token = this.turnstileToken;
+        this.turnstileToken = '';
       }
       
       this.http.post('/api/user/register', formData).subscribe({
         next: async (response: any) => {
           this.loading = false;
+          this.refreshTurnstile();
           const pin = response?.pin;
           if (typeof pin === 'string' && pin.length > 0) {
             this.rdioScannerService.savePin(pin);
@@ -796,6 +775,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         },
         error: (error) => {
           this.loading = false;
+          this.refreshTurnstile();
           // Display backend validation errors
           if (error.error?.error && typeof error.error.error === 'string') {
             this.error = error.error.error;
@@ -1175,23 +1155,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     
     this.turnstileInitAttempted = true;
     this.turnstileInitializing = true;
-    
-    // Clear any old token from sessionStorage when starting a new verification
-    this.isResettingTurnstile = true;
     this.turnstileToken = '';
-    this.isResettingTurnstile = false;
+    try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
     
     // Wait for DOM to be ready
     setTimeout(() => {
       const widgetContainer = document.getElementById('turnstile-widget-auth');
       if (widgetContainer && (window as any).turnstile && this.turnstileSiteKey) {
-        // Check if widget already exists in container
-        if (widgetContainer.children.length > 0) {
-          // Widget already exists, don't create another
-          this.turnstileInitAttempted = true;
-          return;
-        }
-        
         // Remove existing widget if any
         if (this.turnstileWidgetId !== null) {
           try {
@@ -1216,7 +1186,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
                 this.cdr.detectChanges();
               });
             },
-            'error-callback': (errorCode: string) => {
+            'error-callback': (_errorCode: string) => {
               this.ngZone.run(() => {
                 this.turnstileToken = '';
                 this.error = 'CAPTCHA verification failed. Please try again.';
@@ -1238,13 +1208,37 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
           this.turnstileInitAttempted = false;
           this.turnstileInitializing = false;
         }
+      } else {
+        this.turnstileInitializing = false;
       }
     }, 300);
   }
+
+  /** Clear the used token and force a new Turnstile challenge (issue #239). */
+  refreshTurnstile(): void {
+    if (!this.turnstileEnabled) {
+      return;
+    }
+    this.turnstileToken = '';
+    try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
+
+    if (this.turnstileWidgetId !== null && (window as any).turnstile) {
+      try {
+        (window as any).turnstile.reset(this.turnstileWidgetId);
+        this.cdr.detectChanges();
+        return;
+      } catch {
+        // Fall through to full re-render
+      }
+    }
+
+    this.resetTurnstile();
+    this.turnstileInitAttempted = false;
+    this.turnstileInitializing = false;
+    setTimeout(() => this.initTurnstileWidget(), 100);
+  }
   
   resetTurnstile(): void {
-    this.isResettingTurnstile = true; // Allow token to be cleared
-    
     if (this.turnstileWidgetId !== null && (window as any).turnstile) {
       try {
         (window as any).turnstile.remove(this.turnstileWidgetId);
@@ -1258,8 +1252,8 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     if (widgetContainer) {
       widgetContainer.innerHTML = '';
     }
-    this.turnstileToken = ''; // This will also clear sessionStorage
-    this.isResettingTurnstile = false;
+    this.turnstileToken = '';
+    try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
   }
   
   private autofillCheckAttempts = 0;

@@ -34,7 +34,7 @@
         </div>
     </div>
 
-    <!-- Search Box -->
+    <!-- Search + filters -->
     <div class="search-bar" *ngIf="!loading && !error && users.length > 0">
         <mat-form-field appearance="outline" class="search-field">
             <mat-label>Search by name, email, or group</mat-label>
@@ -44,7 +44,47 @@
                 <mat-icon>clear</mat-icon>
             </button>
         </mat-form-field>
-        <span class="search-info mat-body-2" *ngIf="searchText">
+
+        <mat-form-field appearance="outline" class="filter-field">
+            <mat-label>Group</mat-label>
+            <mat-select [(ngModel)]="groupFilter" (selectionChange)="onFiltersChange()">
+                <mat-option value="">All groups</mat-option>
+                <mat-option value="none">No group</mat-option>
+                <mat-option *ngFor="let group of availableGroups" [value]="'' + group.id">
+                    {{ group.name }}
+                </mat-option>
+            </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+            <mat-label>Subscription</mat-label>
+            <mat-select [(ngModel)]="subscriptionFilter" (selectionChange)="onFiltersChange()">
+                <mat-option value="">All</mat-option>
+                <mat-option value="active">Active</mat-option>
+                <mat-option value="trialing">Trialing</mat-option>
+                <mat-option value="problem">Past due / unpaid</mat-option>
+                <mat-option value="canceled">Canceled</mat-option>
+                <mat-option value="none">None</mat-option>
+            </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+            <mat-label>Status</mat-label>
+            <mat-select [(ngModel)]="statusFilter" (selectionChange)="onFiltersChange()">
+                <mat-option value="">All</mat-option>
+                <mat-option value="pin_expired">PIN expired</mat-option>
+                <mat-option value="account_expired">Account expired</mat-option>
+                <mat-option value="verified">Verified</mat-option>
+                <mat-option value="unverified">Unverified</mat-option>
+            </mat-select>
+        </mat-form-field>
+
+        <button mat-button type="button" color="accent" *ngIf="hasActiveFilters" (click)="clearFilters()">
+            <mat-icon>clear</mat-icon>
+            Clear
+        </button>
+
+        <span class="search-info mat-body-2" *ngIf="hasActiveFilters">
             {{ filteredUsers.length }} of {{ users.length }} users
         </span>
     </div>

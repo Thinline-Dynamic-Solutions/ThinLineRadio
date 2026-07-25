@@ -142,17 +142,22 @@ func (assemblyai *AssemblyAITranscription) Transcribe(audio []byte, options Tran
 		return nil, fmt.Errorf("AssemblyAI upload returned invalid URL format: %s", uploadResponse.UploadURL)
 	}
 
-	// Step 2: Submit transcription job
-	// Determine speech model — AssemblyAI requires speech_models to be a non-empty array.
-	// Valid values: "universal-2" (default, cheaper) or "universal-3-pro" (higher accuracy).
-	speechModel := options.SpeechModel
-	if speechModel == "" {
-		speechModel = "universal-2"
+	// Step 2: Submit transcription job.
+	// If the admin leaves the model blank (or still has the deprecated
+	// universal-3-pro pin), omit speech_models so AssemblyAI uses its current
+	// default — today ["universal-3-5-pro", "universal-2"] with language fallback.
+	// There is no list-models API; omitting is how we stay on their latest default.
+	// When a model id is set, pin that single model.
+	speechModel := strings.TrimSpace(options.SpeechModel)
+	if speechModel == "universal-3-pro" {
+		speechModel = "" // deprecated; follow AssemblyAI default instead
 	}
 
 	transcriptBody := map[string]interface{}{
-		"audio_url":     uploadResponse.UploadURL,
-		"speech_models": []string{speechModel},
+		"audio_url": uploadResponse.UploadURL,
+	}
+	if speechModel != "" {
+		transcriptBody["speech_models"] = []string{speechModel}
 	}
 
 	// Keyterms for under-represented vocabulary (AssemblyAI; replaces deprecated word_boost for all models).

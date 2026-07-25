@@ -2969,6 +2969,83 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"systems": admin.Controller.Systems.List})
 }
 
+// SystemsOrderHandler updates only the display order of systems (admin Systems list drag-reorder).
+//
+//	PUT /api/admin/systems/order   body: [{ "id": 1, "order": 1 }, ...]
+func (admin *Admin) SystemsOrderHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	var items []struct {
+		Id    uint64 `json:"id"`
+		Order uint   `json:"order"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&items); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+	if len(items) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "empty order list"})
+		return
+	}
+
+	byID := make(map[uint64]uint, len(items))
+	for _, item := range items {
+		if item.Id == 0 {
+			continue
+		}
+		byID[item.Id] = item.Order
+	}
+	if len(byID) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "no valid system ids"})
+		return
+	}
+
+	admin.mutex.Lock()
+	updated := 0
+	for _, sys := range admin.Controller.Systems.List {
+		if sys == nil {
+			continue
+		}
+		if order, ok := byID[sys.Id]; ok {
+			sys.Order = order
+			updated++
+		}
+	}
+	var err error
+	if updated > 0 {
+		err = admin.Controller.Systems.Write(admin.Controller.Database)
+		if err == nil {
+			err = admin.Controller.Systems.Read(admin.Controller.Database)
+		}
+	}
+	admin.mutex.Unlock()
+
+	if err != nil {
+		admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.systems.order: %s", err.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	go admin.Controller.EmitConfig()
+	admin.Controller.SyncConfigToFile()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"systems": admin.Controller.Systems.List})
+}
+
 // SystemDeleteHandler deletes a SINGLE system by id.
 //
 //	DELETE /api/admin/systems/delete/{id}
@@ -6239,6 +6316,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"stripeCustomerId":         user.StripeCustomerId,
 			"stripeSubscriptionId":     user.StripeSubscriptionId,
 			"subscriptionStatus":       user.SubscriptionStatus,
+			"accountExpiresAt":         user.AccountExpiresAt,
 			"fcmTokens":                fcmTokens,
 		})
 	}
