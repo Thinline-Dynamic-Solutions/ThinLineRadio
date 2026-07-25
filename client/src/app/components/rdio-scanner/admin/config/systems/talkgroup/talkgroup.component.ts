@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, NgZone, OnDestroy, Output, ViewChild } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatSelectChange } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -31,7 +31,7 @@ import { RdioScannerToneSet } from '../../../../rdio-scanner';
     styleUrls: ['./talkgroup.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RdioScannerAdminTalkgroupComponent {
+export class RdioScannerAdminTalkgroupComponent implements OnDestroy {
     @Input() form: FormGroup | undefined;
     @Input() groups: Group[] = [];
     @Input() tags: Tag[] = [];
@@ -71,12 +71,116 @@ export class RdioScannerAdminTalkgroupComponent {
         return typeof id === 'number' && id > 0 ? id : undefined;
     }
 
+    // Playback of the dispatch audio behind a learned tone pattern, so the
+    // operator can hear the tone-out and name the tone set correctly.
+    playingToneCallId: number | null = null;
+    private toneAudioElement: HTMLAudioElement | null = null;
+    // Object URL backing the current playback; revoked whenever playback stops.
+    private toneAudioUrl: string | null = null;
+    // Monotonic token: a newer play (or stop) invalidates any in-flight fetch.
+    private toneAudioReq = 0;
+
     constructor(
         private adminService: RdioScannerAdminService,
         private cdr: ChangeDetectorRef,
         private formBuilder: FormBuilder,
         private snackBar: MatSnackBar,
+        private ngZone: NgZone,
     ) {
+    }
+
+    ngOnDestroy(): void {
+        this.stopToneAudio();
+    }
+
+    /**
+     * Play (or stop, if already playing) the dispatch audio for one of the calls
+     * behind a learned tone pattern. Fetches with the admin token and plays via a
+     * blob URL, mirroring the system-health call playback.
+     */
+    async playToneSampleAudio(callId: number | undefined): Promise<void> {
+        if (!callId) {
+            return;
+        }
+        if (this.playingToneCallId === callId) {
+            this.ngZone.run(() => {
+                this.stopToneAudio();
+                this.cdr.markForCheck();
+            });
+            return;
+        }
+        this.stopToneAudio();
+        const reqId = ++this.toneAudioReq;
+        try {
+            const response = await fetch(this.adminService.getCallAudioUrl(callId), {
+                headers: this.adminService.getFetchHeaders(),
+            });
+            if (reqId !== this.toneAudioReq) {
+                return; // superseded by a newer play/stop
+            }
+            if (!response.ok) {
+                throw new Error(`audio request failed (${response.status})`);
+            }
+            const blobUrl = URL.createObjectURL(await response.blob());
+            if (reqId !== this.toneAudioReq) {
+                URL.revokeObjectURL(blobUrl);
+                return;
+            }
+            const audio = new Audio(blobUrl);
+            // The fetch/decode continuation may resume outside Angular's zone, so
+            // run the state mutations inside it to guarantee the OnPush view (the
+            // play/stop icon) refreshes deterministically.
+            const finish = () => {
+                // Only the current playback tears down; a superseded one was
+                // already stopped (and its URL revoked) by stopToneAudio().
+                if (this.toneAudioElement === audio) {
+                    this.ngZone.run(() => {
+                        this.stopToneAudio();
+                        this.cdr.markForCheck();
+                    });
+                }
+            };
+            audio.onended = finish;
+            audio.onerror = () => {
+                finish();
+                this.snackBar.open('Failed to play call audio', '', { duration: 4000 });
+            };
+            this.ngZone.run(() => {
+                this.toneAudioElement = audio;
+                this.toneAudioUrl = blobUrl;
+                this.playingToneCallId = callId;
+                this.cdr.markForCheck();
+            });
+            await audio.play();
+        } catch {
+            if (reqId === this.toneAudioReq) {
+                this.ngZone.run(() => {
+                    this.stopToneAudio();
+                    this.snackBar.open('Failed to play call audio', '', { duration: 4000 });
+                    this.cdr.markForCheck();
+                });
+            }
+        }
+    }
+
+    isToneSamplePlaying(callId: number | undefined): boolean {
+        return !!callId && this.playingToneCallId === callId;
+    }
+
+    private stopToneAudio(): void {
+        // Bump the token so any in-flight fetch aborts when it resolves.
+        this.toneAudioReq++;
+        if (this.toneAudioElement) {
+            this.toneAudioElement.onended = null;
+            this.toneAudioElement.onerror = null;
+            this.toneAudioElement.pause();
+            this.toneAudioElement = null;
+        }
+        if (this.toneAudioUrl) {
+            URL.revokeObjectURL(this.toneAudioUrl);
+            this.toneAudioUrl = null;
+        }
+        this.playingToneCallId = null;
     }
 
     getToneSets(): FormArray {
@@ -307,6 +411,7 @@ export class RdioScannerAdminTalkgroupComponent {
             return;
         }
 
+        this.stopToneAudio();
         this.analyzingToneHistory = true;
         this.toneHistoryComplete = false;
         this.toneHistoryError = false;
@@ -363,8 +468,20 @@ export class RdioScannerAdminTalkgroupComponent {
             ...suggestion.toneSet,
             label: suggestion.label || suggestion.toneSet.label,
         }, true);
+        // Stop playback if it belonged to the suggestion we just consumed.
+        if (this.isSuggestionCallId(suggestion, this.playingToneCallId)) {
+            this.stopToneAudio();
+        }
         this.toneHistorySuggestions = this.toneHistorySuggestions.filter((s) => s !== suggestion);
         this.cdr.markForCheck();
+    }
+
+    private isSuggestionCallId(suggestion: ToneHistorySuggestion, callId: number | null): boolean {
+        if (!callId) {
+            return false;
+        }
+        return (suggestion.callIds || []).includes(callId) ||
+            (suggestion.samples || []).some((s) => s.callId === callId);
     }
 
     private appendImportedToneSets(toneSets: RdioScannerToneSet[]): void {

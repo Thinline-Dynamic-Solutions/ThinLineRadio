@@ -1,5 +1,16 @@
 # Change log
 
+## Unreleased
+
+### Added
+
+- **Learned tone patterns — play dispatch audio**
+  - In **Systems → Talkgroups → Analyze tone history**, each learned tone pattern (e.g. a learned A/B pair) now has a **play/stop** control on its transcript samples so an operator can hear the dispatch tone-out and name the tone set correctly before adding it.
+  - Patterns whose calls have no transcript (tone-only) get a single **Play dispatch audio** button that plays a representative call.
+  - Audio streams from the existing admin `/api/admin/call-audio/{callId}` endpoint; playback stops automatically when re-analyzing, adding the tone set, or leaving the editor.
+
+---
+
 ## Version 26.07.23 - Released July 20, 2026
 
 ### Fixed

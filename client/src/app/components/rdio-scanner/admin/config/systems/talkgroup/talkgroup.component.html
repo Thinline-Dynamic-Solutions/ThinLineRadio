@@ -266,10 +266,27 @@
                     <div style="font-weight: 600; margin-bottom: 4px;">{{ suggestion.label }}</div>
                     <div class="mat-caption" style="color: #aaa; margin-bottom: 8px;">{{ suggestion.patternDesc }} · {{ suggestion.callCount }} calls</div>
                     <div *ngIf="suggestion.samples?.length" style="margin-bottom: 8px;">
-                        <div class="mat-caption" style="color: #888; margin-bottom: 4px;">Transcripts from matching calls:</div>
-                        <div *ngFor="let sample of suggestion.samples" class="mat-caption"
-                             style="color: #bbb; margin-bottom: 4px; padding: 4px 8px; background: rgba(255,255,255,0.03); border-left: 2px solid rgba(255,255,255,0.15); border-radius: 2px;">
-                            "{{ sample.transcript }}"
+                        <div class="mat-caption" style="color: #888; margin-bottom: 4px;">Play the dispatch audio to hear the tone-out and name this tone set:</div>
+                        <div *ngFor="let sample of suggestion.samples" class="tone-sample-row">
+                            <button type="button" mat-icon-button class="tone-sample-play"
+                                    [color]="isToneSamplePlaying(sample.callId) ? 'warn' : 'primary'"
+                                    [matTooltip]="isToneSamplePlaying(sample.callId) ? 'Stop audio' : 'Play dispatch audio'"
+                                    [attr.aria-label]="isToneSamplePlaying(sample.callId) ? 'Stop audio' : 'Play dispatch audio'"
+                                    (click)="playToneSampleAudio(sample.callId)">
+                                <mat-icon>{{ isToneSamplePlaying(sample.callId) ? 'stop' : 'play_arrow' }}</mat-icon>
+                            </button>
+                            <span class="mat-caption tone-sample-transcript">"{{ sample.transcript }}"</span>
+                        </div>
+                    </div>
+                    <div *ngIf="!suggestion.samples?.length && suggestion.callIds?.length" style="margin-bottom: 8px;">
+                        <button type="button" mat-stroked-button
+                                [color]="isToneSamplePlaying(suggestion.callIds[0]) ? 'warn' : 'accent'"
+                                (click)="playToneSampleAudio(suggestion.callIds[0])">
+                            <mat-icon>{{ isToneSamplePlaying(suggestion.callIds[0]) ? 'stop' : 'play_arrow' }}</mat-icon>
+                            {{ isToneSamplePlaying(suggestion.callIds[0]) ? 'Stop audio' : 'Play dispatch audio' }}
+                        </button>
+                        <div class="mat-caption" style="color: #888; margin-top: 4px;">
+                            No transcripts on these calls — play a sample to hear the tone-out.
                         </div>
                     </div>
                     <button type="button" mat-stroked-button color="primary" (click)="addSuggestedToneSet(suggestion)">
