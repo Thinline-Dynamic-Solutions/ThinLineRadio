@@ -36,6 +36,9 @@ export class RdioScannerStripeCheckoutComponent implements OnInit, OnDestroy {
   @Input() customCancelUrl: string | null = null;
   @Input() isChangingPlan: boolean = false;
   @Input() currentPriceId: string | null = null;
+  /** When set, a combined multi-tier checkout is posted (one item per paid group)
+   *  and the single-price selection UI is bypassed. */
+  @Input() checkoutItems: { groupId: number; priceId: string }[] | null = null;
   @Output() checkoutSuccess = new EventEmitter<any>();
   @Output() checkoutError = new EventEmitter<any>();
   @Output() checkoutCancel = new EventEmitter<void>();
@@ -83,9 +86,10 @@ export class RdioScannerStripeCheckoutComponent implements OnInit, OnDestroy {
   }
 
   async handleSubmit(): Promise<void> {
+    const combined = this.checkoutItems && this.checkoutItems.length > 0;
     const priceId = this.selectedPriceId;
-    
-    if (!priceId) {
+
+    if (!combined && !priceId) {
       this.error = 'Please select a pricing option.';
       return;
     }
@@ -108,18 +112,20 @@ export class RdioScannerStripeCheckoutComponent implements OnInit, OnDestroy {
       const cancelUrl = this.customCancelUrl && this.customCancelUrl.length > 0
         ? this.customCancelUrl
         : `${baseUrl}/?checkout=cancel`;
-      
+
+      const body: any = { email: this.email, successUrl, cancelUrl };
+      if (combined) {
+        body.items = this.checkoutItems;
+      } else {
+        body.priceId = priceId;
+      }
+
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          priceId: priceId,
-          email: this.email,
-          successUrl: successUrl,
-          cancelUrl: cancelUrl
-        })
+        body: JSON.stringify(body)
       });
 
       const result = await response.json();

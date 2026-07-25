@@ -104,9 +104,9 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 			}
 		}
 
-		// Update user group
+		// Update user group (move to the single central-managed group).
 		if req.GroupID != nil {
-			existingUser.UserGroupId = *req.GroupID
+			existingUser.SetGroupIds([]uint64{*req.GroupID})
 		}
 
 		// Update in-memory map first.
@@ -114,7 +114,7 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 
 		// Write directly to the DB for this specific user — targeted and reliable.
 		_, dbErr := api.Controller.Database.Sql.Exec(
-			`UPDATE "users" SET "pin"=$1, "pinExpiresAt"=$2, "connectionLimit"=$3, "firstName"=$4, "lastName"=$5, "systems"=$6, "talkgroups"=$7, "userGroupId"=$8, "verified"=$9 WHERE "userId"=$10`,
+			`UPDATE "users" SET "pin"=$1, "pinExpiresAt"=$2, "connectionLimit"=$3, "firstName"=$4, "lastName"=$5, "systems"=$6, "talkgroups"=$7, "userGroupId"=$8, "verified"=$9, "userGroupIds"=$10 WHERE "userId"=$11`,
 			existingUser.Pin,
 			int64(existingUser.PinExpiresAt),
 			int64(existingUser.ConnectionLimit),
@@ -124,6 +124,7 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 			existingUser.Talkgroups,
 			existingUser.UserGroupId,
 			existingUser.Verified,
+			existingUser.UserGroupIds,
 			existingUser.Id,
 		)
 		if dbErr != nil {
@@ -177,7 +178,7 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 
 	// Set user group
 	if req.GroupID != nil {
-		user.UserGroupId = *req.GroupID
+		user.SetGroupIds([]uint64{*req.GroupID})
 	}
 
 	// Add user to database

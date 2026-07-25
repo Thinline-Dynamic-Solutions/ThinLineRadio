@@ -306,3 +306,33 @@
     }
   }
 }
+
+/* Multi-tier signup picker */
+.tiers-section {
+    margin: 12px 0;
+    .tiers-hint { color: #888; font-size: 12px; margin: 0 0 8px; }
+    .tier-option {
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+    }
+    .tier-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .tier-meta { color: #888; font-weight: 400; }
+    .tier-free { color: #2e7d32; font-weight: 400; }
+    .tier-desc { color: #777; font-size: 12px; margin: 6px 0 0; }
+    .tier-prices {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin: 8px 0 0 24px;
+    }
+    .tier-price-option { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .tier-primary { margin: 6px 0 0 24px; font-size: 12px; color: #555; }
+}

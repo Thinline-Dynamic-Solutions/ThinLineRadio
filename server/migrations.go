@@ -1887,6 +1887,23 @@ func migrateUserForcePasswordReset(db *Database) error {
 	return nil
 }
 
+// migrateUserGroupIds adds the userGroupIds column (JSON array of all groups a
+// user belongs to) and backfills existing single-group users to [userGroupId].
+func migrateUserGroupIds(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "userGroupIds" text NOT NULL DEFAULT ''`,
+		// Backfill: users with a primary group but no membership array get [primary].
+		`UPDATE "users" SET "userGroupIds" = '[' || "userGroupId" || ']'
+			WHERE ("userGroupIds" IS NULL OR "userGroupIds" = '') AND "userGroupId" > 0`,
+	}
+	for _, query := range queries {
+		if _, err := db.Sql.Exec(query); err != nil {
+			log.Printf("migration note: %v", err)
+		}
+	}
+	return nil
+}
+
 // migrateUserGroupsPricingOptions adds pricingOptions column to userGroups table
 func migrateUserGroupsPricingOptions(db *Database) error {
 	query := `ALTER TABLE "userGroups" ADD COLUMN IF NOT EXISTS "pricingOptions" text NOT NULL DEFAULT ''`
