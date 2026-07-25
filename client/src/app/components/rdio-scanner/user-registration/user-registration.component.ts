@@ -42,6 +42,12 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
   availableChannels: any[] = [];
   loadingChannels = false;
   showChannels = false;
+
+  // Multi-tier public registration
+  tiers: any[] = [];
+  selectedTiers: { [groupId: number]: boolean } = {};
+  tierPrice: { [groupId: number]: string } = {};
+  primaryTierId: number | null = null;
   
   // Invite only mode
   isInviteOnlyMode = true; // Default to true until we load settings
@@ -249,12 +255,46 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
     this.http.get<any>('/api/public-registration-info').subscribe({
       next: (info) => {
         this.publicGroupInfo = info;
+        this.tiers = info.tiers || [];
+        // Auto-select a lone tier so single-tier signup is unchanged.
+        if (this.tiers.length === 1) {
+          this.selectedTiers[this.tiers[0].groupId] = true;
+          this.primaryTierId = this.tiers[0].groupId;
+        }
         this.loadingGroupInfo = false;
       },
       error: (error) => {
         console.error('Error loading public registration info:', error);
         this.loadingGroupInfo = false;
       }
+    });
+  }
+
+  toggleTier(groupId: number): void {
+    this.selectedTiers[groupId] = !this.selectedTiers[groupId];
+    if (this.selectedTiers[groupId]) {
+      if (this.primaryTierId === null) {
+        this.primaryTierId = groupId;
+      }
+    } else if (this.primaryTierId === groupId) {
+      const remaining = this.selectedTierIds();
+      this.primaryTierId = remaining.length ? remaining[0] : null;
+    }
+  }
+
+  selectedTierIds(): number[] {
+    return this.tiers.filter(t => this.selectedTiers[t.groupId]).map(t => t.groupId);
+  }
+
+  /** True when every selected paid tier has a chosen price. */
+  tierSelectionValid(): boolean {
+    const ids = this.selectedTierIds();
+    if (ids.length === 0) {
+      return false;
+    }
+    return this.tiers.every(t => {
+      if (!this.selectedTiers[t.groupId]) { return true; }
+      return !t.billingEnabled || !!this.tierPrice[t.groupId];
     });
   }
 
@@ -424,28 +464,46 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
   }
 
   onSubmit(): void {
+    const usingTiers = !this.registrationForm.value.accessCode?.trim() && this.tiers.length > 0;
+    if (usingTiers && !this.tierSelectionValid()) {
+      this.error = 'Select at least one tier and choose a plan for each paid tier.';
+      return;
+    }
     if (this.registrationForm.valid && !this.loading) {
       this.loading = true;
       this.error = '';
 
+      const email = this.registrationForm.value.email.toLowerCase();
       const formData = {
-        email: this.registrationForm.value.email.toLowerCase(), // Ensure email is lowercase
+        email, // Ensure email is lowercase
         password: this.registrationForm.value.password,
         firstName: this.registrationForm.value.firstName,
         lastName: this.registrationForm.value.lastName,
         zipCode: this.registrationForm.value.zipCode
       } as any;
-      
+
       // Include verification code if email verification is required
       if (this.emailVerificationRequired && this.verificationCode) {
         formData.verificationCode = this.verificationCode;
       }
-      
+
       // Include accessCode if provided (unified field for invitation and registration codes)
       if (this.registrationForm.value.accessCode && this.registrationForm.value.accessCode.trim() !== '') {
         formData.accessCode = this.registrationForm.value.accessCode;
       }
-      
+
+      // Multi-tier public signup: chosen tiers + primary.
+      const chosenIds = usingTiers ? this.selectedTierIds() : [];
+      if (chosenIds.length > 0) {
+        formData.groupIds = chosenIds;
+        formData.primaryGroupId = this.primaryTierId || chosenIds[0];
+      }
+
+      // Paid tiers → drive a combined checkout after registration.
+      const paidItems = this.tiers
+        .filter(t => this.selectedTiers[t.groupId] && t.billingEnabled && this.tierPrice[t.groupId])
+        .map(t => ({ groupId: t.groupId, priceId: this.tierPrice[t.groupId] }));
+
       this.http.post('/api/user/register', formData).subscribe({
         next: async (response: any) => {
           this.loading = false;
@@ -456,11 +514,37 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
           } else {
             this.generatedPin = null;
           }
+
+          // If paid tiers were chosen, start a combined Stripe checkout now.
+          if (paidItems.length > 0) {
+            try {
+              const baseUrl = window.location.origin;
+              const res = await fetch('/api/stripe/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email,
+                  items: paidItems,
+                  successUrl: `${baseUrl}/?checkout=success`,
+                  cancelUrl: `${baseUrl}/?checkout=cancel`,
+                }),
+              });
+              const result = await res.json();
+              if (result.checkoutUrl) {
+                window.location.href = result.checkoutUrl;
+                return;
+              }
+              this.error = result.error || 'Could not start checkout.';
+            } catch (e: any) {
+              this.error = e?.message || 'Could not start checkout.';
+            }
+            return;
+          }
+
           const alreadyVerified =
             response?.verified === true || response?.message === 'User registered successfully.';
           if (alreadyVerified) {
             this.success = false;
-            const email = (this.registrationForm.value.email || '').toLowerCase();
             await this.router.navigate(['/setup/plan'], { queryParams: { email } });
             return;
           }

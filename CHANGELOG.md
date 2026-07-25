@@ -14,6 +14,10 @@
   - System admins (and the admin console) can **correct** a pin's address, nature, and location, or **remove** the plot entirely, from the incident popup on the map.
   - **Correct Pin** opens an inline editor with **click-to-place** repositioning on the map; **Remove Pin** clears the map plot while keeping the call and its audio.
   - Backed by `PUT`/`DELETE /api/incidents/pin/{callId}`, gated to system-admin users (or the admin token); corrections are stored with `manual`/`admin` status so they survive the map filter and are distinguishable from geocoded pins.
+- **Learned tone patterns — play dispatch audio**
+  - In **Systems → Talkgroups → Analyze tone history**, each learned tone pattern (e.g. a learned A/B pair) now has a **play/stop** control on its transcript samples so an operator can hear the dispatch tone-out and name the tone set correctly before adding it.
+  - Patterns whose calls have no transcript (tone-only) get a single **Play dispatch audio** button that plays a representative call.
+  - Audio streams from the existing admin `/api/admin/call-audio/{callId}` endpoint; playback stops automatically when re-analyzing, adding the tone set, or leaving the editor.
 
 ---
 

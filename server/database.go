@@ -277,6 +277,11 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	// Migrate users userGroupIds column (multi-group membership)
+	if err := migrateUserGroupIds(db); err != nil {
+		return formatError(err, "")
+	}
+
 	// Migrate users mobile setup token (one-time app sign-in link)
 	if err := migrateUserMobileSetupToken(db); err != nil {
 		return formatError(err, "")

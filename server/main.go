@@ -655,6 +655,8 @@ func main() {
 	http.HandleFunc("/api/account/password/verify-code", wrapHandler(http.HandlerFunc(controller.Api.AccountVerifyPasswordChangeCodeHandler)).ServeHTTP)
 	http.HandleFunc("/api/account/password", wrapHandler(http.HandlerFunc(controller.Api.AccountUpdatePasswordHandler)).ServeHTTP)
 	http.HandleFunc("/api/billing/portal", wrapHandler(http.HandlerFunc(controller.Api.BillingPortalSessionHandler)).ServeHTTP)
+	http.HandleFunc("/api/subscription/groups/add", wrapHandler(http.HandlerFunc(controller.Api.SubscriptionGroupAddHandler)).ServeHTTP)
+	http.HandleFunc("/api/subscription/groups/remove", wrapHandler(http.HandlerFunc(controller.Api.SubscriptionGroupRemoveHandler)).ServeHTTP)
 
 	// Log that routes have been registered
 	log.Printf("All HTTP routes registered successfully")

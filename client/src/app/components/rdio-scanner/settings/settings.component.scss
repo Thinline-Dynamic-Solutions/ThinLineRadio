@@ -1333,3 +1333,41 @@
   }
 }
 
+
+/* Multi-tier membership management */
+.tiers-section {
+    .tier-list { margin-bottom: 12px; }
+    .tier-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .tier-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .tier-name { font-weight: 600; }
+    .tier-desc { color: #888; font-size: 12px; }
+    .tier-badge {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+        color: #666;
+    }
+    .tier-badge--primary { border-color: #3f51b5; color: #3f51b5; }
+    .tier-badge--paid { border-color: #2e7d32; color: #2e7d32; }
+    .tier-badge--warn { border-color: #cc7000; color: #cc7000; }
+    .add-tier {
+        margin-top: 12px;
+        h4 { margin: 0 0 6px; font-size: 13px; }
+    }
+    .add-tier-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        select { padding: 4px 6px; border-radius: 4px; }
+    }
+}

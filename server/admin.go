@@ -6449,9 +6449,10 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		ConnectionLimit      *uint   `json:"connectionLimit"`
 		SystemDelays         *string `json:"systemDelays"`
 		TalkgroupDelays      *string `json:"talkgroupDelays"`
-		RegeneratePin        bool    `json:"regeneratePin"`
-		UserGroupId          *uint64 `json:"userGroupId"`
-		IsGroupAdmin         *bool   `json:"isGroupAdmin"`
+		RegeneratePin        bool     `json:"regeneratePin"`
+		UserGroupId          *uint64  `json:"userGroupId"`
+		UserGroupIds         *[]uint64 `json:"userGroupIds"`
+		IsGroupAdmin         *bool    `json:"isGroupAdmin"`
 		SystemAdmin             *bool   `json:"systemAdmin"`
 		PushSystemNoAudioAlerts   *bool   `json:"pushSystemNoAudioAlerts"`
 		PushApiKeyNoAudioAlerts   *bool   `json:"pushApiKeyNoAudioAlerts"`
@@ -6536,6 +6537,24 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		if user.IsGroupAdmin && oldGroupId != *request.UserGroupId {
 			user.IsGroupAdmin = false
 		}
+	}
+
+	// Multi-group membership (union access). Applied after the primary so it is
+	// folded into the set; SetGroupIds keeps the primary if present.
+	if request.UserGroupIds != nil {
+		ids := append([]uint64{}, *request.UserGroupIds...)
+		for _, gid := range ids {
+			if gid != 0 && admin.Controller.UserGroups.Get(gid) == nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Invalid group in memberships"})
+				return
+			}
+		}
+		if effectiveUserGroupId != 0 {
+			ids = append(ids, effectiveUserGroupId)
+		}
+		user.SetGroupIds(ids)
+		effectiveUserGroupId = user.UserGroupId
 	}
 
 	if request.IsGroupAdmin != nil {

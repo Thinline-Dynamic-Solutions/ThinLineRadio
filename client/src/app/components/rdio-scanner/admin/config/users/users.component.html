@@ -287,14 +287,26 @@
 
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="full-width">
-                                    <mat-label>User Group</mat-label>
+                                    <mat-label>Primary Group</mat-label>
                                     <mat-select formControlName="userGroupId">
                                         <mat-option [value]="0">No Group (Unassigned)</mat-option>
                                         <mat-option *ngFor="let group of availableGroups" [value]="group.id">
                                             {{ group.name }}
                                         </mat-option>
                                     </mat-select>
-                                    <mat-hint>Assign to a group to inherit group settings</mat-hint>
+                                    <mat-hint>Home group (group-admin role, invitation default)</mat-hint>
+                                </mat-form-field>
+                            </div>
+
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="full-width">
+                                    <mat-label>Group Memberships</mat-label>
+                                    <mat-select formControlName="userGroupIds" multiple>
+                                        <mat-option *ngFor="let group of availableGroups" [value]="group.id">
+                                            {{ group.name }}
+                                        </mat-option>
+                                    </mat-select>
+                                    <mat-hint>All groups this user belongs to — access is the union. The primary group is always included.</mat-hint>
                                 </mat-form-field>
                             </div>
 

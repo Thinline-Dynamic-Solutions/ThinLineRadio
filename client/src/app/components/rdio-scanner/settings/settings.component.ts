@@ -27,6 +27,7 @@ import { SettingsService } from './settings.service';
 import { TagColorService, TagColorConfig } from '../tag-color.service';
 import { AlertSoundService, AlertSound } from '../alert-sound.service';
 import { WeatherAlertTickerBridgeService } from '../weather/weather-alert-ticker-bridge.service';
+import { WeatherAlertTtsService } from '../weather/weather-alert-tts.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { RdioScannerAlertPreference } from '../rdio-scanner';
 import { APP_FONTS } from '../app-font.util';
@@ -50,6 +51,8 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
     alertSound: string = 'alert';
     weatherAlertSoundEnabled = false;
     weatherAlertSound: string = 'alert';
+    weatherAlertTtsEnabled = false;
+    ttsSupported = true;
     availableAlertSounds: AlertSound[] = [];
     
     // Font selection
@@ -107,7 +110,9 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         private fb: FormBuilder,
         private snackBar: MatSnackBar,
         private weatherAlertTickerBridge: WeatherAlertTickerBridgeService,
+        private weatherAlertTtsService: WeatherAlertTtsService,
     ) {
+        this.ttsSupported = this.weatherAlertTtsService.isSupported();
         this.emailForm = this.fb.group({
             newEmail: ['', [Validators.required, Validators.email]],
             password: ['', [Validators.required]],
@@ -421,6 +426,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
                 this.alertSound = this.settings.alertSound || 'alert';
                 this.weatherAlertSoundEnabled = !!this.settings.weatherAlertSoundEnabled;
                 this.weatherAlertSound = this.settings.weatherAlertSound || 'alert';
+                this.weatherAlertTtsEnabled = !!this.settings.weatherAlertTtsEnabled;
                 // Load font setting
                 this.appFont = this.settings.appFont || 'Roboto';
                 this.appFontService.apply(this.appFont);
@@ -433,6 +439,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
                 this.alertSound = 'alert';
                 this.weatherAlertSoundEnabled = false;
                 this.weatherAlertSound = 'alert';
+                this.weatherAlertTtsEnabled = false;
                 this.appFont = 'Roboto';
             },
         });
@@ -502,6 +509,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.settings.alertSound = this.alertSound;
         this.settings.weatherAlertSoundEnabled = this.weatherAlertSoundEnabled;
         this.settings.weatherAlertSound = this.weatherAlertSound;
+        this.settings.weatherAlertTtsEnabled = this.weatherAlertTtsEnabled;
         this.settings.appFont = this.appFont;
         this.settingsService.saveSettings(this.settings).subscribe({
             next: () => {
@@ -538,14 +546,25 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.saveSettings();
     }
 
+    onWeatherAlertTtsChange(): void {
+        this.saveSettings();
+    }
+
     previewAlertSound(soundName: string): void {
         this.alertSoundService.previewSound(soundName);
+    }
+
+    previewWeatherAlertTts(): void {
+        this.weatherAlertTtsService.speak(
+            'Severe Thunderstorm Warning for your area. This is a sample of the weather alert reader.',
+        );
     }
 
     testWeatherAlertTicker(): void {
         const played = this.weatherAlertTickerBridge.triggerTest(
             this.weatherAlertSoundEnabled,
             this.weatherAlertSound,
+            this.weatherAlertTtsEnabled,
         );
         if (!played) {
             this.snackBar.open('Could not reach the header ticker. Try refreshing the page.', 'Close', {
@@ -877,25 +896,91 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.showChangeSubscription = true;
         this.showCheckout = true; // Reuse the same checkout modal
     }
+
+    /** Combined-checkout items when adding a tier requires a fresh subscription. */
+    checkoutItems: { groupId: number; priceId: string }[] | null = null;
+    addingTier = false;
+    /** Price selection per available tier in the add picker (groupId -> priceId). */
+    selectedTierPrice: { [groupId: number]: string } = {};
+
+    /** Add a public tier. Paid tiers with an active subscription are added
+     *  server-side with proration; otherwise a combined checkout is shown. */
+    addTier(groupId: number, priceId?: string): void {
+        const pin = this.getPin();
+        if (!pin) {
+            this.snackBar.open('Please log in to manage your subscription', 'Close', { duration: 3000 });
+            return;
+        }
+        this.addingTier = true;
+        const headers = this.getAuthHeaders();
+        this.http.post<any>('/api/subscription/groups/add', { groupId, priceId: priceId || '' }, {
+            headers,
+            params: { pin: encodeURIComponent(pin) },
+        }).subscribe({
+            next: (res) => {
+                this.addingTier = false;
+                if (res.added) {
+                    this.snackBar.open('Tier added to your subscription', 'Close', { duration: 3000 });
+                    this.loadAccountInfo();
+                } else if (res.needsCheckout && priceId) {
+                    // No active subscription yet — complete a combined checkout.
+                    this.userEmail = this.accountInfo?.email || res.email || '';
+                    this.checkoutItems = [{ groupId, priceId }];
+                    this.showChangeSubscription = false;
+                    this.showCheckout = true;
+                }
+            },
+            error: (error) => {
+                this.addingTier = false;
+                this.snackBar.open(error.error?.error || 'Failed to add tier', 'Close', { duration: 5000 });
+            },
+        });
+    }
+
+    /** Remove a tier from the user's subscription (or membership for a free tier). */
+    removeTier(groupId: number): void {
+        if (!confirm('Remove this tier? You will lose access to its channels.')) {
+            return;
+        }
+        const pin = this.getPin();
+        if (!pin) {
+            return;
+        }
+        const headers = this.getAuthHeaders();
+        this.http.post<any>('/api/subscription/groups/remove', { groupId }, {
+            headers,
+            params: { pin: encodeURIComponent(pin) },
+        }).subscribe({
+            next: () => {
+                this.snackBar.open('Tier removed', 'Close', { duration: 3000 });
+                this.loadAccountInfo();
+            },
+            error: (error) => {
+                this.snackBar.open(error.error?.error || 'Failed to remove tier', 'Close', { duration: 5000 });
+            },
+        });
+    }
     
     onCheckoutSuccess(event: any): void {
         console.log('Checkout successful:', event);
         this.showCheckout = false;
         this.showChangeSubscription = false;
+        this.checkoutItems = null;
         // Reload account info to get updated subscription status
         this.loadAccountInfo();
         // Reload page to get updated subscription status
         window.location.reload();
     }
-    
+
     onCheckoutError(event: any): void {
         console.error('Checkout error:', event);
         // Keep checkout open on error
     }
-    
+
     onCheckoutCancel(): void {
         this.showCheckout = false;
         this.showChangeSubscription = false;
+        this.checkoutItems = null;
     }
     
     getSubscriptionStatusDisplay(): string {

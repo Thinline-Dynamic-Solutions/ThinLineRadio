@@ -137,6 +137,7 @@ export interface User {
     forcePasswordReset?: boolean;
     isGroupAdmin?: boolean;
     userGroupId?: number;
+    userGroupIds?: number[];
     connectionLimit?: number;
     delay?: number;
     zipCode?: string;
@@ -1701,6 +1702,7 @@ export class RdioScannerAdminService implements OnDestroy {
             forcePasswordReset: this.ngFormBuilder.control(user?.forcePasswordReset),
             isGroupAdmin: this.ngFormBuilder.control(user?.isGroupAdmin),
             userGroupId: this.ngFormBuilder.control(user?.userGroupId),
+            userGroupIds: this.ngFormBuilder.control(user?.userGroupIds || (user?.userGroupId ? [user.userGroupId] : [])),
             connectionLimit: this.ngFormBuilder.control(user?.connectionLimit),
             delay: this.ngFormBuilder.control(user?.delay),
             zipCode: this.ngFormBuilder.control(user?.zipCode || ''),

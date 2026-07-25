@@ -1,3 +1,27 @@
+// ─── Learned tone pattern: play dispatch audio per transcript sample ─────────
+.tone-sample-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.tone-sample-play {
+    flex: 0 0 auto;
+    // Nudge the small icon button in line with the first line of transcript text.
+    margin-top: -2px;
+}
+
+.tone-sample-transcript {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #bbb;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+
 // ─── Warning card ─────────────────────────────────────────────────────────────
 .warn-card {
     background: rgba(255, 87, 34, 0.08);
