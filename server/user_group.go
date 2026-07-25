@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -450,6 +451,31 @@ func (ugs *UserGroups) GetPublicRegistrationGroup() *UserGroup {
 	return nil
 }
 
+// GetPublicRegistrationGroups returns every group flagged as a public
+// registration tier, ordered by name for a stable signup listing.
+func (ugs *UserGroups) GetPublicRegistrationGroups() []*UserGroup {
+	ugs.mutex.RLock()
+	defer ugs.mutex.RUnlock()
+	out := []*UserGroup{}
+	for _, group := range ugs.groups {
+		if group.IsPublicRegistration {
+			out = append(out, group)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// IsSelfBillable reports whether a user can self-serve join/leave this group:
+// free groups, or paid groups billed per-user ("all_users"). Groups billed via
+// "group_admin" (a shared customer the admin pays) are excluded.
+func (ug *UserGroup) IsSelfBillable() bool {
+	if ug == nil {
+		return false
+	}
+	return !ug.BillingEnabled || ug.BillingMode == "all_users" || ug.BillingMode == ""
+}
+
 func (ugs *UserGroups) GetAll() []*UserGroup {
 	ugs.mutex.RLock()
 	defer ugs.mutex.RUnlock()
@@ -545,7 +571,7 @@ func (ugs *UserGroups) GetUserCount(groupId uint64, users *Users) uint {
 	defer users.mutex.RUnlock()
 
 	for _, user := range users.users {
-		if user.UserGroupId == groupId {
+		if user.IsMemberOf(groupId) {
 			count++
 		}
 	}

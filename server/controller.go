@@ -3672,33 +3672,53 @@ func (controller *Controller) readAllData() error {
 }
 
 // Helper method to check if user has access to a call (uses group settings if available)
+// userGroups resolves all of a user's group memberships to live *UserGroup.
+func (controller *Controller) userGroups(user *User) []*UserGroup {
+	if user == nil {
+		return nil
+	}
+	ids := user.GroupIds()
+	groups := make([]*UserGroup, 0, len(ids))
+	for _, id := range ids {
+		if g := controller.UserGroups.Get(id); g != nil {
+			groups = append(groups, g)
+		}
+	}
+	return groups
+}
+
+// groupsGrantAccess reports whether ANY of the user's groups grants access to
+// the system (and talkgroup when present). With multiple memberships a user's
+// access is the UNION of their groups. Returns true when the user has no groups
+// (no group ceiling to apply).
+func (controller *Controller) groupsGrantAccess(user *User, systemRef uint, talkgroup *Talkgroup) bool {
+	groups := controller.userGroups(user)
+	if len(groups) == 0 {
+		return true
+	}
+	for _, group := range groups {
+		if !group.HasSystemAccess(uint64(systemRef)) {
+			continue
+		}
+		if talkgroup != nil && !group.HasTalkgroupAccess(uint64(systemRef), talkgroup.TalkgroupRef) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func (controller *Controller) userHasAccess(user *User, call *Call) bool {
 	if user == nil || call == nil || call.System == nil {
 		return true
 	}
 
-	// Check group access first if user has a group
-	if user.UserGroupId > 0 {
-		group := controller.UserGroups.Get(user.UserGroupId)
-		if group != nil {
-			// Check if group has access to the system
-			if !group.HasSystemAccess(uint64(call.System.SystemRef)) {
-				return false
-			}
-
-			// CRITICAL: Also check talkgroup-level access if talkgroup exists
-			if call.Talkgroup != nil {
-				if !group.HasTalkgroupAccess(uint64(call.System.SystemRef), call.Talkgroup.TalkgroupRef) {
-					return false
-				}
-			}
-
-			// Group allows this system and talkgroup
-			// Still check user-level restrictions (user can be more restrictive than group)
-		}
+	// Group access is a ceiling: any group granting the system+talkgroup is enough.
+	if !controller.groupsGrantAccess(user, call.System.SystemRef, call.Talkgroup) {
+		return false
 	}
 
-	// Check user-level access (can further restrict access beyond group)
+	// Check user-level access (can further restrict access beyond the groups)
 	return user.HasAccess(call)
 }
 
@@ -3717,9 +3737,16 @@ func (controller *Controller) userHasSystemScopeAccess(user *User, systemRef uin
 	if user == nil || systemRef == 0 {
 		return false
 	}
-	if user.UserGroupId > 0 {
-		group := controller.UserGroups.Get(user.UserGroupId)
-		if group != nil && !group.HasSystemAccess(uint64(systemRef)) {
+	groups := controller.userGroups(user)
+	if len(groups) > 0 {
+		granted := false
+		for _, group := range groups {
+			if group.HasSystemAccess(uint64(systemRef)) {
+				granted = true
+				break
+			}
+		}
+		if !granted {
 			return false
 		}
 	}
@@ -3753,16 +3780,26 @@ func (controller *Controller) userEffectiveDelay(user *User, call *Call, default
 		return defaultDelay
 	}
 
-	// Check group delays first if user has a group
-	if user.UserGroupId > 0 {
-		group := controller.UserGroups.Get(user.UserGroupId)
-		if group != nil {
-			groupDelay := group.EffectiveDelay(call, defaultDelay)
-			// If group has a delay, use it (group settings override user settings)
-			if groupDelay != defaultDelay || group.Delay > 0 || len(group.systemDelaysMap) > 0 || len(group.talkgroupDelaysMap) > 0 {
-				return groupDelay
+	// Across the groups that actually grant access to this call, use the most
+	// permissive (minimum) configured group delay. Fall back to the user's own
+	// delay when no group configures one.
+	best := defaultDelay
+	found := false
+	for _, group := range controller.userGroups(user) {
+		if !group.HasSystemAccess(uint64(call.System.SystemRef)) ||
+			!group.HasTalkgroupAccess(uint64(call.System.SystemRef), call.Talkgroup.TalkgroupRef) {
+			continue
+		}
+		groupDelay := group.EffectiveDelay(call, defaultDelay)
+		if groupDelay != defaultDelay || group.Delay > 0 || len(group.systemDelaysMap) > 0 || len(group.talkgroupDelaysMap) > 0 {
+			if !found || groupDelay < best {
+				best = groupDelay
+				found = true
 			}
 		}
+	}
+	if found {
+		return best
 	}
 
 	// Fall back to user-level delays
@@ -3775,13 +3812,16 @@ func (controller *Controller) userEffectiveConnectionLimit(user *User) uint {
 		return 0
 	}
 
-	// Check group connection limit first if user has a group
-	if user.UserGroupId > 0 {
-		group := controller.UserGroups.Get(user.UserGroupId)
-		if group != nil && group.ConnectionLimit > 0 {
-			// Group connection limit overrides user limit
-			return group.ConnectionLimit
+	// Across a user's groups, take the most generous (maximum) group connection
+	// limit; fall back to the user's own limit when no group sets one.
+	best := uint(0)
+	for _, group := range controller.userGroups(user) {
+		if group.ConnectionLimit > best {
+			best = group.ConnectionLimit
 		}
+	}
+	if best > 0 {
+		return best
 	}
 
 	// Fall back to user-level connection limit

@@ -647,7 +647,7 @@ func (clients *Clients) RefreshConfigForGroup(controller *Controller, groupId ui
 	count := len(clients.Map)
 
 	for c := range clients.Map {
-		if c.User != nil && c.User.UserGroupId == groupId {
+		if c.User != nil && c.User.IsMemberOf(groupId) {
 			if restricted {
 				if c.User == nil {
 					// Non-blocking send to prevent deadlock

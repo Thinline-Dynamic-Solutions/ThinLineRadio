@@ -41,6 +41,7 @@ import (
 	checkoutsession "github.com/stripe/stripe-go/v76/checkout/session"
 	"github.com/stripe/stripe-go/v76/customer"
 	"github.com/stripe/stripe-go/v76/subscription"
+	subscriptionitem "github.com/stripe/stripe-go/v76/subscriptionitem"
 	"github.com/stripe/stripe-go/v76/webhook"
 )
 
@@ -585,6 +586,9 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		AccessCode       string `json:"accessCode"`       // Unified field for both invitation and registration codes
 		TurnstileToken   string `json:"turnstile_token"`
 		VerificationCode string `json:"verificationCode"` // Email verification code (if emailVerificationRequired)
+		// Multi-tier public signup: the public groups the user chose to join.
+		GroupIds       []uint64 `json:"groupIds"`
+		PrimaryGroupId uint64   `json:"primaryGroupId"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -684,6 +688,10 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	var targetGroup *UserGroup
 	var regCode *RegistrationCode
 	var invitationId int64
+	// Multi-tier public signup: the full set of chosen public groups (empty for
+	// single-group invitation / code flows).
+	var chosenGroupIds []uint64
+	isMultiGroupSignup := false
 
 	// Check if invitation code is provided (takes precedence over registration code)
 	if request.InvitationCode != "" {
@@ -747,6 +755,37 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		invitationId = invitation.Id
+	} else if api.Controller.Options.PublicRegistrationEnabled && len(request.GroupIds) > 0 {
+		// Multi-tier public signup: user chose a set of public groups. Each must
+		// be public and self-billable ("all_users" billing or free).
+		seen := map[uint64]bool{}
+		for _, gid := range request.GroupIds {
+			if gid == 0 || seen[gid] {
+				continue
+			}
+			g := api.Controller.UserGroups.Get(gid)
+			if g == nil || !g.IsPublicRegistration {
+				api.exitWithError(w, http.StatusBadRequest, "One or more selected tiers are not available for public registration")
+				return
+			}
+			if !g.IsSelfBillable() {
+				api.exitWithError(w, http.StatusBadRequest, fmt.Sprintf("Tier %q cannot be self-selected", g.Name))
+				return
+			}
+			seen[gid] = true
+			chosenGroupIds = append(chosenGroupIds, gid)
+		}
+		if len(chosenGroupIds) == 0 {
+			api.exitWithError(w, http.StatusBadRequest, "Select at least one tier")
+			return
+		}
+		// Primary = requested primary if chosen, else the first chosen tier.
+		primaryId := chosenGroupIds[0]
+		if request.PrimaryGroupId != 0 && seen[request.PrimaryGroupId] {
+			primaryId = request.PrimaryGroupId
+		}
+		targetGroup = api.Controller.UserGroups.Get(primaryId)
+		isMultiGroupSignup = true
 	} else if api.Controller.Options.PublicRegistrationEnabled {
 		// Check if public registration is enabled and has a public group
 		publicGroup := api.Controller.UserGroups.GetPublicRegistrationGroup()
@@ -815,14 +854,31 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check max users limit for the group
-	// This check is enforced regardless of registration code maxUses setting
-	// Even if a code has unlimited uses (maxUses = 0), the group's maxUsers limit still applies
-	if targetGroup.MaxUsers > 0 {
-		currentUserCount := api.Controller.UserGroups.GetUserCount(targetGroup.Id, api.Controller.Users)
-		if currentUserCount >= targetGroup.MaxUsers {
-			api.exitWithError(w, http.StatusForbidden, fmt.Sprintf("Group has reached maximum user limit of %d", targetGroup.MaxUsers))
+	// The membership set: all chosen tiers for a multi-tier signup, else the
+	// single target group.
+	if !isMultiGroupSignup {
+		chosenGroupIds = []uint64{targetGroup.Id}
+	}
+
+	// Check max users limit for each chosen group.
+	// This check is enforced regardless of registration code maxUses setting.
+	for _, gid := range chosenGroupIds {
+		g := api.Controller.UserGroups.Get(gid)
+		if g == nil || g.MaxUsers == 0 {
+			continue
+		}
+		if api.Controller.UserGroups.GetUserCount(gid, api.Controller.Users) >= g.MaxUsers {
+			api.exitWithError(w, http.StatusForbidden, fmt.Sprintf("Tier %q has reached its maximum user limit of %d", g.Name, g.MaxUsers))
 			return
+		}
+	}
+
+	// Any paid, self-billable tier among the chosen set requires completing checkout.
+	anyPaidSelfBillable := false
+	for _, gid := range chosenGroupIds {
+		if g := api.Controller.UserGroups.Get(gid); g != nil && g.BillingEnabled && g.IsSelfBillable() {
+			anyPaidSelfBillable = true
+			break
 		}
 	}
 
@@ -836,6 +892,9 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		ConnectionLimit: targetGroup.ConnectionLimit, // Inherit group's connection limit
 		CreatedAt:       fmt.Sprintf("%d", time.Now().Unix()),
 	}
+	// Record full membership (primary is folded in). Single-group flows would be
+	// canonicalized to [primary] anyway, but set it explicitly for clarity.
+	user.SetGroupIds(chosenGroupIds)
 
 	if err := user.HashPassword(request.Password); err != nil {
 		api.exitWithError(w, http.StatusInternalServerError, "Failed to hash password")
@@ -847,8 +906,9 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create Stripe customer if Stripe is enabled AND group billing is enabled
-	if api.Controller.Options.StripePaywallEnabled && api.Controller.Options.StripeSecretKey != "" && targetGroup.BillingEnabled {
+	// Create Stripe customer if Stripe is enabled AND billing applies (the primary
+	// group is billing-enabled, or any chosen tier in a multi-tier signup is paid).
+	if api.Controller.Options.StripePaywallEnabled && api.Controller.Options.StripeSecretKey != "" && (targetGroup.BillingEnabled || anyPaidSelfBillable) {
 		stripe.Key = api.Controller.Options.StripeSecretKey
 
 		// Check if group uses shared customer ID for admins
@@ -889,8 +949,21 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Sync config to file if enabled
 	api.Controller.SyncConfigToFile()
 
-	// Handle billing setup for new users in billing-enabled groups
-	if targetGroup.BillingEnabled {
+	// Multi-tier signup: if any chosen tier is paid, the user must complete the
+	// combined checkout before gaining access; all-free selections stay active.
+	if isMultiGroupSignup {
+		if anyPaidSelfBillable {
+			user.SubscriptionStatus = "incomplete"
+			user.PinExpiresAt = uint64(time.Now().Unix() - 86400) // expired until checkout completes
+			api.Controller.Users.Update(user)
+			api.Controller.Users.Write(api.Controller.Database)
+			api.Controller.SyncConfigToFile()
+			log.Printf("Multi-tier signup %s: expired PIN pending combined checkout", user.Email)
+		}
+	}
+
+	// Handle billing setup for new users in billing-enabled groups (single-group flows)
+	if !isMultiGroupSignup && targetGroup.BillingEnabled {
 		if targetGroup.BillingMode == "group_admin" && !user.IsGroupAdmin {
 			// For non-admin users in admin-managed billing groups, sync subscription status from admin
 			syncedFromAdmin := false
@@ -2091,6 +2164,28 @@ func (api *Api) handleSubscriptionEvent(rawData []byte, status string) {
 		}
 	}
 
+	// Reconcile paid ("all_users" billing) memberships with the subscription so
+	// Billing-Portal add/remove syncs back into userGroupIds. On cancellation,
+	// drop those paid memberships (free/group_admin memberships are preserved).
+	if status == "canceled" || status == "incomplete_expired" {
+		for _, gid := range user.GroupIds() {
+			if g := api.Controller.UserGroups.Get(gid); g != nil && g.BillingEnabled && g.BillingMode == "all_users" {
+				user.RemoveGroup(gid)
+			}
+		}
+	} else {
+		recSub := sub
+		if recSub.Items == nil || len(recSub.Items.Data) == 0 {
+			stripe.Key = api.Controller.Options.StripeSecretKey
+			if stripe.Key != "" {
+				if fetched, err := subscription.Get(subData.ID, nil); err == nil {
+					recSub = fetched
+				}
+			}
+		}
+		api.reconcilePaidMembershipsFromSubscription(user, recSub)
+	}
+
 	// Save changes to database
 	api.Controller.Users.Update(user)
 	if err := api.Controller.Users.Write(api.Controller.Database); err != nil {
@@ -2456,6 +2551,60 @@ func (api *Api) resolveUserFromCheckoutSession(session *stripe.CheckoutSession) 
 }
 
 // Handle checkout session completed
+// groupForPriceId returns the billing-enabled group whose pricing options
+// include the given Stripe price. Price IDs are required to be unique per group.
+func (api *Api) groupForPriceId(priceId string) *UserGroup {
+	if priceId == "" {
+		return nil
+	}
+	for _, g := range api.Controller.UserGroups.GetAll() {
+		if g == nil || !g.BillingEnabled {
+			continue
+		}
+		for _, opt := range g.GetPricingOptions() {
+			if opt.PriceId == priceId {
+				return g
+			}
+		}
+	}
+	return nil
+}
+
+// reconcilePaidMembershipsFromSubscription rewrites the user's paid
+// ("all_users" billing) memberships to exactly match the line items on their
+// combined subscription, preserving free and group_admin memberships. Call
+// after any subscription change (checkout, add/remove, webhook).
+func (api *Api) reconcilePaidMembershipsFromSubscription(user *User, sub *stripe.Subscription) {
+	if user == nil || sub == nil {
+		return
+	}
+	paid := map[uint64]bool{}
+	if sub.Items != nil {
+		for _, item := range sub.Items.Data {
+			if item == nil || item.Price == nil {
+				continue
+			}
+			if g := api.groupForPriceId(item.Price.ID); g != nil && g.BillingMode == "all_users" {
+				paid[g.Id] = true
+			}
+		}
+	}
+	// Keep every membership that is NOT an all_users-billing group (free +
+	// group_admin), then re-add exactly the groups still on the subscription.
+	next := []uint64{}
+	for _, gid := range user.GroupIds() {
+		g := api.Controller.UserGroups.Get(gid)
+		if g != nil && g.BillingEnabled && g.BillingMode == "all_users" {
+			continue
+		}
+		next = append(next, gid)
+	}
+	for gid := range paid {
+		next = append(next, gid)
+	}
+	user.SetGroupIds(next)
+}
+
 func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 	var session stripe.CheckoutSession
 	err := json.Unmarshal(event.Data.Raw, &session)
@@ -2596,19 +2745,23 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 		return
 	}
 
-	// If user already has a subscription, cancel it before setting the new one
+	// If the user has a different prior subscription, cancel it ONLY when it is
+	// not still active/trialing — a valid combined subscription must not be nuked
+	// on a return checkout. (Adding tiers to an active sub goes through the
+	// self-service add endpoint, not a fresh checkout.)
+	// Reaching a fresh Checkout means a replace (first-time subscribe, lapsed
+	// re-subscribe, or Change Plan) — self-service tier ADDs never come through
+	// Checkout for a user with an active subscription (they use the add endpoint
+	// / subscription items). So always cancel any different prior subscription to
+	// avoid orphaning it and double-billing.
 	oldSubscriptionId := user.StripeSubscriptionId
 	if oldSubscriptionId != "" && oldSubscriptionId != subscriptionID {
-		log.Printf("User has existing subscription %s, canceling it before setting new subscription %s", oldSubscriptionId, subscriptionID)
 		stripe.Key = api.Controller.Options.StripeSecretKey
 		if stripe.Key != "" {
-			// Cancel the old subscription immediately (they're switching plans)
-			_, err := subscription.Cancel(oldSubscriptionId, nil)
-			if err != nil {
+			if _, err := subscription.Cancel(oldSubscriptionId, nil); err != nil {
 				log.Printf("Warning: Failed to cancel old subscription %s for user %s: %v", oldSubscriptionId, user.Email, err)
-				// Continue anyway - we'll still set the new subscription
 			} else {
-				log.Printf("Successfully canceled old subscription %s for user %s", oldSubscriptionId, user.Email)
+				log.Printf("Canceled prior subscription %s for user %s before activating new %s", oldSubscriptionId, user.Email, subscriptionID)
 			}
 		}
 	}
@@ -2630,6 +2783,8 @@ func (api *Api) handleCheckoutSessionCompleted(event stripe.Event) {
 		} else {
 			log.Printf("DEBUG: ⚠ Warning: Subscription %s has no CurrentPeriodEnd set", subscriptionID)
 		}
+		// Sync paid memberships from the (possibly multi-item) subscription.
+		api.reconcilePaidMembershipsFromSubscription(user, sub)
 	} else {
 		log.Printf("DEBUG: ⚠ No subscription object available for PIN expiration calculation")
 	}
@@ -2671,7 +2826,11 @@ func (api *Api) CreateCheckoutSessionHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	var request struct {
-		PriceId    string `json:"priceId"`
+		PriceId string `json:"priceId"` // legacy single-tier form
+		Items   []struct {
+			GroupId uint64 `json:"groupId"`
+			PriceId string `json:"priceId"`
+		} `json:"items"` // multi-tier form: one entry per paid group
 		Email      string `json:"email"`
 		SuccessUrl string `json:"successUrl"`
 		CancelUrl  string `json:"cancelUrl"`
@@ -2698,91 +2857,127 @@ func (api *Api) CreateCheckoutSessionHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Get group and determine which price ID to use: group price ID is required
-	group := api.Controller.UserGroups.Get(user.UserGroupId)
-	if group == nil || !group.BillingEnabled {
-		api.exitWithError(w, http.StatusBadRequest, "User is not in a billing-enabled group")
+	// Normalize the legacy single priceId into one item on the user's primary group.
+	type checkoutReqItem struct {
+		groupId uint64
+		priceId string
+	}
+	reqItems := []checkoutReqItem{}
+	for _, it := range request.Items {
+		reqItems = append(reqItems, checkoutReqItem{groupId: it.GroupId, priceId: it.PriceId})
+	}
+	if len(reqItems) == 0 && request.PriceId != "" {
+		reqItems = append(reqItems, checkoutReqItem{groupId: user.UserGroupId, priceId: request.PriceId})
+	}
+	if len(reqItems) == 0 {
+		api.exitWithError(w, http.StatusBadRequest, "Nothing to checkout")
 		return
 	}
 
-	priceId := request.PriceId
-	if priceId == "" {
-		api.exitWithError(w, http.StatusBadRequest, "Price ID is required")
-		return
+	// Validate every item: group must be a self-billable, billing-enabled group
+	// whose pricing options include the price. Reject duplicate prices (they map
+	// ambiguously back to groups). Determine tax (automatic wins) and trial (max).
+	lineItems := []*stripe.CheckoutSessionLineItemParams{}
+	anyAutomaticTax := false
+	maxTrialDays := 0
+	seenPrice := map[string]bool{}
+	groupIds := []string{}
+	type resolvedLine struct {
+		group   *UserGroup
+		priceId string
+		taxMode string
 	}
-
-	// Validate that the requested price ID is one of the valid pricing options for this group
-	pricingOptions := group.GetPricingOptions()
-	validPriceId := false
-	for _, option := range pricingOptions {
-		if option.PriceId == priceId {
-			validPriceId = true
-			break
+	resolved := []resolvedLine{}
+	for _, it := range reqItems {
+		group := api.Controller.UserGroups.Get(it.groupId)
+		if group == nil || !group.BillingEnabled || !group.IsSelfBillable() {
+			api.exitWithError(w, http.StatusBadRequest, "Invalid or non-self-billable tier in checkout")
+			return
 		}
-	}
-
-	if !validPriceId {
-		api.exitWithError(w, http.StatusBadRequest, "Invalid price ID for this group")
-		return
-	}
-
-	log.Printf("Using price ID %s for user %s (group: %s)", priceId, request.Email, group.Name)
-
-	// Determine tax mode — fall back to legacy collectSalesTax if taxMode not yet set
-	taxMode := group.TaxMode
-	if taxMode == "" {
-		if group.CollectSalesTax {
-			taxMode = "automatic"
-		} else {
-			taxMode = "none"
+		trialDays := -1
+		for _, o := range group.GetPricingOptions() {
+			if o.PriceId == it.priceId {
+				trialDays = o.TrialDays
+				break
+			}
 		}
+		if trialDays < 0 {
+			api.exitWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid price ID for tier %q", group.Name))
+			return
+		}
+		if seenPrice[it.priceId] {
+			api.exitWithError(w, http.StatusBadRequest, "Duplicate price in checkout")
+			return
+		}
+		seenPrice[it.priceId] = true
+
+		taxMode := group.TaxMode
+		if taxMode == "" {
+			if group.CollectSalesTax {
+				taxMode = "automatic"
+			} else {
+				taxMode = "none"
+			}
+		}
+		if taxMode == "automatic" {
+			anyAutomaticTax = true
+		}
+		if trialDays > maxTrialDays {
+			maxTrialDays = trialDays
+		}
+		resolved = append(resolved, resolvedLine{group: group, priceId: it.priceId, taxMode: taxMode})
+		groupIds = append(groupIds, fmt.Sprintf("%d", group.Id))
 	}
 
-	// Build line item — tax rates are attached here for fixed mode
-	lineItem := &stripe.CheckoutSessionLineItemParams{
-		Price:    stripe.String(priceId),
-		Quantity: stripe.Int64(1),
+	for _, rl := range resolved {
+		li := &stripe.CheckoutSessionLineItemParams{
+			Price:    stripe.String(rl.priceId),
+			Quantity: stripe.Int64(1),
+		}
+		// Automatic tax wins: when any tier is automatic, do not attach per-line
+		// fixed rates (Stripe cannot mix automatic and manual tax on one sub).
+		if !anyAutomaticTax && rl.taxMode == "fixed" && rl.group.StripeTaxRateId != "" {
+			li.TaxRates = stripe.StringSlice([]string{rl.group.StripeTaxRateId})
+		}
+		lineItems = append(lineItems, li)
 	}
-	if taxMode == "fixed" && group.StripeTaxRateId != "" {
-		lineItem.TaxRates = stripe.StringSlice([]string{group.StripeTaxRateId})
-	}
+
+	log.Printf("Creating combined checkout for user %s: %d line item(s), groups=[%s]", request.Email, len(lineItems), strings.Join(groupIds, ","))
 
 	// Create Stripe Checkout Session
 	params := &stripe.CheckoutSessionParams{
 		PaymentMethodTypes: stripe.StringSlice([]string{
 			"card",
 		}),
-		LineItems:  []*stripe.CheckoutSessionLineItemParams{lineItem},
+		LineItems:  lineItems,
 		Mode:       stripe.String(string(stripe.CheckoutSessionModeSubscription)),
 		SuccessURL: stripe.String(request.SuccessUrl),
 		CancelURL:  stripe.String(request.CancelUrl),
 		Locale:     stripe.String("en"),
 		AutomaticTax: &stripe.CheckoutSessionAutomaticTaxParams{
-			Enabled: stripe.Bool(taxMode == "automatic"),
+			Enabled: stripe.Bool(anyAutomaticTax),
 		},
 	}
 	params.ClientReferenceID = stripe.String(fmt.Sprintf("%d", user.Id))
 	params.Metadata = map[string]string{
 		"rdio_user_id":    fmt.Sprintf("%d", user.Id),
 		"rdio_user_email": user.Email,
+		"rdio_group_ids":  strings.Join(groupIds, ","),
 	}
 
 	// Automatic tax requires a billing address from the customer
-	if taxMode == "automatic" {
+	if anyAutomaticTax {
 		params.CustomerUpdate = &stripe.CheckoutSessionCustomerUpdateParams{
 			Address: stripe.String("auto"),
 		}
 	}
 
-	// Add trial period if configured for this pricing option
-	for _, option := range pricingOptions {
-		if option.PriceId == priceId && option.TrialDays > 0 {
-			params.SubscriptionData = &stripe.CheckoutSessionSubscriptionDataParams{
-				TrialPeriodDays: stripe.Int64(int64(option.TrialDays)),
-			}
-			log.Printf("Adding %d day trial period for price %s", option.TrialDays, priceId)
-			break
+	// Trial is subscription-level: use the longest trial among selected tiers.
+	if maxTrialDays > 0 {
+		params.SubscriptionData = &stripe.CheckoutSessionSubscriptionDataParams{
+			TrialPeriodDays: stripe.Int64(int64(maxTrialDays)),
 		}
+		log.Printf("Adding %d day trial period (max across tiers)", maxTrialDays)
 	}
 
 	// Use existing Stripe customer ID if available, otherwise use email
@@ -4454,16 +4649,67 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get current subscription price ID from Stripe if user has an active subscription
+	// Get subscription line items from Stripe: the first price (legacy
+	// currentPriceId) and the full set of billed price IDs (for per-group state).
+	subPriceIds := map[string]bool{}
 	if user.StripeSubscriptionId != "" && api.Controller.Options.StripeSecretKey != "" {
 		stripe.Key = api.Controller.Options.StripeSecretKey
 		sub, err := subscription.Get(user.StripeSubscriptionId, nil)
-		if err == nil && len(sub.Items.Data) > 0 {
-			// Get the price ID from the first subscription item
-			currentPriceId = sub.Items.Data[0].Price.ID
+		if err == nil && sub.Items != nil {
+			for i, item := range sub.Items.Data {
+				if item == nil || item.Price == nil {
+					continue
+				}
+				if i == 0 {
+					currentPriceId = item.Price.ID
+				}
+				subPriceIds[item.Price.ID] = true
+			}
 		} else if err != nil {
-			log.Printf("Failed to fetch subscription %s to get price ID: %v", user.StripeSubscriptionId, err)
+			log.Printf("Failed to fetch subscription %s to get price IDs: %v", user.StripeSubscriptionId, err)
 		}
+	}
+
+	// Per-group membership list (all tiers the user belongs to).
+	memberships := []map[string]interface{}{}
+	for _, gid := range user.GroupIds() {
+		g := api.Controller.UserGroups.Get(gid)
+		if g == nil {
+			continue
+		}
+		// Which of this group's prices is on the subscription (if any).
+		priceId := ""
+		for _, o := range g.GetPricingOptions() {
+			if subPriceIds[o.PriceId] {
+				priceId = o.PriceId
+				break
+			}
+		}
+		memberships = append(memberships, map[string]interface{}{
+			"groupId":        g.Id,
+			"name":           g.Name,
+			"billingEnabled": g.BillingEnabled,
+			"selfBillable":   g.IsSelfBillable(),
+			"paid":           priceId != "",
+			"priceId":        priceId,
+			"isPrimary":      g.Id == user.UserGroupId,
+			"pricingOptions": g.GetPricingOptions(),
+		})
+	}
+
+	// Public self-billable tiers the user has not joined yet (for the add picker).
+	availableTiers := []map[string]interface{}{}
+	for _, g := range api.Controller.UserGroups.GetPublicRegistrationGroups() {
+		if g == nil || user.IsMemberOf(g.Id) || !g.IsSelfBillable() {
+			continue
+		}
+		availableTiers = append(availableTiers, map[string]interface{}{
+			"groupId":        g.Id,
+			"name":           g.Name,
+			"description":    g.Description,
+			"billingEnabled": g.BillingEnabled,
+			"pricingOptions": g.GetPricingOptions(),
+		})
 	}
 
 	// Get pricing options from user's group if billing is enabled
@@ -4499,7 +4745,297 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		"billingRequired":           billingRequired,
 		"pinExpired":                user.PinExpired(),
 		"pinExpiresAt":              user.PinExpiresAt,
+		"memberships":               memberships,
+		"availableTiers":            availableTiers,
 	})
+}
+
+// userFromRequestPin resolves the authenticated user from a ?pin= query param
+// or a Bearer token.
+func (api *Api) userFromRequestPin(r *http.Request) *User {
+	pin := r.URL.Query().Get("pin")
+	if pin == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			pin = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+	if pin == "" {
+		return nil
+	}
+	return api.Controller.Users.GetUserByPin(pin)
+}
+
+// SubscriptionGroupAddHandler adds a paid, self-billable public tier to the
+// user's combined subscription. With an active subscription the item is added
+// server-side with proration (charging the saved card); otherwise a combined
+// checkout URL is returned for the client to complete.
+func (api *Api) SubscriptionGroupAddHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	user := api.userFromRequestPin(r)
+	if user == nil {
+		api.exitWithError(w, http.StatusUnauthorized, "PIN required")
+		return
+	}
+	var request struct {
+		GroupId uint64 `json:"groupId"`
+		PriceId string `json:"priceId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	group := api.Controller.UserGroups.Get(request.GroupId)
+	if group == nil || !group.IsPublicRegistration || !group.IsSelfBillable() {
+		api.exitWithError(w, http.StatusBadRequest, "Tier is not available for self-service subscription")
+		return
+	}
+
+	// Free tier: membership-only, no Stripe.
+	if !group.BillingEnabled {
+		if user.IsMemberOf(request.GroupId) {
+			api.exitWithError(w, http.StatusBadRequest, "You already have this tier")
+			return
+		}
+		if group.MaxUsers > 0 && api.Controller.UserGroups.GetUserCount(group.Id, api.Controller.Users) >= group.MaxUsers {
+			api.exitWithError(w, http.StatusForbidden, "This tier is full")
+			return
+		}
+		user.AddGroup(request.GroupId)
+		api.Controller.Users.Update(user)
+		api.Controller.Users.Write(api.Controller.Database)
+		api.Controller.SyncConfigToFile()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"added": true})
+		return
+	}
+
+	if group.BillingMode != "all_users" {
+		api.exitWithError(w, http.StatusBadRequest, "Tier is not available for self-service subscription")
+		return
+	}
+	validPrice := false
+	for _, o := range group.GetPricingOptions() {
+		if o.PriceId == request.PriceId {
+			validPrice = true
+			break
+		}
+	}
+	if !validPrice {
+		api.exitWithError(w, http.StatusBadRequest, "Invalid price for tier")
+		return
+	}
+	// Already a paid member? (Membership without a subscription item is stale and
+	// allowed to proceed so it can be (re)billed.)
+	if user.IsMemberOf(request.GroupId) && api.userPaysForGroup(user, group) {
+		api.exitWithError(w, http.StatusBadRequest, "You are already subscribed to this tier")
+		return
+	}
+	// Block paid self-add when the user's customer is a group-shared customer.
+	if primary := api.Controller.UserGroups.Get(user.UserGroupId); primary != nil && primary.BillingMode == "group_admin" {
+		api.exitWithError(w, http.StatusBadRequest, "Your billing is managed by a group admin; paid tiers cannot be self-added")
+		return
+	}
+
+	stripe.Key = api.Controller.Options.StripeSecretKey
+	if stripe.Key == "" {
+		api.exitWithError(w, http.StatusBadRequest, "Billing is not configured")
+		return
+	}
+
+	// Branch A: active/trialing subscription → add a line item with proration.
+	if user.StripeSubscriptionId != "" {
+		if sub, err := subscription.Get(user.StripeSubscriptionId, nil); err == nil &&
+			(sub.Status == "active" || sub.Status == "trialing") {
+			if _, err := subscriptionitem.New(&stripe.SubscriptionItemParams{
+				Subscription:      stripe.String(sub.ID),
+				Price:             stripe.String(request.PriceId),
+				Quantity:          stripe.Int64(1),
+				ProrationBehavior: stripe.String("create_prorations"),
+			}); err != nil {
+				api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to add tier: %v", err))
+				return
+			}
+			if updated, e := subscription.Get(sub.ID, nil); e == nil {
+				sub = updated
+			}
+			api.reconcilePaidMembershipsFromSubscription(user, sub)
+			user.PinExpiresAt = api.calculatePinExpiration(sub, false)
+			api.Controller.Users.Update(user)
+			api.Controller.Users.Write(api.Controller.Database)
+			api.Controller.SyncConfigToFile()
+			log.Printf("Added tier %q to user %s via subscription item (proration)", group.Name, user.Email)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{"added": true})
+			return
+		}
+	}
+
+	// Branch B: no active subscription → client must complete a combined checkout
+	// (via /api/stripe/create-checkout-session with items).
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"added":         false,
+		"needsCheckout": true,
+		"groupId":       group.Id,
+		"priceId":       request.PriceId,
+		"email":         user.Email,
+	})
+}
+
+// userPaysForGroup reports whether one of the group's prices is on the user's
+// current subscription.
+func (api *Api) userPaysForGroup(user *User, group *UserGroup) bool {
+	if user == nil || group == nil || user.StripeSubscriptionId == "" || api.Controller.Options.StripeSecretKey == "" {
+		return false
+	}
+	stripe.Key = api.Controller.Options.StripeSecretKey
+	sub, err := subscription.Get(user.StripeSubscriptionId, nil)
+	if err != nil || sub.Items == nil {
+		return false
+	}
+	priceSet := map[string]bool{}
+	for _, o := range group.GetPricingOptions() {
+		priceSet[o.PriceId] = true
+	}
+	for _, item := range sub.Items.Data {
+		if item != nil && item.Price != nil && priceSet[item.Price.ID] {
+			return true
+		}
+	}
+	return false
+}
+
+// SubscriptionGroupRemoveHandler removes a paid tier: it deletes the matching
+// subscription item (proration) or cancels the whole subscription when it is the
+// last item.
+func (api *Api) SubscriptionGroupRemoveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	user := api.userFromRequestPin(r)
+	if user == nil {
+		api.exitWithError(w, http.StatusUnauthorized, "PIN required")
+		return
+	}
+	var request struct {
+		GroupId uint64 `json:"groupId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+	group := api.Controller.UserGroups.Get(request.GroupId)
+	if group == nil || !group.IsSelfBillable() {
+		api.exitWithError(w, http.StatusBadRequest, "Tier cannot be self-removed")
+		return
+	}
+	if !user.IsMemberOf(request.GroupId) {
+		api.exitWithError(w, http.StatusBadRequest, "You are not a member of this tier")
+		return
+	}
+	// The primary/home group cannot be self-removed if it is the user's only tier.
+	if user.UserGroupId == request.GroupId && len(user.GroupIds()) <= 1 {
+		api.exitWithError(w, http.StatusBadRequest, "You cannot leave your only tier")
+		return
+	}
+
+	// Free tier: membership-only removal, no Stripe.
+	if !group.BillingEnabled {
+		user.RemoveGroup(request.GroupId)
+		api.Controller.Users.Update(user)
+		api.Controller.Users.Write(api.Controller.Database)
+		api.Controller.SyncConfigToFile()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true})
+		return
+	}
+
+	if group.BillingMode != "all_users" {
+		api.exitWithError(w, http.StatusBadRequest, "Tier cannot be self-removed")
+		return
+	}
+	if user.StripeSubscriptionId == "" || api.Controller.Options.StripeSecretKey == "" {
+		// No active subscription — just drop the (unbilled) membership.
+		user.RemoveGroup(request.GroupId)
+		api.Controller.Users.Update(user)
+		api.Controller.Users.Write(api.Controller.Database)
+		api.Controller.SyncConfigToFile()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true})
+		return
+	}
+
+	stripe.Key = api.Controller.Options.StripeSecretKey
+	sub, err := subscription.Get(user.StripeSubscriptionId, nil)
+	if err != nil || sub.Items == nil {
+		api.exitWithError(w, http.StatusBadRequest, "Could not load subscription")
+		return
+	}
+	// Find the subscription item whose price belongs to the group.
+	priceSet := map[string]bool{}
+	for _, o := range group.GetPricingOptions() {
+		priceSet[o.PriceId] = true
+	}
+	var itemId string
+	for _, item := range sub.Items.Data {
+		if item != nil && item.Price != nil && priceSet[item.Price.ID] {
+			itemId = item.ID
+			break
+		}
+	}
+	if itemId == "" {
+		api.exitWithError(w, http.StatusBadRequest, "This tier is not on your subscription")
+		return
+	}
+
+	if len(sub.Items.Data) <= 1 {
+		// Last item → cancel the whole subscription.
+		if _, err := subscription.Cancel(sub.ID, nil); err != nil {
+			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to cancel subscription: %v", err))
+			return
+		}
+		user.StripeSubscriptionId = ""
+		user.SubscriptionStatus = "canceled"
+		user.RemoveGroup(request.GroupId)
+		// Drop any remaining paid all_users memberships (none are billed anymore).
+		for _, gid := range user.GroupIds() {
+			if g := api.Controller.UserGroups.Get(gid); g != nil && g.BillingEnabled && g.BillingMode == "all_users" {
+				user.RemoveGroup(gid)
+			}
+		}
+		api.Controller.Users.Update(user)
+		api.Controller.Users.Write(api.Controller.Database)
+		api.Controller.SyncConfigToFile()
+		log.Printf("Removed last tier %q for user %s → subscription canceled", group.Name, user.Email)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true, "canceled": true})
+		return
+	}
+
+	// Not the last item → delete just this item with proration.
+	if _, err := subscriptionitem.Del(itemId, &stripe.SubscriptionItemParams{
+		ProrationBehavior: stripe.String("create_prorations"),
+	}); err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to remove tier: %v", err))
+		return
+	}
+	if updated, e := subscription.Get(sub.ID, nil); e == nil {
+		sub = updated
+	}
+	api.reconcilePaidMembershipsFromSubscription(user, sub)
+	user.PinExpiresAt = api.calculatePinExpiration(sub, false)
+	api.Controller.Users.Update(user)
+	api.Controller.Users.Write(api.Controller.Database)
+	api.Controller.SyncConfigToFile()
+	log.Printf("Removed tier %q from user %s via subscription item deletion", group.Name, user.Email)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"removed": true})
 }
 
 // AccountRequestEmailChangeVerificationHandler handles POST requests to request email change verification code
@@ -5357,7 +5893,7 @@ func (api *Api) GroupAdminRemoveUserHandler(w http.ResponseWriter, r *http.Reque
 	// Move user to public registration group or remove group assignment
 	publicGroup := api.Controller.UserGroups.GetPublicRegistrationGroup()
 	if publicGroup != nil {
-		targetUser.UserGroupId = publicGroup.Id
+		targetUser.SetGroupIds([]uint64{publicGroup.Id})
 		// Clear user's individual delay settings - they will use the group's delay settings
 		api.clearUserDelayValues(targetUser)
 		// Sync user's connection limit with the group's connection limit
@@ -5635,7 +6171,7 @@ func (api *Api) GroupAdminAddUserHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Add user to group
-	user.UserGroupId = group.Id
+	user.SetGroupIds([]uint64{group.Id})
 	// Clear user's individual delay settings - they will use the group's delay settings
 	api.clearUserDelayValues(user)
 	// Sync user's connection limit with the group's connection limit
@@ -5734,7 +6270,7 @@ func (api *Api) GroupAdminAddExistingUserHandler(w http.ResponseWriter, r *http.
 	}
 
 	// Move user to new group
-	user.UserGroupId = group.Id
+	user.SetGroupIds([]uint64{group.Id})
 	// Clear user's individual delay settings - they will use the group's delay settings
 	api.clearUserDelayValues(user)
 	api.Controller.Users.Update(user)
@@ -6563,16 +7099,8 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// If setting as public registration, unset any existing public registration group
-	if request.IsPublicRegistration {
-		existingPublic := api.Controller.UserGroups.GetPublicRegistrationGroup()
-		if existingPublic != nil {
-			existingPublic.IsPublicRegistration = false
-			api.Controller.UserGroups.Update(existingPublic, api.Controller.Database)
-			// Sync config to file if enabled
-			api.Controller.SyncConfigToFile()
-		}
-	}
+	// Multiple public registration tiers are supported — no longer unset the
+	// existing public group when flagging this one public.
 
 	// Set default billing mode if not provided
 	billingMode := request.BillingMode
@@ -6622,7 +7150,7 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 
 		// Ensure user is in the group
 		if user.UserGroupId != group.Id {
-			user.UserGroupId = group.Id
+			user.SetGroupIds([]uint64{group.Id})
 			// Clear user's individual delay settings - they will use the group's delay settings
 			api.clearUserDelayValues(user)
 		}
@@ -6873,16 +7401,8 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// If setting as public registration, unset any existing public registration group
-	if request.IsPublicRegistration && !group.IsPublicRegistration {
-		existingPublic := api.Controller.UserGroups.GetPublicRegistrationGroup()
-		if existingPublic != nil && existingPublic.Id != group.Id {
-			existingPublic.IsPublicRegistration = false
-			api.Controller.UserGroups.Update(existingPublic, api.Controller.Database)
-			// Sync config to file if enabled
-			api.Controller.SyncConfigToFile()
-		}
-	}
+	// Multiple public registration tiers are supported — no longer unset any
+	// other public group when flagging this one public.
 
 	oldBillingEnabled := group.BillingEnabled
 
@@ -7009,7 +7529,7 @@ func (api *Api) AdminAssignGroupAdminHandler(w http.ResponseWriter, r *http.Requ
 
 	// Ensure user is in the group
 	if user.UserGroupId != group.Id {
-		user.UserGroupId = group.Id
+		user.SetGroupIds([]uint64{group.Id})
 		// Clear user's individual delay settings - they will use the group's delay settings
 		api.clearUserDelayValues(user)
 	}
@@ -7780,7 +8300,7 @@ func (api *Api) AdminTransferUserHandler(w http.ResponseWriter, r *http.Request)
 	if targetUser.IsGroupAdmin {
 		targetUser.IsGroupAdmin = false
 	}
-	targetUser.UserGroupId = toGroup.Id
+	targetUser.SetGroupIds([]uint64{toGroup.Id})
 	// Clear user's individual delay settings - they will use the group's delay settings
 	api.clearUserDelayValues(targetUser)
 	// Sync user's connection limit with the group's connection limit
@@ -7850,7 +8370,7 @@ func (api *Api) GroupAdminRequestTransferHandler(w http.ResponseWriter, r *http.
 
 		// Update user group
 		oldGroupId := targetUser.UserGroupId
-		targetUser.UserGroupId = toGroup.Id
+		targetUser.SetGroupIds([]uint64{toGroup.Id})
 		// Remove group admin status if user was a group admin in the old group
 		if targetUser.IsGroupAdmin && oldGroupId > 0 {
 			targetUser.IsGroupAdmin = false
@@ -7917,7 +8437,7 @@ func (api *Api) GroupAdminRequestTransferHandler(w http.ResponseWriter, r *http.
 
 		// Update user group
 		oldGroupId := targetUser.UserGroupId
-		targetUser.UserGroupId = toGroup.Id
+		targetUser.SetGroupIds([]uint64{toGroup.Id})
 		// Remove group admin status if user was a group admin in the old group
 		if targetUser.IsGroupAdmin && oldGroupId > 0 {
 			targetUser.IsGroupAdmin = false
@@ -8040,7 +8560,7 @@ func (api *Api) GroupAdminApproveTransferHandler(w http.ResponseWriter, r *http.
 
 		// Update user group
 		oldGroupId := targetUser.UserGroupId
-		targetUser.UserGroupId = group.Id
+		targetUser.SetGroupIds([]uint64{group.Id})
 		// Remove group admin status if user was a group admin in the old group
 		if targetUser.IsGroupAdmin && oldGroupId > 0 {
 			targetUser.IsGroupAdmin = false
@@ -8188,7 +8708,7 @@ func (api *Api) GroupAdminApproveTransferLinkHandler(w http.ResponseWriter, r *h
 
 	// Update user group
 	oldGroupId := targetUser.UserGroupId
-	targetUser.UserGroupId = toGroup.Id
+	targetUser.SetGroupIds([]uint64{toGroup.Id})
 	// Remove group admin status if user was a group admin in the old group
 	if targetUser.IsGroupAdmin && oldGroupId > 0 {
 		targetUser.IsGroupAdmin = false
@@ -8644,7 +9164,7 @@ func (api *Api) UserTransferToPublicHandler(w http.ResponseWriter, r *http.Reque
 
 	// Update user group
 	oldGroupId := user.UserGroupId
-	user.UserGroupId = publicGroup.Id
+	user.SetGroupIds([]uint64{publicGroup.Id})
 	// Remove group admin status if user was a group admin in the old group
 	if user.IsGroupAdmin && oldGroupId > 0 {
 		user.IsGroupAdmin = false
@@ -8681,80 +9201,87 @@ func (api *Api) PublicRegistrationInfoHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	publicGroup := api.Controller.UserGroups.GetPublicRegistrationGroup()
-	if publicGroup == nil {
+	publicGroups := api.Controller.UserGroups.GetPublicRegistrationGroups()
+	if len(publicGroups) == 0 {
 		api.exitWithError(w, http.StatusNotFound, "Public registration group not found")
 		return
 	}
 
-	// Get pricing options
-	pricingOptions := publicGroup.GetPricingOptions()
+	// Build a tier per public group with pricing + an access summary.
+	tiers := make([]map[string]interface{}, 0, len(publicGroups))
+	for _, g := range publicGroups {
+		channels := api.groupAvailableChannels(g)
+		talkgroupCount := 0
+		for _, sys := range channels {
+			if tgs, ok := sys["talkgroups"].([]map[string]interface{}); ok {
+				talkgroupCount += len(tgs)
+			}
+		}
+		tiers = append(tiers, map[string]interface{}{
+			"groupId":        g.Id,
+			"name":           g.Name,
+			"description":    g.Description,
+			"billingEnabled": g.BillingEnabled,
+			"billingMode":    g.BillingMode,
+			"selfBillable":   g.IsSelfBillable(),
+			"pricingOptions": g.GetPricingOptions(),
+			"systemCount":    len(channels),
+			"talkgroupCount": talkgroupCount,
+		})
+	}
 
+	// Legacy top-level fields (first tier) for clients that predate multi-tier.
+	first := publicGroups[0]
 	response := map[string]interface{}{
-		"name":           publicGroup.Name,
-		"description":    publicGroup.Description,
-		"billingEnabled": publicGroup.BillingEnabled,
-		"pricingOptions": pricingOptions,
+		"name":           first.Name,
+		"description":    first.Description,
+		"billingEnabled": first.BillingEnabled,
+		"pricingOptions": first.GetPricingOptions(),
+		"tiers":          tiers,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-// PublicRegistrationChannelsHandler returns available systems/channels for the public registration group
-func (api *Api) PublicRegistrationChannelsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
-	publicGroup := api.Controller.UserGroups.GetPublicRegistrationGroup()
-	if publicGroup == nil {
-		api.exitWithError(w, http.StatusNotFound, "Public registration group not found")
-		return
-	}
-
-	// Get all systems
-	allSystems := api.Controller.Systems.List
+// groupAvailableChannels returns the systems (each with its accessible
+// talkgroups) that the given group grants, sorted for display.
+func (api *Api) groupAvailableChannels(group *UserGroup) []map[string]interface{} {
 	availableSystems := []map[string]interface{}{}
-
-	for _, system := range allSystems {
-		// Check if this system is accessible to the public group
-		if publicGroup.HasSystemAccess(uint64(system.SystemRef)) {
-			// Get talkgroups for this system, filtered by group access
-			talkgroups := []map[string]interface{}{}
-			for _, tg := range system.Talkgroups.List {
-				// Check if this talkgroup is accessible
-				if publicGroup.HasTalkgroupAccess(uint64(system.SystemRef), tg.TalkgroupRef) {
-					// Get tag for sorting
-					tagLabel := ""
-					if tg.TagId > 0 {
-						if tag, ok := api.Controller.Tags.GetTagById(tg.TagId); ok {
-							tagLabel = tag.Label
-						}
-					}
-					talkgroups = append(talkgroups, map[string]interface{}{
-						"id":          tg.TalkgroupRef,
-						"label":       tg.Label,
-						"name":        tg.Name,
-						"description": tg.Name,  // Use name as description
-						"tag":         tagLabel, // Alpha tag
-					})
+	if group == nil {
+		return availableSystems
+	}
+	for _, system := range api.Controller.Systems.List {
+		if !group.HasSystemAccess(uint64(system.SystemRef)) {
+			continue
+		}
+		talkgroups := []map[string]interface{}{}
+		for _, tg := range system.Talkgroups.List {
+			if !group.HasTalkgroupAccess(uint64(system.SystemRef), tg.TalkgroupRef) {
+				continue
+			}
+			tagLabel := ""
+			if tg.TagId > 0 {
+				if tag, ok := api.Controller.Tags.GetTagById(tg.TagId); ok {
+					tagLabel = tag.Label
 				}
 			}
-
-			// Only add system if it has accessible talkgroups
-			if len(talkgroups) > 0 {
-				availableSystems = append(availableSystems, map[string]interface{}{
-					"id":         system.SystemRef,
-					"label":      system.Label,
-					"talkgroups": talkgroups,
-				})
-			}
+			talkgroups = append(talkgroups, map[string]interface{}{
+				"id":          tg.TalkgroupRef,
+				"label":       tg.Label,
+				"name":        tg.Name,
+				"description": tg.Name,
+				"tag":         tagLabel,
+			})
+		}
+		if len(talkgroups) > 0 {
+			availableSystems = append(availableSystems, map[string]interface{}{
+				"id":         system.SystemRef,
+				"label":      system.Label,
+				"talkgroups": talkgroups,
+			})
 		}
 	}
-
-	// Sort systems by label, then sort talkgroups by tag then label
 	for _, sys := range availableSystems {
 		if talkgroups, ok := sys["talkgroups"].([]map[string]interface{}); ok {
 			sort.Slice(talkgroups, func(i, j int) bool {
@@ -8763,22 +9290,44 @@ func (api *Api) PublicRegistrationChannelsHandler(w http.ResponseWriter, r *http
 				if tagI != tagJ {
 					return tagI < tagJ
 				}
-				labelI := talkgroups[i]["label"].(string)
-				labelJ := talkgroups[j]["label"].(string)
-				return labelI < labelJ
+				return talkgroups[i]["label"].(string) < talkgroups[j]["label"].(string)
 			})
 		}
 	}
-
-	// Sort systems by label
 	sort.Slice(availableSystems, func(i, j int) bool {
-		labelI := availableSystems[i]["label"].(string)
-		labelJ := availableSystems[j]["label"].(string)
-		return labelI < labelJ
+		return availableSystems[i]["label"].(string) < availableSystems[j]["label"].(string)
 	})
+	return availableSystems
+}
+
+// PublicRegistrationChannelsHandler returns available systems/channels for a
+// public registration tier. Pass ?groupId= to target a specific tier; without
+// it, the first public group is summarized (back-compat).
+func (api *Api) PublicRegistrationChannelsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var group *UserGroup
+	if v := strings.TrimSpace(r.URL.Query().Get("groupId")); v != "" {
+		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
+			if g := api.Controller.UserGroups.Get(id); g != nil && g.IsPublicRegistration {
+				group = g
+			}
+		}
+	}
+	if group == nil {
+		group = api.Controller.UserGroups.GetPublicRegistrationGroup()
+	}
+	if group == nil {
+		api.exitWithError(w, http.StatusNotFound, "Public registration group not found")
+		return
+	}
 
 	response := map[string]interface{}{
-		"systems": availableSystems,
+		"groupId": group.Id,
+		"systems": api.groupAvailableChannels(group),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

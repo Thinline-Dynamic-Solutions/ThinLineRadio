@@ -449,35 +449,49 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 
 	user := client.User
 
-	// Get user's group if they belong to one
-	var userGroup *UserGroup
-	if user != nil && user.UserGroupId > 0 && client.Controller != nil {
-		userGroup = client.Controller.UserGroups.Get(user.UserGroupId)
+	// Resolve all of the user's group memberships; visible scope is the UNION.
+	var memberGroups []*UserGroup
+	if user != nil && client.Controller != nil {
+		memberGroups = client.Controller.userGroups(user)
 	}
 
-	// Helper function to check if a system is allowed
+	// Helper: a system is allowed when the user has no groups, or ANY group grants it.
 	isSystemAllowed := func(systemRef uint) bool {
-		// If user belongs to a group, check group access first
-		if userGroup != nil {
-			return userGroup.HasSystemAccess(uint64(systemRef))
+		if len(memberGroups) == 0 {
+			return true
 		}
-		// No group restrictions
-		return true
+		for _, g := range memberGroups {
+			if g.HasSystemAccess(uint64(systemRef)) {
+				return true
+			}
+		}
+		return false
 	}
 
-	// Helper function to filter talkgroups based on group restrictions
+	// Helper: a talkgroup is allowed when the user has no groups, or ANY group grants it.
+	groupAllowsTalkgroup := func(systemRef uint, talkgroupRef uint) bool {
+		if len(memberGroups) == 0 {
+			return true
+		}
+		for _, g := range memberGroups {
+			if g.HasTalkgroupAccess(uint64(systemRef), talkgroupRef) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Helper function to filter talkgroups based on group restrictions (union)
 	filterTalkgroupsByGroup := func(system *System) *System {
-		// If no group restrictions, return system as-is
-		if userGroup == nil {
+		if len(memberGroups) == 0 {
 			return system
 		}
 
-		// Filter talkgroups based on group access
 		filteredSystem := *system
 		filteredSystem.Talkgroups = NewTalkgroups()
 
 		for _, tg := range system.Talkgroups.List {
-			if userGroup.HasTalkgroupAccess(uint64(system.SystemRef), tg.TalkgroupRef) {
+			if groupAllowsTalkgroup(system.SystemRef, tg.TalkgroupRef) {
 				filteredSystem.Talkgroups.List = append(filteredSystem.Talkgroups.List, tg)
 			}
 		}
@@ -562,8 +576,8 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 							if !ok {
 								continue
 							}
-							// Check group access for this talkgroup
-							if userGroup != nil && !userGroup.HasTalkgroupAccess(uint64(system.SystemRef), rawTalkgroup.TalkgroupRef) {
+							// Check group access for this talkgroup (union across groups)
+							if !groupAllowsTalkgroup(system.SystemRef, rawTalkgroup.TalkgroupRef) {
 								continue
 							}
 							rawSystem.Talkgroups.List = append(rawSystem.Talkgroups.List, rawTalkgroup)
