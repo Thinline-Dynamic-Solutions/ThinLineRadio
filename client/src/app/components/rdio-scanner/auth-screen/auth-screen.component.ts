@@ -106,7 +106,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   turnstileSiteKey: string = '';
   turnstileEnabled: boolean = false;
   private turnstileInitAttempted = false;
-  private turnstileInitializing = false;
+  /** True while the Turnstile script/widget is being set up (shown as placeholder). */
+  turnstileInitializing = false;
+
+  /** True when CAPTCHA is required but the widget has not finished rendering yet. */
+  get turnstilePending(): boolean {
+    return !!(this.turnstileEnabled && this.turnstileSiteKey && !this.turnstileToken && this.turnstileWidgetId === null);
+  }
 
   constructor(
     private fb: FormBuilder,
@@ -1203,13 +1209,16 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
             size: 'normal'
           });
           this.turnstileInitializing = false;
+          this.ngZone.run(() => this.cdr.detectChanges());
         } catch (e) {
           // If rendering fails, reset the flags so we can try again
           this.turnstileInitAttempted = false;
           this.turnstileInitializing = false;
+          this.ngZone.run(() => this.cdr.detectChanges());
         }
       } else {
         this.turnstileInitializing = false;
+        this.ngZone.run(() => this.cdr.detectChanges());
       }
     }, 300);
   }

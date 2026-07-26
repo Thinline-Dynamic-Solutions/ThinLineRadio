@@ -4,6 +4,17 @@
 
 ---
 
+## Version 26.07.25 - Released July 26, 2026
+
+### Fixed
+
+- **Web auth — mobile login/signup layout and scrolling**
+  - Login/signup is usable on phones: no forced horizontal scroll from the desktop scanner shell (`min-width: 1160px`), and document vertical scroll works while auth is shown.
+  - Auth card is edge-to-edge on small screens; tabs use a shorter **Groups** label; Turnstile and registration loading states are clearer.
+  - Sign In stays available immediately (not blocked behind registration-settings load).
+
+---
+
 ## Version 26.07.24 - Released July 25, 2026
 
 ### Added

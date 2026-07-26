@@ -1177,6 +1177,46 @@ body:has(rdio-scanner) app-root rdio-scanner {
 	flex-direction: column;
 }
 
+/* Auth / email-verify / mobile hub: unlock document scroll and drop the
+   1160px scanner floor so phones can scroll vertically edge-to-edge. */
+html:has(rdio-scanner-auth-screen),
+html:has(rdio-scanner-email-verification),
+html:has(rdio-scanner-mobile-web-hub),
+body:has(rdio-scanner-auth-screen),
+body:has(rdio-scanner-email-verification),
+body:has(rdio-scanner-mobile-web-hub) {
+	height: auto !important;
+	min-height: 100% !important;
+	overflow-x: hidden !important;
+	overflow-y: auto !important;
+}
+
+body:has(rdio-scanner-auth-screen) app-root,
+body:has(rdio-scanner-email-verification) app-root,
+body:has(rdio-scanner-mobile-web-hub) app-root,
+body:has(rdio-scanner-auth-screen) app-root rdio-scanner,
+body:has(rdio-scanner-email-verification) app-root rdio-scanner,
+body:has(rdio-scanner-mobile-web-hub) app-root rdio-scanner {
+	height: auto !important;
+	min-height: 100% !important;
+	flex: 0 0 auto !important;
+	overflow: visible !important;
+}
+
+body:has(rdio-scanner-auth-screen) .scanner-shell,
+body:has(rdio-scanner-email-verification) .scanner-shell,
+body:has(rdio-scanner-mobile-web-hub) .scanner-shell {
+	min-width: 0 !important;
+	max-width: 100% !important;
+	width: 100% !important;
+	height: auto !important;
+	min-height: 100% !important;
+	flex: 0 0 auto !important;
+	overflow-x: hidden !important;
+	overflow-y: visible !important;
+	flex-direction: column !important;
+}
+
 /* Mask admin API key / secret fields without using type="password"
    so Chrome's password-save detector never triggers outside the login form */
 input.masked-pw {

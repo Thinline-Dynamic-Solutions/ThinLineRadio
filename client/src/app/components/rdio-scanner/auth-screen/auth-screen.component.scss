@@ -15,17 +15,26 @@ $text-hint:     #777;
 :host {
   display: block;
   width: 100%;
-  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .auth-screen {
   display: block;
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
   background: $bg-screen;
   padding: 20px;
   padding-top: calc(40px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 .auth-container {
@@ -38,6 +47,7 @@ $text-hint:     #777;
   box-sizing: border-box;
   border: 1px solid $border;
   margin: 0 auto;
+  min-width: 0;
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
@@ -91,6 +101,7 @@ $text-hint:     #777;
 
   button {
     flex: 1;
+    min-width: 0;
     padding: 12px 20px;
     border: none;
     background: $bg-inner;
@@ -99,6 +110,8 @@ $text-hint:     #777;
     transition: background 0.2s, color 0.2s;
     font-size: 14px;
     font-weight: 500;
+    line-height: 1.25;
+    white-space: nowrap;
 
     &:hover {
       background: #2e2e2e;
@@ -112,6 +125,10 @@ $text-hint:     #777;
 
     & + button {
       border-left: 1px solid $border;
+    }
+
+    .tab-label-short {
+      display: none;
     }
   }
 }
@@ -225,13 +242,18 @@ $text-hint:     #777;
   button[type="submit"],
   button[type="button"].full-width {
     width: 100%;
+    min-height: 48px;
     padding: 12px;
     font-size: 16px;
     font-weight: 500;
     margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 
     mat-spinner {
-      margin-right: 8px;
+      margin-right: 0;
     }
   }
 
@@ -259,6 +281,108 @@ $text-hint:     #777;
         color: $red-hover;
       }
     }
+  }
+}
+
+// ─── Loading / Turnstile / links ──────────────────────────────────────────────
+.auth-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 16px;
+  gap: 12px;
+  color: $text-muted;
+
+  p {
+    margin: 0;
+    font-size: 14px;
+    color: $text-muted;
+  }
+
+  mat-spinner {
+    margin: 0 auto;
+  }
+}
+
+.auth-loading--compact {
+  padding: 16px;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.turnstile-wrap {
+  margin: 16px 0 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  box-sizing: border-box;
+
+  > div[id^='turnstile-widget'] {
+    max-width: 100%;
+  }
+}
+
+.turnstile-placeholder {
+  min-height: 65px;
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: $text-muted;
+  font-size: 13px;
+  background: $bg-inner;
+  border: 1px dashed $border;
+  border-radius: 6px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.auth-text-link {
+  display: inline-block;
+  color: $text-muted;
+  text-decoration: none;
+  font-size: 14px;
+
+  &:hover {
+    color: $red-hover;
+    text-decoration: underline;
+  }
+}
+
+.auth-link-row {
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+
+.auth-blocked {
+  text-align: center;
+  padding: 40px 20px;
+
+  .auth-blocked-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+  }
+
+  h2 {
+    color: $red-hover;
+    margin-bottom: 16px;
+  }
+
+  .auth-blocked-countdown {
+    font-size: 48px;
+    font-weight: bold;
+    color: $red;
+    margin-bottom: 16px;
   }
 }
 
@@ -311,18 +435,129 @@ $text-hint:     #777;
 }
 
 // ─── Responsive ───────────────────────────────────────────────────────────────
+@media (max-width: 600px) {
+  .auth-tabs {
+    margin-bottom: 20px;
+
+    button {
+      padding: 10px 8px;
+      font-size: 12px;
+
+      .tab-label-full {
+        display: none;
+      }
+
+      .tab-label-short {
+        display: inline;
+      }
+    }
+  }
+}
+
 @media (max-width: 480px) {
   .auth-screen {
-    padding: 10px;
-    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    padding: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .auth-container {
-    padding: 30px 20px;
+    max-width: none;
+    width: 100%;
+    min-height: 100dvh;
+    min-height: 100vh;
+    padding: 20px 16px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
   }
 
-  .auth-header .brand-banner {
-    max-width: 240px;
+  .auth-header {
+    margin-bottom: 20px;
+
+    .auth-logo {
+      max-width: 72px;
+      max-height: 72px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin-bottom: 6px;
+    }
+
+    p {
+      font-size: 13px;
+    }
+  }
+
+  .auth-tabs {
+    margin-bottom: 16px;
+
+    button {
+      padding: 10px 8px;
+      font-size: 12px;
+    }
+  }
+
+  .auth-form {
+    .full-width {
+      margin-bottom: 12px;
+    }
+
+    button[type="submit"],
+    button[type="button"].full-width {
+      min-height: 48px;
+      font-size: 15px;
+    }
+  }
+
+  .brand-banner-footer {
+    width: 70%;
+    max-width: 180px;
+    margin-top: 20px;
+  }
+
+  .support-section {
+    margin-top: 20px;
+    padding-top: 16px;
+  }
+
+  .public-registration-info {
+    padding: 12px;
+    margin-bottom: 16px;
+
+    .channels-list {
+      max-height: 240px;
+    }
+  }
+
+  .checkout-overlay {
+    padding: 0;
+    align-items: stretch;
+
+    .checkout-modal {
+      max-width: 100%;
+      width: 100%;
+      max-height: 100dvh;
+      height: 100%;
+      border-radius: 0;
+    }
+  }
+
+  .checkout-success,
+  .checkout-cancel {
+    padding: 1.25rem;
+  }
+
+  .auth-blocked {
+    padding: 28px 12px;
+
+    .auth-blocked-countdown {
+      font-size: 36px;
+    }
   }
 }
 
@@ -338,6 +573,7 @@ $text-hint:     #777;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  box-sizing: border-box;
 
   .checkout-backdrop {
     position: absolute;
@@ -349,13 +585,15 @@ $text-hint:     #777;
   .checkout-modal {
     position: relative;
     z-index: 1001;
-    max-width: 90vw;
+    width: 100%;
+    max-width: min(440px, 90vw);
     max-height: 90vh;
     overflow: auto;
     background: $bg-card;
     border-radius: 12px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     border: 1px solid $border;
+    box-sizing: border-box;
   }
 }
 

@@ -11,6 +11,19 @@ $background-color: rgb(30, 30, 30);
   min-width: 320px;
   position: relative;
 
+  // Full-page auth / verify / mobile hub: allow vertical scroll, no desktop floor width
+  &:has(rdio-scanner-auth-screen),
+  &:has(rdio-scanner-email-verification),
+  &:has(rdio-scanner-mobile-web-hub) {
+    height: auto;
+    min-height: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .scanner-shell {
     align-items: stretch;
     background-color: inherit;
@@ -22,6 +35,29 @@ $background-color: rgb(30, 30, 30);
     min-height: 0;
     min-width: 1160px;
     width: 100%;
+
+    &:has(rdio-scanner-auth-screen),
+    &:has(rdio-scanner-email-verification),
+    &:has(rdio-scanner-mobile-web-hub) {
+      flex-direction: column;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      height: auto;
+      min-height: 100%;
+      overflow-x: hidden;
+      overflow-y: visible;
+    }
+  }
+
+  ::ng-deep rdio-scanner-auth-screen,
+  ::ng-deep rdio-scanner-email-verification,
+  ::ng-deep rdio-scanner-mobile-web-hub {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   .view-host {

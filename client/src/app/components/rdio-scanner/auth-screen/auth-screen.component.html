@@ -1,14 +1,14 @@
 <div class="auth-screen">
   <div class="auth-container">
     <!-- Blocked Message with Countdown -->
-    <div *ngIf="isBlocked" style="text-align: center; padding: 40px 20px;">
-      <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
-      <h2 style="color: #e53935; margin-bottom: 16px;">Too Many Failed Attempts</h2>
-      <p style="margin-bottom: 24px; color: #bbb;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
-      <div style="font-size: 48px; font-weight: bold; color: #cc0000; margin-bottom: 16px;">
+    <div *ngIf="isBlocked" class="auth-blocked">
+      <div class="auth-blocked-icon">🔒</div>
+      <h2>Too Many Failed Attempts</h2>
+      <p>Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
+      <div class="auth-blocked-countdown">
         {{ getCountdownDisplay() }}
       </div>
-      <p style="color: #999;">Please wait before trying again.</p>
+      <p>Please wait before trying again.</p>
     </div>
 
     <div *ngIf="!isBlocked">
@@ -40,7 +40,8 @@
       <button type="button" 
               [class.active]="authMode === 'group-admin'" 
               (click)="setAuthMode('group-admin')">
-        Group Management
+        <span class="tab-label-full">Group Management</span>
+        <span class="tab-label-short">Groups</span>
       </button>
     </div>
 
@@ -71,13 +72,16 @@
         </div>
 
         <!-- Cloudflare Turnstile Widget -->
-        <div *ngIf="turnstileEnabled && turnstileSiteKey" style="margin: 20px 0; display: flex; justify-content: center;">
+        <div *ngIf="turnstileEnabled && turnstileSiteKey" class="turnstile-wrap">
+          <div *ngIf="turnstilePending" class="turnstile-placeholder">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>Loading security check…</span>
+          </div>
           <div id="turnstile-widget-auth"></div>
         </div>
 
-        <div style="text-align: center; margin-top: 8px; margin-bottom: 16px;">
-          <a href="#" (click)="onForgotPassword(); $event.preventDefault()" 
-             style="color: #666; text-decoration: none; font-size: 14px;">
+        <div class="auth-link-row">
+          <a href="#" class="auth-text-link" (click)="onForgotPassword(); $event.preventDefault()">
             Forgot Password?
           </a>
         </div>
@@ -119,9 +123,8 @@
           <span *ngIf="!loading">Send Verification Code</span>
         </button>
 
-        <div style="text-align: center; margin-top: 16px;">
-          <a href="#" (click)="backToLogin(); $event.preventDefault()" 
-             style="color: #666; text-decoration: none; font-size: 14px;">
+        <div class="auth-link-row">
+          <a href="#" class="auth-text-link" (click)="backToLogin(); $event.preventDefault()">
             Back to Login
           </a>
         </div>
@@ -187,9 +190,8 @@
           <span *ngIf="!loading">Reset Password</span>
         </button>
 
-        <div style="text-align: center; margin-top: 16px;">
-          <a href="#" (click)="backToLogin(); $event.preventDefault()" 
-             style="color: #666; text-decoration: none; font-size: 14px;">
+        <div class="auth-link-row">
+          <a href="#" class="auth-text-link" (click)="backToLogin(); $event.preventDefault()">
             Back to Login
           </a>
         </div>
@@ -199,9 +201,9 @@
     <!-- Registration Form -->
     <div class="auth-form" *ngIf="authMode === 'register' && isUserRegistrationEnabled()">
 
-      <div *ngIf="!registrationSettingsLoaded" class="registration-settings-loading" style="text-align: center; padding: 32px 16px;">
-        <mat-spinner diameter="40" style="margin: 0 auto 16px;"></mat-spinner>
-        <p style="color: #bbb; margin: 0;">Loading registration options…</p>
+      <div *ngIf="!registrationSettingsLoaded" class="auth-loading">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Loading registration options…</p>
       </div>
 
       <ng-container *ngIf="registrationSettingsLoaded">
@@ -296,9 +298,9 @@
             </div>
           </div>
           
-          <div *ngIf="loadingChannels" class="loading-channels">
+          <div *ngIf="loadingChannels" class="auth-loading auth-loading--compact loading-channels">
             <mat-spinner diameter="24"></mat-spinner>
-            <span>Loading channels...</span>
+            <span>Loading channels…</span>
           </div>
         </div>
       </div>
@@ -426,7 +428,11 @@
         </div>
 
         <!-- Cloudflare Turnstile Widget (hidden when using invitation code) -->
-        <div *ngIf="turnstileEnabled && turnstileSiteKey && shouldShowTurnstile()" style="margin: 20px 0; display: flex; justify-content: center;">
+        <div *ngIf="turnstileEnabled && turnstileSiteKey && shouldShowTurnstile()" class="turnstile-wrap">
+          <div *ngIf="turnstilePending" class="turnstile-placeholder">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>Loading security check…</span>
+          </div>
           <div id="turnstile-widget-auth"></div>
         </div>
         
@@ -574,7 +580,11 @@
         </mat-form-field>
 
         <!-- Cloudflare Turnstile Widget -->
-        <div *ngIf="turnstileEnabled && turnstileSiteKey" style="margin: 20px 0; display: flex; justify-content: center;">
+        <div *ngIf="turnstileEnabled && turnstileSiteKey" class="turnstile-wrap">
+          <div *ngIf="turnstilePending" class="turnstile-placeholder">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>Loading security check…</span>
+          </div>
           <div id="turnstile-widget-auth"></div>
         </div>
 
