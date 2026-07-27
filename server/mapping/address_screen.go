@@ -54,7 +54,12 @@ var screenRouteMarkers = []string{
 // screenRouteNumberRE matches a numbered route reference ("SR 32", "US 422",
 // "I-80", "ROUTE 14", "HWY 88"). Requiring the trailing number keeps "en
 // route", a bare "us", or the pronoun "I" from triggering.
-var screenRouteNumberRE = regexp.MustCompile(`\b(?:ROUTE|RT|RTE|SR|US|CR|HWY|HIGHWAY|I)\s*-?\s*\d{1,3}\b`)
+var screenRouteNumberRE = regexp.MustCompile(`\b(?:ROUTE|RT|RTE|SR|US|CR|HWY|HIGHWAY|I|IH|LOOP)\s*-?\s*\d{1,4}\b`)
+
+// screenTypedIntersectionRE requires thoroughfare types on both sides of AND/&.
+var screenTypedIntersectionRE = regexp.MustCompile(
+	`\b(?:[A-Z0-9][A-Z0-9']+\s+){0,3}[A-Z][A-Z0-9']+\s+(?:ROAD|RD|STREET|ST|AVENUE|AVE|DRIVE|DR|LANE|LN|COURT|CT|BOULEVARD|BLVD|PLACE|PL|WAY|CIRCLE|CIR|HIGHWAY|HWY|PIKE|PARKWAY|PKWY)\s+(?:AND|&)\s+(?:[A-Z0-9][A-Z0-9']+\s+){0,3}[A-Z][A-Z0-9']+\s+(?:ROAD|RD|STREET|ST|AVENUE|AVE|DRIVE|DR|LANE|LN|COURT|CT|BOULEVARD|BLVD|PLACE|PL|WAY|CIRCLE|CIR|HIGHWAY|HWY|PIKE|PARKWAY|PKWY)\b`,
+)
 
 // screenLocationKeywords are dispatch phrases that strongly imply a location
 // is being given even when no thoroughfare suffix follows immediately.
@@ -170,6 +175,59 @@ func TranscriptLikelyHasLocation(transcript string, scope *ScopeData) bool {
 				return true
 			}
 		}
+		for i := range scope.KnownPlaces {
+			dn := strings.ToUpper(strings.TrimSpace(scope.KnownPlaces[i].DisplayName))
+			if len(dn) >= 4 && strings.Contains(padded, dn) &&
+				PlaceMentionIsDispatchContext(transcript, dn) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// TranscriptHasGeocodeAnchor is stricter than TranscriptLikelyHasLocation: it
+// requires a house/route/typed-intersection/gazetteer-place cue worth calling
+// the Nominatim gateway. Bare STREET mentions, "EN ROUTE TO", and eastbound
+// chatter alone return false so MISRN-style status traffic does not burn quota.
+func TranscriptHasGeocodeAnchor(transcript string, scope *ScopeData) bool {
+	if strings.TrimSpace(transcript) == "" {
+		return false
+	}
+	if transcriptHasCleanNumberedDispatchAddress(transcript) {
+		return true
+	}
+	clean := screenPunctReplacer.Replace(strings.ToUpper(transcript))
+	clean = strings.Join(strings.Fields(clean), " ")
+	padded := " " + clean + " "
+
+	if screenRouteNumberRE.MatchString(clean) {
+		return true
+	}
+	for _, m := range screenRouteMarkers {
+		if strings.Contains(padded, m) {
+			return true
+		}
+	}
+	if screenTypedIntersectionRE.MatchString(clean) {
+		return true
+	}
+	if scope != nil && len(scope.KnownStreets) > 0 {
+		if screenHasGazetteerBackedSuffixlessAddress(clean, transcript, scope) {
+			return true
+		}
+		if extractBareAndIntersectionAddress(transcript, scope) != "" ||
+			extractCommaSeparatedIntersectionAddress(transcript, scope) != "" {
+			return true
+		}
+		if screenHasGazetteerBackedIntersection(clean, scope) {
+			return true
+		}
+	}
+	if len(extractDispatchIntersectionsFromTranscript(transcript, screenScopeStreets(scope))) > 0 {
+		return true
+	}
+	if scope != nil {
 		for i := range scope.KnownPlaces {
 			dn := strings.ToUpper(strings.TrimSpace(scope.KnownPlaces[i].DisplayName))
 			if len(dn) >= 4 && strings.Contains(padded, dn) &&

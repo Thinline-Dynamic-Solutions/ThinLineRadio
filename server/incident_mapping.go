@@ -688,13 +688,17 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	}
 	locationLikely := mapping.TranscriptLikelyHasLocation(gatewayText, scope) ||
 		strings.TrimSpace(out.Primary.Address) != ""
+	// Stricter than locationLikely: skip gateway calls for STREET/en-route
+	// chatter with no house, route, typed crossing, or gazetteer place.
+	geocodeAnchor := mapping.TranscriptHasGeocodeAnchor(gatewayText, scope) ||
+		strings.TrimSpace(out.Primary.Address) != ""
 	allowGateway := status != "skipped" || locationLikely
 	if skipUnknownGeocode {
 		mapping.SuppressUnclassifiedPinOnAlert(out.Primary, &status)
 		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
 			"incident mapping call %d skipped geocode: unknown nature %q",
 			call.Id, strings.TrimSpace(out.Primary.NatureDesc)))
-	} else if out.Primary.Lat == "" && allowGateway && gatewayConfigured && gatewayText != "" && locationLikely {
+	} else if out.Primary.Lat == "" && allowGateway && gatewayConfigured && gatewayText != "" && locationLikely && geocodeAnchor {
 		// Phonetic unit/crime-code traffic ("OVER 2 KING KING ROBBER") must not
 		// hit Nominatim — it invents real streets (King George Avenue).
 		if mapping.TranscriptIsPhoneticUnitCrimeCode(gatewayText) {

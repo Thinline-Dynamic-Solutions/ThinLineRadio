@@ -4,6 +4,23 @@
 
 ---
 
+## Version 26.07.26 - Released July 26, 2026
+
+### Added
+
+- **Incident mapping — geocode-anchor gate (chatter tax)**
+  - Before calling nominatim-gateway `/transcript`, TLR now requires a real geocode cue: house+street, numbered route (including `IH`/`LOOP`), typed intersection, or gazetteer place — not bare `STREET` mentions or “en route” status chatter alone.
+  - Cuts wasted gateway quota on MISRN-style clear/status traffic while still sending real address dispatches.
+
+### Fixed
+
+- **Incident mapping — SE↔SOUTHEAST (and all abbrev expansions) false rejects**
+  - Gateway hits like `6246 MINES ROAD SOUTHEAST` were discarded when STT said `SE`, so Trumbull/Howland calls showed no map pin despite a successful geocode.
+  - Alignment now canonicalizes address and transcript together (`SE`≡`SOUTHEAST`, `RD`≡`ROAD`, `AVE`≡`AVENUE`, `N`≡`NORTH`, spaced quadrants, etc.) so OSM/gateway expansions never fail a spoken match.
+  - Fabricated streets that were never spoken still reject.
+
+---
+
 ## Version 26.07.25 - Released July 26, 2026
 
 ### Fixed

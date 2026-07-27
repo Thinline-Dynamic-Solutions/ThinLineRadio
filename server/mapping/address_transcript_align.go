@@ -50,17 +50,23 @@ func IntersectionSideIsNonStreet(side string) bool {
 // extracted address actually appears in the dispatch transcript. Intersections
 // require both sides to be present; house+street requires the house number
 // and street words. Fails closed when alignment cannot be verified.
+//
+// Both the address and transcript are passed through CanonicalStreetName first
+// so gateway/OSM expansions never reject a real hit: SE≡SOUTHEAST, RD≡ROAD,
+// AVE≡AVENUE, N≡NORTH, NORTH EAST≡NE, etc.
 func AddressAlignsWithTranscript(addr, transcript string, scope *ScopeData) bool {
-	addr = strings.ToUpper(strings.TrimSpace(addr))
+	addr = strings.TrimSpace(addr)
 	if addr == "" || strings.TrimSpace(transcript) == "" {
 		return false
 	}
-	padded := " " + normalizeHyphenCompoundsInTranscript(strings.ToUpper(transcript)) + " "
+	rawTranscript := transcript
+	addr = CanonicalStreetName(normalizeHyphenCompoundsInTranscript(addr))
+	padded := " " + CanonicalStreetName(normalizeHyphenCompoundsInTranscript(transcript)) + " "
 
 	if strings.Contains(addr, "&") {
 		a, b := splitIntersectionQuery(addr)
-		a = cleanIntersectionSide(a)
-		b = cleanIntersectionSide(b)
+		a = CanonicalStreetName(cleanIntersectionSide(a))
+		b = CanonicalStreetName(cleanIntersectionSide(b))
 		if a == "" || b == "" {
 			return false
 		}
@@ -76,7 +82,7 @@ func AddressAlignsWithTranscript(addr, transcript string, scope *ScopeData) bool
 
 	house, street := splitHouseAndStreet(addr)
 	if house != "" && street != "" {
-		if !wordInPaddedTranscript(padded, house) && !houseInHyphenPairTranscript(house, transcript) {
+		if !wordInPaddedTranscript(padded, house) && !houseInHyphenPairTranscript(house, rawTranscript) {
 			return false
 		}
 		return streetAlignsWithTranscript(street, padded, scope, house)
@@ -86,7 +92,7 @@ func AddressAlignsWithTranscript(addr, transcript string, scope *ScopeData) bool
 	if target == "" {
 		target = addr
 	}
-	if hasStreetSuffix(target) || routeSideLooksValid(target) {
+	if streetHasGeocodableSuffix(target) || hasStreetSuffix(target) || routeSideLooksValid(target) {
 		return streetAlignsWithTranscript(target, padded, scope, "")
 	}
 	return false
@@ -211,10 +217,13 @@ func intersectionGeocodeAllowed(transcript, streetA string, crosses []string, sc
 }
 
 func streetAlignsWithTranscript(street, padded string, scope *ScopeData, house string) bool {
-	street = strings.ToUpper(strings.TrimSpace(street))
+	street = CanonicalStreetName(street)
 	if street == "" {
 		return false
 	}
+	// Drop trailing SE/SOUTHEAST (already canonicalized to SE) when unspoken.
+	street = stripUnspokenQuadrantSuffix(street, padded)
+	street = stripUnspokenTrailingCardinal(street, padded)
 	if routeN, ok := ohioStateRouteNumberInText(normalizeRouteTokens(street)); ok {
 		return wordInPaddedTranscript(padded, strconv.Itoa(routeN))
 	}
@@ -300,7 +309,7 @@ func gazetteerStreetAlignsWithTranscript(ksU, padded string) bool {
 }
 
 func stripUnspokenQuadrantSuffix(street, padded string) string {
-	fields := strings.Fields(strings.ToUpper(strings.TrimSpace(street)))
+	fields := strings.Fields(CanonicalStreetName(street))
 	if len(fields) < 2 {
 		return street
 	}
@@ -308,14 +317,26 @@ func stripUnspokenQuadrantSuffix(street, padded string) string {
 	if !isStreetQuadrantSuffix(last) {
 		return street
 	}
+	// padded is expected already CanonicalStreetName'd (SE not SOUTHEAST).
 	if wordInPaddedTranscript(padded, last) {
+		return strings.Join(fields, " ")
+	}
+	return strings.Join(fields[:len(fields)-1], " ")
+}
+
+// stripUnspokenTrailingCardinal drops a trailing N/S/E/W that OSM/gateway
+// added when dispatch never spoke that cardinal.
+func stripUnspokenTrailingCardinal(street, padded string) string {
+	fields := strings.Fields(CanonicalStreetName(street))
+	if len(fields) < 2 {
 		return street
 	}
-	abbr := map[string]string{
-		"SOUTHEAST": "SE", "SOUTHWEST": "SW", "NORTHEAST": "NE", "NORTHWEST": "NW",
-	}[last]
-	if abbr != "" && wordInPaddedTranscript(padded, abbr) {
+	last := fields[len(fields)-1]
+	if !isStreetTrailingCardinal(last) {
 		return street
+	}
+	if wordInPaddedTranscript(padded, last) {
+		return strings.Join(fields, " ")
 	}
 	return strings.Join(fields[:len(fields)-1], " ")
 }
@@ -438,6 +459,9 @@ func significantStreetWords(street string) []string {
 		"COURT": true, "PL": true, "PLACE": true, "WAY": true, "TRL": true, "TRAIL": true,
 		"N": true, "S": true, "E": true, "W": true, "NE": true, "NW": true, "SE": true, "SW": true,
 		"NORTH": true, "SOUTH": true, "EAST": true, "WEST": true,
+		// Gateway/OSM expand spoken SE→SOUTHEAST; do not require the long form
+		// in STT (6246 MINES ROAD SE vs … SOUTHEAST).
+		"NORTHEAST": true, "NORTHWEST": true, "SOUTHEAST": true, "SOUTHWEST": true,
 	}
 	var out []string
 	for _, w := range strings.Fields(strings.ToUpper(street)) {
@@ -606,16 +630,25 @@ func wordOrHomophoneInPaddedTranscript(padded, word string) bool {
 // extracted address is supported by the transcript. Homophone matching is
 // allowed for near-miss spellings (BEACH/BEECH) but not when dispatch spoke a
 // strictly longer form of the same token (SQUAWK vs a shortened SQUAW snap).
+// Abbreviation expansions are handled upstream via CanonicalStreetName on both
+// the address and the padded transcript (SE≡SOUTHEAST, RD≡ROAD, …).
 func streetWordAlignsWithTranscript(word, padded string) bool {
+	word = strings.TrimSpace(CanonicalStreetName(word))
+	if word == "" {
+		return false
+	}
 	if wordInPaddedTranscript(padded, word) {
 		return true
 	}
-	word = strings.ToUpper(strings.TrimSpace(word))
 	if transcriptHasLongerFormOfWord(padded, word) {
 		return false
 	}
 	for _, tok := range strings.Fields(strings.Trim(padded, " ")) {
 		tok = strings.Trim(tok, ".,;")
+		tok = strings.TrimSpace(CanonicalStreetName(tok))
+		if tok == "" {
+			continue
+		}
 		if StreetTokensSTTMatch(word, tok) {
 			return true
 		}

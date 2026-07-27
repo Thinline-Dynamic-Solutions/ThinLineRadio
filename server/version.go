@@ -17,4 +17,4 @@
 package main
 
 // CalVer-style release id (YY.MM.build).
-const Version = "26.07.25"
+const Version = "26.07.26"
