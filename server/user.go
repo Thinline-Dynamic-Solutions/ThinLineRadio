@@ -1356,6 +1356,21 @@ func (users *Users) Write(db *Database) error {
 	return nil
 }
 
+// WriteSubscriptionState persists only the membership/subscription fields for a
+// single user with a targeted UPDATE, avoiding a full-table rewrite for frequent
+// self-service tier changes. Canonicalizes userGroupIds before persisting.
+func (users *Users) WriteSubscriptionState(user *User, db *Database) error {
+	if user == nil || db == nil || db.Sql == nil {
+		return nil
+	}
+	user.loadGroupMemberships()
+	_, err := db.Sql.Exec(
+		`UPDATE "users" SET "userGroupId"=$1, "userGroupIds"=$2, "stripeCustomerId"=$3, "stripeSubscriptionId"=$4, "subscriptionStatus"=$5, "pinExpiresAt"=$6 WHERE "userId"=$7`,
+		user.UserGroupId, user.UserGroupIds, user.StripeCustomerId, user.StripeSubscriptionId, user.SubscriptionStatus, int64(user.PinExpiresAt), user.Id,
+	)
+	return err
+}
+
 func (users *Users) GetUserByEmail(email string) *User {
 	users.mutex.RLock()
 	defer users.mutex.RUnlock()

@@ -57,6 +57,8 @@ export interface User {
     connectionLimit: number;
     effectiveConnectionLimit?: number;
     userGroupId?: number;
+    /** All groups this user belongs to (access is the union); always contains userGroupId. */
+    userGroupIds?: number[];
     isGroupAdmin?: boolean;
     systemAdmin?: boolean;
     pushSystemNoAudioAlerts?: boolean;
@@ -149,6 +151,25 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         return JSON.stringify(cleaned);
     }
 
+    /**
+     * Normalizes a user's group memberships to unique positive ids and always
+     * includes the primary group, matching the server-side invariant.
+     */
+    private static normalizeGroupIds(ids: number[] | null | undefined, primaryId?: number): number[] {
+        const out: number[] = [];
+        const seen = new Set<number>();
+        const add = (raw: unknown) => {
+            const id = Number(raw);
+            if (Number.isFinite(id) && id > 0 && !seen.has(id)) {
+                seen.add(id);
+                out.push(id);
+            }
+        };
+        add(primaryId);
+        (ids ?? []).forEach(add);
+        return out;
+    }
+
     private static apiKeyOptionId(apikey: Apikey): number {
         return Number(apikey.id);
     }
@@ -179,6 +200,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             systemDelays: [''],
             talkgroupDelays: [''],
             userGroupId: [0],
+            userGroupIds: [[] as number[]],
             isGroupAdmin: [false],
             systemAdmin: [false],
             systemNoAudioAlertSystemIds: [[] as number[]],
@@ -230,6 +252,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 pinExpiresAt: user.pinExpiresAt || 0,
                 connectionLimit: user.connectionLimit || 0,
                 userGroupId: user.userGroupId || 0,
+                userGroupIds: RdioScannerAdminUsersComponent.normalizeGroupIds(user.userGroupIds, user.userGroupId),
                 isGroupAdmin: user.isGroupAdmin || false,
                 systemAdmin: user.systemAdmin || false,
                 systemNoAudioAlertSystemIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.systemNoAudioAlertSystems),
@@ -679,6 +702,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             systemDelays: user.systemDelays,
             talkgroupDelays: user.talkgroupDelays,
             userGroupId: user.userGroupId || 0,
+            userGroupIds: RdioScannerAdminUsersComponent.normalizeGroupIds(user.userGroupIds, user.userGroupId),
             isGroupAdmin: user.isGroupAdmin || false,
             systemAdmin: user.systemAdmin || false,
             systemNoAudioAlertSystemIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.systemNoAudioAlertSystems),
@@ -796,6 +820,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             connectionLimit: parseNonNegativeInt(formValue.connectionLimit),
             pinExpiresAt: pinExpiresAtEpoch,
             userGroupId: parseNonNegativeInt(formValue.userGroupId),
+            userGroupIds: RdioScannerAdminUsersComponent.normalizeGroupIds(
+                formValue.userGroupIds,
+                parseNonNegativeInt(formValue.userGroupId),
+            ),
             isGroupAdmin: !!formValue.isGroupAdmin,
             systemAdmin: !!formValue.systemAdmin,
             systemNoAudioAlertSystems: RdioScannerAdminUsersComponent.serializeNoAudioAlertIds(formValue.systemNoAudioAlertSystemIds),
@@ -822,7 +850,28 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             console.log('updateUser succeeded');
             await this.loadUsers(true);
 
+            // loadUsers() reports its own failure and does not throw. Don't claim
+            // success on top of a "Failed to load users" error — the save may look
+            // applied while the list on screen is stale.
+            if (this.error) {
+                return;
+            }
+
             const updatedUser = this.users.find(u => u.id === userId);
+
+            // Confirm the reloaded memberships match what we submitted before
+            // claiming success — otherwise the change silently did not persist.
+            const wanted = RdioScannerAdminUsersComponent.normalizeGroupIds(payload.userGroupIds, payload.userGroupId).slice().sort();
+            const got = RdioScannerAdminUsersComponent.normalizeGroupIds(updatedUser?.userGroupIds, updatedUser?.userGroupId).slice().sort();
+            if (JSON.stringify(wanted) !== JSON.stringify(got)) {
+                this.matSnackBar.open('User saved, but group memberships did not persist as expected. Please reload and try again.', 'Close', {
+                    duration: 6000,
+                    panelClass: ['error-snackbar']
+                });
+                this.cancelEdit();
+                this.cdr.detectChanges();
+                return;
+            }
             let message = 'User updated successfully';
             if ((this.regeneratePinRequested || (payload.pin !== undefined && payload.pin.trim() === '')) && updatedUser?.pin) {
                 message += ` – new PIN: ${updatedUser.pin}`;
