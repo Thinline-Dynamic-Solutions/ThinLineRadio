@@ -4,6 +4,23 @@
 
 ---
 
+## Version 26.07.27 - Released July 27, 2026
+
+### Fixed
+
+- **Multi-tier signup and admin group memberships (#254 / #257)**
+  - Live `auth-screen` signup now lists every public tier, supports multi-select with primary + per-paid plan, and submits `groupIds` / `primaryGroupId` (plus combined Stripe checkout for paid tiers).
+  - When more than one public tier exists, registration requires an explicit tier selection instead of silently assigning a single public group.
+  - Admin user editor persists `userGroupIds` on save/reload, returns memberships from both user-list endpoints, and no longer shows success when the follow-up reload fails.
+  - Self-service `/api/subscription/groups/add` and `/remove` check persistence errors, re-read Stripe after item changes, enforce `MaxUsers`, return canonical `groupIds`, refresh scoped sessions, and serialize per-user tier mutations.
+
+### Changed
+
+- **README — SDRTrunk**
+  - Documented that SDRTrunk supports API ingest (#256).
+
+---
+
 ## Version 26.07.26 - Released July 26, 2026
 
 ### Added
