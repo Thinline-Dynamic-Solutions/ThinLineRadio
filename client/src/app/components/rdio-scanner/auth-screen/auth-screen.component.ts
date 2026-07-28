@@ -66,6 +66,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   availableChannels: any[] = [];
   loadingChannels = false;
   showChannels = false;
+
+  // Multi-tier public registration: every group flagged public is a tier the
+  // user can join. Paid tiers are billed together on one combined subscription.
+  tiers: any[] = [];
+  selectedTiers: { [groupId: number]: boolean } = {};
+  tierPrice: { [groupId: number]: string } = {};
+  primaryTierId: number | null = null;
   /** Set from `/api/registration-settings` after load — do not assume invite-only before then (fixes invite box vanishing when public mode loads). */
   registrationSettingsLoaded = false;
   isInviteOnlyMode = true;
@@ -716,6 +723,11 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
 
 
   async onRegister(): Promise<void> {
+    // Multi-tier signup: require an explicit selection, with a plan for each paid tier.
+    if (this.usingTierSelection() && !this.tierSelectionValid()) {
+      this.error = 'Select at least one tier and choose a plan for each paid tier.';
+      return;
+    }
     if (this.registerForm.valid && !this.loading) {
       this.loading = true;
       this.error = '';
@@ -739,8 +751,20 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         formData.accessCode = accessCode;
       }
       
+      // Multi-tier public signup: send the chosen tiers + primary so the server
+      // records the full membership instead of falling back to one public group.
+      const chosenTierIds = this.usingTierSelection() ? this.selectedTierIds() : [];
+      if (chosenTierIds.length > 0) {
+        formData.groupIds = chosenTierIds;
+        formData.primaryGroupId = this.primaryTierId || chosenTierIds[0];
+      }
+      // Paid tiers are settled together in one combined Stripe checkout.
+      const paidItems = this.tiers
+        .filter(t => this.selectedTiers[t.groupId] && t.billingEnabled && this.tierPrice[t.groupId])
+        .map(t => ({ groupId: t.groupId, priceId: this.tierPrice[t.groupId] }));
+
       console.log('Registration form data being sent:', formData);
-      
+
       // Check Turnstile if enabled (but skip if using access code that looks like invitation - it's already validated via email)
       // Invitation codes are 16 chars and alphanumeric, registration codes are 12 chars with special chars
       const isLikelyInvitation = hasAccessCode && accessCode.length === 16 && /^[A-Z0-9]+$/.test(accessCode);
@@ -764,11 +788,40 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
           if (typeof pin === 'string' && pin.length > 0) {
             this.rdioScannerService.savePin(pin);
           }
+          const email = (this.registerForm.get('email')?.value || '').toLowerCase();
+
+          // Paid tiers selected: start the combined Stripe checkout (one line
+          // item per paid tier) instead of the single-plan setup page.
+          if (paidItems.length > 0) {
+            try {
+              const baseUrl = window.location.origin;
+              const res = await fetch('/api/stripe/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email,
+                  items: paidItems,
+                  successUrl: `${baseUrl}/?checkout=success`,
+                  cancelUrl: `${baseUrl}/?checkout=cancel`,
+                }),
+              });
+              const result = await res.json();
+              if (result.checkoutUrl) {
+                window.location.href = result.checkoutUrl;
+                return;
+              }
+              this.error = result.error || 'Could not start checkout.';
+            } catch (e: any) {
+              this.error = e?.message || 'Could not start checkout.';
+            }
+            this.cdr.markForCheck();
+            return;
+          }
+
           const alreadyVerified =
             response?.verified === true || response?.message === 'User registered successfully.';
           if (alreadyVerified) {
             this.success = false;
-            const email = (this.registerForm.get('email')?.value || '').toLowerCase();
             await this.router.navigate(['/setup/plan'], { queryParams: { email } });
             this.cdr.markForCheck();
             return;
@@ -973,26 +1026,107 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.http.get<any>('/api/public-registration-info').subscribe({
       next: (info) => {
         this.publicGroupInfo = info;
+        this.tiers = info?.tiers || [];
+        // A single tier behaves exactly like the old single-group signup.
+        if (this.tiers.length === 1) {
+          this.selectedTiers[this.tiers[0].groupId] = true;
+          this.primaryTierId = this.tiers[0].groupId;
+        }
         this.loadingGroupInfo = false;
+        // Refresh channels now that tiers (and any auto-selected single tier) are known.
+        this.loadAvailableChannels();
+        this.cdr.markForCheck();
       },
       error: (error) => {
         console.error('Error loading public registration info:', error);
         this.loadingGroupInfo = false;
+        this.cdr.markForCheck();
       }
     });
   }
 
-  loadAvailableChannels(): void {
-    this.loadingChannels = true;
-    this.http.get<any>('/api/public-registration-channels').subscribe({
-      next: (response) => {
-        this.availableChannels = response.systems || [];
-        this.loadingChannels = false;
-      },
-      error: (error) => {
-        console.error('Error loading available channels:', error);
-        this.loadingChannels = false;
+  toggleTier(groupId: number): void {
+    this.selectedTiers[groupId] = !this.selectedTiers[groupId];
+    if (this.selectedTiers[groupId]) {
+      if (this.primaryTierId === null) {
+        this.primaryTierId = groupId;
       }
+    } else if (this.primaryTierId === groupId) {
+      const remaining = this.selectedTierIds();
+      this.primaryTierId = remaining.length ? remaining[0] : null;
+    }
+    // Keep the "available channels" union in sync with the selection.
+    this.loadAvailableChannels();
+    this.cdr.markForCheck();
+  }
+
+  selectedTierIds(): number[] {
+    return this.tiers.filter(t => this.selectedTiers[t.groupId]).map(t => t.groupId);
+  }
+
+  /** Every selected paid tier must have a pricing option chosen. */
+  tierSelectionValid(): boolean {
+    if (this.selectedTierIds().length === 0) {
+      return false;
+    }
+    return this.tiers.every(t => {
+      if (!this.selectedTiers[t.groupId]) { return true; }
+      return !t.billingEnabled || !!this.tierPrice[t.groupId];
+    });
+  }
+
+  /** True when the signup form should require an explicit tier selection. */
+  usingTierSelection(): boolean {
+    return this.tiers.length > 0 && !this.registerForm.get('accessCode')?.value?.trim();
+  }
+
+  loadAvailableChannels(): void {
+    // Show the union of channels granted by the selected tiers (or all public
+    // tiers before anything is selected / single-tier signup).
+    let ids = this.selectedTierIds();
+    if (ids.length === 0) {
+      ids = this.tiers.map(t => t.groupId);
+    }
+
+    // No tier info yet — fall back to the legacy single-group endpoint.
+    if (ids.length === 0) {
+      this.loadingChannels = true;
+      this.http.get<any>('/api/public-registration-channels').subscribe({
+        next: (response) => { this.availableChannels = response.systems || []; this.loadingChannels = false; this.cdr.markForCheck(); },
+        error: () => { this.loadingChannels = false; this.cdr.markForCheck(); }
+      });
+      return;
+    }
+
+    this.loadingChannels = true;
+    const sysMap = new Map<any, any>();
+    let pending = ids.length;
+    const done = () => {
+      if (--pending > 0) { return; }
+      this.availableChannels = [...sysMap.values()].map((e: any) => {
+        const { _tgIds, ...rest } = e;
+        return rest;
+      });
+      this.loadingChannels = false;
+      this.cdr.markForCheck();
+    };
+    ids.forEach(id => {
+      this.http.get<any>(`/api/public-registration-channels?groupId=${id}`).subscribe({
+        next: (response) => {
+          (response?.systems || []).forEach((sys: any) => {
+            let entry = sysMap.get(sys.id);
+            if (!entry) {
+              entry = { id: sys.id, label: sys.label, talkgroups: [], _tgIds: new Set() };
+              sysMap.set(sys.id, entry);
+            }
+            (sys.talkgroups || []).forEach((tg: any) => {
+              if (!entry._tgIds.has(tg.id)) { entry._tgIds.add(tg.id); entry.talkgroups.push(tg); }
+            });
+          });
+          done();
+        },
+        error: () => done()
+      });
     });
   }
 

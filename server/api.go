@@ -812,7 +812,15 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			} else {
-				// No code required, use public group
+				// No code required. When more than one public tier exists, the
+				// client must send an explicit groupIds selection (handled by the
+				// earlier multi-tier branch) rather than silently defaulting to
+				// one group — otherwise the tier shown and the tier assigned can
+				// differ once several groups are public.
+				if len(api.Controller.UserGroups.GetPublicRegistrationGroups()) > 1 {
+					api.exitWithError(w, http.StatusBadRequest, "Please select which tier(s) to join")
+					return
+				}
 				targetGroup = publicGroup
 			}
 		} else {
@@ -4770,6 +4778,50 @@ func (api *Api) userFromRequestPin(r *http.Request) *User {
 // user's combined subscription. With an active subscription the item is added
 // server-side with proration (charging the saved card); otherwise a combined
 // checkout URL is returned for the client to complete.
+// keyedMutex serializes operations per key (here, per user id) so concurrent
+// tier add/remove requests for the same user cannot interleave Stripe changes
+// with membership writes.
+type keyedMutex struct {
+	mu sync.Mutex
+	m  map[uint64]*sync.Mutex
+}
+
+func (k *keyedMutex) lock(id uint64) func() {
+	k.mu.Lock()
+	if k.m == nil {
+		k.m = map[uint64]*sync.Mutex{}
+	}
+	mu, ok := k.m[id]
+	if !ok {
+		mu = &sync.Mutex{}
+		k.m[id] = mu
+	}
+	k.mu.Unlock()
+	mu.Lock()
+	return mu.Unlock
+}
+
+// tierMutations serializes self-service tier changes per user.
+var tierMutations keyedMutex
+
+// persistTierMembership saves a membership change and reports whether it was
+// durably written. Tier add/remove must not report success when the canonical
+// membership failed to persist (Stripe may already have been changed, so the
+// caller needs to surface the mismatch rather than silently diverge). Uses a
+// targeted single-row update rather than rewriting every user.
+func (api *Api) persistTierMembership(user *User) error {
+	if err := api.Controller.Users.Update(user); err != nil {
+		return err
+	}
+	if err := api.Controller.Users.WriteSubscriptionState(user, api.Controller.Database); err != nil {
+		return err
+	}
+	api.Controller.SyncConfigToFile()
+	// Push refreshed scoped channels to any live sessions for this user.
+	api.Controller.Clients.RefreshConfigForGroup(api.Controller, user.UserGroupId)
+	return nil
+}
+
 func (api *Api) SubscriptionGroupAddHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -4780,6 +4832,11 @@ func (api *Api) SubscriptionGroupAddHandler(w http.ResponseWriter, r *http.Reque
 		api.exitWithError(w, http.StatusUnauthorized, "PIN required")
 		return
 	}
+	// Serialize tier mutations for this user so concurrent add/remove requests
+	// cannot interleave Stripe changes with membership writes.
+	unlock := tierMutations.lock(user.Id)
+	defer unlock()
+
 	var request struct {
 		GroupId uint64 `json:"groupId"`
 		PriceId string `json:"priceId"`
@@ -4806,11 +4863,12 @@ func (api *Api) SubscriptionGroupAddHandler(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		user.AddGroup(request.GroupId)
-		api.Controller.Users.Update(user)
-		api.Controller.Users.Write(api.Controller.Database)
-		api.Controller.SyncConfigToFile()
+		if err := api.persistTierMembership(user); err != nil {
+			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to save membership: %v", err))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"added": true})
+		json.NewEncoder(w).Encode(map[string]interface{}{"added": true, "groupIds": user.GroupIds()})
 		return
 	}
 
@@ -4841,6 +4899,13 @@ func (api *Api) SubscriptionGroupAddHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Paid tiers honor the group's user cap too (free tiers check above).
+	if group.MaxUsers > 0 && !user.IsMemberOf(group.Id) &&
+		api.Controller.UserGroups.GetUserCount(group.Id, api.Controller.Users) >= group.MaxUsers {
+		api.exitWithError(w, http.StatusForbidden, "This tier is full")
+		return
+	}
+
 	stripe.Key = api.Controller.Options.StripeSecretKey
 	if stripe.Key == "" {
 		api.exitWithError(w, http.StatusBadRequest, "Billing is not configured")
@@ -4860,17 +4925,27 @@ func (api *Api) SubscriptionGroupAddHandler(w http.ResponseWriter, r *http.Reque
 				api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to add tier: %v", err))
 				return
 			}
-			if updated, e := subscription.Get(sub.ID, nil); e == nil {
-				sub = updated
+			// Re-read the subscription so membership is reconciled from the
+			// post-change line items. Never reconcile from the pre-change object:
+			// that would drop the tier we just added and leave Stripe billing a
+			// tier the user cannot access.
+			updated, e := subscription.Get(sub.ID, nil)
+			if e != nil {
+				api.exitWithError(w, http.StatusInternalServerError,
+					fmt.Sprintf("Tier was added to billing but could not be confirmed: %v", e))
+				return
 			}
+			sub = updated
 			api.reconcilePaidMembershipsFromSubscription(user, sub)
 			user.PinExpiresAt = api.calculatePinExpiration(sub, false)
-			api.Controller.Users.Update(user)
-			api.Controller.Users.Write(api.Controller.Database)
-			api.Controller.SyncConfigToFile()
+			if err := api.persistTierMembership(user); err != nil {
+				api.exitWithError(w, http.StatusInternalServerError,
+					fmt.Sprintf("Tier was added to billing but saving your membership failed: %v", err))
+				return
+			}
 			log.Printf("Added tier %q to user %s via subscription item (proration)", group.Name, user.Email)
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{"added": true})
+			json.NewEncoder(w).Encode(map[string]interface{}{"added": true, "groupIds": user.GroupIds()})
 			return
 		}
 	}
@@ -4923,6 +4998,9 @@ func (api *Api) SubscriptionGroupRemoveHandler(w http.ResponseWriter, r *http.Re
 		api.exitWithError(w, http.StatusUnauthorized, "PIN required")
 		return
 	}
+	unlock := tierMutations.lock(user.Id)
+	defer unlock()
+
 	var request struct {
 		GroupId uint64 `json:"groupId"`
 	}
@@ -4948,11 +5026,12 @@ func (api *Api) SubscriptionGroupRemoveHandler(w http.ResponseWriter, r *http.Re
 	// Free tier: membership-only removal, no Stripe.
 	if !group.BillingEnabled {
 		user.RemoveGroup(request.GroupId)
-		api.Controller.Users.Update(user)
-		api.Controller.Users.Write(api.Controller.Database)
-		api.Controller.SyncConfigToFile()
+		if err := api.persistTierMembership(user); err != nil {
+			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to save membership: %v", err))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true})
+		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true, "groupIds": user.GroupIds()})
 		return
 	}
 
@@ -4963,11 +5042,12 @@ func (api *Api) SubscriptionGroupRemoveHandler(w http.ResponseWriter, r *http.Re
 	if user.StripeSubscriptionId == "" || api.Controller.Options.StripeSecretKey == "" {
 		// No active subscription — just drop the (unbilled) membership.
 		user.RemoveGroup(request.GroupId)
-		api.Controller.Users.Update(user)
-		api.Controller.Users.Write(api.Controller.Database)
-		api.Controller.SyncConfigToFile()
+		if err := api.persistTierMembership(user); err != nil {
+			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to save membership: %v", err))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true})
+		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true, "groupIds": user.GroupIds()})
 		return
 	}
 
@@ -5009,12 +5089,14 @@ func (api *Api) SubscriptionGroupRemoveHandler(w http.ResponseWriter, r *http.Re
 				user.RemoveGroup(gid)
 			}
 		}
-		api.Controller.Users.Update(user)
-		api.Controller.Users.Write(api.Controller.Database)
-		api.Controller.SyncConfigToFile()
+		if err := api.persistTierMembership(user); err != nil {
+			api.exitWithError(w, http.StatusInternalServerError,
+				fmt.Sprintf("Subscription was canceled but saving your membership failed: %v", err))
+			return
+		}
 		log.Printf("Removed last tier %q for user %s → subscription canceled", group.Name, user.Email)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true, "canceled": true})
+		json.NewEncoder(w).Encode(map[string]interface{}{"removed": true, "canceled": true, "groupIds": user.GroupIds()})
 		return
 	}
 
@@ -5025,17 +5107,25 @@ func (api *Api) SubscriptionGroupRemoveHandler(w http.ResponseWriter, r *http.Re
 		api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to remove tier: %v", err))
 		return
 	}
-	if updated, e := subscription.Get(sub.ID, nil); e == nil {
-		sub = updated
+	// Re-read so membership reflects the post-deletion line items; reconciling
+	// from the stale object would leave the removed tier in place locally.
+	updated, e := subscription.Get(sub.ID, nil)
+	if e != nil {
+		api.exitWithError(w, http.StatusInternalServerError,
+			fmt.Sprintf("Tier was removed from billing but could not be confirmed: %v", e))
+		return
 	}
+	sub = updated
 	api.reconcilePaidMembershipsFromSubscription(user, sub)
 	user.PinExpiresAt = api.calculatePinExpiration(sub, false)
-	api.Controller.Users.Update(user)
-	api.Controller.Users.Write(api.Controller.Database)
-	api.Controller.SyncConfigToFile()
+	if err := api.persistTierMembership(user); err != nil {
+		api.exitWithError(w, http.StatusInternalServerError,
+			fmt.Sprintf("Tier was removed from billing but saving your membership failed: %v", err))
+		return
+	}
 	log.Printf("Removed tier %q from user %s via subscription item deletion", group.Name, user.Email)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"removed": true})
+	json.NewEncoder(w).Encode(map[string]interface{}{"removed": true, "groupIds": user.GroupIds()})
 }
 
 // AccountRequestEmailChangeVerificationHandler handles POST requests to request email change verification code

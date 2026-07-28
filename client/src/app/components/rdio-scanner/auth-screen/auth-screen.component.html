@@ -247,13 +247,45 @@
       
       <!-- Public Registration Group Info (only show when NOT invite-only mode) -->
       <div class="public-registration-info" *ngIf="!success && !isInviteOnlyMode">
-        <div class="info-section" *ngIf="publicGroupInfo?.name">
+        <!-- Single tier: show it as a heading (classic single-group signup) -->
+        <div class="info-section" *ngIf="tiers.length < 2 && publicGroupInfo?.name">
           <h3>{{ publicGroupInfo.name }}</h3>
           <p *ngIf="publicGroupInfo?.description">{{ publicGroupInfo.description }}</p>
         </div>
-        
-        <!-- Pricing Information -->
-        <div class="pricing-section" *ngIf="publicGroupInfo?.billingEnabled && publicGroupInfo?.pricingOptions && publicGroupInfo.pricingOptions.length > 0">
+
+        <!-- Multiple tiers: let the user pick one or more -->
+        <div class="tiers-section" *ngIf="tiers.length > 1">
+          <h4>Choose your tiers</h4>
+          <p class="tiers-hint">Select one or more tiers. Paid tiers are billed together on a single subscription.</p>
+          <div class="tier-option" *ngFor="let t of tiers">
+            <label class="tier-check">
+              <input type="checkbox" [checked]="selectedTiers[t.groupId]" (change)="toggleTier(t.groupId)">
+              <span class="tier-title">{{ t.name }}</span>
+              <span class="tier-meta" *ngIf="t.talkgroupCount"> &middot; {{ t.talkgroupCount }} channels</span>
+              <span class="tier-free" *ngIf="!t.billingEnabled"> &middot; Free</span>
+            </label>
+            <p class="tier-desc" *ngIf="t.description">{{ t.description }}</p>
+            <div class="tier-prices" *ngIf="selectedTiers[t.groupId] && t.billingEnabled && t.pricingOptions?.length">
+              <label class="tier-price-option" *ngFor="let o of t.pricingOptions">
+                <input type="radio" name="tier-price-{{ t.groupId }}" [value]="o.priceId"
+                       [checked]="tierPrice[t.groupId] === o.priceId"
+                       (change)="tierPrice[t.groupId] = o.priceId">
+                <span>{{ o.label }} &mdash; {{ o.amount }}</span>
+              </label>
+            </div>
+            <div class="tier-primary" *ngIf="selectedTiers[t.groupId] && selectedTierIds().length > 1">
+              <label>
+                <input type="radio" name="primaryTier" [value]="t.groupId"
+                       [checked]="primaryTierId === t.groupId"
+                       (change)="primaryTierId = t.groupId">
+                Set as primary (home) tier
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pricing Information (single-tier only; multi-tier shows prices per tier above) -->
+        <div class="pricing-section" *ngIf="tiers.length < 2 && publicGroupInfo?.billingEnabled && publicGroupInfo?.pricingOptions && publicGroupInfo.pricingOptions.length > 0">
           <h4>Pricing Plans</h4>
           <div class="pricing-options">
             <div class="pricing-option" *ngFor="let option of publicGroupInfo.pricingOptions">
@@ -262,7 +294,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Available Channels - Only in public mode -->
         <div class="channels-section" *ngIf="!isInviteOnlyMode">
           <button mat-button type="button" (click)="toggleChannels()" class="channels-toggle">
