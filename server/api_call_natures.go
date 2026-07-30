@@ -9,8 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"rdio-scanner/server/mapping"
+	"unicode/utf8"
 )
 
 // CallNaturesHandler handles GET/POST /api/call-natures
@@ -158,12 +157,23 @@ func stringsFromAnySlice(v any) []string {
 	return out
 }
 
+// maxManualCallNaturePhraseLen caps admin-entered phrases (pathological paste).
+const maxManualCallNaturePhraseLen = 120
+
+// sanitizeCallNaturePhrases cleans admin-entered phrases. It does NOT apply
+// mapping.IsAcceptableCallNaturePhrase — that heuristic is for automatic mining.
 func sanitizeCallNaturePhrases(phrases []string) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, p := range phrases {
 		p = strings.ToUpper(strings.TrimSpace(p))
-		if p == "" || seen[p] || !mapping.IsAcceptableCallNaturePhrase(p) {
+		if p == "" {
+			continue
+		}
+		if utf8.RuneCountInString(p) > maxManualCallNaturePhraseLen {
+			p = strings.TrimSpace(string([]rune(p)[:maxManualCallNaturePhraseLen]))
+		}
+		if p == "" || seen[p] {
 			continue
 		}
 		seen[p] = true

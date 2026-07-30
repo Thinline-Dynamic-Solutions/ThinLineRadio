@@ -2091,6 +2091,24 @@
       </div>
 
       <div class="row mapping-row-full">
+        <mat-slide-toggle formControlName="callNaturePhraseLearn">
+          Suggest phrases from transcripts
+        </mat-slide-toggle>
+        <p class="mapping-hint">
+          When enabled, ThinLine watches new (and optionally past) transcripts for local dispatch jargon
+          under each call nature — for example <strong>10-50 PI</strong> / <strong>10-50 PD</strong> for accidents.
+          Suggestions are agency-specific. <strong>Nothing is added until you Accept</strong> it in the list below.
+          Scanning history re-reads stored transcriptions and may take a moment on large databases.
+        </p>
+        <mat-form-field appearance="outline" style="width:220px;margin-top:8px"
+                        *ngIf="mappingForm.get('callNaturePhraseLearn')?.value">
+          <mat-label>Min sightings before ready</mat-label>
+          <input matInput type="number" min="1" max="50" formControlName="callNaturePhraseLearnMinSightings">
+          <mat-hint>Default 3 — same idea as auto-learn tone sets</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <div class="row mapping-row-full">
         <mat-slide-toggle formControlName="suppressUnknownNaturePins">
           Drop UNKNOWN PROBLEM from map and geocoding
         </mat-slide-toggle>

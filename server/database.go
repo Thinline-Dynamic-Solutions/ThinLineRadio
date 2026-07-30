@@ -404,6 +404,7 @@ func (db *Database) migrate() error {
 		{"migrateUserAlertPushPreferences", migrateUserAlertPushPreferences},
 		{"migrateIncidentMapping", migrateIncidentMapping},
 		{"migrateCallNatures", migrateCallNatures},
+		{"migrateCallNaturePhraseLearn", migrateCallNaturePhraseLearn},
 		{"migrateKeywordAlertUnique", migrateKeywordAlertUnique},
 	}
 	for _, step := range lateSteps {

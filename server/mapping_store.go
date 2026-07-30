@@ -31,6 +31,12 @@ type MappingIntegration struct {
 	// CallNatureOpenAIClassifyConfigured is set when callNatureOpenAIClassify was
 	// explicitly saved in admin (so we can default-on for local engine when unset).
 	CallNatureOpenAIClassifyConfigured bool `json:"-"`
+	// CallNaturePhraseLearn enables suggesting local transcript jargon under
+	// call-nature categories (admin must Accept before phrases are applied).
+	CallNaturePhraseLearn bool `json:"callNaturePhraseLearn"`
+	// CallNaturePhraseLearnMinSightings is how many distinct calls must show a
+	// phrase before it appears as a ready suggestion (default 3).
+	CallNaturePhraseLearnMinSightings uint `json:"callNaturePhraseLearnMinSightings"`
 	// SuppressUnknownNaturePins skips geocoding and drops map pins when the
 	// call nature is a catch-all unknown (UNKNOWN PROBLEM, etc.).
 	SuppressUnknownNaturePins bool `json:"suppressUnknownNaturePins"`

@@ -624,6 +624,14 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 
 	stageStart = logSlowStage("extract+nature-classify (mapping.Process)")
 
+	if out.Primary != nil && mapInteg.CallNaturePhraseLearn {
+		cleaned := strings.TrimSpace(out.Cleaned)
+		if cleaned == "" {
+			cleaned = transcript
+		}
+		q.controller.processCallNaturePhraseLearn(call.Id, transcript, out.Primary.NatureDesc, cleaned, natureData)
+	}
+
 	if out.Primary != nil {
 		inheritPeerAgencyIncidentPin(store, call.Id, call.System.Id, call.Timestamp.UnixMilli(), transcript, geo, scope, out.Primary)
 	}

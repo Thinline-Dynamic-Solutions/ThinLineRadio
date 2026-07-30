@@ -173,6 +173,40 @@ export interface CallNature {
     createdAt?: number;
 }
 
+export interface CallNaturePhraseSuggestion {
+    candidateId: number;
+    label: string;
+    phrase: string;
+    sightings: number;
+    sampleCallIds?: number[];
+    firstSeenAt?: number;
+    lastSeenAt?: number;
+    ready?: boolean;
+}
+
+export interface CallNaturePhraseLearnStatus {
+    enabled: boolean;
+    minSightings: number;
+    pendingReady: number;
+    pendingAll: number;
+}
+
+export interface CallNaturePhraseSuggestionsResponse {
+    status: CallNaturePhraseLearnStatus;
+    suggestions: CallNaturePhraseSuggestion[];
+}
+
+export interface CallNaturePhraseScanResponse {
+    callsScanned: number;
+    callsWithNature: number;
+    candidatesTouched: number;
+    readyCount: number;
+    lookbackHours: number;
+    minSightings: number;
+    suggestions: CallNaturePhraseSuggestion[];
+    message?: string;
+}
+
 export interface UserGroup {
     id?: number;
     name?: string;
@@ -1516,6 +1550,59 @@ export class RdioScannerAdminService implements OnDestroy {
         } catch (error) {
             this.errorHandler(error);
             return false;
+        }
+    }
+
+    async getCallNaturePhraseSuggestions(): Promise<CallNaturePhraseSuggestionsResponse | undefined> {
+        try {
+            return await firstValueFrom(this.ngHttpClient.get<CallNaturePhraseSuggestionsResponse>(
+                '/api/call-nature-phrase-suggestions',
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
+        }
+    }
+
+    async acceptCallNaturePhraseSuggestion(candidateId: number): Promise<boolean> {
+        try {
+            await firstValueFrom(this.ngHttpClient.post(
+                `/api/call-nature-phrase-suggestions/${candidateId}/accept`,
+                {},
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return true;
+        } catch (error) {
+            this.errorHandler(error);
+            return false;
+        }
+    }
+
+    async dismissCallNaturePhraseSuggestion(candidateId: number): Promise<boolean> {
+        try {
+            await firstValueFrom(this.ngHttpClient.post(
+                `/api/call-nature-phrase-suggestions/${candidateId}/dismiss`,
+                {},
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return true;
+        } catch (error) {
+            this.errorHandler(error);
+            return false;
+        }
+    }
+
+    async scanCallNaturePhrases(hours = 168, limit = 200): Promise<CallNaturePhraseScanResponse | undefined> {
+        try {
+            return await firstValueFrom(this.ngHttpClient.post<CallNaturePhraseScanResponse>(
+                '/api/call-nature-phrase-scan',
+                { hours, limit },
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error) {
+            this.errorHandler(error);
+            return undefined;
         }
     }
 

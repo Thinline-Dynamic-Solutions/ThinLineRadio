@@ -9,6 +9,83 @@
     </button>
 </div>
 
+<div class="cn-learn-panel">
+    <div class="cn-learn-header">
+        <div>
+            <div class="cn-learn-title">
+                <mat-icon>psychology</mat-icon>
+                Phrase suggestions from transcripts
+            </div>
+            <p class="cn-learn-disclaimer">
+                Enable <strong>Suggest phrases from transcripts</strong> in the toggles above (then Save if the panel shows dirty).
+                ThinLine will watch new calls and can scan recent history for local jargon
+                (for example <code>10-50 PI</code> under an accident category).
+                Suggestions are specific to <em>your</em> scanner traffic.
+                <strong>Nothing is applied until you Accept</strong>.
+            </p>
+        </div>
+        <div class="cn-learn-actions">
+            <button type="button" mat-stroked-button
+                    (click)="scanHistory()"
+                    [disabled]="scanning || !learnEnabled">
+                <mat-icon>manage_search</mat-icon>
+                {{ scanning ? 'Scanning…' : 'Scan recent transcripts' }}
+            </button>
+            <button type="button" mat-button (click)="loadSuggestions()" [disabled]="loadingSuggestions || scanning">
+                <mat-icon>refresh</mat-icon>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <p class="cn-learn-status" *ngIf="!learnEnabled">
+        Phrase learning is off. Turn on the toggle above to collect suggestions.
+    </p>
+    <p class="cn-learn-status" *ngIf="learnEnabled && learnStatus">
+        Learning on · ready after {{ learnStatus.minSightings }} sighting(s) ·
+        {{ learnStatus.pendingReady }} ready · {{ learnStatus.pendingAll }} pending
+    </p>
+    <p class="cn-learn-status" *ngIf="scanMessage">{{ scanMessage }}</p>
+
+    <div class="cn-suggest-block" *ngIf="readySuggestions.length">
+        <div class="cn-section-label">Ready to review
+            <span class="cn-count-badge">{{ readySuggestions.length }}</span>
+        </div>
+        <div class="cn-suggest-row" *ngFor="let s of readySuggestions">
+            <div class="cn-suggest-meta">
+                <span class="cn-suggest-label">{{ s.label }}</span>
+                <span class="cn-suggest-phrase">{{ s.phrase }}</span>
+                <span class="cn-suggest-count">{{ s.sightings }} sightings</span>
+            </div>
+            <div class="cn-suggest-btns">
+                <button type="button" mat-stroked-button color="primary" (click)="acceptSuggestion(s)">
+                    <mat-icon>check</mat-icon>
+                    Accept
+                </button>
+                <button type="button" mat-button (click)="dismissSuggestion(s)">
+                    Dismiss
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cn-suggest-block cn-suggest-emerging" *ngIf="emergingSuggestions.length">
+        <div class="cn-section-label">Emerging (need more sightings)
+            <span class="cn-count-badge">{{ emergingSuggestions.length }}</span>
+        </div>
+        <div class="cn-suggest-row" *ngFor="let s of emergingSuggestions">
+            <div class="cn-suggest-meta">
+                <span class="cn-suggest-label">{{ s.label }}</span>
+                <span class="cn-suggest-phrase">{{ s.phrase }}</span>
+                <span class="cn-suggest-count">{{ s.sightings }} / {{ learnStatus?.minSightings || 3 }}</span>
+            </div>
+            <div class="cn-suggest-btns">
+                <button type="button" mat-button (click)="dismissSuggestion(s)">Dismiss</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <mat-form-field appearance="outline" class="cn-search">
     <mat-label>Search categories or phrases</mat-label>
     <input matInput [(ngModel)]="searchFilter" autocomplete="off">
