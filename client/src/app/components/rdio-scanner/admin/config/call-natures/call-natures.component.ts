@@ -123,7 +123,15 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     }
 
     async saveEdit(): Promise<void> {
-        if (!this.editingForm || this.editingForm.invalid || this.editingIndex === null) {
+        if (!this.editingForm || this.editingIndex === null) {
+            return;
+        }
+
+        // Commit a phrase typed into the "Add phrase" box but not yet added via
+        // Enter/Add, so clicking Save directly doesn't silently drop it.
+        this.addPhraseFromInput();
+
+        if (this.editingForm.invalid) {
             return;
         }
 

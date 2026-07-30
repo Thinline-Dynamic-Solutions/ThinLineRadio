@@ -9,8 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"rdio-scanner/server/mapping"
+	"unicode/utf8"
 )
 
 // CallNaturesHandler handles GET/POST /api/call-natures
@@ -158,12 +157,29 @@ func stringsFromAnySlice(v any) []string {
 	return out
 }
 
+// maxManualCallNaturePhraseLen is a generous safety cap for admin-entered
+// phrases. Real dispatch phrases are far shorter; this only guards against a
+// pathological paste bloating the match terms.
+const maxManualCallNaturePhraseLen = 120
+
+// sanitizeCallNaturePhrases cleans phrases typed by an admin in the call-nature
+// editor: uppercase, trim, drop empty, dedup, and cap absurd lengths. It does
+// NOT apply mapping.IsAcceptableCallNaturePhrase — that heuristic is tuned for
+// automatic phrase mining (rejecting periods, "ON SCENE", >6 words, etc.) and
+// silently discarding an admin's explicit input is exactly the "phrases won't
+// save" bug. When an admin types a phrase, we trust it.
 func sanitizeCallNaturePhrases(phrases []string) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, p := range phrases {
 		p = strings.ToUpper(strings.TrimSpace(p))
-		if p == "" || seen[p] || !mapping.IsAcceptableCallNaturePhrase(p) {
+		if p == "" {
+			continue
+		}
+		if utf8.RuneCountInString(p) > maxManualCallNaturePhraseLen {
+			p = strings.TrimSpace(string([]rune(p)[:maxManualCallNaturePhraseLen]))
+		}
+		if p == "" || seen[p] {
 			continue
 		}
 		seen[p] = true
