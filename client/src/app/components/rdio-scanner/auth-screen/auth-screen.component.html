@@ -408,8 +408,9 @@
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" required [readonly]="emailVerificationRequired && signupEmailCodeConfirmed">
-          <mat-hint *ngIf="emailVerificationRequired && signupEmailCodeConfirmed">Verified</mat-hint>
+          <input matInput type="email" formControlName="email" required autocomplete="email"
+                 [readonly]="emailLockedAfterVerify">
+          <mat-hint *ngIf="emailLockedAfterVerify">Verified</mat-hint>
           <mat-error *ngIf="registerForm.get('email')?.hasError('required')">
             Email is required
           </mat-error>

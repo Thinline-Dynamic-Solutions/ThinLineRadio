@@ -90,6 +90,12 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   pendingEmail = '';
   /** True after user enters the 6-digit signup code (email-verification-required flow only). */
   signupEmailCodeConfirmed = false;
+  /**
+   * When true, the registration email input is read-only (OTP confirmed, or invite
+   * bound to a specific email). Access/invite codes without a bound email must NOT
+   * set this — that left an empty "Verified" field users could not type into (#261).
+   */
+  emailLockedAfterVerify = false;
   /** True when registration completed via an access/invitation code — user is auto-verified, no email check needed. */
   registeredWithCode = false;
   
@@ -345,10 +351,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
           // Invitation link counts as email verification — skip the email code step
           this.signupEmailCodeConfirmed = true;
           
-          // Pre-fill email if provided in invitation
+          // Pre-fill email if provided in invitation; only lock when we have one
           if (response.email) {
             this.registerForm.patchValue({ email: response.email });
             this.pendingEmail = response.email;
+            this.emailLockedAfterVerify = true;
+          } else {
+            this.emailLockedAfterVerify = false;
           }
           
           // Set invitation code as accessCode
@@ -475,6 +484,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
       this.pendingEmail = '';
       this.emailVerificationError = '';
       this.signupEmailCodeConfirmed = false;
+      this.emailLockedAfterVerify = false;
     }
     // Clear errors when switching modes
     if (mode !== 'group-admin') {
@@ -897,6 +907,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.emailVerificationError = '';
     this.emailVerificationStep = false;
     this.signupEmailCodeConfirmed = true;
+    this.emailLockedAfterVerify = !!this.pendingEmail;
     this.registerForm.patchValue({ email: this.pendingEmail });
     this.cdr.markForCheck();
     this.snackBar.open('Code accepted. Complete your registration below.', 'Close', {
@@ -911,6 +922,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.emailVerificationError = '';
     this.pendingEmail = '';
     this.signupEmailCodeConfirmed = false;
+    this.emailLockedAfterVerify = false;
     this.cdr.markForCheck();
   }
 
@@ -1201,12 +1213,16 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
             accessCode: this.pendingAccessCode
           });
           
-          // If email was provided in invitation, pre-fill it
+          // Only lock email when the code is bound to a specific address.
+          // Generic access codes leave email empty and editable (#261).
           if (response.email) {
             this.registerForm.patchValue({
               email: response.email
             });
             this.pendingEmail = response.email;
+            this.emailLockedAfterVerify = true;
+          } else {
+            this.emailLockedAfterVerify = false;
           }
           
           this.snackBar.open('Code validated successfully!', 'Close', {
