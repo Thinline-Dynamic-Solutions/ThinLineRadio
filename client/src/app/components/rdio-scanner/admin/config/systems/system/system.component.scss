@@ -550,6 +550,95 @@
     }
 }
 
+// ─── Unit alias suggestions ───────────────────────────────────────────────────
+.unit-alias-learn-panel {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.unit-alias-learn-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.unit-alias-learn-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.unit-alias-learn-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.unit-alias-status {
+    margin-bottom: 8px;
+    opacity: 0.85;
+}
+
+.unit-alias-block {
+    margin-top: 12px;
+}
+
+.unit-alias-section-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+    margin-bottom: 6px;
+}
+
+.unit-alias-emerging {
+    opacity: 0.85;
+}
+
+.unit-alias-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.unit-alias-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 240px;
+}
+
+.unit-alias-label-field {
+    width: min(320px, 100%);
+    margin-top: 4px;
+}
+
+.unit-alias-sample {
+    display: block;
+    opacity: 0.7;
+    max-width: 520px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unit-alias-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
 // ─── Responsive ───────────────────────────────────────────────────────────────
 @media (max-width: 720px) {
     .settings-grid {

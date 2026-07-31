@@ -34,18 +34,14 @@ func (system *System) applyAutoLearnToneSetsRollout() {
 	}
 }
 
-// applyAutoLearnUnitAliasesRollout enables unit alias auto-learn on talkgroups matching selected tags.
+// applyAutoLearnUnitAliasesRollout enables unit alias auto-learn on talkgroups.
+// Empty tag list = all talkgroups in the system; selected tags restrict to matching channels.
 func (system *System) applyAutoLearnUnitAliasesRollout() {
 	if system == nil {
 		return
 	}
 
 	if system.Talkgroups == nil {
-		return
-	}
-
-	tagSet := bulkToneTagSet(system.AutoLearnUnitAliasesTagIds)
-	if len(tagSet) == 0 {
 		return
 	}
 
@@ -58,8 +54,10 @@ func (system *System) applyAutoLearnUnitAliasesRollout() {
 	if system.AutoLearnUnitAliasesAutoOffDays > 0 && system.AutoLearnUnitAliasesExpiresAt == 0 {
 		system.AutoLearnUnitAliasesExpiresAt = now + int64(system.AutoLearnUnitAliasesAutoOffDays)*24*60*60*1000
 	}
+
+	tagSet := bulkToneTagSet(system.AutoLearnUnitAliasesTagIds)
 	for _, tg := range system.Talkgroups.List {
-		if tagSet[tg.TagId] {
+		if len(tagSet) == 0 || tagSet[tg.TagId] {
 			tg.AutoLearnUnitAliases = true
 		}
 	}

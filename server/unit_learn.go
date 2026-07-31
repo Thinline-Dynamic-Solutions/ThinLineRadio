@@ -1,6 +1,7 @@
 // Copyright (C) 2025 Thinline Dynamic Solutions
 //
 // Auto-learn unit aliases: map radio unitRef to human labels using metadata and OpenAI.
+// Consistent P25 radio aliases auto-add; OpenAI / conflicts queue for admin Accept/Dismiss.
 
 package main
 
@@ -12,11 +13,13 @@ import (
 	"time"
 )
 
+const unitLearnMaxCallRecords = 25
+
 type unitLearnCallRecord struct {
-	CallId      uint64 `json:"callId"`
-	Transcript  string `json:"transcript"`
-	RadioLabel  string `json:"radioLabel"`
-	Timestamp   int64  `json:"timestamp"`
+	CallId     uint64 `json:"callId"`
+	Transcript string `json:"transcript"`
+	RadioLabel string `json:"radioLabel"`
+	Timestamp  int64  `json:"timestamp"`
 }
 
 type unitObservation struct {
@@ -99,7 +102,16 @@ func unitExistsWithLabel(units *Units, unitRef uint) bool {
 	return false
 }
 
-// processUnitAutoLearn records unitRef observations and auto-adds aliases after N calls.
+func truncateUnitLearnTranscript(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 240 {
+		return s[:240]
+	}
+	return s
+}
+
+// processUnitAutoLearn records unitRef observations and auto-adds confident P25 aliases
+// after N calls; OpenAI / ambiguous cases become reviewable suggestions.
 func (controller *Controller) processUnitAutoLearn(call *Call, transcript string) {
 	if controller == nil || call == nil || !unitLearnEnabled(call) {
 		return
@@ -127,32 +139,35 @@ func (controller *Controller) upsertUnitLearnCandidate(call *Call, obs unitObser
 
 	var candidateId uint64
 	var callRecordsJson string
-	var finalizedAt sql.NullInt64
+	var finalizedAt, acceptedAt, dismissedAt sql.NullInt64
 
-	selectQuery := `SELECT "candidateId", "callRecords", "finalizedAt" FROM "unitAliasLearnCandidates" WHERE "systemId" = $1 AND "talkgroupId" = $2 AND "unitRef" = $3`
+	selectQuery := `SELECT "candidateId", "callRecords", "finalizedAt", "acceptedAt", "dismissedAt" FROM "unitAliasLearnCandidates" WHERE "systemId" = $1 AND "talkgroupId" = $2 AND "unitRef" = $3`
 	if controller.Database.Config.DbType != DbTypePostgresql {
-		selectQuery = `SELECT "candidateId", "callRecords", "finalizedAt" FROM "unitAliasLearnCandidates" WHERE "systemId" = ? AND "talkgroupId" = ? AND "unitRef" = ?`
+		selectQuery = `SELECT "candidateId", "callRecords", "finalizedAt", "acceptedAt", "dismissedAt" FROM "unitAliasLearnCandidates" WHERE "systemId" = ? AND "talkgroupId" = ? AND "unitRef" = ?`
 	}
 
 	err := controller.Database.Sql.QueryRow(selectQuery, call.System.Id, call.Talkgroup.Id, obs.UnitRef).
-		Scan(&candidateId, &callRecordsJson, &finalizedAt)
+		Scan(&candidateId, &callRecordsJson, &finalizedAt, &acceptedAt, &dismissedAt)
 
 	records := []unitLearnCallRecord{}
 	if err == nil && callRecordsJson != "" {
 		_ = json.Unmarshal([]byte(callRecordsJson), &records)
 	}
 
-	if finalizedAt.Valid && finalizedAt.Int64 > 0 {
+	if (finalizedAt.Valid && finalizedAt.Int64 > 0) ||
+		(acceptedAt.Valid && acceptedAt.Int64 > 0) ||
+		(dismissedAt.Valid && dismissedAt.Int64 > 0) {
 		return
 	}
 
+	snippet := truncateUnitLearnTranscript(transcript)
 	updatedExisting := false
 	for i, r := range records {
 		if r.CallId != call.Id {
 			continue
 		}
-		if transcript != "" {
-			records[i].Transcript = transcript
+		if snippet != "" {
+			records[i].Transcript = snippet
 		}
 		if strings.TrimSpace(obs.RadioLabel) != "" {
 			records[i].RadioLabel = strings.TrimSpace(obs.RadioLabel)
@@ -164,10 +179,13 @@ func (controller *Controller) upsertUnitLearnCandidate(call *Call, obs unitObser
 	if !updatedExisting {
 		records = append(records, unitLearnCallRecord{
 			CallId:     call.Id,
-			Transcript: transcript,
+			Transcript: snippet,
 			RadioLabel: strings.TrimSpace(obs.RadioLabel),
 			Timestamp:  call.Timestamp.UnixMilli(),
 		})
+	}
+	if len(records) > unitLearnMaxCallRecords {
+		records = records[len(records)-unitLearnMaxCallRecords:]
 	}
 	recordsJson, _ := json.Marshal(records)
 
@@ -203,8 +221,8 @@ func (controller *Controller) upsertUnitLearnCandidate(call *Call, obs unitObser
 
 	label, consistent, conflict := consistentRadioLabel(records)
 	if conflict {
-		controller.skipUnitLearnCandidate(call.System, call.Talkgroup, obs.UnitRef,
-			"conflicting radio aliases across calls")
+		controller.queueUnitLearnForReview(call.System, call.Talkgroup, obs.UnitRef, "",
+			"conflicting radio aliases across calls", false)
 		return
 	}
 	if consistent && label != "" {
@@ -222,27 +240,30 @@ func (controller *Controller) upsertUnitLearnCandidate(call *Call, obs unitObser
 
 	suggested := controller.suggestUnitLearnLabel(call.System, call.Talkgroup, obs.UnitRef, records)
 	if suggested == "" || suggested == "UNKNOWN" {
-		controller.skipUnitLearnCandidate(call.System, call.Talkgroup, obs.UnitRef,
-			"could not determine a consistent unit label")
+		controller.queueUnitLearnForReview(call.System, call.Talkgroup, obs.UnitRef, "",
+			"could not determine a consistent unit label", true)
 		return
 	}
-	go controller.autoAddLearnedUnitAlias(call.System, call.Talkgroup, obs.UnitRef, suggested, records, true)
+	controller.queueUnitLearnForReview(call.System, call.Talkgroup, obs.UnitRef, suggested,
+		"suggested from voice transcripts", true)
 }
 
-// skipUnitLearnCandidate marks a candidate finalized without auto-adding or emailing.
-func (controller *Controller) skipUnitLearnCandidate(system *System, talkgroup *Talkgroup, unitRef uint, reason string) {
+// queueUnitLearnForReview stores a suggested label for admin Accept/Dismiss (does not write units).
+func (controller *Controller) queueUnitLearnForReview(system *System, talkgroup *Talkgroup, unitRef uint, suggestedLabel, reason string, usedOpenAI bool) {
 	if controller == nil || system == nil || talkgroup == nil || unitRef == 0 {
 		return
 	}
 
-	now := time.Now().UnixMilli()
-	updateQuery := `UPDATE "unitAliasLearnCandidates" SET "finalizedAt" = $1 WHERE "systemId" = $2 AND "talkgroupId" = $3 AND "unitRef" = $4 AND ("finalizedAt" IS NULL OR "finalizedAt" = 0)`
+	suggestedLabel = strings.TrimSpace(suggestedLabel)
+	reason = strings.TrimSpace(reason)
+
+	updateQuery := `UPDATE "unitAliasLearnCandidates" SET "suggestedLabel" = $1, "reason" = $2, "usedOpenAI" = $3 WHERE "systemId" = $4 AND "talkgroupId" = $5 AND "unitRef" = $6 AND ("finalizedAt" IS NULL OR "finalizedAt" = 0) AND ("acceptedAt" IS NULL OR "acceptedAt" = 0) AND ("dismissedAt" IS NULL OR "dismissedAt" = 0)`
 	if controller.Database.Config.DbType != DbTypePostgresql {
-		updateQuery = `UPDATE "unitAliasLearnCandidates" SET "finalizedAt" = ? WHERE "systemId" = ? AND "talkgroupId" = ? AND "unitRef" = ? AND ("finalizedAt" IS NULL OR "finalizedAt" = 0)`
+		updateQuery = `UPDATE "unitAliasLearnCandidates" SET "suggestedLabel" = ?, "reason" = ?, "usedOpenAI" = ? WHERE "systemId" = ? AND "talkgroupId" = ? AND "unitRef" = ? AND ("finalizedAt" IS NULL OR "finalizedAt" = 0) AND ("acceptedAt" IS NULL OR "acceptedAt" = 0) AND ("dismissedAt" IS NULL OR "dismissedAt" = 0)`
 	}
-	res, err := controller.Database.Sql.Exec(updateQuery, now, system.Id, talkgroup.Id, unitRef)
+	res, err := controller.Database.Sql.Exec(updateQuery, suggestedLabel, reason, usedOpenAI, system.Id, talkgroup.Id, unitRef)
 	if err != nil {
-		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("unit auto-learn: mark skipped failed: %v", err))
+		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("unit auto-learn: queue for review failed: %v", err))
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -250,8 +271,8 @@ func (controller *Controller) skipUnitLearnCandidate(system *System, talkgroup *
 	}
 
 	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-		"unit auto-learn: skipped unitRef %d on talkgroup %d — %s (add manually in admin if needed)",
-		unitRef, talkgroup.TalkgroupRef, reason,
+		"unit auto-learn: queued unitRef %d on talkgroup %d for review — %s (label=%q)",
+		unitRef, talkgroup.TalkgroupRef, reason, suggestedLabel,
 	))
 }
 
@@ -302,11 +323,17 @@ func (controller *Controller) autoAddLearnedUnitAlias(system *System, talkgroup 
 	}
 
 	now := time.Now().UnixMilli()
-	updateQuery := `UPDATE "unitAliasLearnCandidates" SET "finalizedAt" = $1 WHERE "systemId" = $2 AND "talkgroupId" = $3 AND "unitRef" = $4 AND ("finalizedAt" IS NULL OR "finalizedAt" = 0)`
+	updateQuery := `UPDATE "unitAliasLearnCandidates" SET "finalizedAt" = $1, "acceptedAt" = $1, "suggestedLabel" = $2, "usedOpenAI" = $3 WHERE "systemId" = $4 AND "talkgroupId" = $5 AND "unitRef" = $6 AND ("finalizedAt" IS NULL OR "finalizedAt" = 0) AND ("acceptedAt" IS NULL OR "acceptedAt" = 0) AND ("dismissedAt" IS NULL OR "dismissedAt" = 0)`
 	if controller.Database.Config.DbType != DbTypePostgresql {
-		updateQuery = `UPDATE "unitAliasLearnCandidates" SET "finalizedAt" = ? WHERE "systemId" = ? AND "talkgroupId" = ? AND "unitRef" = ? AND ("finalizedAt" IS NULL OR "finalizedAt" = 0)`
+		updateQuery = `UPDATE "unitAliasLearnCandidates" SET "finalizedAt" = ?, "acceptedAt" = ?, "suggestedLabel" = ?, "usedOpenAI" = ? WHERE "systemId" = ? AND "talkgroupId" = ? AND "unitRef" = ? AND ("finalizedAt" IS NULL OR "finalizedAt" = 0) AND ("acceptedAt" IS NULL OR "acceptedAt" = 0) AND ("dismissedAt" IS NULL OR "dismissedAt" = 0)`
 	}
-	res, err := controller.Database.Sql.Exec(updateQuery, now, system.Id, talkgroup.Id, unitRef)
+	var res sql.Result
+	var err error
+	if controller.Database.Config.DbType == DbTypePostgresql {
+		res, err = controller.Database.Sql.Exec(updateQuery, now, label, usedOpenAI, system.Id, talkgroup.Id, unitRef)
+	} else {
+		res, err = controller.Database.Sql.Exec(updateQuery, now, now, label, usedOpenAI, system.Id, talkgroup.Id, unitRef)
+	}
 	if err != nil {
 		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("unit auto-learn: mark finalized failed: %v", err))
 		return
