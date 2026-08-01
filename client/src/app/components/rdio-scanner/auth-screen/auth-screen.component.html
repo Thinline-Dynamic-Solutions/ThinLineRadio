@@ -269,10 +269,13 @@
               <label class="tier-price-option" *ngFor="let o of t.pricingOptions">
                 <input type="radio" name="tier-price-{{ t.groupId }}" [value]="o.priceId"
                        [checked]="tierPrice[t.groupId] === o.priceId"
-                       (change)="tierPrice[t.groupId] = o.priceId">
+                       (change)="setTierPrice(t.groupId, o.priceId)">
                 <span>{{ o.label }} &mdash; {{ o.amount }}</span>
               </label>
             </div>
+            <p class="tier-price-missing" *ngIf="tierMissingPricing(t)">
+              This paid tier has no pricing plans configured. Contact the site admin or choose another tier.
+            </p>
             <div class="tier-primary" *ngIf="selectedTiers[t.groupId] && selectedTierIds().length > 1">
               <label>
                 <input type="radio" name="primaryTier" [value]="t.groupId"
@@ -284,9 +287,10 @@
           </div>
         </div>
 
-        <!-- Pricing Information (single-tier only; multi-tier shows prices per tier above) -->
+        <!-- Pricing Information (single-tier only; plan is chosen after signup on /setup/plan) -->
         <div class="pricing-section" *ngIf="tiers.length < 2 && publicGroupInfo?.billingEnabled && publicGroupInfo?.pricingOptions && publicGroupInfo.pricingOptions.length > 0">
           <h4>Pricing Plans</h4>
+          <p class="pricing-hint">You’ll choose a plan after creating your account.</p>
           <div class="pricing-options">
             <div class="pricing-option" *ngFor="let option of publicGroupInfo.pricingOptions">
               <div class="pricing-label">{{ option.label }}</div>

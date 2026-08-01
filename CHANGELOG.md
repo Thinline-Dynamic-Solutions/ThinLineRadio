@@ -4,6 +4,16 @@
 
 ---
 
+## Version 26.08.1 - Released August 1, 2026
+
+### Fixed
+
+- **Auth signup — multi-tier plan selection gate**
+  - Single public paid group no longer blocks Register with “choose a plan” when the form has no plan radios; plan choice stays on `/setup/plan` after account creation.
+  - Explicit tier/plan selection is required only when two or more public tiers exist (matches the server). Selecting a paid tier with one pricing option auto-picks it; misconfigured paid tiers show a clear warning.
+
+---
+
 ## Version 26.07.27 - Released July 27, 2026
 
 ### Fixed

@@ -631,7 +631,13 @@ $text-hint:     #777;
 
   .pricing-section {
     margin-bottom: 16px;
-    h4 { margin: 0 0 12px; color: $text; font-size: 16px; }
+    h4 { margin: 0 0 8px; color: $text; font-size: 16px; }
+
+    .pricing-hint {
+      margin: 0 0 12px;
+      color: $text-muted;
+      font-size: 13px;
+    }
 
     .pricing-options {
       display: flex;
@@ -779,6 +785,14 @@ $text-hint:     #777;
         gap: 8px;
         cursor: pointer;
         font-weight: 600;
+        min-height: 44px;
+
+        input[type='checkbox'] {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
     }
 
     .tier-meta {
@@ -807,13 +821,42 @@ $text-hint:     #777;
     .tier-price-option {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         cursor: pointer;
+        min-height: 40px;
+
+        input[type='radio'] {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+    }
+
+    .tier-price-missing {
+        margin: 8px 0 0 24px;
+        font-size: 12px;
+        color: #ffb4a9;
     }
 
     .tier-primary {
         margin: 6px 0 0 24px;
         font-size: 12px;
         color: rgba(255, 255, 255, 0.7);
+
+        label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 40px;
+            cursor: pointer;
+        }
+
+        input[type='radio'] {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
     }
 }

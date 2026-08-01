@@ -55,8 +55,11 @@ run-server.sh
 .env
 scripts/nextcloud-migrate/
 scripts/nextcloud-migrate-to-vps/
+scripts/mail-migrate-to-vps/migrate.env
+scripts/mail-migrate-to-vps/secrets/
 .nextcloud-migrate-staging/
 .nextcloud-vps-migrate-staging/
+.mail-migrate-staging/
 TLR-Tones2Active911-main/
 docker/data/
 docker/logs/

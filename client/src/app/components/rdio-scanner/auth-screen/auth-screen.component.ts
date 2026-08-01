@@ -723,9 +723,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
 
 
   async onRegister(): Promise<void> {
-    // Multi-tier signup: require an explicit selection, with a plan for each paid tier.
+    // Multi-tier signup (2+ public groups): require an explicit selection + plan per paid tier.
+    // Single-tier paid signup does not pick a plan here — that happens on /setup/plan.
     if (this.usingTierSelection() && !this.tierSelectionValid()) {
-      this.error = 'Select at least one tier and choose a plan for each paid tier.';
+      const missingPricing = this.tiers.some(t => this.tierMissingPricing(t));
+      this.error = missingPricing
+        ? 'One of the selected paid tiers has no pricing plans configured. Please contact the site admin or choose another tier.'
+        : 'Select at least one tier and choose a plan for each paid tier.';
       return;
     }
     if (this.registerForm.valid && !this.loading) {
@@ -758,10 +762,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         formData.groupIds = chosenTierIds;
         formData.primaryGroupId = this.primaryTierId || chosenTierIds[0];
       }
-      // Paid tiers are settled together in one combined Stripe checkout.
-      const paidItems = this.tiers
-        .filter(t => this.selectedTiers[t.groupId] && t.billingEnabled && this.tierPrice[t.groupId])
-        .map(t => ({ groupId: t.groupId, priceId: this.tierPrice[t.groupId] }));
+      // Multi-tier paid selections settle in one combined Stripe checkout.
+      // Single-tier paid signup uses /setup/plan after register instead.
+      const paidItems = this.usingTierSelection()
+        ? this.tiers
+            .filter(t => this.selectedTiers[t.groupId] && t.billingEnabled && this.tierPrice[t.groupId])
+            .map(t => ({ groupId: t.groupId, priceId: this.tierPrice[t.groupId] }))
+        : [];
 
       console.log('Registration form data being sent:', formData);
 
@@ -1051,13 +1058,39 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
       if (this.primaryTierId === null) {
         this.primaryTierId = groupId;
       }
-    } else if (this.primaryTierId === groupId) {
-      const remaining = this.selectedTierIds();
-      this.primaryTierId = remaining.length ? remaining[0] : null;
+      this.autoSelectSoleTierPrice(groupId);
+    } else {
+      delete this.tierPrice[groupId];
+      if (this.primaryTierId === groupId) {
+        const remaining = this.selectedTierIds();
+        this.primaryTierId = remaining.length ? remaining[0] : null;
+      }
     }
     // Keep the "available channels" union in sync with the selection.
     this.loadAvailableChannels();
     this.cdr.markForCheck();
+  }
+
+  /** When a paid tier has exactly one pricing option, pick it automatically. */
+  autoSelectSoleTierPrice(groupId: number): void {
+    const tier = this.tiers.find(t => t.groupId === groupId);
+    if (!tier?.billingEnabled || this.tierPrice[groupId]) {
+      return;
+    }
+    const options = tier.pricingOptions || [];
+    if (options.length === 1 && options[0]?.priceId) {
+      this.tierPrice[groupId] = options[0].priceId;
+    }
+  }
+
+  setTierPrice(groupId: number, priceId: string): void {
+    this.tierPrice[groupId] = priceId;
+    this.cdr.markForCheck();
+  }
+
+  /** True when a selected paid tier has billing on but no pricing options configured. */
+  tierMissingPricing(tier: any): boolean {
+    return !!this.selectedTiers[tier.groupId] && !!tier.billingEnabled && !(tier.pricingOptions?.length);
   }
 
   selectedTierIds(): number[] {
@@ -1071,13 +1104,20 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     }
     return this.tiers.every(t => {
       if (!this.selectedTiers[t.groupId]) { return true; }
-      return !t.billingEnabled || !!this.tierPrice[t.groupId];
+      if (!t.billingEnabled) { return true; }
+      // Misconfigured paid tier (no prices) cannot be joined via self-serve signup.
+      if (!(t.pricingOptions?.length)) { return false; }
+      return !!this.tierPrice[t.groupId];
     });
   }
 
-  /** True when the signup form should require an explicit tier selection. */
+  /**
+   * True when the signup form should require an explicit tier selection.
+   * Matches the server: only when more than one public registration group exists.
+   * Single-tier paid signup continues to choose a plan on /setup/plan after register.
+   */
   usingTierSelection(): boolean {
-    return this.tiers.length > 0 && !this.registerForm.get('accessCode')?.value?.trim();
+    return this.tiers.length > 1 && !this.registerForm.get('accessCode')?.value?.trim();
   }
 
   loadAvailableChannels(): void {
