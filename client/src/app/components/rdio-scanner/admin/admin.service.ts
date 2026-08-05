@@ -144,6 +144,7 @@ export interface User {
     accountExpiresAt?: string;
     pinExpiresAt?: string;
     lastLogin?: string;
+    lastLoginAt?: number;
     createdAt?: string;
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
@@ -2929,6 +2930,18 @@ export class RdioScannerAdminService implements OnDestroy {
       console.error('Failed to delete user:', error);
       throw error;
     }
+  }
+
+  async bulkDeleteUsers(userIds: number[]): Promise<{ deleted: number[]; failed: { id: number; error: string }[] }> {
+    const response = await firstValueFrom(this.ngHttpClient.post<{ deleted: number[]; failed: { id: number; error: string }[] }>(
+      this.getUrl('/users/bulk-delete'),
+      { userIds },
+      { headers: this.getHeaders(), responseType: 'json' }
+    ));
+    return {
+      deleted: response?.deleted || [],
+      failed: response?.failed || [],
+    };
   }
 
   async updateUser(userId: number, userData: any): Promise<any> {

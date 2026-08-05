@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -6245,18 +6246,23 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Format lastLogin
+		var lastLoginAt int64
 		if user.LastLogin == "" || user.LastLogin == "0" {
 			lastLoginFormatted = "User has not logged in"
+			lastLoginAt = 0
 		} else {
 			if timestamp, err := strconv.ParseInt(user.LastLogin, 10, 64); err == nil {
 				// Check if timestamp is 0 (Unix epoch) which means never logged in
 				if timestamp == 0 {
 					lastLoginFormatted = "User has not logged in"
+					lastLoginAt = 0
 				} else {
 					lastLoginFormatted = time.Unix(timestamp, 0).Format("2006-01-02 15:04:05 MST")
+					lastLoginAt = timestamp
 				}
 			} else {
 				lastLoginFormatted = "User has not logged in" // fallback for invalid timestamps
+				lastLoginAt = 0
 			}
 		}
 
@@ -6297,6 +6303,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"verified":                 user.Verified,
 			"createdAt":                createdAtFormatted,
 			"lastLogin":                lastLoginFormatted,
+			"lastLoginAt":              lastLoginAt,
 			"systems":                  user.Systems,
 			"delay":                    user.Delay,
 			"systemDelays":             user.SystemDelays,
@@ -6415,67 +6422,175 @@ func (admin *Admin) UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user to check if exists
-	user := admin.Controller.Users.GetUserById(userID)
-	if user == nil {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+	if err := admin.deleteUserWithDeps(userID); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		} else if strings.Contains(err.Error(), "last system administrator") {
+			status = http.StatusBadRequest
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
-	// Delete user and all related records in a transaction
-	tx, err := admin.Controller.Database.Sql.Begin()
-	if err != nil {
-		log.Printf("Failed to begin transaction for user %d deletion: %v", userID, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete user from database"})
-		return
-	}
-
-	// Delete dependent records first (tables without ON DELETE CASCADE)
-	if _, err = tx.Exec(`DELETE FROM "userAlertPreferences" WHERE "userId" = $1`, userID); err != nil {
-		tx.Rollback()
-		log.Printf("Failed to delete userAlertPreferences for user %d: %v", userID, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete user from database"})
-		return
-	}
-	if _, err = tx.Exec(`DELETE FROM "deviceTokens" WHERE "userId" = $1`, userID); err != nil {
-		tx.Rollback()
-		log.Printf("Failed to delete deviceTokens for user %d: %v", userID, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete user from database"})
-		return
-	}
-
-	// Now delete the user
-	if _, err = tx.Exec(`DELETE FROM "users" WHERE "userId" = $1`, userID); err != nil {
-		tx.Rollback()
-		log.Printf("Failed to delete user %d from database: %v", userID, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete user from database"})
-		return
-	}
-
-	if err = tx.Commit(); err != nil {
-		tx.Rollback()
-		log.Printf("Failed to commit deletion transaction for user %d: %v", userID, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete user from database"})
-		return
-	}
-
-	// Remove user from in-memory map
-	if err := admin.Controller.Users.Remove(userID); err != nil {
-		log.Printf("Failed to remove user %d from memory: %v", userID, err)
-		// Don't fail the request since database deletion succeeded
-	}
-
-	// Sync config to file if enabled
 	admin.Controller.SyncConfigToFile()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "User deleted successfully"})
+}
+
+type usersBulkDeleteRequest struct {
+	UserIds []uint64 `json:"userIds"`
+}
+
+type usersBulkDeleteFailure struct {
+	Id    uint64 `json:"id"`
+	Error string `json:"error"`
+}
+
+type usersBulkDeleteResponse struct {
+	Deleted []uint64                 `json:"deleted"`
+	Failed  []usersBulkDeleteFailure `json:"failed"`
+}
+
+// UsersBulkDeleteHandler deletes many users with the same DB-safe cleanup as single delete.
+func (admin *Admin) UsersBulkDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	var req usersBulkDeleteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON"})
+		return
+	}
+	if len(req.UserIds) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "userIds is required"})
+		return
+	}
+	if len(req.UserIds) > 500 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "too many userIds (max 500)"})
+		return
+	}
+
+	deletingSet := map[uint64]bool{}
+	ordered := make([]uint64, 0, len(req.UserIds))
+	for _, id := range req.UserIds {
+		if id == 0 || deletingSet[id] {
+			continue
+		}
+		deletingSet[id] = true
+		ordered = append(ordered, id)
+	}
+
+	// Delete non-admins first so bulk can remove extra system admins while still
+	// refusing to remove the final remaining system administrator.
+	sort.SliceStable(ordered, func(i, j int) bool {
+		ui := admin.Controller.Users.GetUserById(ordered[i])
+		uj := admin.Controller.Users.GetUserById(ordered[j])
+		ai := ui != nil && ui.SystemAdmin
+		aj := uj != nil && uj.SystemAdmin
+		if ai == aj {
+			return false
+		}
+		return !ai && aj
+	})
+
+	resp := usersBulkDeleteResponse{
+		Deleted: []uint64{},
+		Failed:  []usersBulkDeleteFailure{},
+	}
+	for _, id := range ordered {
+		if err := admin.deleteUserWithDeps(id); err != nil {
+			resp.Failed = append(resp.Failed, usersBulkDeleteFailure{Id: id, Error: err.Error()})
+			continue
+		}
+		resp.Deleted = append(resp.Deleted, id)
+	}
+
+	admin.Controller.SyncConfigToFile()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// deleteUserWithDeps removes alert prefs + device tokens + the user row in one transaction,
+// then clears in-memory user/token state. Refuses to delete the last system administrator.
+func (admin *Admin) deleteUserWithDeps(userID uint64) error {
+	if admin == nil || admin.Controller == nil || admin.Controller.Database == nil {
+		return fmt.Errorf("server not ready")
+	}
+	if userID == 0 {
+		return fmt.Errorf("invalid user id")
+	}
+
+	user := admin.Controller.Users.GetUserById(userID)
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+	if admin.wouldLeaveNoSystemAdmin(userID) {
+		return fmt.Errorf("cannot delete the last system administrator")
+	}
+
+	tx, err := admin.Controller.Database.Sql.Begin()
+	if err != nil {
+		log.Printf("Failed to begin transaction for user %d deletion: %v", userID, err)
+		return fmt.Errorf("failed to delete user from database")
+	}
+
+	if _, err = tx.Exec(`DELETE FROM "userAlertPreferences" WHERE "userId" = $1`, userID); err != nil {
+		tx.Rollback()
+		log.Printf("Failed to delete userAlertPreferences for user %d: %v", userID, err)
+		return fmt.Errorf("failed to delete user from database")
+	}
+	if _, err = tx.Exec(`DELETE FROM "deviceTokens" WHERE "userId" = $1`, userID); err != nil {
+		tx.Rollback()
+		log.Printf("Failed to delete deviceTokens for user %d: %v", userID, err)
+		return fmt.Errorf("failed to delete user from database")
+	}
+	if _, err = tx.Exec(`DELETE FROM "users" WHERE "userId" = $1`, userID); err != nil {
+		tx.Rollback()
+		log.Printf("Failed to delete user %d from database: %v", userID, err)
+		return fmt.Errorf("failed to delete user from database")
+	}
+	if err = tx.Commit(); err != nil {
+		tx.Rollback()
+		log.Printf("Failed to commit deletion transaction for user %d: %v", userID, err)
+		return fmt.Errorf("failed to delete user from database")
+	}
+
+	if admin.Controller.DeviceTokens != nil {
+		admin.Controller.DeviceTokens.PurgeUserMemory(userID, admin.Controller.Clients)
+	}
+	if err := admin.Controller.Users.Remove(userID); err != nil {
+		log.Printf("Failed to remove user %d from memory: %v", userID, err)
+	}
+	return nil
+}
+
+func (admin *Admin) wouldLeaveNoSystemAdmin(userID uint64) bool {
+	user := admin.Controller.Users.GetUserById(userID)
+	if user == nil || !user.SystemAdmin {
+		return false
+	}
+	for _, other := range admin.Controller.Users.GetAllUsers() {
+		if other != nil && other.SystemAdmin && other.Id != userID {
+			return false
+		}
+	}
+	return true
 }
 
 // UserUpdateHandler handles PUT requests to update a user

@@ -451,6 +451,7 @@ func main() {
 
 	http.HandleFunc("/api/admin/users", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UsersListHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/create", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UserCreateHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/users/bulk-delete", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UsersBulkDeleteHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/", wrapHandler(controller.Admin.requireLocalhost(func(w http.ResponseWriter, r *http.Request) {
 		// Check if it's a device-tokens endpoint: /api/admin/users/{userId}/device-tokens/{tokenId}
 		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")

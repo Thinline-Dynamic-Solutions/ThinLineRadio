@@ -261,6 +261,45 @@ func (dt *DeviceTokens) Delete(id uint64, db *Database, clients *Clients) error 
 	return nil
 }
 
+// PurgeUserMemory removes all in-memory device tokens for a user after their DB rows
+// were already deleted (e.g. user account deletion). Also clears linked client sessions.
+func (dt *DeviceTokens) PurgeUserMemory(userId uint64, clients *Clients) {
+	if dt == nil || userId == 0 {
+		return
+	}
+
+	dt.mutex.Lock()
+	tokens := dt.userTokens[userId]
+	var clearedKeys []string
+	for _, token := range tokens {
+		if token == nil {
+			continue
+		}
+		pushKey := token.FCMToken
+		if pushKey == "" {
+			pushKey = token.Token
+		}
+		if pushKey != "" {
+			clearedKeys = append(clearedKeys, pushKey)
+		}
+		delete(dt.tokens, token.Id)
+		if token.FCMToken != "" {
+			delete(dt.tokenIndex, token.FCMToken)
+		}
+		if token.Token != "" {
+			delete(dt.tokenIndex, token.Token)
+		}
+	}
+	delete(dt.userTokens, userId)
+	dt.mutex.Unlock()
+
+	if clients != nil {
+		for _, k := range clearedKeys {
+			clients.ClearSessionsForPushToken(k)
+		}
+	}
+}
+
 func (dt *DeviceTokens) GetByUser(userId uint64) []*DeviceToken {
 	dt.mutex.RLock()
 	defer dt.mutex.RUnlock()
