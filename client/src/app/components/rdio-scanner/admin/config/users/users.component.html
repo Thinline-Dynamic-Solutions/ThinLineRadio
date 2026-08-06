@@ -79,6 +79,15 @@
             </mat-select>
         </mat-form-field>
 
+        <mat-form-field appearance="outline" class="filter-field">
+            <mat-label>Sort</mat-label>
+            <mat-select [(ngModel)]="sortMode" (selectionChange)="onSortModeChange()">
+                <mat-option value="name">Name A–Z</mat-option>
+                <mat-option value="lastLoginDesc">Last login (newest)</mat-option>
+                <mat-option value="lastLoginAsc">Last login (oldest)</mat-option>
+            </mat-select>
+        </mat-form-field>
+
         <button mat-button type="button" color="accent" *ngIf="hasActiveFilters" (click)="clearFilters()">
             <mat-icon>clear</mat-icon>
             Clear
@@ -87,6 +96,17 @@
         <span class="search-info mat-body-2" *ngIf="hasActiveFilters">
             {{ filteredUsers.length }} of {{ users.length }} users
         </span>
+    </div>
+
+    <div class="bulk-toolbar" *ngIf="!loading && !error && selectedCount > 0">
+        <span class="mat-body-2">{{ selectedCount }} selected</span>
+        <button type="button" mat-button (click)="clearSelection()">Deselect</button>
+        <button type="button" mat-raised-button color="warn"
+                (click)="bulkDeleteSelected()"
+                [disabled]="bulkDeleting">
+            <mat-icon>delete</mat-icon>
+            {{ bulkDeleting ? 'Deleting…' : 'Delete selected' }}
+        </button>
     </div>
 
     <!-- Loading State -->
@@ -111,6 +131,26 @@
     <!-- Users Table -->
     <div class="table-wrapper" *ngIf="!loading && !error && users.length > 0">
         <mat-table [dataSource]="paginatedUsers" multiTemplateDataRows class="users-table">
+
+            <!-- Select Column -->
+            <ng-container matColumnDef="select">
+                <th mat-header-cell *matHeaderCellDef class="select-col">
+                    <mat-checkbox
+                        color="primary"
+                        [checked]="allFilteredSelected"
+                        [indeterminate]="selectedCount > 0 && !allFilteredSelected"
+                        (change)="toggleSelectAllFiltered($event.checked)"
+                        [disabled]="filteredUsers.length === 0">
+                    </mat-checkbox>
+                </th>
+                <td mat-cell *matCellDef="let user" class="select-col" (click)="$event.stopPropagation()">
+                    <mat-checkbox
+                        color="primary"
+                        [checked]="isUserSelected(user)"
+                        (change)="toggleUserSelection(user, $event.checked)">
+                    </mat-checkbox>
+                </td>
+            </ng-container>
 
             <!-- Avatar Column -->
             <ng-container matColumnDef="avatar">

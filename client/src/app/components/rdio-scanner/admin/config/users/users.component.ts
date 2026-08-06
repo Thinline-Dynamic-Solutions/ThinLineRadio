@@ -44,6 +44,8 @@ export interface User {
     verified: boolean;
     createdAt: string;
     lastLogin: string;
+    /** Unix seconds; 0 = never logged in. Used for sorting. */
+    lastLoginAt?: number;
     firstName: string;
     lastName: string;
     zipCode: string;
@@ -88,12 +90,16 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     error: string | null = null;
 
     // Table columns
-    displayedColumns: string[] = ['avatar', 'user', 'group', 'status', 'pin', 'lastLogin', 'actions'];
+    displayedColumns: string[] = ['select', 'avatar', 'user', 'group', 'status', 'pin', 'lastLogin', 'actions'];
 
     // Expanded row for inline editing
     expandedUser: User | null = null;
 
-    // Search, filters, and pagination
+    // Multi-select for bulk actions
+    selectedUserIds = new Set<number>();
+    bulkDeleting = false;
+
+    // Search, filters, sort, and pagination
     searchText = '';
     /** '' = all, 'none' = no group, otherwise group id as string. */
     groupFilter = '';
@@ -101,6 +107,8 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     subscriptionFilter = '';
     /** '' = all; pin_expired | account_expired | verified | unverified. */
     statusFilter = '';
+    /** name | lastLoginDesc | lastLoginAsc */
+    sortMode: 'name' | 'lastLoginDesc' | 'lastLoginAsc' = 'name';
     filteredUsers: User[] = [];
     paginatedUsers: User[] = [];
     pageSize = 25;
@@ -243,6 +251,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 verified: user.verified || false,
                 createdAt: user.createdAt || '',
                 lastLogin: user.lastLogin || '',
+                lastLoginAt: Number(user.lastLoginAt) || 0,
                 systems: user.systems || '',
                 delay: user.delay || 0,
                 systemDelays: user.systemDelays || '',
@@ -279,9 +288,33 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     }
 
     private sortUsers(): void {
-        this.users.sort((a, b) =>
-            this.getUserSortKey(a).localeCompare(this.getUserSortKey(b), undefined, { sensitivity: 'base' })
-        );
+        this.users.sort((a, b) => {
+            if (this.sortMode === 'lastLoginDesc' || this.sortMode === 'lastLoginAsc') {
+                const aAt = Number(a.lastLoginAt) || 0;
+                const bAt = Number(b.lastLoginAt) || 0;
+                // Never-logged (0): last for newest-first, first for oldest-first.
+                if (aAt === 0 && bAt === 0) {
+                    return this.getUserSortKey(a).localeCompare(this.getUserSortKey(b), undefined, { sensitivity: 'base' });
+                }
+                if (aAt === 0) {
+                    return this.sortMode === 'lastLoginDesc' ? 1 : -1;
+                }
+                if (bAt === 0) {
+                    return this.sortMode === 'lastLoginDesc' ? -1 : 1;
+                }
+                const cmp = aAt - bAt;
+                if (cmp !== 0) {
+                    return this.sortMode === 'lastLoginDesc' ? -cmp : cmp;
+                }
+            }
+            return this.getUserSortKey(a).localeCompare(this.getUserSortKey(b), undefined, { sensitivity: 'base' });
+        });
+    }
+
+    onSortModeChange(): void {
+        this.pageIndex = 0;
+        this.sortUsers();
+        this.applyFilter();
     }
 
     async loadSystems(): Promise<void> {
@@ -608,6 +641,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
 
         try {
             await this.adminService.deleteUser(user.id);
+            this.selectedUserIds.delete(user.id);
             this.matSnackBar.open(`User ${user.email} deleted successfully`, 'Close', {
                 duration: 3000,
                 panelClass: ['success-snackbar']
@@ -618,12 +652,91 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             if (this.form && this.form.parent) {
                 this.form.parent.markAsDirty();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to delete user:', error);
-            this.matSnackBar.open('Failed to delete user', 'Close', {
-                duration: 3000,
+            const msg = error?.error?.error || error?.message || 'Failed to delete user';
+            this.matSnackBar.open(msg, 'Close', {
+                duration: 4000,
                 panelClass: ['error-snackbar']
             });
+        }
+    }
+
+    get selectedCount(): number {
+        return this.selectedUserIds.size;
+    }
+
+    get allFilteredSelected(): boolean {
+        return this.filteredUsers.length > 0
+            && this.filteredUsers.every(u => this.selectedUserIds.has(u.id));
+    }
+
+    isUserSelected(user: User): boolean {
+        return this.selectedUserIds.has(user.id);
+    }
+
+    toggleUserSelection(user: User, checked: boolean): void {
+        if (checked) {
+            this.selectedUserIds.add(user.id);
+        } else {
+            this.selectedUserIds.delete(user.id);
+        }
+    }
+
+    toggleSelectAllFiltered(checked: boolean): void {
+        if (checked) {
+            this.filteredUsers.forEach(u => this.selectedUserIds.add(u.id));
+        } else {
+            this.filteredUsers.forEach(u => this.selectedUserIds.delete(u.id));
+        }
+    }
+
+    clearSelection(): void {
+        this.selectedUserIds.clear();
+    }
+
+    async bulkDeleteSelected(): Promise<void> {
+        const ids = Array.from(this.selectedUserIds);
+        if (ids.length === 0 || this.bulkDeleting) {
+            return;
+        }
+        if (!confirm(`Delete ${ids.length} selected user${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) {
+            return;
+        }
+
+        this.bulkDeleting = true;
+        try {
+            const result = await this.adminService.bulkDeleteUsers(ids);
+            const deleted = result.deleted?.length || 0;
+            const failed = result.failed?.length || 0;
+            this.selectedUserIds.clear();
+            if (failed === 0) {
+                this.matSnackBar.open(`Deleted ${deleted} user${deleted === 1 ? '' : 's'}.`, 'Close', {
+                    duration: 4000,
+                    panelClass: ['success-snackbar']
+                });
+            } else {
+                const firstErr = result.failed[0]?.error || 'unknown error';
+                this.matSnackBar.open(
+                    `Deleted ${deleted}, failed ${failed}. ${firstErr}`,
+                    'Close',
+                    { duration: 7000, panelClass: ['error-snackbar'] }
+                );
+            }
+            await this.loadUsers(true);
+            if (this.form && this.form.parent) {
+                this.form.parent.markAsDirty();
+            }
+        } catch (error: any) {
+            console.error('Bulk delete failed:', error);
+            const msg = error?.error?.error || error?.message || 'Bulk delete failed';
+            this.matSnackBar.open(msg, 'Close', {
+                duration: 5000,
+                panelClass: ['error-snackbar']
+            });
+        } finally {
+            this.bulkDeleting = false;
+            this.cdr.detectChanges();
         }
     }
 
@@ -990,11 +1103,13 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     // Search and pagination methods
     onSearchChange(): void {
         this.pageIndex = 0; // Reset to first page when search changes
+        this.clearSelection();
         this.applyFilter();
     }
 
     onFiltersChange(): void {
         this.pageIndex = 0;
+        this.clearSelection();
         this.applyFilter();
     }
 
