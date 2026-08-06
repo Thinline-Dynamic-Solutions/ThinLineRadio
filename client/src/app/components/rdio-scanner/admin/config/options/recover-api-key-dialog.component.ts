@@ -32,113 +32,136 @@ import { MatSnackBar } from '@angular/material/snack-bar';
         This dialog uses your browser’s cryptography APIs. Load admin over HTTPS, or over http://localhost / http://127.0.0.1,
         with the server listening on 0.0.0.0 if you need loopback access. Plain http:// with a LAN IP or hostname often cannot complete this step.
       </p>
-      <div *ngIf="!codeSent && !apiKeyRecovered">
-        <p style="margin-bottom: 20px; color: #666;">
-          Enter your server URL and email address. A verification code will be sent to your email.
-        </p>
-        <form [formGroup]="recoveryForm">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Server URL *</mat-label>
-            <input matInput formControlName="serverURL" placeholder="https://your-server.com" required>
-            <mat-hint>Your rdio-scanner server address</mat-hint>
-            <mat-error *ngIf="recoveryForm.get('serverURL')?.hasError('required')">
-              Server URL is required
-            </mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Contact Email *</mat-label>
-            <input matInput type="email" formControlName="email" required>
-            <mat-hint>The email address used when registering your API key</mat-hint>
-            <mat-error *ngIf="recoveryForm.get('email')?.hasError('required')">
-              Email is required
-            </mat-error>
-            <mat-error *ngIf="recoveryForm.get('email')?.hasError('email')">
-              Please enter a valid email address
-            </mat-error>
-          </mat-form-field>
-
-          <div *ngIf="errorMessage" class="error-message">
-            {{ errorMessage }}
-          </div>
-
-          <div *ngIf="loading" class="loading">
-            Sending verification code...
-          </div>
-        </form>
-      </div>
-
-      <div *ngIf="codeSent && !apiKeyRecovered">
-        <div class="success-message">
-          <mat-icon color="primary">check_circle</mat-icon>
-          Verification code sent!
+      @if (!codeSent && !apiKeyRecovered) {
+        <div>
+          <p style="margin-bottom: 20px; color: #666;">
+            Enter your server URL and email address. A verification code will be sent to your email.
+          </p>
+          <form [formGroup]="recoveryForm">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Server URL *</mat-label>
+              <input matInput formControlName="serverURL" placeholder="https://your-server.com" required>
+              <mat-hint>Your rdio-scanner server address</mat-hint>
+              @if (recoveryForm.get('serverURL')?.hasError('required')) {
+                <mat-error>
+                  Server URL is required
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Contact Email *</mat-label>
+              <input matInput type="email" formControlName="email" required>
+              <mat-hint>The email address used when registering your API key</mat-hint>
+              @if (recoveryForm.get('email')?.hasError('required')) {
+                <mat-error>
+                  Email is required
+                </mat-error>
+              }
+              @if (recoveryForm.get('email')?.hasError('email')) {
+                <mat-error>
+                  Please enter a valid email address
+                </mat-error>
+              }
+            </mat-form-field>
+            @if (errorMessage) {
+              <div class="error-message">
+                {{ errorMessage }}
+              </div>
+            }
+            @if (loading) {
+              <div class="loading">
+                Sending verification code...
+              </div>
+            }
+          </form>
         </div>
-        <p style="margin: 20px 0; color: #666;">
-          Check your email for the verification code, then enter it below.
-        </p>
-        <form [formGroup]="verifyForm">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Verification Code *</mat-label>
-            <input matInput formControlName="code" placeholder="000000" maxlength="6" required>
-            <mat-hint>6-digit code from your email</mat-hint>
-            <mat-error *ngIf="verifyForm.get('code')?.hasError('required')">
-              Verification code is required
-            </mat-error>
-            <mat-error *ngIf="verifyForm.get('code')?.hasError('pattern')">
-              Code must be 6 digits
-            </mat-error>
-          </mat-form-field>
-
-          <div *ngIf="errorMessage" class="error-message">
-            {{ errorMessage }}
+      }
+    
+      @if (codeSent && !apiKeyRecovered) {
+        <div>
+          <div class="success-message">
+            <mat-icon color="primary">check_circle</mat-icon>
+            Verification code sent!
           </div>
-
-          <div *ngIf="loading" class="loading">
-            Verifying code...
+          <p style="margin: 20px 0; color: #666;">
+            Check your email for the verification code, then enter it below.
+          </p>
+          <form [formGroup]="verifyForm">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Verification Code *</mat-label>
+              <input matInput formControlName="code" placeholder="000000" maxlength="6" required>
+              <mat-hint>6-digit code from your email</mat-hint>
+              @if (verifyForm.get('code')?.hasError('required')) {
+                <mat-error>
+                  Verification code is required
+                </mat-error>
+              }
+              @if (verifyForm.get('code')?.hasError('pattern')) {
+                <mat-error>
+                  Code must be 6 digits
+                </mat-error>
+              }
+            </mat-form-field>
+            @if (errorMessage) {
+              <div class="error-message">
+                {{ errorMessage }}
+              </div>
+            }
+            @if (loading) {
+              <div class="loading">
+                Verifying code...
+              </div>
+            }
+          </form>
+        </div>
+      }
+    
+      @if (apiKeyRecovered) {
+        <div class="api-key-result">
+          <div class="success-message">
+            <mat-icon color="primary">check_circle</mat-icon>
+            API key recovered successfully!
           </div>
-        </form>
-      </div>
-
-      <div *ngIf="apiKeyRecovered" class="api-key-result">
-        <div class="success-message">
-          <mat-icon color="primary">check_circle</mat-icon>
-          API key recovered successfully!
+          <div class="api-key-display">
+            <label>Your API Key:</label>
+            <div class="api-key-value">{{ recoveredApiKey }}</div>
+            <button mat-icon-button (click)="copyToClipboard()" matTooltip="Copy to clipboard">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+          </div>
+          <p class="warning">
+            <mat-icon>warning</mat-icon>
+            <strong>Important:</strong> Save this key now - it will not be shown again!
+          </p>
+          <p class="security-warning">
+            <mat-icon>security</mat-icon>
+            <strong>Security:</strong> Do not share this API key with anyone. Keep it confidential.
+          </p>
         </div>
-        <div class="api-key-display">
-          <label>Your API Key:</label>
-          <div class="api-key-value">{{ recoveredApiKey }}</div>
-          <button mat-icon-button (click)="copyToClipboard()" matTooltip="Copy to clipboard">
-            <mat-icon>content_copy</mat-icon>
-          </button>
-        </div>
-        <p class="warning">
-          <mat-icon>warning</mat-icon>
-          <strong>Important:</strong> Save this key now - it will not be shown again!
-        </p>
-        <p class="security-warning">
-          <mat-icon>security</mat-icon>
-          <strong>Security:</strong> Do not share this API key with anyone. Keep it confidential.
-        </p>
-      </div>
+      }
     </mat-dialog-content>
     <mat-dialog-actions>
       <button mat-button (click)="onCancel()">{{ apiKeyRecovered ? 'Close' : 'Cancel' }}</button>
-      <button *ngIf="!codeSent && !apiKeyRecovered" 
-              mat-raised-button 
-              color="primary" 
-              [disabled]="recoveryForm.invalid || loading" 
-              (click)="onSendCode()">
-        Send Verification Code
-      </button>
-      <button *ngIf="codeSent && !apiKeyRecovered" 
-              mat-raised-button 
-              color="primary" 
-              [disabled]="verifyForm.invalid || loading" 
-              (click)="onVerifyCode()">
-        Verify Code
-      </button>
+      @if (!codeSent && !apiKeyRecovered) {
+        <button
+          mat-raised-button
+          color="primary"
+          [disabled]="recoveryForm.invalid || loading"
+          (click)="onSendCode()">
+          Send Verification Code
+        </button>
+      }
+      @if (codeSent && !apiKeyRecovered) {
+        <button
+          mat-raised-button
+          color="primary"
+          [disabled]="verifyForm.invalid || loading"
+          (click)="onVerifyCode()">
+          Verify Code
+        </button>
+      }
     </mat-dialog-actions>
-  `,
+    `,
     styles: [`
     .full-width {
       width: 100%;

@@ -1,53 +1,61 @@
-<div class="mapping-data" *ngIf="canManage; else needSave">
-    <div class="mapping-stats" *ngIf="stats">
+@if (canManage) {
+  <div class="mapping-data">
+    @if (stats) {
+      <div class="mapping-stats">
         <mat-chip-set>
-            <mat-chip>{{ stats.corrections || 0 }} corrections</mat-chip>
-            <mat-chip>{{ stats.cacheEntries || 0 }} cache entries</mat-chip>
+          <mat-chip>{{ stats.corrections || 0 }} corrections</mat-chip>
+          <mat-chip>{{ stats.cacheEntries || 0 }} cache entries</mat-chip>
         </mat-chip-set>
-    </div>
-
-    <div *ngIf="loading" class="mapping-loading">
+      </div>
+    }
+    @if (loading) {
+      <div class="mapping-loading">
         <mat-spinner diameter="24"></mat-spinner>
         <span>Loading mapping data…</span>
-    </div>
-
-    <div class="mapping-tab" *ngIf="!loading">
+      </div>
+    }
+    @if (!loading) {
+      <div class="mapping-tab">
         <h4 class="mapping-section-title">Street corrections</h4>
         <div class="mapping-add-row mapping-add-row--grid">
-            <mat-form-field appearance="outline">
-                <mat-label>Bad / heard name</mat-label>
-                <input matInput [(ngModel)]="newBadName" [ngModelOptions]="{standalone: true}">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-                <mat-label>Correct name</mat-label>
-                <input matInput [(ngModel)]="newCorrectName" [ngModelOptions]="{standalone: true}" (keyup.enter)="addCorrection()">
-            </mat-form-field>
-            <button mat-stroked-button type="button" color="primary" (click)="addCorrection()">Add</button>
+          <mat-form-field appearance="outline">
+            <mat-label>Bad / heard name</mat-label>
+            <input matInput [(ngModel)]="newBadName" [ngModelOptions]="{standalone: true}">
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Correct name</mat-label>
+            <input matInput [(ngModel)]="newCorrectName" [ngModelOptions]="{standalone: true}" (keyup.enter)="addCorrection()">
+          </mat-form-field>
+          <button mat-stroked-button type="button" color="primary" (click)="addCorrection()">Add</button>
         </div>
-        <table mat-table [dataSource]="corrections" class="mapping-table" *ngIf="corrections.length; else noCorrections">
+        @if (corrections.length) {
+          <table mat-table [dataSource]="corrections" class="mapping-table">
             <ng-container matColumnDef="badName">
-                <th mat-header-cell *matHeaderCellDef>Bad</th>
-                <td mat-cell *matCellDef="let row">{{ row.badName }}</td>
+              <th mat-header-cell *matHeaderCellDef>Bad</th>
+              <td mat-cell *matCellDef="let row">{{ row.badName }}</td>
             </ng-container>
             <ng-container matColumnDef="correctName">
-                <th mat-header-cell *matHeaderCellDef>Correct</th>
-                <td mat-cell *matCellDef="let row">{{ row.correctName }}</td>
+              <th mat-header-cell *matHeaderCellDef>Correct</th>
+              <td mat-cell *matCellDef="let row">{{ row.correctName }}</td>
             </ng-container>
             <ng-container matColumnDef="actions">
-                <th mat-header-cell *matHeaderCellDef></th>
-                <td mat-cell *matCellDef="let row">
-                    <button mat-icon-button type="button" color="warn" (click)="deleteRow(row.id)">
-                        <mat-icon>delete</mat-icon>
-                    </button>
-                </td>
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let row">
+                <button mat-icon-button type="button" color="warn" (click)="deleteRow(row.id)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
             </ng-container>
             <tr mat-header-row *matHeaderRowDef="['badName', 'correctName', 'actions']"></tr>
             <tr mat-row *matRowDef="let row; columns: ['badName', 'correctName', 'actions']"></tr>
-        </table>
-        <ng-template #noCorrections><p class="mapping-empty">No street corrections yet.</p></ng-template>
-    </div>
-</div>
+          </table>
+        } @else {
+          <p class="mapping-empty">No street corrections yet.</p>
+        }
+      </div>
+    }
+  </div>
+} @else {
+  <p class="mapping-empty">Save this system first to manage street corrections.</p>
+}
 
-<ng-template #needSave>
-    <p class="mapping-empty">Save this system first to manage street corrections.</p>
-</ng-template>

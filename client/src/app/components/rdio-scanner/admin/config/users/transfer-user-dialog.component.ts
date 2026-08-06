@@ -34,25 +34,29 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
           <mat-label>Target Group</mat-label>
           <mat-select formControlName="groupId" required>
             <mat-option [value]="0">No Group (Unassigned)</mat-option>
-            <mat-option *ngFor="let group of availableGroups" [value]="group.id">
-              {{ group.name }}
-            </mat-option>
+            @for (group of availableGroups; track group) {
+              <mat-option [value]="group.id">
+                {{ group.name }}
+              </mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="transferForm.get('groupId')?.hasError('required')">
-            Group selection is required
-          </mat-error>
+          @if (transferForm.get('groupId')?.hasError('required')) {
+            <mat-error>
+              Group selection is required
+            </mat-error>
+          }
         </mat-form-field>
       </form>
     </mat-dialog-content>
     <mat-dialog-actions>
       <button mat-button (click)="onCancel()">Cancel</button>
-      <button mat-raised-button color="primary" 
-              [disabled]="transferForm.invalid" 
-              (click)="onTransfer()">
+      <button mat-raised-button color="primary"
+        [disabled]="transferForm.invalid"
+        (click)="onTransfer()">
         Transfer User
       </button>
     </mat-dialog-actions>
-  `,
+    `,
     styles: [`
     .full-width {
       width: 100%;

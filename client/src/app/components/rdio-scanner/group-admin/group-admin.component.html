@@ -14,12 +14,16 @@
         <div class="section-header">
           <div>
             <h2>Group Users</h2>
-            <p class="user-count" *ngIf="maxUsers > 0">
-              {{ userCount }} / {{ maxUsers }} users used
-            </p>
-            <p class="user-count" *ngIf="maxUsers === 0">
-              {{ userCount }} users
-            </p>
+            @if (maxUsers > 0) {
+              <p class="user-count">
+                {{ userCount }} / {{ maxUsers }} users used
+              </p>
+            }
+            @if (maxUsers === 0) {
+              <p class="user-count">
+                {{ userCount }} users
+              </p>
+            }
           </div>
           <button mat-raised-button color="primary" (click)="loadUsers()" [disabled]="loadingUsers">
             Refresh
@@ -33,15 +37,19 @@
             <div class="form-row">
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Email Address</mat-label>
-                <input matInput type="email" [(ngModel)]="inviteUserForm.email" 
-                       name="inviteEmail" required
-                       [disabled]="invitingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                <input matInput type="email" [(ngModel)]="inviteUserForm.email"
+                  name="inviteEmail" required
+                  [disabled]="invitingUser || (maxUsers > 0 && userCount >= maxUsers)">
               </mat-form-field>
 
               <button mat-raised-button color="primary" type="submit"
-                      [disabled]="invitingUser || !inviteUserForm.email || (maxUsers > 0 && userCount >= maxUsers)">
-                <mat-spinner diameter="20" *ngIf="invitingUser"></mat-spinner>
-                <span *ngIf="!invitingUser">Send Invitation</span>
+                [disabled]="invitingUser || !inviteUserForm.email || (maxUsers > 0 && userCount >= maxUsers)">
+                @if (invitingUser) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                }
+                @if (!invitingUser) {
+                  <span>Send Invitation</span>
+                }
               </button>
             </div>
           </form>
@@ -56,166 +64,182 @@
             <div class="form-row">
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>First Name</mat-label>
-                <input matInput type="text" [(ngModel)]="addUserForm.firstName" 
-                       name="firstName" required
-                       [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                <input matInput type="text" [(ngModel)]="addUserForm.firstName"
+                  name="firstName" required
+                  [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Last Name</mat-label>
-                <input matInput type="text" [(ngModel)]="addUserForm.lastName" 
-                       name="lastName" required
-                       [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                <input matInput type="text" [(ngModel)]="addUserForm.lastName"
+                  name="lastName" required
+                  [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
               </mat-form-field>
             </div>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>ZIP Code</mat-label>
-                <input matInput type="text" [(ngModel)]="addUserForm.zipCode" 
-                       name="zipCode" placeholder="12345" required
-                       [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                <input matInput type="text" [(ngModel)]="addUserForm.zipCode"
+                  name="zipCode" placeholder="12345" required
+                  [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Email</mat-label>
-                <input matInput type="email" [(ngModel)]="addUserForm.email" 
-                       name="email" required
-                       [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                <input matInput type="email" [(ngModel)]="addUserForm.email"
+                  name="email" required
+                  [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
               </mat-form-field>
             </div>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Password</mat-label>
-                <input matInput type="password" [(ngModel)]="addUserForm.password" 
-                       name="password" required
-                       [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                <input matInput type="password" [(ngModel)]="addUserForm.password"
+                  name="password" required
+                  [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Confirm Password</mat-label>
-                <input matInput type="password" [(ngModel)]="addUserForm.confirmPassword" 
-                       name="confirmPassword" required
-                       [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                <input matInput type="password" [(ngModel)]="addUserForm.confirmPassword"
+                  name="confirmPassword" required
+                  [disabled]="addingUser || (maxUsers > 0 && userCount >= maxUsers)">
               </mat-form-field>
             </div>
 
             <div class="form-row">
               <button mat-raised-button color="primary" type="submit"
-                      [disabled]="addingUser || !addUserForm.email || !addUserForm.firstName || !addUserForm.lastName || !addUserForm.zipCode || !addUserForm.password || addUserForm.password !== addUserForm.confirmPassword || (maxUsers > 0 && userCount >= maxUsers)">
-                <mat-spinner diameter="20" *ngIf="addingUser"></mat-spinner>
-                <span *ngIf="!addingUser">Add User</span>
+                [disabled]="addingUser || !addUserForm.email || !addUserForm.firstName || !addUserForm.lastName || !addUserForm.zipCode || !addUserForm.password || addUserForm.password !== addUserForm.confirmPassword || (maxUsers > 0 && userCount >= maxUsers)">
+                @if (addingUser) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                }
+                @if (!addingUser) {
+                  <span>Add User</span>
+                }
               </button>
             </div>
           </form>
         </div>
 
-        <div *ngIf="groupInfo?.allowAddExistingUsers" class="add-existing-user-section">
-          <mat-divider></mat-divider>
-          <h3>Add Existing User</h3>
-          <p class="info-text">Add an existing user from any group to your group by entering their email address. This action will move them to your group immediately.</p>
-          <form (ngSubmit)="addExistingUser()">
-            <div class="form-row">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Email Address</mat-label>
-                <input matInput type="email" [(ngModel)]="addExistingUserForm.email" 
-                       name="existingUserEmail" required
-                       [disabled]="addingExistingUser || (maxUsers > 0 && userCount >= maxUsers)">
-              </mat-form-field>
-
-              <button mat-raised-button color="primary" type="submit"
-                      [disabled]="addingExistingUser || !addExistingUserForm.email || (maxUsers > 0 && userCount >= maxUsers)">
-                <mat-spinner diameter="20" *ngIf="addingExistingUser"></mat-spinner>
-                <span *ngIf="!addingExistingUser">Add Existing User</span>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div *ngIf="loadingUsers" class="loading">
-          <mat-spinner diameter="40"></mat-spinner>
-        </div>
-
-        <table mat-table [dataSource]="users" *ngIf="!loadingUsers" class="users-table">
-          <ng-container matColumnDef="email">
-            <th mat-header-cell *matHeaderCellDef>Email</th>
-            <td mat-cell *matCellDef="let user">{{ user.email }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef>Name</th>
-            <td mat-cell *matCellDef="let user">{{ user.firstName }} {{ user.lastName }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="verified">
-            <th mat-header-cell *matHeaderCellDef>Verified</th>
-            <td mat-cell *matCellDef="let user">
-              <mat-icon [class.verified]="user.verified" [class.unverified]="!user.verified">
-                {{ user.verified ? 'check_circle' : 'cancel' }}
-              </mat-icon>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="isGroupAdmin">
-            <th mat-header-cell *matHeaderCellDef>Admin</th>
-            <td mat-cell *matCellDef="let user">
-              <mat-icon *ngIf="user.isGroupAdmin">admin_panel_settings</mat-icon>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
-            <td mat-cell *matCellDef="let user">
-              <button mat-icon-button 
-                      [color]="user.isGroupAdmin ? 'accent' : 'primary'"
-                      (click)="toggleGroupAdmin(user.id, !user.isGroupAdmin)" 
-                      [disabled]="user.id === userInfo?.id"
-                      [matTooltip]="user.isGroupAdmin ? 'Demote from Group Admin' : 'Promote to Group Admin'">
-                <mat-icon>{{ user.isGroupAdmin ? 'remove_moderator' : 'add_moderator' }}</mat-icon>
-              </button>
-              <button mat-icon-button color="primary" (click)="openTransferDialog(user.id)" 
-                      [disabled]="user.id === userInfo?.id"
-                      matTooltip="Transfer User to Another Group">
-                <mat-icon>swap_horiz</mat-icon>
-              </button>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="['email', 'name', 'verified', 'isGroupAdmin', 'actions']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['email', 'name', 'verified', 'isGroupAdmin', 'actions']"></tr>
-        </table>
-        
-        <!-- Transfer Dialog -->
-        <div *ngIf="transferringUser" class="transfer-dialog-overlay" (click)="cancelTransfer()">
-          <div class="transfer-dialog" (click)="$event.stopPropagation()">
-            <div class="dialog-header">
-              <h3>Transfer User</h3>
-              <button mat-icon-button (click)="cancelTransfer()">
-                <mat-icon>close</mat-icon>
-              </button>
-            </div>
-            <div class="dialog-content">
-              <p>Select the target group for this user:</p>
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Target Group</mat-label>
-                <mat-select [(ngModel)]="selectedTransferGroupId">
-                  <mat-option *ngFor="let group of availableGroups" [value]="group.id">
-                    {{ group.name }}
-                  </mat-option>
-                </mat-select>
-              </mat-form-field>
-              <div class="dialog-actions">
-                <button mat-button (click)="cancelTransfer()">Cancel</button>
-                <button mat-raised-button color="primary" (click)="confirmTransfer()" 
-                        [disabled]="!selectedTransferGroupId">
-                  Request Transfer
+        @if (groupInfo?.allowAddExistingUsers) {
+          <div class="add-existing-user-section">
+            <mat-divider></mat-divider>
+            <h3>Add Existing User</h3>
+            <p class="info-text">Add an existing user from any group to your group by entering their email address. This action will move them to your group immediately.</p>
+            <form (ngSubmit)="addExistingUser()">
+              <div class="form-row">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Email Address</mat-label>
+                  <input matInput type="email" [(ngModel)]="addExistingUserForm.email"
+                    name="existingUserEmail" required
+                    [disabled]="addingExistingUser || (maxUsers > 0 && userCount >= maxUsers)">
+                </mat-form-field>
+                <button mat-raised-button color="primary" type="submit"
+                  [disabled]="addingExistingUser || !addExistingUserForm.email || (maxUsers > 0 && userCount >= maxUsers)">
+                  @if (addingExistingUser) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  }
+                  @if (!addingExistingUser) {
+                    <span>Add Existing User</span>
+                  }
                 </button>
+              </div>
+            </form>
+          </div>
+        }
+
+        @if (loadingUsers) {
+          <div class="loading">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+        }
+
+        @if (!loadingUsers) {
+          <table mat-table [dataSource]="users" class="users-table">
+            <ng-container matColumnDef="email">
+              <th mat-header-cell *matHeaderCellDef>Email</th>
+              <td mat-cell *matCellDef="let user">{{ user.email }}</td>
+            </ng-container>
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Name</th>
+              <td mat-cell *matCellDef="let user">{{ user.firstName }} {{ user.lastName }}</td>
+            </ng-container>
+            <ng-container matColumnDef="verified">
+              <th mat-header-cell *matHeaderCellDef>Verified</th>
+              <td mat-cell *matCellDef="let user">
+                <mat-icon [class.verified]="user.verified" [class.unverified]="!user.verified">
+                  {{ user.verified ? 'check_circle' : 'cancel' }}
+                </mat-icon>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="isGroupAdmin">
+              <th mat-header-cell *matHeaderCellDef>Admin</th>
+              <td mat-cell *matCellDef="let user">
+                @if (user.isGroupAdmin) {
+                  <mat-icon>admin_panel_settings</mat-icon>
+                }
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let user">
+                <button mat-icon-button
+                  [color]="user.isGroupAdmin ? 'accent' : 'primary'"
+                  (click)="toggleGroupAdmin(user.id, !user.isGroupAdmin)"
+                  [disabled]="user.id === userInfo?.id"
+                  [matTooltip]="user.isGroupAdmin ? 'Demote from Group Admin' : 'Promote to Group Admin'">
+                  <mat-icon>{{ user.isGroupAdmin ? 'remove_moderator' : 'add_moderator' }}</mat-icon>
+                </button>
+                <button mat-icon-button color="primary" (click)="openTransferDialog(user.id)"
+                  [disabled]="user.id === userInfo?.id"
+                  matTooltip="Transfer User to Another Group">
+                  <mat-icon>swap_horiz</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="['email', 'name', 'verified', 'isGroupAdmin', 'actions']"></tr>
+            <tr mat-row *matRowDef="let row; columns: ['email', 'name', 'verified', 'isGroupAdmin', 'actions']"></tr>
+          </table>
+        }
+
+        <!-- Transfer Dialog -->
+        @if (transferringUser) {
+          <div class="transfer-dialog-overlay" (click)="cancelTransfer()">
+            <div class="transfer-dialog" (click)="$event.stopPropagation()">
+              <div class="dialog-header">
+                <h3>Transfer User</h3>
+                <button mat-icon-button (click)="cancelTransfer()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              <div class="dialog-content">
+                <p>Select the target group for this user:</p>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Target Group</mat-label>
+                  <mat-select [(ngModel)]="selectedTransferGroupId">
+                    @for (group of availableGroups; track group) {
+                      <mat-option [value]="group.id">
+                        {{ group.name }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <div class="dialog-actions">
+                  <button mat-button (click)="cancelTransfer()">Cancel</button>
+                  <button mat-raised-button color="primary" (click)="confirmTransfer()"
+                    [disabled]="!selectedTransferGroupId">
+                    Request Transfer
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <p *ngIf="users.length === 0" class="empty-message">No users in this group</p>
+        }
+        @if (users.length === 0) {
+          <p class="empty-message">No users in this group</p>
+        }
       </div>
     </mat-tab>
 
@@ -247,57 +271,57 @@
           </div>
         </div>
 
-        <div *ngIf="loadingCodes" class="loading">
-          <mat-spinner diameter="40"></mat-spinner>
-        </div>
+        @if (loadingCodes) {
+          <div class="loading">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+        }
 
-        <table mat-table [dataSource]="codes" *ngIf="!loadingCodes && codes.length > 0" class="codes-table">
-          <ng-container matColumnDef="code">
-            <th mat-header-cell *matHeaderCellDef>Code</th>
-            <td mat-cell *matCellDef="let code">{{ code.code }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="uses">
-            <th mat-header-cell *matHeaderCellDef>Uses</th>
-            <td mat-cell *matCellDef="let code">
-              {{ code.currentUses }} / {{ code.maxUses === 0 ? '∞' : code.maxUses }}
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="expiresAt">
-            <th mat-header-cell *matHeaderCellDef>Expires</th>
-            <td mat-cell *matCellDef="let code">{{ formatDate(code.expiresAt) }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="isOneTime">
-            <th mat-header-cell *matHeaderCellDef>One-time</th>
-            <td mat-cell *matCellDef="let code">
-              <mat-icon>{{ code.isOneTime ? 'check' : 'close' }}</mat-icon>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="isActive">
-            <th mat-header-cell *matHeaderCellDef>Active</th>
-            <td mat-cell *matCellDef="let code">
-              <mat-icon [class.active]="code.isActive" [class.inactive]="!code.isActive">
-                {{ code.isActive ? 'check_circle' : 'cancel' }}
-              </mat-icon>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
-            <td mat-cell *matCellDef="let code">
-              <button mat-icon-button color="warn" (click)="deleteCode(code.id)" matTooltip="Delete Code">
-                <mat-icon>delete</mat-icon>
-              </button>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="['code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
-        </table>
-        <p *ngIf="codes.length === 0" class="empty-message">No registration codes generated yet</p>
+        @if (!loadingCodes && codes.length > 0) {
+          <table mat-table [dataSource]="codes" class="codes-table">
+            <ng-container matColumnDef="code">
+              <th mat-header-cell *matHeaderCellDef>Code</th>
+              <td mat-cell *matCellDef="let code">{{ code.code }}</td>
+            </ng-container>
+            <ng-container matColumnDef="uses">
+              <th mat-header-cell *matHeaderCellDef>Uses</th>
+              <td mat-cell *matCellDef="let code">
+                {{ code.currentUses }} / {{ code.maxUses === 0 ? '∞' : code.maxUses }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="expiresAt">
+              <th mat-header-cell *matHeaderCellDef>Expires</th>
+              <td mat-cell *matCellDef="let code">{{ formatDate(code.expiresAt) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="isOneTime">
+              <th mat-header-cell *matHeaderCellDef>One-time</th>
+              <td mat-cell *matCellDef="let code">
+                <mat-icon>{{ code.isOneTime ? 'check' : 'close' }}</mat-icon>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="isActive">
+              <th mat-header-cell *matHeaderCellDef>Active</th>
+              <td mat-cell *matCellDef="let code">
+                <mat-icon [class.active]="code.isActive" [class.inactive]="!code.isActive">
+                  {{ code.isActive ? 'check_circle' : 'cancel' }}
+                </mat-icon>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let code">
+                <button mat-icon-button color="warn" (click)="deleteCode(code.id)" matTooltip="Delete Code">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="['code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
+            <tr mat-row *matRowDef="let row; columns: ['code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
+          </table>
+        }
+        @if (codes.length === 0) {
+          <p class="empty-message">No registration codes generated yet</p>
+        }
       </div>
     </mat-tab>
 
@@ -311,57 +335,60 @@
           </button>
         </div>
 
-        <div *ngIf="loadingTransfers" class="loading">
-          <mat-spinner diameter="40"></mat-spinner>
-        </div>
+        @if (loadingTransfers) {
+          <div class="loading">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+        }
 
-        <table mat-table [dataSource]="transferRequests" *ngIf="!loadingTransfers && transferRequests.length > 0" class="transfers-table">
-          <ng-container matColumnDef="user">
-            <th mat-header-cell *matHeaderCellDef>User</th>
-            <td mat-cell *matCellDef="let req">{{ req.userEmail }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="fromGroup">
-            <th mat-header-cell *matHeaderCellDef>From Group</th>
-            <td mat-cell *matCellDef="let req">{{ req.fromGroupName }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="toGroup">
-            <th mat-header-cell *matHeaderCellDef>To Group</th>
-            <td mat-cell *matCellDef="let req">{{ req.toGroupName }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Status</th>
-            <td mat-cell *matCellDef="let req">
-              <span [class.pending]="req.status === 'pending'" 
-                    [class.approved]="req.status === 'approved'"
-                    [class.rejected]="req.status === 'rejected'">
-                {{ req.status }}
-              </span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
-            <td mat-cell *matCellDef="let req">
-              <button mat-raised-button color="primary" 
-                      *ngIf="req.status === 'pending' && req.toGroupId === groupInfo?.id"
-                      (click)="approveTransfer(req.id, true)">
-                Approve
-              </button>
-              <button mat-raised-button color="warn" 
-                      *ngIf="req.status === 'pending' && req.toGroupId === groupInfo?.id"
-                      (click)="approveTransfer(req.id, false)">
-                Reject
-              </button>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="['user', 'fromGroup', 'toGroup', 'status', 'actions']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['user', 'fromGroup', 'toGroup', 'status', 'actions']"></tr>
-        </table>
-        <p *ngIf="transferRequests.length === 0" class="empty-message">No transfer requests</p>
+        @if (!loadingTransfers && transferRequests.length > 0) {
+          <table mat-table [dataSource]="transferRequests" class="transfers-table">
+            <ng-container matColumnDef="user">
+              <th mat-header-cell *matHeaderCellDef>User</th>
+              <td mat-cell *matCellDef="let req">{{ req.userEmail }}</td>
+            </ng-container>
+            <ng-container matColumnDef="fromGroup">
+              <th mat-header-cell *matHeaderCellDef>From Group</th>
+              <td mat-cell *matCellDef="let req">{{ req.fromGroupName }}</td>
+            </ng-container>
+            <ng-container matColumnDef="toGroup">
+              <th mat-header-cell *matHeaderCellDef>To Group</th>
+              <td mat-cell *matCellDef="let req">{{ req.toGroupName }}</td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let req">
+                <span [class.pending]="req.status === 'pending'"
+                  [class.approved]="req.status === 'approved'"
+                  [class.rejected]="req.status === 'rejected'">
+                  {{ req.status }}
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let req">
+                @if (req.status === 'pending' && req.toGroupId === groupInfo?.id) {
+                  <button mat-raised-button color="primary"
+                    (click)="approveTransfer(req.id, true)">
+                    Approve
+                  </button>
+                }
+                @if (req.status === 'pending' && req.toGroupId === groupInfo?.id) {
+                  <button mat-raised-button color="warn"
+                    (click)="approveTransfer(req.id, false)">
+                    Reject
+                  </button>
+                }
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="['user', 'fromGroup', 'toGroup', 'status', 'actions']"></tr>
+            <tr mat-row *matRowDef="let row; columns: ['user', 'fromGroup', 'toGroup', 'status', 'actions']"></tr>
+          </table>
+        }
+        @if (transferRequests.length === 0) {
+          <p class="empty-message">No transfer requests</p>
+        }
       </div>
     </mat-tab>
   </mat-tab-group>

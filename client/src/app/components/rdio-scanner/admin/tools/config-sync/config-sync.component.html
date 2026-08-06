@@ -1,55 +1,62 @@
 <div>
-    <p class="mat-body" style="margin-bottom: 12px;">
-        <strong>Config Sync</strong>
-    </p>
-    <p class="mat-caption" style="margin-bottom: 16px; color: #aaa;">
-        Automatically sync your configuration to a file location (e.g., Google Drive folder). 
-        Each config change will overwrite the same file, and Google Drive will maintain version history automatically.
-    </p>
+  <p class="mat-body" style="margin-bottom: 12px;">
+    <strong>Config Sync</strong>
+  </p>
+  <p class="mat-caption" style="margin-bottom: 16px; color: #aaa;">
+    Automatically sync your configuration to a file location (e.g., Google Drive folder).
+    Each config change will overwrite the same file, and Google Drive will maintain version history automatically.
+  </p>
 
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #242424; border-radius: 4px; border: 1px solid #333; margin-bottom: 24px;">
-        <div>
-            <span class="mat-body">Enable Config Sync</span><br>
-            <span class="mat-caption" style="color: #aaa;">Automatically sync config changes to the specified folder</span>
-        </div>
-        <mat-slide-toggle 
-            color="primary" 
-            [checked]="configSyncEnabled"
-            (change)="toggleConfigSync($event.checked)">
-        </mat-slide-toggle>
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #242424; border-radius: 4px; border: 1px solid #333; margin-bottom: 24px;">
+    <div>
+      <span class="mat-body">Enable Config Sync</span><br>
+      <span class="mat-caption" style="color: #aaa;">Automatically sync config changes to the specified folder</span>
     </div>
+    <mat-slide-toggle
+      color="primary"
+      [checked]="configSyncEnabled"
+      (change)="toggleConfigSync($event.checked)">
+    </mat-slide-toggle>
+  </div>
 
-    <form [formGroup]="form" *ngIf="configSyncEnabled" autocomplete="off">
-        <mat-form-field style="width: 100%;">
-            <mat-label>Sync Folder Path</mat-label>
-            <input 
-                type="text" 
-                matInput 
-                formControlName="configSyncPath" 
-                placeholder="C:\Users\YourName\Google Drive\rdio-scanner or /path/to/sync/folder"
-                required autocomplete="off">
-            <mat-hint>Absolute path to the folder where config will be synced (e.g., Google Drive folder)</mat-hint>
-            <mat-error *ngIf="form.get('configSyncPath')?.hasError('required')">
-                Sync path is required
-            </mat-error>
-            <mat-error *ngIf="form.get('configSyncPath')?.hasError('invalid')">
-                Path must be absolute (e.g., C:\folder or /folder)
-            </mat-error>
-        </mat-form-field>
-        
-        <div class="row bottom" style="margin-top: 16px;">
-            <button type="button" mat-raised-button [disabled]="form.disabled || form.untouched"
-                (click)="reset()">Reset</button>
-            <button type="button" mat-raised-button color="primary"
-                [disabled]="form.disabled || form.pristine || !form.valid" 
-                (click)="save()">Save</button>
-        </div>
+  @if (configSyncEnabled) {
+    <form [formGroup]="form" autocomplete="off">
+      <mat-form-field style="width: 100%;">
+        <mat-label>Sync Folder Path</mat-label>
+        <input
+          type="text"
+          matInput
+          formControlName="configSyncPath"
+          placeholder="C:\Users\YourName\Google Drive\rdio-scanner or /path/to/sync/folder"
+          required autocomplete="off">
+        <mat-hint>Absolute path to the folder where config will be synced (e.g., Google Drive folder)</mat-hint>
+        @if (form.get('configSyncPath')?.hasError('required')) {
+          <mat-error>
+            Sync path is required
+          </mat-error>
+        }
+        @if (form.get('configSyncPath')?.hasError('invalid')) {
+          <mat-error>
+            Path must be absolute (e.g., C:\folder or /folder)
+          </mat-error>
+        }
+      </mat-form-field>
+      <div class="row bottom" style="margin-top: 16px;">
+        <button type="button" mat-raised-button [disabled]="form.disabled || form.untouched"
+        (click)="reset()">Reset</button>
+        <button type="button" mat-raised-button color="primary"
+          [disabled]="form.disabled || form.pristine || !form.valid"
+        (click)="save()">Save</button>
+      </div>
     </form>
+  }
 
-    <div *ngIf="!configSyncEnabled" style="padding: 12px; background: #242424; border-radius: 4px; border: 1px solid #333; margin-top: 16px;">
-        <p class="mat-caption" style="color: #aaa; margin: 0;">
-            Enable config sync above to configure the sync folder path.
-        </p>
+  @if (!configSyncEnabled) {
+    <div style="padding: 12px; background: #242424; border-radius: 4px; border: 1px solid #333; margin-top: 16px;">
+      <p class="mat-caption" style="color: #aaa; margin: 0;">
+        Enable config sync above to configure the sync folder path.
+      </p>
     </div>
+  }
 </div>
 

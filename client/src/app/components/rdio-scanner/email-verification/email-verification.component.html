@@ -8,47 +8,57 @@
 
     <div class="content">
       <!-- Loading State -->
-      <div *ngIf="loading" class="loading-state">
-        <mat-spinner diameter="60"></mat-spinner>
-        <h2>Verifying your email...</h2>
-        <p>Please wait while we verify your email address.</p>
-      </div>
+      @if (loading) {
+        <div class="loading-state">
+          <mat-spinner diameter="60"></mat-spinner>
+          <h2>Verifying your email...</h2>
+          <p>Please wait while we verify your email address.</p>
+        </div>
+      }
 
       <!-- Success State -->
-      <div *ngIf="verified && !loading" class="success-state">
-        <mat-icon class="success-icon">check_circle</mat-icon>
-        <h2>Email Verified Successfully!</h2>
-        <p>{{ message }}</p>
-        <div class="actions">
-          <button mat-raised-button color="primary" (click)="goToLogin()">
-            <mat-icon>login</mat-icon>
-            Go to Login
-          </button>
+      @if (verified && !loading) {
+        <div class="success-state">
+          <mat-icon class="success-icon">check_circle</mat-icon>
+          <h2>Email Verified Successfully!</h2>
+          <p>{{ message }}</p>
+          <div class="actions">
+            <button mat-raised-button color="primary" (click)="goToLogin()">
+              <mat-icon>login</mat-icon>
+              Go to Login
+            </button>
+          </div>
+          <p class="redirect-notice">You will be redirected automatically in a few seconds...</p>
         </div>
-        <p class="redirect-notice">You will be redirected automatically in a few seconds...</p>
-      </div>
+      }
 
       <!-- Error State -->
-      <div *ngIf="error && !loading" class="error-state">
-        <mat-icon class="error-icon">error</mat-icon>
-        <h2>Verification Failed</h2>
-        <p>{{ error }}</p>
-        <div class="actions">
-          <button mat-raised-button color="primary" (click)="goToLogin()">
-            <mat-icon>home</mat-icon>
-            Go to Home
-          </button>
-          <button mat-button color="accent" (click)="resendVerification()">
-            <mat-icon>refresh</mat-icon>
-            Try Again
-          </button>
+      @if (error && !loading) {
+        <div class="error-state">
+          <mat-icon class="error-icon">error</mat-icon>
+          <h2>Verification Failed</h2>
+          <p>{{ error }}</p>
+          <div class="actions">
+            <button mat-raised-button color="primary" (click)="goToLogin()">
+              <mat-icon>home</mat-icon>
+              Go to Home
+            </button>
+            <button mat-button color="accent" (click)="resendVerification()">
+              <mat-icon>refresh</mat-icon>
+              Try Again
+            </button>
+          </div>
         </div>
-      </div>
+      }
     </div>
 
     <div class="footer">
-      <p *ngIf="hasSupportEmail()">Need help? Contact our support team at <a [href]="'mailto:' + getSupportEmail()" class="support-link">{{ getSupportEmail() }}</a></p>
-      <p *ngIf="!hasSupportEmail()" class="no-support-text">The owner of this server has not provided email support.</p>
+      @if (hasSupportEmail()) {
+        <p>Need help? Contact our support team at <a [href]="'mailto:' + getSupportEmail()" class="support-link">{{ getSupportEmail() }}</a></p>
+      }
+      @if (!hasSupportEmail()) {
+        <p class="no-support-text">The owner of this server has not provided email support.</p>
+      }
     </div>
   </div>
 </div>

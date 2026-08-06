@@ -1,26 +1,31 @@
-<div class="weather-alert-ticker"
-     *ngIf="hasZip || testMode"
-     [class.weather-alert-ticker--test]="testMode"
-     [class.weather-alert-ticker--flash]="flashing && (alerts.length || testMode)"
-     [class.weather-alert-ticker--ack]="!flashing && (alerts.length || testMode)"
-     [attr.role]="(alerts.length || testMode) && flashing ? 'button' : null"
-     [attr.tabindex]="(alerts.length || testMode) && flashing ? 0 : -1"
-     [attr.aria-label]="flashing ? 'Active weather alert. Click to acknowledge.' : null"
-     [matTooltip]="flashing ? 'Click to acknowledge alert' : ''"
-     (click)="onTickerClick()"
-     (keydown.enter)="onTickerClick()"
-     (keydown.space)="$event.preventDefault(); onTickerClick()">
+@if (hasZip || testMode) {
+  <div class="weather-alert-ticker"
+    [class.weather-alert-ticker--test]="testMode"
+    [class.weather-alert-ticker--flash]="flashing && (alerts.length || testMode)"
+    [class.weather-alert-ticker--ack]="!flashing && (alerts.length || testMode)"
+    [attr.role]="(alerts.length || testMode) && flashing ? 'button' : null"
+    [attr.tabindex]="(alerts.length || testMode) && flashing ? 0 : -1"
+    [attr.aria-label]="flashing ? 'Active weather alert. Click to acknowledge.' : null"
+    [matTooltip]="flashing ? 'Click to acknowledge alert' : ''"
+    (click)="onTickerClick()"
+    (keydown.enter)="onTickerClick()"
+    (keydown.space)="$event.preventDefault(); onTickerClick()">
     <mat-icon class="weather-alert-ticker__icon" aria-hidden="true">warning</mat-icon>
     <div class="weather-alert-ticker__viewport" aria-live="polite">
-        <ng-container *ngIf="!loading && (alerts.length || testMode)">
-            <div class="weather-alert-ticker__track">
-                <span class="weather-alert-ticker__text">{{ tickerText }}</span>
-                <span class="weather-alert-ticker__text" aria-hidden="true">{{ tickerText }}</span>
-            </div>
-        </ng-container>
-        <span class="weather-alert-ticker__idle" *ngIf="!loading && !alerts.length && !testMode">
-            No severe weather alerts for your area
+      @if (!loading && (alerts.length || testMode)) {
+        <div class="weather-alert-ticker__track">
+          <span class="weather-alert-ticker__text">{{ tickerText }}</span>
+          <span class="weather-alert-ticker__text" aria-hidden="true">{{ tickerText }}</span>
+        </div>
+      }
+      @if (!loading && !alerts.length && !testMode) {
+        <span class="weather-alert-ticker__idle">
+          No severe weather alerts for your area
         </span>
-        <span class="weather-alert-ticker__idle" *ngIf="loading && !testMode">Checking weather alerts…</span>
+      }
+      @if (loading && !testMode) {
+        <span class="weather-alert-ticker__idle">Checking weather alerts…</span>
+      }
     </div>
-</div>
+  </div>
+}

@@ -32,66 +32,71 @@ const SUGGEST_BATCH_SIZE = 50;
     template: `
     <h2 mat-dialog-title>Assign locations to talkgroups</h2>
     <mat-dialog-content>
-        <p class="intro">
-            Set each talkgroup’s map jurisdiction (city/label + coordinates).
-            Use <strong>Suggest locations</strong> to draft values (Gemini + TLR geocoding),
-            review the table, then <strong>Apply</strong> to save.
-            Applying turns off inherit for that talkgroup. Clearing a row returns it to inherit system geo.
-            Talkgroups that already have their own coordinates are left alone by Suggest.
-            Large systems are processed in batches of {{ batchSize }}.
-        </p>
-
-        <div class="suggest-progress" *ngIf="suggesting">
-            <mat-progress-bar mode="determinate" [value]="suggestProgressPct"></mat-progress-bar>
-            <span class="suggest-progress-label">{{ suggestProgressLabel }}</span>
+      <p class="intro">
+        Set each talkgroup’s map jurisdiction (city/label + coordinates).
+        Use <strong>Suggest locations</strong> to draft values (Gemini + TLR geocoding),
+        review the table, then <strong>Apply</strong> to save.
+        Applying turns off inherit for that talkgroup. Clearing a row returns it to inherit system geo.
+        Talkgroups that already have their own coordinates are left alone by Suggest.
+        Large systems are processed in batches of {{ batchSize }}.
+      </p>
+    
+      @if (suggesting) {
+        <div class="suggest-progress">
+          <mat-progress-bar mode="determinate" [value]="suggestProgressPct"></mat-progress-bar>
+          <span class="suggest-progress-label">{{ suggestProgressLabel }}</span>
         </div>
-
-        <div class="tsl-table" *ngIf="rows.length; else noRows">
-            <div class="tsl-head">
-                <span class="c-tg">Talkgroup</span>
-                <span class="c-mode">Mode</span>
-                <span class="c-query">City / label</span>
-                <span class="c-num">Lat</span>
-                <span class="c-num">Lon</span>
-                <span class="c-num">Radius</span>
-                <span class="c-actions"></span>
+      }
+    
+      @if (rows.length) {
+        <div class="tsl-table">
+          <div class="tsl-head">
+            <span class="c-tg">Talkgroup</span>
+            <span class="c-mode">Mode</span>
+            <span class="c-query">City / label</span>
+            <span class="c-num">Lat</span>
+            <span class="c-num">Lon</span>
+            <span class="c-num">Radius</span>
+            <span class="c-actions"></span>
+          </div>
+          @for (row of rows; track row) {
+            <div class="tsl-row">
+              <span class="c-tg" [title]="row.talkgroupLabel">{{ row.talkgroupLabel }}</span>
+              <span class="c-mode">{{ row.inherit ? 'Inherit' : 'Own' }}</span>
+              <span class="c-query">
+                <input type="text" [(ngModel)]="row.geoCity" placeholder="City, township, zip…">
+              </span>
+              <span class="c-num">
+                <input type="number" step="any" [(ngModel)]="row.geoLat">
+              </span>
+              <span class="c-num">
+                <input type="number" step="any" [(ngModel)]="row.geoLon">
+              </span>
+              <span class="c-num">
+                <input type="number" step="any" [(ngModel)]="row.geoRadiusMiles" min="1" max="40">
+              </span>
+              <span class="c-actions">
+                <button mat-icon-button type="button" color="warn" (click)="clearRow(row)" aria-label="Clear to inherit">
+                  <mat-icon>clear</mat-icon>
+                </button>
+              </span>
             </div>
-            <div class="tsl-row" *ngFor="let row of rows">
-                <span class="c-tg" [title]="row.talkgroupLabel">{{ row.talkgroupLabel }}</span>
-                <span class="c-mode">{{ row.inherit ? 'Inherit' : 'Own' }}</span>
-                <span class="c-query">
-                    <input type="text" [(ngModel)]="row.geoCity" placeholder="City, township, zip…">
-                </span>
-                <span class="c-num">
-                    <input type="number" step="any" [(ngModel)]="row.geoLat">
-                </span>
-                <span class="c-num">
-                    <input type="number" step="any" [(ngModel)]="row.geoLon">
-                </span>
-                <span class="c-num">
-                    <input type="number" step="any" [(ngModel)]="row.geoRadiusMiles" min="1" max="40">
-                </span>
-                <span class="c-actions">
-                    <button mat-icon-button type="button" color="warn" (click)="clearRow(row)" aria-label="Clear to inherit">
-                        <mat-icon>clear</mat-icon>
-                    </button>
-                </span>
-            </div>
+          }
         </div>
-        <ng-template #noRows>
-            <p class="intro">No talkgroups found on this system.</p>
-        </ng-template>
+      } @else {
+        <p class="intro">No talkgroups found on this system.</p>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-        <button mat-button type="button" (click)="onCancel()" [disabled]="suggesting">Cancel</button>
-        <button mat-stroked-button color="accent" type="button"
-            [disabled]="suggesting || applying || loading || !rows.length"
-            (click)="onSuggest()">
-            {{ suggesting ? suggestButtonLabel : 'Suggest locations' }}
-        </button>
-        <button mat-raised-button color="primary" type="button" [disabled]="applying || suggesting || !rows.length" (click)="onApply()">
-            {{ applying ? 'Saving…' : 'Apply' }}
-        </button>
+      <button mat-button type="button" (click)="onCancel()" [disabled]="suggesting">Cancel</button>
+      <button mat-stroked-button color="accent" type="button"
+        [disabled]="suggesting || applying || loading || !rows.length"
+        (click)="onSuggest()">
+        {{ suggesting ? suggestButtonLabel : 'Suggest locations' }}
+      </button>
+      <button mat-raised-button color="primary" type="button" [disabled]="applying || suggesting || !rows.length" (click)="onApply()">
+        {{ applying ? 'Saving…' : 'Apply' }}
+      </button>
     </mat-dialog-actions>
     `,
     styles: [`

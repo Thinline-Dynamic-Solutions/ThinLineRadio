@@ -32,7 +32,7 @@ type RelayAccountMode = 'login' | 'create';
         Create or sign in to the relay account linked to this server's API key.
         Accounts are created here in Thinline Radio admin — not on the public web portal.
       </p>
-
+    
       <div style="display: flex; gap: 8px; margin-bottom: 20px;">
         <button mat-stroked-button type="button" [color]="mode === 'login' ? 'primary' : undefined" (click)="mode = 'login'" style="flex: 1;">
           Sign In
@@ -41,51 +41,63 @@ type RelayAccountMode = 'login' | 'create';
           Create Account
         </button>
       </div>
-
-      <form *ngIf="mode === 'login'">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" [(ngModel)]="email" name="loginEmail" autocomplete="username" [disabled]="loading">
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
-          <input matInput type="password" [(ngModel)]="password" name="password" autocomplete="current-password" [disabled]="loading" (keyup.enter)="onLogin()">
-        </mat-form-field>
-      </form>
-
-      <form *ngIf="mode === 'create'">
-        <p style="font-size: 13px; color: #666; margin: 0 0 12px 0; line-height: 1.45;">
-          Use the <strong>same email address</strong> you entered when you created your API key.
-          That contact email is required and must match exactly.
-        </p>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" [(ngModel)]="email" name="createEmail" autocomplete="email" [disabled]="loading">
-          <mat-hint>Must match the email used when requesting your API key</mat-hint>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
-          <input matInput type="password" [(ngModel)]="password" name="createPassword" autocomplete="new-password" [disabled]="loading" (keyup.enter)="onCreate()">
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Confirm Password</mat-label>
-          <input matInput type="password" [(ngModel)]="passwordConfirm" name="createPasswordConfirm" autocomplete="new-password" [disabled]="loading" (keyup.enter)="onCreate()">
-        </mat-form-field>
-      </form>
-
-      <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
-      <div *ngIf="infoMessage" class="info-message">{{ infoMessage }}</div>
+    
+      @if (mode === 'login') {
+        <form>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Email</mat-label>
+            <input matInput type="email" [(ngModel)]="email" name="loginEmail" autocomplete="username" [disabled]="loading">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Password</mat-label>
+            <input matInput type="password" [(ngModel)]="password" name="password" autocomplete="current-password" [disabled]="loading" (keyup.enter)="onLogin()">
+          </mat-form-field>
+        </form>
+      }
+    
+      @if (mode === 'create') {
+        <form>
+          <p style="font-size: 13px; color: #666; margin: 0 0 12px 0; line-height: 1.45;">
+            Use the <strong>same email address</strong> you entered when you created your API key.
+            That contact email is required and must match exactly.
+          </p>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Email</mat-label>
+            <input matInput type="email" [(ngModel)]="email" name="createEmail" autocomplete="email" [disabled]="loading">
+            <mat-hint>Must match the email used when requesting your API key</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Password</mat-label>
+            <input matInput type="password" [(ngModel)]="password" name="createPassword" autocomplete="new-password" [disabled]="loading" (keyup.enter)="onCreate()">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Confirm Password</mat-label>
+            <input matInput type="password" [(ngModel)]="passwordConfirm" name="createPasswordConfirm" autocomplete="new-password" [disabled]="loading" (keyup.enter)="onCreate()">
+          </mat-form-field>
+        </form>
+      }
+    
+      @if (errorMessage) {
+        <div class="error-message">{{ errorMessage }}</div>
+      }
+      @if (infoMessage) {
+        <div class="info-message">{{ infoMessage }}</div>
+      }
     </mat-dialog-content>
     <mat-dialog-actions>
       <button mat-button (click)="onCancel()">Cancel</button>
-      <button *ngIf="mode === 'login'" mat-raised-button color="primary" [disabled]="!email || !password || loading" (click)="onLogin()">
-        {{ loading ? 'Signing In…' : 'Sign In' }}
-      </button>
-      <button *ngIf="mode === 'create'" mat-raised-button color="primary" [disabled]="!canCreate || loading" (click)="onCreate()">
-        {{ loading ? 'Creating…' : 'Create Account' }}
-      </button>
+      @if (mode === 'login') {
+        <button mat-raised-button color="primary" [disabled]="!email || !password || loading" (click)="onLogin()">
+          {{ loading ? 'Signing In…' : 'Sign In' }}
+        </button>
+      }
+      @if (mode === 'create') {
+        <button mat-raised-button color="primary" [disabled]="!canCreate || loading" (click)="onCreate()">
+          {{ loading ? 'Creating…' : 'Create Account' }}
+        </button>
+      }
     </mat-dialog-actions>
-  `,
+    `,
     styles: [`
     .full-width { width: 100%; margin-bottom: 8px; display: block; }
     mat-dialog-content { min-width: 420px; max-width: 480px; }

@@ -1,66 +1,86 @@
 <div class="stripe-sync-container">
-    <div class="tool-header">
-        <h3>Stripe Customer Sync</h3>
-        <p class="mat-body-2">
-            Automatically sync Stripe customer data with your users.
-            Users are matched by email address.
-        </p>
-    </div>
+  <div class="tool-header">
+    <h3>Stripe Customer Sync</h3>
+    <p class="mat-body-2">
+      Automatically sync Stripe customer data with your users.
+      Users are matched by email address.
+    </p>
+  </div>
 
-    <div class="sync-actions">
-        <button 
-            mat-raised-button 
-            color="primary" 
-            (click)="syncWithStripe()"
-            [disabled]="syncing">
-            <mat-icon *ngIf="!syncing">sync</mat-icon>
-            <mat-spinner diameter="20" *ngIf="syncing"></mat-spinner>
-            <span *ngIf="!syncing">Sync with Stripe</span>
-            <span *ngIf="syncing">Syncing...</span>
-        </button>
-    </div>
+  <div class="sync-actions">
+    <button
+      mat-raised-button
+      color="primary"
+      (click)="syncWithStripe()"
+      [disabled]="syncing">
+      @if (!syncing) {
+        <mat-icon>sync</mat-icon>
+      }
+      @if (syncing) {
+        <mat-spinner diameter="20"></mat-spinner>
+      }
+      @if (!syncing) {
+        <span>Sync with Stripe</span>
+      }
+      @if (syncing) {
+        <span>Syncing...</span>
+      }
+    </button>
+  </div>
 
-    <div class="sync-result" *ngIf="syncResult">
-        <h4>Sync Results</h4>
-        <div class="result-stats">
-            <div class="stat">
-                <span class="label">Total Users:</span>
-                <span class="value">{{ syncResult.totalUsers }}</span>
-            </div>
-            <div class="stat">
-                <span class="label">Stripe Customers Found:</span>
-                <span class="value">{{ syncResult.stripeCustomers }}</span>
-            </div>
-            <div class="stat success">
-                <span class="label">Matched & Updated:</span>
-                <span class="value">{{ syncResult.matched }}</span>
-            </div>
-            <div class="stat" *ngIf="syncResult.unmatched > 0">
-                <span class="label">Unmatched:</span>
-                <span class="value">{{ syncResult.unmatched }}</span>
-            </div>
+  @if (syncResult) {
+    <div class="sync-result">
+      <h4>Sync Results</h4>
+      <div class="result-stats">
+        <div class="stat">
+          <span class="label">Total Users:</span>
+          <span class="value">{{ syncResult.totalUsers }}</span>
         </div>
-
-        <div class="updated-users" *ngIf="syncResult.updatedUsers && syncResult.updatedUsers.length > 0">
-            <h5>Updated Users:</h5>
-            <ul>
-                <li *ngFor="let user of syncResult.updatedUsers">
-                    <strong>{{ user.email }}</strong> - 
-                    Customer ID: {{ user.stripeCustomerId }}
-                    <span *ngIf="user.subscriptionId"> | Subscription: {{ user.subscriptionId }} ({{ user.subscriptionStatus }})</span>
-                </li>
-            </ul>
+        <div class="stat">
+          <span class="label">Stripe Customers Found:</span>
+          <span class="value">{{ syncResult.stripeCustomers }}</span>
         </div>
-
-        <div class="unmatched-customers" *ngIf="syncResult.unmatchedCustomers && syncResult.unmatchedCustomers.length > 0">
-            <h5>Stripe Customers Not Matched:</h5>
-            <p class="mat-caption">These Stripe customers don't have matching users in your system:</p>
-            <ul>
-                <li *ngFor="let customer of syncResult.unmatchedCustomers">
-                    {{ customer.email }} ({{ customer.id }})
-                </li>
-            </ul>
+        <div class="stat success">
+          <span class="label">Matched & Updated:</span>
+          <span class="value">{{ syncResult.matched }}</span>
         </div>
+        @if (syncResult.unmatched > 0) {
+          <div class="stat">
+            <span class="label">Unmatched:</span>
+            <span class="value">{{ syncResult.unmatched }}</span>
+          </div>
+        }
+      </div>
+      @if (syncResult.updatedUsers && syncResult.updatedUsers.length > 0) {
+        <div class="updated-users">
+          <h5>Updated Users:</h5>
+          <ul>
+            @for (user of syncResult.updatedUsers; track user) {
+              <li>
+                <strong>{{ user.email }}</strong> -
+                Customer ID: {{ user.stripeCustomerId }}
+                @if (user.subscriptionId) {
+                  <span> | Subscription: {{ user.subscriptionId }} ({{ user.subscriptionStatus }})</span>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+      }
+      @if (syncResult.unmatchedCustomers && syncResult.unmatchedCustomers.length > 0) {
+        <div class="unmatched-customers">
+          <h5>Stripe Customers Not Matched:</h5>
+          <p class="mat-caption">These Stripe customers don't have matching users in your system:</p>
+          <ul>
+            @for (customer of syncResult.unmatchedCustomers; track customer) {
+              <li>
+                {{ customer.email }} ({{ customer.id }})
+              </li>
+            }
+          </ul>
+        </div>
+      }
     </div>
+  }
 </div>
 

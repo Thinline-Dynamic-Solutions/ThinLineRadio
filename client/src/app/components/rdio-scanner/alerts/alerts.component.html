@@ -1,663 +1,846 @@
 <div class="alerts-container" [class.board-embed]="boardEmbed">
-    <div class="alerts-header-embed" *ngIf="boardEmbed">
-        <span class="embed-title">Recent alerts</span>
-        <div class="embed-actions">
-            <button type="button" class="btn-embed-refresh" (click)="loadAlerts(true)" [disabled]="loading" title="Refresh">
-                <mat-icon>refresh</mat-icon>
-            </button>
-            <button type="button" class="btn-embed-open-all" (click)="openFullAlerts.emit()">
-                All alerts
-            </button>
-        </div>
+  @if (boardEmbed) {
+    <div class="alerts-header-embed">
+      <span class="embed-title">Recent alerts</span>
+      <div class="embed-actions">
+        <button type="button" class="btn-embed-refresh" (click)="loadAlerts(true)" [disabled]="loading" title="Refresh">
+          <mat-icon>refresh</mat-icon>
+        </button>
+        <button type="button" class="btn-embed-open-all" (click)="openFullAlerts.emit()">
+          All alerts
+        </button>
+      </div>
     </div>
+  }
 
-    <div class="alerts-header" *ngIf="!boardEmbed && panelMode === 'alertsAndPreferences'">
-        <div class="header-tabs">
-            <button type="button" class="tab-button" [class.active]="activeTab === 'alerts'" (click)="setTab('alerts')">
-                <mat-icon>notifications</mat-icon>
-                Alerts
-            </button>
-            <button type="button" class="tab-button" [class.active]="activeTab === 'preferences'" (click)="setTab('preferences')">
-                <mat-icon>tune</mat-icon>
-                Preferences
-            </button>
-        </div>
-        <div class="header-actions">
-            <button *ngIf="activeTab === 'alerts'" type="button" class="btn-refresh" (click)="refreshAlertsTab()" [disabled]="alertsTabLoading">
-                {{ alertsTabLoading ? 'Loading...' : 'Refresh Alerts' }}
-            </button>
-        </div>
+  @if (!boardEmbed && panelMode === 'alertsAndPreferences') {
+    <div class="alerts-header">
+      <div class="header-tabs">
+        <button type="button" class="tab-button" [class.active]="activeTab === 'alerts'" (click)="setTab('alerts')">
+          <mat-icon>notifications</mat-icon>
+          Alerts
+        </button>
+        <button type="button" class="tab-button" [class.active]="activeTab === 'preferences'" (click)="setTab('preferences')">
+          <mat-icon>tune</mat-icon>
+          Preferences
+        </button>
+      </div>
+      <div class="header-actions">
+        @if (activeTab === 'alerts') {
+          <button type="button" class="btn-refresh" (click)="refreshAlertsTab()" [disabled]="alertsTabLoading">
+            {{ alertsTabLoading ? 'Loading...' : 'Refresh Alerts' }}
+          </button>
+        }
+      </div>
     </div>
+  }
 
-    <div class="alerts-header alerts-header-aux" *ngIf="!boardEmbed && panelMode === 'transcripts'">
-        <span class="aux-heading"><mat-icon>forum</mat-icon> Transcripts</span>
-        <div class="header-actions">
-            <button type="button" class="btn-refresh" (click)="loadTranscripts()" [disabled]="loadingTranscripts">
-                {{ loadingTranscripts ? 'Loading...' : 'Refresh Transcripts' }}
-            </button>
-        </div>
+  @if (!boardEmbed && panelMode === 'transcripts') {
+    <div class="alerts-header alerts-header-aux">
+      <span class="aux-heading"><mat-icon>forum</mat-icon> Transcripts</span>
+      <div class="header-actions">
+        <button type="button" class="btn-refresh" (click)="loadTranscripts()" [disabled]="loadingTranscripts">
+          {{ loadingTranscripts ? 'Loading...' : 'Refresh Transcripts' }}
+        </button>
+      </div>
     </div>
+  }
 
-    <div class="alerts-header alerts-header-aux" *ngIf="!boardEmbed && panelMode === 'stats'">
-        <span class="aux-heading"><mat-icon>bar_chart</mat-icon> Stats</span>
-        <div class="header-actions">
-            <button type="button" class="btn-refresh" (click)="loadStats()" [disabled]="loadingStats">
-                {{ loadingStats ? 'Loading...' : 'Refresh Stats' }}
-            </button>
-        </div>
+  @if (!boardEmbed && panelMode === 'stats') {
+    <div class="alerts-header alerts-header-aux">
+      <span class="aux-heading"><mat-icon>bar_chart</mat-icon> Stats</span>
+      <div class="header-actions">
+        <button type="button" class="btn-refresh" (click)="loadStats()" [disabled]="loadingStats">
+          {{ loadingStats ? 'Loading...' : 'Refresh Stats' }}
+        </button>
+      </div>
     </div>
+  }
 
-    <div class="alerts-content board-embed-content" *ngIf="boardEmbed">
-        <div *ngIf="recentAlertsFlat.length === 0 && !loading" class="no-alerts no-alerts-embed">
-            <p>No recent alerts</p>
+  @if (boardEmbed) {
+    <div class="alerts-content board-embed-content">
+      @if (recentAlertsFlat.length === 0 && !loading) {
+        <div class="no-alerts no-alerts-embed">
+          <p>No recent alerts</p>
         </div>
-        <div *ngIf="loading && recentAlertsFlat.length === 0" class="loading loading-embed">
-            <p>Loading…</p>
+      }
+      @if (loading && recentAlertsFlat.length === 0) {
+        <div class="loading loading-embed">
+          <p>Loading…</p>
         </div>
-        <div *ngIf="recentAlertsFlat.length > 0" class="alerts-list alerts-list-embed">
-            <div *ngFor="let alert of recentAlertsFlat; trackBy: trackByAlertId"
-                 class="alert-item alert-item-embed"
-                 [class.tone]="alert.alertType === 'tone'"
-                 [class.keyword]="alert.alertType === 'keyword'"
-                 [class.tone-keyword]="alert.alertType === 'tone+keyword'"
-                 [class.transcript]="alert.alertType === 'transcript'">
-                <div class="alert-header alert-header-embed">
-                    <div class="alert-header-main">
-                        <div class="alert-header-left">
-                            <span class="alert-type-badge">{{ getAlertTypeLabel(alert) }}</span>
-                            <span *ngIf="alert.toneDetected" class="tone-indicator">🔔</span>
-                        </div>
-                        <div class="alert-header-actions">
-                            <mat-icon *ngIf="hasIncidentLocation(alert)" class="incident-map-pin" matTooltip="Incident location available">place</mat-icon>
-                            <button type="button" class="btn-play btn-play--compact" (click)="playCall(alert.callId)">Play</button>
-                        </div>
-                    </div>
-                    <div class="alert-timestamp alert-timestamp--embed">
-                        <span class="alert-timestamp-date">{{ formatAlertDate(alert.createdAt) }}</span>
-                        <span class="alert-timestamp-time">{{ formatAlertTime(alert.createdAt) }}</span>
-                    </div>
+      }
+      @if (recentAlertsFlat.length > 0) {
+        <div class="alerts-list alerts-list-embed">
+          @for (alert of recentAlertsFlat; track trackByAlertId($index, alert)) {
+            <div
+              class="alert-item alert-item-embed"
+              [class.tone]="alert.alertType === 'tone'"
+              [class.keyword]="alert.alertType === 'keyword'"
+              [class.tone-keyword]="alert.alertType === 'tone+keyword'"
+              [class.transcript]="alert.alertType === 'transcript'">
+              <div class="alert-header alert-header-embed">
+                <div class="alert-header-main">
+                  <div class="alert-header-left">
+                    <span class="alert-type-badge">{{ getAlertTypeLabel(alert) }}</span>
+                    @if (alert.toneDetected) {
+                      <span class="tone-indicator">🔔</span>
+                    }
+                  </div>
+                  <div class="alert-header-actions">
+                    @if (hasIncidentLocation(alert)) {
+                      <mat-icon class="incident-map-pin" matTooltip="Incident location available">place</mat-icon>
+                    }
+                    <button type="button" class="btn-play btn-play--compact" (click)="playCall(alert.callId)">Play</button>
+                  </div>
                 </div>
-                <div class="alert-body">
-                    <div *ngIf="getKeywordsMatched(alert).length > 0" class="embed-keywords">
-                        <span *ngFor="let keyword of getKeywordsMatched(alert)" class="embed-keyword">{{ keyword }}</span>
-                    </div>
-                    <div class="alert-channel embed-channel">
-                        <span *ngIf="alert.systemLabel">{{ alert.systemLabel }}</span>
-                        <span *ngIf="!alert.systemLabel">System {{ alert.systemId }}</span>
-                        <span> · </span>
-                        <span *ngIf="alert.talkgroupLabel">{{ alert.talkgroupLabel }}</span>
-                        <span *ngIf="!alert.talkgroupLabel && alert.talkgroupName">{{ alert.talkgroupName }}</span>
-                        <span *ngIf="!alert.talkgroupLabel && !alert.talkgroupName">TG {{ alert.talkgroupId }}</span>
-                    </div>
-                    <div *ngIf="alert.alertSummary" class="alert-summary">
-                        <p class="summary-text">{{ alert.alertSummary }}</p>
-                    </div>
-                    <div *ngIf="alert.transcript || alert.transcriptSnippet" class="alert-transcript">
-                        <p class="transcript-text"
-                           [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations)"></p>
-                    </div>
+                <div class="alert-timestamp alert-timestamp--embed">
+                  <span class="alert-timestamp-date">{{ formatAlertDate(alert.createdAt) }}</span>
+                  <span class="alert-timestamp-time">{{ formatAlertTime(alert.createdAt) }}</span>
                 </div>
+              </div>
+              <div class="alert-body">
+                @if (getKeywordsMatched(alert).length > 0) {
+                  <div class="embed-keywords">
+                    @for (keyword of getKeywordsMatched(alert); track keyword) {
+                      <span class="embed-keyword">{{ keyword }}</span>
+                    }
+                  </div>
+                }
+                <div class="alert-channel embed-channel">
+                  @if (alert.systemLabel) {
+                    <span>{{ alert.systemLabel }}</span>
+                  }
+                  @if (!alert.systemLabel) {
+                    <span>System {{ alert.systemId }}</span>
+                  }
+                  <span> · </span>
+                  @if (alert.talkgroupLabel) {
+                    <span>{{ alert.talkgroupLabel }}</span>
+                  }
+                  @if (!alert.talkgroupLabel && alert.talkgroupName) {
+                    <span>{{ alert.talkgroupName }}</span>
+                  }
+                  @if (!alert.talkgroupLabel && !alert.talkgroupName) {
+                    <span>TG {{ alert.talkgroupId }}</span>
+                  }
+                </div>
+                @if (alert.alertSummary) {
+                  <div class="alert-summary">
+                    <p class="summary-text">{{ alert.alertSummary }}</p>
+                  </div>
+                }
+                @if (alert.transcript || alert.transcriptSnippet) {
+                  <div class="alert-transcript">
+                    <p class="transcript-text"
+                    [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations)"></p>
+                  </div>
+                }
+              </div>
             </div>
+          }
         </div>
+      }
     </div>
-    
-    <div class="alerts-content" *ngIf="!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'alerts'">
-        <div class="alerts-subtabs" *ngIf="canViewSystemAlerts">
-            <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'mine'" (click)="setAlertsViewMode('mine')">
-                My alerts
+  }
+
+  @if (!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'alerts') {
+    <div class="alerts-content">
+      @if (canViewSystemAlerts) {
+        <div class="alerts-subtabs">
+          <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'mine'" (click)="setAlertsViewMode('mine')">
+            My alerts
+          </button>
+          <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'system'" (click)="setAlertsViewMode('system')">
+            System
+          </button>
+          <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'all'" (click)="setAlertsViewMode('all')">
+            All
+          </button>
+        </div>
+      }
+      @if (showMyAlertsSection || showSystemAlertsSection) {
+        <div class="alerts-search-bar">
+          <mat-icon class="alerts-search-icon">search</mat-icon>
+          <input type="text"
+            [(ngModel)]="alertSearch"
+            placeholder="Search alerts…"
+            class="alerts-search-input"
+            aria-label="Search alerts">
+          @if (hasActiveAlertSearch) {
+            <button
+              type="button"
+              class="alerts-search-clear"
+              (click)="clearAlertSearch()"
+              title="Clear search">
+              <mat-icon>close</mat-icon>
             </button>
-            <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'system'" (click)="setAlertsViewMode('system')">
-                System
-            </button>
-            <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'all'" (click)="setAlertsViewMode('all')">
-                All
-            </button>
+          }
         </div>
-
-        <div class="alerts-search-bar" *ngIf="showMyAlertsSection || showSystemAlertsSection">
-            <mat-icon class="alerts-search-icon">search</mat-icon>
-            <input type="text"
-                   [(ngModel)]="alertSearch"
-                   placeholder="Search alerts…"
-                   class="alerts-search-input"
-                   aria-label="Search alerts">
-            <button *ngIf="hasActiveAlertSearch"
-                    type="button"
-                    class="alerts-search-clear"
-                    (click)="clearAlertSearch()"
-                    title="Clear search">
-                <mat-icon>close</mat-icon>
-            </button>
+      }
+      @if (showMyAlertsSection && alerts.length > 0 && filteredAlertGroups.length === 0 && hasActiveAlertSearch) {
+        <div class="no-alerts">
+          <p>No alerts match your search</p>
         </div>
-
-        <div *ngIf="showMyAlertsSection && alerts.length > 0 && filteredAlertGroups.length === 0 && hasActiveAlertSearch" class="no-alerts">
-            <p>No alerts match your search</p>
+      }
+      @if (showSystemAlertsSection && systemAlerts.length > 0 && filteredSystemAlerts.length === 0 && hasActiveAlertSearch) {
+        <div class="no-alerts">
+          <p>No system alerts match your search</p>
         </div>
-
-        <div *ngIf="showSystemAlertsSection && systemAlerts.length > 0 && filteredSystemAlerts.length === 0 && hasActiveAlertSearch" class="no-alerts">
-            <p>No system alerts match your search</p>
+      }
+      @if (showMyAlertsSection && alerts.length === 0 && !loading && alertsViewMode !== 'all') {
+        <div class="no-alerts">
+          <p>No alerts</p>
         </div>
-
-        <div *ngIf="showMyAlertsSection && alerts.length === 0 && !loading && alertsViewMode !== 'all'" class="no-alerts">
-            <p>No alerts</p>
+      }
+      @if (showSystemAlertsSection && systemAlerts.length === 0 && !loadingSystemAlerts && alertsViewMode === 'system') {
+        <div class="no-alerts">
+          <p>No system alerts in your access scope</p>
         </div>
-
-        <div *ngIf="showSystemAlertsSection && systemAlerts.length === 0 && !loadingSystemAlerts && alertsViewMode === 'system'" class="no-alerts">
-            <p>No system alerts in your access scope</p>
+      }
+      @if (showMyAlertsSection && showSystemAlertsSection && alerts.length === 0 && systemAlerts.length === 0 && !alertsTabLoading) {
+        <div class="no-alerts">
+          <p>No alerts</p>
         </div>
-
-        <div *ngIf="showMyAlertsSection && showSystemAlertsSection && alerts.length === 0 && systemAlerts.length === 0 && !alertsTabLoading" class="no-alerts">
-            <p>No alerts</p>
+      }
+      @if (alertsTabLoading && alertsViewMode === 'mine' && alerts.length === 0) {
+        <div class="loading">
+          <p>Loading alerts...</p>
         </div>
-
-        <div *ngIf="alertsTabLoading && alertsViewMode === 'mine' && alerts.length === 0" class="loading">
-            <p>Loading alerts...</p>
+      }
+      @if (alertsTabLoading && alertsViewMode === 'system' && systemAlerts.length === 0) {
+        <div class="loading">
+          <p>Loading system alerts...</p>
         </div>
-        <div *ngIf="alertsTabLoading && alertsViewMode === 'system' && systemAlerts.length === 0" class="loading">
-            <p>Loading system alerts...</p>
+      }
+      @if (alertsTabLoading && alertsViewMode === 'all' && alerts.length === 0 && systemAlerts.length === 0) {
+        <div class="loading">
+          <p>Loading alerts...</p>
         </div>
-        <div *ngIf="alertsTabLoading && alertsViewMode === 'all' && alerts.length === 0 && systemAlerts.length === 0" class="loading">
-            <p>Loading alerts...</p>
-        </div>
-
-        <h4 class="alerts-section-label" *ngIf="showMyAlertsSection && alertsViewMode === 'all'">My alerts</h4>
-
-        <div *ngIf="showMyAlertsSection && filteredAlertGroups.length > 0" class="alerts-list">
-            <!-- All Alerts - Sorted by Most Recent -->
-            <mat-expansion-panel *ngFor="let group of filteredAlertGroups; trackBy: trackByGroupKey"
-                                 class="alert-group-panel"
-                                 [class.tone-alert-group]="group.groupType === 'tone'"
-                                 [class.channel-alert-group]="group.groupType === 'channel'">
-                <mat-expansion-panel-header collapsedHeight="30px" expandedHeight="30px" class="group-panel-header">
-                    <mat-panel-title class="group-panel-title">
-                        <span class="group-type-chip" [class.tone]="group.groupType === 'tone'" [class.channel]="group.groupType === 'channel'">
-                            <mat-icon class="group-icon">{{ group.groupType === 'tone' ? 'notifications_active' : 'tag' }}</mat-icon>
-                        </span>
-                        <span class="group-name">{{ group.key }}</span>
-                    </mat-panel-title>
-                    <mat-panel-description class="group-panel-meta">
-                        <span class="group-count-badge" [attr.title]="group.alerts.length + ' alert(s)'">{{ group.alerts.length }}</span>
-                        <span class="group-time" [attr.title]="formatAlertDateTime(group.latestTimestamp)">
-                            {{ formatAlertDateTime(group.latestTimestamp) }}
-                        </span>
-                    </mat-panel-description>
-                </mat-expansion-panel-header>
-                
-                <div class="alert-group-items">
-                    <div *ngFor="let alert of group.alerts; trackBy: trackByAlertId" 
-                         class="alert-item" 
-                         [class.tone]="alert.alertType === 'tone'"
-                         [class.keyword]="alert.alertType === 'keyword'"
-                         [class.tone-keyword]="alert.alertType === 'tone+keyword'"
-                         [class.transcript]="alert.alertType === 'transcript'">
-                        
-                        <div class="alert-header">
-                            <div class="alert-header-left">
-                                <span class="alert-type-badge">{{ getAlertTypeLabel(alert) }}</span>
-                                <span *ngIf="alert.toneDetected" class="tone-indicator">🔔</span>
-                                <span *ngIf="getKeywordsMatched(alert).length > 0" class="keyword-tags keyword-tags--inline">
-                                    <span *ngFor="let keyword of getKeywordsMatched(alert)" class="keyword-tag">{{ keyword }}</span>
-                                </span>
-                            </div>
-                            <div class="alert-header-right">
-                                <mat-icon *ngIf="hasIncidentLocation(alert)" class="incident-map-pin" matTooltip="Incident location available">place</mat-icon>
-                                <span class="alert-timestamp">{{ formatTimestamp(alert.createdAt) }}</span>
-                                <button type="button" class="btn-play btn-play--compact" (click)="playCall(alert.callId)">Play</button>
-                            </div>
-                        </div>
-                        
-                        <div class="alert-body">
-                            <div class="alert-info">
-                                <div *ngIf="group.groupType !== 'channel'" class="alert-channel">
-                                    <strong>Channel:</strong>
-                                    <span>
-                                        <span *ngIf="alert.systemLabel">{{ alert.systemLabel }}</span>
-                                        <span *ngIf="!alert.systemLabel">System {{ alert.systemId }}</span>
-                                        <span> / </span>
-                                        <span *ngIf="alert.talkgroupLabel">{{ alert.talkgroupLabel }}</span>
-                                        <span *ngIf="!alert.talkgroupLabel && alert.talkgroupName">{{ alert.talkgroupName }}</span>
-                                        <span *ngIf="!alert.talkgroupLabel && !alert.talkgroupName">Talkgroup {{ alert.talkgroupId }}</span>
-                                    </span>
-                                </div>
-                                
-                                <div *ngIf="alert.toneDetected && (alert.matchedToneSetNames?.length || alert.matchedToneSetName)" class="alert-tone-set">
-                                    <strong>Tone{{ (alert.matchedToneSetNames?.length || 0) > 1 ? 's' : '' }}:</strong>
-                                    <span *ngIf="alert.matchedToneSetNames && alert.matchedToneSetNames.length > 0" class="tone-set-names">
-                                        <span *ngFor="let name of alert.matchedToneSetNames; let last = last" class="tone-set-name">
-                                            {{ name }}<span *ngIf="!last">, </span>
-                                        </span>
-                                    </span>
-                                    <span *ngIf="!alert.matchedToneSetNames || alert.matchedToneSetNames.length === 0" class="tone-set-name">
-                                        {{ alert.matchedToneSetName }}
-                                    </span>
-                                </div>
-                                
-                                <div *ngIf="alert.alertSummary" class="alert-summary">
-                                    <p class="summary-text">{{ alert.alertSummary }}</p>
-                                </div>
-                                <div *ngIf="alert.transcript || alert.transcriptSnippet" class="alert-transcript">
-                                    <p class="transcript-text"
-                                       [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations, alertSearch)"></p>
-                                </div>
-                            </div>
-                        </div>
+      }
+      @if (showMyAlertsSection && alertsViewMode === 'all') {
+        <h4 class="alerts-section-label">My alerts</h4>
+      }
+      @if (showMyAlertsSection && filteredAlertGroups.length > 0) {
+        <div class="alerts-list">
+          <!-- All Alerts - Sorted by Most Recent -->
+          @for (group of filteredAlertGroups; track trackByGroupKey($index, group)) {
+            <mat-expansion-panel
+              class="alert-group-panel"
+              [class.tone-alert-group]="group.groupType === 'tone'"
+              [class.channel-alert-group]="group.groupType === 'channel'">
+              <mat-expansion-panel-header collapsedHeight="30px" expandedHeight="30px" class="group-panel-header">
+                <mat-panel-title class="group-panel-title">
+                  <span class="group-type-chip" [class.tone]="group.groupType === 'tone'" [class.channel]="group.groupType === 'channel'">
+                    <mat-icon class="group-icon">{{ group.groupType === 'tone' ? 'notifications_active' : 'tag' }}</mat-icon>
+                  </span>
+                  <span class="group-name">{{ group.key }}</span>
+                </mat-panel-title>
+                <mat-panel-description class="group-panel-meta">
+                  <span class="group-count-badge" [attr.title]="group.alerts.length + ' alert(s)'">{{ group.alerts.length }}</span>
+                  <span class="group-time" [attr.title]="formatAlertDateTime(group.latestTimestamp)">
+                    {{ formatAlertDateTime(group.latestTimestamp) }}
+                  </span>
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+              <div class="alert-group-items">
+                @for (alert of group.alerts; track trackByAlertId($index, alert)) {
+                  <div
+                    class="alert-item"
+                    [class.tone]="alert.alertType === 'tone'"
+                    [class.keyword]="alert.alertType === 'keyword'"
+                    [class.tone-keyword]="alert.alertType === 'tone+keyword'"
+                    [class.transcript]="alert.alertType === 'transcript'">
+                    <div class="alert-header">
+                      <div class="alert-header-left">
+                        <span class="alert-type-badge">{{ getAlertTypeLabel(alert) }}</span>
+                        @if (alert.toneDetected) {
+                          <span class="tone-indicator">🔔</span>
+                        }
+                        @if (getKeywordsMatched(alert).length > 0) {
+                          <span class="keyword-tags keyword-tags--inline">
+                            @for (keyword of getKeywordsMatched(alert); track keyword) {
+                              <span class="keyword-tag">{{ keyword }}</span>
+                            }
+                          </span>
+                        }
+                      </div>
+                      <div class="alert-header-right">
+                        @if (hasIncidentLocation(alert)) {
+                          <mat-icon class="incident-map-pin" matTooltip="Incident location available">place</mat-icon>
+                        }
+                        <span class="alert-timestamp">{{ formatTimestamp(alert.createdAt) }}</span>
+                        <button type="button" class="btn-play btn-play--compact" (click)="playCall(alert.callId)">Play</button>
+                      </div>
                     </div>
-                </div>
-            </mat-expansion-panel>
-
-        </div>
-
-        <h4 class="alerts-section-label" *ngIf="showSystemAlertsSection && alertsViewMode === 'all'">System alerts</h4>
-
-        <div *ngIf="showSystemAlertsSection && filteredSystemAlerts.length > 0" class="system-alerts-list">
-            <div *ngFor="let alert of filteredSystemAlerts; trackBy: trackBySystemAlertId"
-                 class="system-alert-item"
-                 [class.severity-critical]="alert.severity === 'critical'"
-                 [class.severity-error]="alert.severity === 'error'"
-                 [class.severity-warning]="alert.severity === 'warning'"
-                 [class.severity-info]="alert.severity === 'info'">
-                <div class="system-alert-header">
-                    <div class="system-alert-header-left">
-                        <span class="system-alert-severity">{{ getSystemAlertSeverityIcon(alert.severity) }}</span>
-                        <span class="system-alert-type-badge">{{ getSystemAlertTypeLabel(alert) }}</span>
-                        <span class="system-alert-title">{{ alert.title }}</span>
-                    </div>
-                    <span class="system-alert-timestamp">{{ formatTimestamp(alert.createdAt) }}</span>
-                </div>
-                <p class="system-alert-message">{{ alert.message }}</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="transcripts-content" *ngIf="!boardEmbed && panelMode === 'transcripts'">
-        <div class="global-training-goal" *ngIf="globalTrainingProgress || globalTrainingLoading">
-            <div class="global-training-header">
-                <mat-icon>groups</mat-icon>
-                <span>Community Whisper training goal</span>
-            </div>
-            <div *ngIf="globalTrainingLoading && !globalTrainingProgress" class="global-training-loading">Loading progress…</div>
-            <ng-container *ngIf="globalTrainingProgress">
-                <div class="global-training-stats">
-                    <span class="global-training-primary">{{ globalTrainingProgress.hoursDecimal | number:'1.1-1' }} / {{ globalTrainingProgress.goalHours | number }} hours</span>
-                    <span class="global-training-detail">{{ globalTrainingProgress.hours }}h {{ globalTrainingProgress.minutes }}m {{ globalTrainingProgress.seconds }}s · {{ globalTrainingProgress.percentOfGoal | number:'1.1-1' }}%</span>
-                </div>
-                <div class="global-training-bar" role="progressbar"
-                    [attr.aria-valuenow]="globalTrainingProgress.percentOfGoal"
-                    aria-valuemin="0" aria-valuemax="100">
-                    <div class="global-training-bar-fill" [style.width.%]="globalTrainingProgress.percentOfGoal"></div>
-                </div>
-                <div class="global-training-meta muted">
-                    {{ globalTrainingProgress.submissions }} reviewed submissions across {{ globalTrainingProgress.serverAccounts }} TLR servers
-                </div>
-            </ng-container>
-        </div>
-
-        <div class="transcripts-admin-bar" *ngIf="adminAuthenticated">
-            <button type="button" class="btn-training-tips" (click)="showTrainingTips = !showTrainingTips">
-                <mat-icon>{{ showTrainingTips ? 'expand_less' : 'help_outline' }}</mat-icon>
-                {{ showTrainingTips ? 'Hide training tips' : 'Show training tips' }}
-            </button>
-        </div>
-        <rdio-scanner-transcript-training-tips *ngIf="adminAuthenticated && showTrainingTips"></rdio-scanner-transcript-training-tips>
-
-        <div class="collector-setup" *ngIf="adminAuthenticated">
-            <div class="collector-setup-header">
-                <mat-icon>cloud_upload</mat-icon>
-                <span>Transcript Collector</span>
-                <span class="collector-status collector-status--ok" *ngIf="collectorHasApiKey && collectorConnected && !collectorLoading">
-                    Connected<span *ngIf="collectorServerName"> · {{ collectorServerName }}</span>
-                </span>
-                <span class="collector-status collector-status--warn" *ngIf="(!collectorHasApiKey || !collectorConnected) && !collectorLoading">Not connected</span>
-                <span class="collector-status" *ngIf="collectorLoading">Checking…</span>
-            </div>
-            <div class="collector-setup-actions" *ngIf="!collectorHasApiKey || !collectorConnected">
-                <button type="button" class="btn-collector-connect"
-                    (click)="requestCollectorKey()"
-                    [disabled]="collectorConnecting">
-                    {{ collectorConnecting ? 'Requesting…' : 'Request API Key' }}
-                </button>
-            </div>
-            <div class="collector-contribution" *ngIf="collectorStats">
-                <span class="contrib-label">Training data contributed<span *ngIf="collectorServerName"> · {{ collectorServerName }}</span></span>
-                <span class="contrib-value">{{ collectorStats.submissions }} submissions · {{ collectorStats.formatted }}</span>
-                <span class="contrib-detail">{{ collectorStats.hours }}h {{ collectorStats.minutes }}m {{ collectorStats.seconds }}s</span>
-            </div>
-        </div>
-
-        <div class="transcripts-stale-banner" *ngIf="transcriptsStale">
-            <span>New transcripts are available.</span>
-            <button type="button" class="btn-stale-refresh" (click)="refreshStaleTranscripts()">Refresh list</button>
-        </div>
-
-        <!-- Filter Controls -->
-        <div class="transcript-filters">
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label>System</label>
-                    <select [ngModel]="filterSystemId" (ngModelChange)="onSystemFilterChange($event)" class="filter-select">
-                        <option [ngValue]="undefined">All Systems</option>
-                        <option *ngFor="let system of availableSystems" [ngValue]="system.id">{{ system.label }}</option>
-                    </select>
-                </div>
-                
-                <div class="filter-group">
-                    <label>Talkgroup</label>
-                    <select [ngModel]="filterTalkgroupId" (ngModelChange)="onTalkgroupFilterChange($event)" class="filter-select" [disabled]="!filterSystemId">
-                        <option [ngValue]="undefined">All Talkgroups</option>
-                        <option *ngFor="let tg of getFilteredTalkgroups()" [ngValue]="tg.id">{{ tg.label }}</option>
-                    </select>
-                </div>
-                
-                <div class="filter-group">
-                    <label>Date From</label>
-                    <input type="date" [(ngModel)]="filterDateFrom" (change)="applyFilters()" class="filter-input">
-                </div>
-                
-                <div class="filter-group">
-                    <label>Date To</label>
-                    <input type="date" [(ngModel)]="filterDateTo" (change)="applyFilters()" class="filter-input">
-                </div>
-                
-                <div class="filter-group filter-search">
-                    <label>Search</label>
-                    <input type="text" [(ngModel)]="filterSearch" (input)="onSearchInput()" placeholder="Search transcripts..." class="filter-input search-input">
-                </div>
-                
-                <div class="filter-group filter-actions">
-                    <button (click)="clearFilters()" class="btn-clear-filters">Clear Filters</button>
-                </div>
-            </div>
-        </div>
-        
-        <div *ngIf="transcripts.length === 0 && !loadingTranscripts" class="no-alerts">
-            <p>No transcripts found</p>
-        </div>
-        <div *ngIf="loadingTranscripts" class="loading">
-            <p>Loading transcripts...</p>
-        </div>
-        <div *ngIf="transcripts.length > 0" class="transcripts-list">
-            <div *ngFor="let transcript of transcripts; trackBy: trackByTranscriptId" class="transcript-item">
-                <div class="transcript-header">
-                    <div class="transcript-channel">
-                        <strong>Channel:</strong>
-                        <span>
-                            <span *ngIf="transcript.systemLabel">{{ transcript.systemLabel }}</span>
-                            <span *ngIf="!transcript.systemLabel">System {{ transcript.systemId }}</span>
-                            <span> / </span>
-                            <span *ngIf="transcript.talkgroupLabel">{{ transcript.talkgroupLabel }}</span>
-                            <span *ngIf="!transcript.talkgroupLabel && transcript.talkgroupName">{{ transcript.talkgroupName }}</span>
-                            <span *ngIf="!transcript.talkgroupLabel && !transcript.talkgroupName">Talkgroup {{ transcript.talkgroupId }}</span>
-                        </span>
-                    </div>
-                </div>
-                <div class="transcript-body">
-                    <div *ngIf="transcript.alertSummary" class="alert-summary">
-                        <strong>Summary:</strong>
-                        <p class="summary-text">{{ transcript.alertSummary }}</p>
-                    </div>
-                    <p [innerHTML]="renderTranscript(transcript.transcript, transcript.transcriptAnnotations, filterSearch)"></p>
-                </div>
-                <div class="transcript-footer">
-                    <span>{{ transcript.timestamp ? formatTimestamp(transcript.timestamp) : '' }}</span>
-                    <div class="footer-actions">
-                        <button class="btn-play" (click)="playCall(transcript.callId)">
-                            Play Call
-                        </button>
-                        <button *ngIf="adminAuthenticated && !isTrainingSubmitted(transcript)" class="btn-edit-training"
-                            [class.btn-edit-training--active]="editingCallId === transcript.callId"
-                            (click)="toggleEdit(transcript)">
-                            <span *ngIf="editingCallId !== transcript.callId">
-                                ✎ Edit for Training<span *ngIf="hasTrainingDraft(transcript)" class="draft-hint"> (draft)</span>
+                    <div class="alert-body">
+                      <div class="alert-info">
+                        @if (group.groupType !== 'channel') {
+                          <div class="alert-channel">
+                            <strong>Channel:</strong>
+                            <span>
+                              @if (alert.systemLabel) {
+                                <span>{{ alert.systemLabel }}</span>
+                              }
+                              @if (!alert.systemLabel) {
+                                <span>System {{ alert.systemId }}</span>
+                              }
+                              <span> / </span>
+                              @if (alert.talkgroupLabel) {
+                                <span>{{ alert.talkgroupLabel }}</span>
+                              }
+                              @if (!alert.talkgroupLabel && alert.talkgroupName) {
+                                <span>{{ alert.talkgroupName }}</span>
+                              }
+                              @if (!alert.talkgroupLabel && !alert.talkgroupName) {
+                                <span>Talkgroup {{ alert.talkgroupId }}</span>
+                              }
                             </span>
-                            <span *ngIf="editingCallId === transcript.callId">✕ Cancel</span>
-                        </button>
-                        <span *ngIf="adminAuthenticated && isTrainingSubmitted(transcript)" class="training-submitted-badge">
-                            ✓ Submitted for training
-                        </span>
+                          </div>
+                        }
+                        @if (alert.toneDetected && (alert.matchedToneSetNames?.length || alert.matchedToneSetName)) {
+                          <div class="alert-tone-set">
+                            <strong>Tone{{ (alert.matchedToneSetNames?.length || 0) > 1 ? 's' : '' }}:</strong>
+                            @if (alert.matchedToneSetNames && alert.matchedToneSetNames.length > 0) {
+                              <span class="tone-set-names">
+                                @for (name of alert.matchedToneSetNames; track name; let last = $last) {
+                                  <span class="tone-set-name">
+                                    {{ name }}@if (!last) {
+                                    <span>, </span>
+                                  }
+                                </span>
+                              }
+                            </span>
+                          }
+                          @if (!alert.matchedToneSetNames || alert.matchedToneSetNames.length === 0) {
+                            <span class="tone-set-name">
+                              {{ alert.matchedToneSetName }}
+                            </span>
+                          }
+                        </div>
+                      }
+                      @if (alert.alertSummary) {
+                        <div class="alert-summary">
+                          <p class="summary-text">{{ alert.alertSummary }}</p>
+                        </div>
+                      }
+                      @if (alert.transcript || alert.transcriptSnippet) {
+                        <div class="alert-transcript">
+                          <p class="transcript-text"
+                          [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations, alertSearch)"></p>
+                        </div>
+                      }
                     </div>
+                  </div>
                 </div>
-
-                <div class="training-edit-panel" *ngIf="editingCallId === transcript.callId">
-                    <div class="training-edit-audio">
-                        <span *ngIf="editAudioLoading" class="audio-status">Loading audio…</span>
-                        <audio *ngIf="editAudioSrc && !editAudioLoading" controls [src]="editAudioSrc" class="edit-audio-player"></audio>
-                        <span *ngIf="!editAudioSrc && !editAudioLoading" class="audio-status audio-status--unavail">Audio unavailable</span>
-                    </div>
-                    <label class="training-edit-label">Edit transcript for Whisper training:</label>
-                    <textarea class="training-edit-textarea" rows="5" [(ngModel)]="editText" placeholder="Edit transcript text…"></textarea>
-                    <div class="training-edit-actions">
-                        <button class="btn-save-draft" (click)="saveEditDraft()" [disabled]="editSaving || editApproving || !editText.trim()">
-                            {{ editSaving ? 'Saving…' : 'Save Draft' }}
-                        </button>
-                        <button class="btn-approve" (click)="approveEdit()" [disabled]="editSaving || editApproving || !editText.trim()">
-                            {{ editApproving ? 'Sending…' : '✓ Approve & Send' }}
-                        </button>
-                    </div>
-                </div>
+              }
             </div>
-
-            <div class="pagination-controls">
-                <button class="btn-nav" (click)="prevTranscriptsPage()" [disabled]="transcriptOffset === 0 || loadingTranscripts">
-                    ‹ Prev
-                </button>
-                <span>Showing {{ transcriptOffset + 1 }} - {{ transcriptOffset + transcripts.length }}</span>
-                <button class="btn-nav" (click)="nextTranscriptsPage()" [disabled]="transcripts.length < limit || loadingTranscripts">
-                    Next ›
-                </button>
+          </mat-expansion-panel>
+        }
+      </div>
+    }
+    @if (showSystemAlertsSection && alertsViewMode === 'all') {
+      <h4 class="alerts-section-label">System alerts</h4>
+    }
+    @if (showSystemAlertsSection && filteredSystemAlerts.length > 0) {
+      <div class="system-alerts-list">
+        @for (alert of filteredSystemAlerts; track trackBySystemAlertId($index, alert)) {
+          <div
+            class="system-alert-item"
+            [class.severity-critical]="alert.severity === 'critical'"
+            [class.severity-error]="alert.severity === 'error'"
+            [class.severity-warning]="alert.severity === 'warning'"
+            [class.severity-info]="alert.severity === 'info'">
+            <div class="system-alert-header">
+              <div class="system-alert-header-left">
+                <span class="system-alert-severity">{{ getSystemAlertSeverityIcon(alert.severity) }}</span>
+                <span class="system-alert-type-badge">{{ getSystemAlertTypeLabel(alert) }}</span>
+                <span class="system-alert-title">{{ alert.title }}</span>
+              </div>
+              <span class="system-alert-timestamp">{{ formatTimestamp(alert.createdAt) }}</span>
             </div>
+            <p class="system-alert-message">{{ alert.message }}</p>
+          </div>
+        }
+      </div>
+    }
+  </div>
+}
+
+@if (!boardEmbed && panelMode === 'transcripts') {
+  <div class="transcripts-content">
+    @if (globalTrainingProgress || globalTrainingLoading) {
+      <div class="global-training-goal">
+        <div class="global-training-header">
+          <mat-icon>groups</mat-icon>
+          <span>Community Whisper training goal</span>
         </div>
-    </div>
-    
-    <div class="preferences-content" *ngIf="!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'preferences'">
-        <rdio-scanner-alert-preferences></rdio-scanner-alert-preferences>
-    </div>
-
-    <!-- ── Stats Dashboard ── -->
-    <div class="stats-content" *ngIf="!boardEmbed && panelMode === 'stats'">
-
-        <div *ngIf="loadingStats && !stats" class="stats-loading">
-            <mat-icon>bar_chart</mat-icon>
-            <p>Loading stats...</p>
+        @if (globalTrainingLoading && !globalTrainingProgress) {
+          <div class="global-training-loading">Loading progress…</div>
+        }
+        @if (globalTrainingProgress) {
+          <div class="global-training-stats">
+            <span class="global-training-primary">{{ globalTrainingProgress.hoursDecimal | number:'1.1-1' }} / {{ globalTrainingProgress.goalHours | number }} hours</span>
+            <span class="global-training-detail">{{ globalTrainingProgress.hours }}h {{ globalTrainingProgress.minutes }}m {{ globalTrainingProgress.seconds }}s · {{ globalTrainingProgress.percentOfGoal | number:'1.1-1' }}%</span>
+          </div>
+          <div class="global-training-bar" role="progressbar"
+            [attr.aria-valuenow]="globalTrainingProgress.percentOfGoal"
+            aria-valuemin="0" aria-valuemax="100">
+            <div class="global-training-bar-fill" [style.width.%]="globalTrainingProgress.percentOfGoal"></div>
+          </div>
+          <div class="global-training-meta muted">
+            {{ globalTrainingProgress.submissions }} reviewed submissions across {{ globalTrainingProgress.serverAccounts }} TLR servers
+          </div>
+        }
+      </div>
+    }
+    @if (adminAuthenticated) {
+      <div class="transcripts-admin-bar">
+        <button type="button" class="btn-training-tips" (click)="showTrainingTips = !showTrainingTips">
+          <mat-icon>{{ showTrainingTips ? 'expand_less' : 'help_outline' }}</mat-icon>
+          {{ showTrainingTips ? 'Hide training tips' : 'Show training tips' }}
+        </button>
+      </div>
+    }
+    @if (adminAuthenticated && showTrainingTips) {
+      <rdio-scanner-transcript-training-tips></rdio-scanner-transcript-training-tips>
+    }
+    @if (adminAuthenticated) {
+      <div class="collector-setup">
+        <div class="collector-setup-header">
+          <mat-icon>cloud_upload</mat-icon>
+          <span>Transcript Collector</span>
+          @if (collectorHasApiKey && collectorConnected && !collectorLoading) {
+            <span class="collector-status collector-status--ok">
+              Connected@if (collectorServerName) {
+              <span> · {{ collectorServerName }}</span>
+            }
+          </span>
+        }
+        @if ((!collectorHasApiKey || !collectorConnected) && !collectorLoading) {
+          <span class="collector-status collector-status--warn">Not connected</span>
+        }
+        @if (collectorLoading) {
+          <span class="collector-status">Checking…</span>
+        }
+      </div>
+      @if (!collectorHasApiKey || !collectorConnected) {
+        <div class="collector-setup-actions">
+          <button type="button" class="btn-collector-connect"
+            (click)="requestCollectorKey()"
+            [disabled]="collectorConnecting">
+            {{ collectorConnecting ? 'Requesting…' : 'Request API Key' }}
+          </button>
         </div>
-
-        <div *ngIf="statsError" class="stats-error">{{ statsError }}</div>
-
-        <ng-container *ngIf="stats">
-
-            <!-- System Filter -->
-            <div class="stats-filter-bar">
-                <mat-icon class="filter-icon">filter_list</mat-icon>
-                <span class="filter-label">Filter by System:</span>
-                <select class="stats-system-select"
-                        [(ngModel)]="selectedSystemId"
-                        (ngModelChange)="loadStats()">
-                    <option [ngValue]="null">All Systems</option>
-                    <option *ngFor="let sys of stats.availableSystems" [ngValue]="sys.id">{{ sys.label }}</option>
-                </select>
-                <span *ngIf="selectedSystemId" class="filter-active-badge">Filtered</span>
-            </div>
-
-            <!-- Incident Summary -->
-            <div class="stats-section" *ngIf="stats.incidentSummary && stats.incidentSummary.length > 0">
-                <h3 class="stats-section-title">
-                    📋 Today's Incident Summary
-                    <span class="section-subtitle">based on transcripts · click to expand</span>
-                </h3>
-
-                <div class="incident-categories">
-                    <div *ngFor="let cat of stats.incidentSummary" class="incident-category"
-                         [class.expanded]="expandedIncidentCategory === cat.category">
-
-                        <!-- Category header row -->
-                        <div class="incident-cat-header" (click)="toggleIncidentCategory(cat.category)"
-                             [style.border-left-color]="getIncidentColor(cat.category)">
-                            <span class="incident-emoji">{{ getIncidentIcon(cat.category) }}</span>
-                            <span class="incident-cat-label">{{ cat.category }}</span>
-                            <div class="incident-cat-bar-track">
-                                <div class="incident-cat-bar"
-                                     [style.width.%]="statsBarPct(cat.count, statsMaxCount(stats.incidentSummary))"
-                                     [style.background]="getIncidentColor(cat.category)">
-                                </div>
-                            </div>
-                            <span class="incident-cat-count">{{ cat.count }}</span>
-                            <span class="expand-chevron">{{ expandedIncidentCategory === cat.category ? '▲' : '▼' }}</span>
-                        </div>
-
-                        <!-- Sub-category breakdown -->
-                        <div class="incident-subcats" *ngIf="expandedIncidentCategory === cat.category">
-                            <div *ngFor="let sub of cat.subcategories" class="incident-subcat-row">
-                                <span class="subcat-label">{{ sub.label }}</span>
-                                <div class="subcat-bar-track">
-                                    <div class="subcat-bar"
-                                         [style.width.%]="statsBarPct(sub.count, cat.count)"
-                                         [style.background]="getIncidentColor(cat.category)">
-                                    </div>
-                                </div>
-                                <span class="subcat-count">{{ sub.count }}</span>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-
-            <!-- Counter Row -->
-            <div class="stats-counters">
-                <div class="stat-counter">
-                    <div class="counter-value">{{ stats.totalCallsToday | number }}</div>
-                    <div class="counter-label">Calls Today</div>
-                </div>
-                <div class="stat-counter accent">
-                    <div class="counter-value">{{ stats.callsLastMinute }}</div>
-                    <div class="counter-label">Calls / Min</div>
-                </div>
-                <div class="stat-counter accent">
-                    <div class="counter-value">{{ stats.callsLastHour | number }}</div>
-                    <div class="counter-label">Calls / Hour</div>
-                </div>
-                <div class="stat-counter">
-                    <div class="counter-value">{{ stats.topTalkgroups.length }}</div>
-                    <div class="counter-label">Active Channels (24h)</div>
-                </div>
-                <div class="stat-counter tone">
-                    <div class="counter-value">{{ stats.topDepartmentsByTone.length }}</div>
-                    <div class="counter-label">Depts w/ Tones (24h)</div>
-                </div>
-            </div>
-
-            <!-- Calls Per Minute – last hour -->
-            <div class="stats-section">
-                <h3 class="stats-section-title">
-                    <mat-icon>show_chart</mat-icon>
-                    Calls Per Minute — Last Hour
-                </h3>
-                <div *ngIf="stats.callsPerMinute.length === 0" class="stats-empty">No call activity in the last hour.</div>
-                <div *ngIf="stats.callsPerMinute.length > 0" class="cpm-chart">
-                    <div class="cpm-chart-inner">
-                        <!-- Y-axis -->
-                        <div class="chart-y-axis">
-                            <span *ngFor="let tick of statsYTicksCpm()" class="y-tick">{{ tick }}</span>
-                        </div>
-                        <!-- Bars + grid -->
-                        <div class="cpm-chart-area">
-                            <div class="chart-grid">
-                                <div *ngFor="let tick of statsYTicksCpm()" class="grid-line"></div>
-                            </div>
-                            <div class="cpm-bars">
-                                <div *ngFor="let bucket of stats.callsPerMinute" class="cpm-bar-wrap"
-                                     [title]="statsCallsPerMinLabel(bucket.minute) + ': ' + bucket.count + ' calls'">
-                                    <div class="cpm-bar"
-                                         [style.height.%]="statsBarPct(bucket.count, statsMaxCpm())">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="cpm-x-labels">
-                                <span *ngFor="let lbl of statsCpmLabels()" class="cpm-label">{{ lbl }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Two column: Top Talkgroups | Top Depts by Tone -->
-            <div class="stats-two-col">
-
-                <!-- Top Talkgroups (24h) -->
-                <div class="stats-section">
-                    <h3 class="stats-section-title">
-                        <mat-icon>radio</mat-icon>
-                        Top 10 Channels — Last 24h
-                    </h3>
-                    <div *ngIf="stats.topTalkgroups.length === 0" class="stats-empty">No data yet.</div>
-                    <div *ngFor="let tg of stats.topTalkgroups; let i = index" class="bar-row">
-                        <span class="bar-rank">#{{ i + 1 }}</span>
-                        <span class="bar-label" [title]="tg.label">{{ tg.label }}</span>
-                        <div class="bar-track">
-                            <div class="bar-fill"
-                                 [style.width.%]="statsBarPct(tg.count, statsMaxCount(stats.topTalkgroups))">
-                            </div>
-                        </div>
-                        <span class="bar-count">{{ tg.count }}</span>
-                    </div>
-                </div>
-
-                <!-- Top 10 Departments by Tone (24h) -->
-                <div class="stats-section">
-                    <h3 class="stats-section-title">
-                        <mat-icon>notifications_active</mat-icon>
-                        Top 10 Depts by Tone — Last 24h
-                    </h3>
-                    <div *ngIf="stats.topDepartmentsByTone.length === 0" class="stats-empty">No tone dispatches in the last 24h.</div>
-                    <div *ngFor="let dept of stats.topDepartmentsByTone; let i = index" class="bar-row tone-row">
-                        <span class="bar-rank">#{{ i + 1 }}</span>
-                        <span class="bar-label" [title]="dept.label">{{ dept.label }}</span>
-                        <div class="bar-track">
-                            <div class="bar-fill tone-fill"
-                                 [style.width.%]="statsBarPct(dept.count, statsMaxCount(stats.topDepartmentsByTone))">
-                            </div>
-                        </div>
-                        <span class="bar-count">{{ dept.count }}</span>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Calls by Hour of Day -->
-            <div class="stats-section">
-                <h3 class="stats-section-title">
-                    <mat-icon>schedule</mat-icon>
-                    Activity by Hour of Day — Last 7 Days
-                </h3>
-                <div class="hour-chart-outer">
-                    <!-- Y-axis -->
-                    <div class="chart-y-axis">
-                        <span *ngFor="let tick of statsYTicks(stats.callsByHour)" class="y-tick">{{ tick }}</span>
-                    </div>
-                    <!-- Chart area -->
-                    <div class="hour-chart-area">
-                        <div class="chart-grid">
-                            <div *ngFor="let tick of statsYTicks(stats.callsByHour)" class="grid-line"></div>
-                        </div>
-                        <div class="hour-chart">
-                            <div *ngFor="let h of stats.callsByHour" class="hour-col"
-                                 [title]="statsHourLabel(h.hour) + ': ' + h.count + ' calls'">
-                                <div class="hour-bar-wrap">
-                                    <div class="hour-bar"
-                                         [style.height.%]="statsBarPct(h.count, statsMaxCount(stats.callsByHour))">
-                                    </div>
-                                </div>
-                                <span class="hour-label">{{ statsHourLabel(h.hour) }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stats-footer">
-                Updated {{ stats.generatedAt | date:'shortTime' }} &nbsp;·&nbsp; Auto-refreshes every 30s
-            </div>
-
-        </ng-container>
+      }
+      @if (collectorStats) {
+        <div class="collector-contribution">
+          <span class="contrib-label">Training data contributed@if (collectorServerName) {
+            <span> · {{ collectorServerName }}</span>
+          }</span>
+          <span class="contrib-value">{{ collectorStats.submissions }} submissions · {{ collectorStats.formatted }}</span>
+          <span class="contrib-detail">{{ collectorStats.hours }}h {{ collectorStats.minutes }}m {{ collectorStats.seconds }}s</span>
+        </div>
+      }
     </div>
+  }
+  @if (transcriptsStale) {
+    <div class="transcripts-stale-banner">
+      <span>New transcripts are available.</span>
+      <button type="button" class="btn-stale-refresh" (click)="refreshStaleTranscripts()">Refresh list</button>
+    </div>
+  }
+  <!-- Filter Controls -->
+  <div class="transcript-filters">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label>System</label>
+        <select [ngModel]="filterSystemId" (ngModelChange)="onSystemFilterChange($event)" class="filter-select">
+          <option [ngValue]="undefined">All Systems</option>
+          @for (system of availableSystems; track system) {
+            <option [ngValue]="system.id">{{ system.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Talkgroup</label>
+        <select [ngModel]="filterTalkgroupId" (ngModelChange)="onTalkgroupFilterChange($event)" class="filter-select" [disabled]="!filterSystemId">
+          <option [ngValue]="undefined">All Talkgroups</option>
+          @for (tg of getFilteredTalkgroups(); track tg) {
+            <option [ngValue]="tg.id">{{ tg.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Date From</label>
+        <input type="date" [(ngModel)]="filterDateFrom" (change)="applyFilters()" class="filter-input">
+      </div>
+      <div class="filter-group">
+        <label>Date To</label>
+        <input type="date" [(ngModel)]="filterDateTo" (change)="applyFilters()" class="filter-input">
+      </div>
+      <div class="filter-group filter-search">
+        <label>Search</label>
+        <input type="text" [(ngModel)]="filterSearch" (input)="onSearchInput()" placeholder="Search transcripts..." class="filter-input search-input">
+      </div>
+      <div class="filter-group filter-actions">
+        <button (click)="clearFilters()" class="btn-clear-filters">Clear Filters</button>
+      </div>
+    </div>
+  </div>
+  @if (transcripts.length === 0 && !loadingTranscripts) {
+    <div class="no-alerts">
+      <p>No transcripts found</p>
+    </div>
+  }
+  @if (loadingTranscripts) {
+    <div class="loading">
+      <p>Loading transcripts...</p>
+    </div>
+  }
+  @if (transcripts.length > 0) {
+    <div class="transcripts-list">
+      @for (transcript of transcripts; track trackByTranscriptId($index, transcript)) {
+        <div class="transcript-item">
+          <div class="transcript-header">
+            <div class="transcript-channel">
+              <strong>Channel:</strong>
+              <span>
+                @if (transcript.systemLabel) {
+                  <span>{{ transcript.systemLabel }}</span>
+                }
+                @if (!transcript.systemLabel) {
+                  <span>System {{ transcript.systemId }}</span>
+                }
+                <span> / </span>
+                @if (transcript.talkgroupLabel) {
+                  <span>{{ transcript.talkgroupLabel }}</span>
+                }
+                @if (!transcript.talkgroupLabel && transcript.talkgroupName) {
+                  <span>{{ transcript.talkgroupName }}</span>
+                }
+                @if (!transcript.talkgroupLabel && !transcript.talkgroupName) {
+                  <span>Talkgroup {{ transcript.talkgroupId }}</span>
+                }
+              </span>
+            </div>
+          </div>
+          <div class="transcript-body">
+            @if (transcript.alertSummary) {
+              <div class="alert-summary">
+                <strong>Summary:</strong>
+                <p class="summary-text">{{ transcript.alertSummary }}</p>
+              </div>
+            }
+            <p [innerHTML]="renderTranscript(transcript.transcript, transcript.transcriptAnnotations, filterSearch)"></p>
+          </div>
+          <div class="transcript-footer">
+            <span>{{ transcript.timestamp ? formatTimestamp(transcript.timestamp) : '' }}</span>
+            <div class="footer-actions">
+              <button class="btn-play" (click)="playCall(transcript.callId)">
+                Play Call
+              </button>
+              @if (adminAuthenticated && !isTrainingSubmitted(transcript)) {
+                <button class="btn-edit-training"
+                  [class.btn-edit-training--active]="editingCallId === transcript.callId"
+                  (click)="toggleEdit(transcript)">
+                  @if (editingCallId !== transcript.callId) {
+                    <span>
+                      ✎ Edit for Training@if (hasTrainingDraft(transcript)) {
+                      <span class="draft-hint"> (draft)</span>
+                    }
+                  </span>
+                }
+                @if (editingCallId === transcript.callId) {
+                  <span>✕ Cancel</span>
+                }
+              </button>
+            }
+            @if (adminAuthenticated && isTrainingSubmitted(transcript)) {
+              <span class="training-submitted-badge">
+                ✓ Submitted for training
+              </span>
+            }
+          </div>
+        </div>
+        @if (editingCallId === transcript.callId) {
+          <div class="training-edit-panel">
+            <div class="training-edit-audio">
+              @if (editAudioLoading) {
+                <span class="audio-status">Loading audio…</span>
+              }
+              @if (editAudioSrc && !editAudioLoading) {
+                <audio controls [src]="editAudioSrc" class="edit-audio-player"></audio>
+              }
+              @if (!editAudioSrc && !editAudioLoading) {
+                <span class="audio-status audio-status--unavail">Audio unavailable</span>
+              }
+            </div>
+            <label class="training-edit-label">Edit transcript for Whisper training:</label>
+            <textarea class="training-edit-textarea" rows="5" [(ngModel)]="editText" placeholder="Edit transcript text…"></textarea>
+            <div class="training-edit-actions">
+              <button class="btn-save-draft" (click)="saveEditDraft()" [disabled]="editSaving || editApproving || !editText.trim()">
+                {{ editSaving ? 'Saving…' : 'Save Draft' }}
+              </button>
+              <button class="btn-approve" (click)="approveEdit()" [disabled]="editSaving || editApproving || !editText.trim()">
+                {{ editApproving ? 'Sending…' : '✓ Approve & Send' }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+    <div class="pagination-controls">
+      <button class="btn-nav" (click)="prevTranscriptsPage()" [disabled]="transcriptOffset === 0 || loadingTranscripts">
+        ‹ Prev
+      </button>
+      <span>Showing {{ transcriptOffset + 1 }} - {{ transcriptOffset + transcripts.length }}</span>
+      <button class="btn-nav" (click)="nextTranscriptsPage()" [disabled]="transcripts.length < limit || loadingTranscripts">
+        Next ›
+      </button>
+    </div>
+  </div>
+}
+</div>
+}
+
+@if (!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'preferences') {
+  <div class="preferences-content">
+    <rdio-scanner-alert-preferences></rdio-scanner-alert-preferences>
+  </div>
+}
+
+<!-- ── Stats Dashboard ── -->
+@if (!boardEmbed && panelMode === 'stats') {
+  <div class="stats-content">
+    @if (loadingStats && !stats) {
+      <div class="stats-loading">
+        <mat-icon>bar_chart</mat-icon>
+        <p>Loading stats...</p>
+      </div>
+    }
+    @if (statsError) {
+      <div class="stats-error">{{ statsError }}</div>
+    }
+    @if (stats) {
+      <!-- System Filter -->
+      <div class="stats-filter-bar">
+        <mat-icon class="filter-icon">filter_list</mat-icon>
+        <span class="filter-label">Filter by System:</span>
+        <select class="stats-system-select"
+          [(ngModel)]="selectedSystemId"
+          (ngModelChange)="loadStats()">
+          <option [ngValue]="null">All Systems</option>
+          @for (sys of stats.availableSystems; track sys) {
+            <option [ngValue]="sys.id">{{ sys.label }}</option>
+          }
+        </select>
+        @if (selectedSystemId) {
+          <span class="filter-active-badge">Filtered</span>
+        }
+      </div>
+      <!-- Incident Summary -->
+      @if (stats.incidentSummary && stats.incidentSummary.length > 0) {
+        <div class="stats-section">
+          <h3 class="stats-section-title">
+            📋 Today's Incident Summary
+            <span class="section-subtitle">based on transcripts · click to expand</span>
+          </h3>
+          <div class="incident-categories">
+            @for (cat of stats.incidentSummary; track cat) {
+              <div class="incident-category"
+                [class.expanded]="expandedIncidentCategory === cat.category">
+                <!-- Category header row -->
+                <div class="incident-cat-header" (click)="toggleIncidentCategory(cat.category)"
+                  [style.border-left-color]="getIncidentColor(cat.category)">
+                  <span class="incident-emoji">{{ getIncidentIcon(cat.category) }}</span>
+                  <span class="incident-cat-label">{{ cat.category }}</span>
+                  <div class="incident-cat-bar-track">
+                    <div class="incident-cat-bar"
+                      [style.width.%]="statsBarPct(cat.count, statsMaxCount(stats.incidentSummary))"
+                      [style.background]="getIncidentColor(cat.category)">
+                    </div>
+                  </div>
+                  <span class="incident-cat-count">{{ cat.count }}</span>
+                  <span class="expand-chevron">{{ expandedIncidentCategory === cat.category ? '▲' : '▼' }}</span>
+                </div>
+                <!-- Sub-category breakdown -->
+                @if (expandedIncidentCategory === cat.category) {
+                  <div class="incident-subcats">
+                    @for (sub of cat.subcategories; track sub) {
+                      <div class="incident-subcat-row">
+                        <span class="subcat-label">{{ sub.label }}</span>
+                        <div class="subcat-bar-track">
+                          <div class="subcat-bar"
+                            [style.width.%]="statsBarPct(sub.count, cat.count)"
+                            [style.background]="getIncidentColor(cat.category)">
+                          </div>
+                        </div>
+                        <span class="subcat-count">{{ sub.count }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+      <!-- Counter Row -->
+      <div class="stats-counters">
+        <div class="stat-counter">
+          <div class="counter-value">{{ stats.totalCallsToday | number }}</div>
+          <div class="counter-label">Calls Today</div>
+        </div>
+        <div class="stat-counter accent">
+          <div class="counter-value">{{ stats.callsLastMinute }}</div>
+          <div class="counter-label">Calls / Min</div>
+        </div>
+        <div class="stat-counter accent">
+          <div class="counter-value">{{ stats.callsLastHour | number }}</div>
+          <div class="counter-label">Calls / Hour</div>
+        </div>
+        <div class="stat-counter">
+          <div class="counter-value">{{ stats.topTalkgroups.length }}</div>
+          <div class="counter-label">Active Channels (24h)</div>
+        </div>
+        <div class="stat-counter tone">
+          <div class="counter-value">{{ stats.topDepartmentsByTone.length }}</div>
+          <div class="counter-label">Depts w/ Tones (24h)</div>
+        </div>
+      </div>
+      <!-- Calls Per Minute – last hour -->
+      <div class="stats-section">
+        <h3 class="stats-section-title">
+          <mat-icon>show_chart</mat-icon>
+          Calls Per Minute — Last Hour
+        </h3>
+        @if (stats.callsPerMinute.length === 0) {
+          <div class="stats-empty">No call activity in the last hour.</div>
+        }
+        @if (stats.callsPerMinute.length > 0) {
+          <div class="cpm-chart">
+            <div class="cpm-chart-inner">
+              <!-- Y-axis -->
+              <div class="chart-y-axis">
+                @for (tick of statsYTicksCpm(); track tick) {
+                  <span class="y-tick">{{ tick }}</span>
+                }
+              </div>
+              <!-- Bars + grid -->
+              <div class="cpm-chart-area">
+                <div class="chart-grid">
+                  @for (tick of statsYTicksCpm(); track tick) {
+                    <div class="grid-line"></div>
+                  }
+                </div>
+                <div class="cpm-bars">
+                  @for (bucket of stats.callsPerMinute; track bucket) {
+                    <div class="cpm-bar-wrap"
+                      [title]="statsCallsPerMinLabel(bucket.minute) + ': ' + bucket.count + ' calls'">
+                      <div class="cpm-bar"
+                        [style.height.%]="statsBarPct(bucket.count, statsMaxCpm())">
+                      </div>
+                    </div>
+                  }
+                </div>
+                <div class="cpm-x-labels">
+                  @for (lbl of statsCpmLabels(); track lbl) {
+                    <span class="cpm-label">{{ lbl }}</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+      <!-- Two column: Top Talkgroups | Top Depts by Tone -->
+      <div class="stats-two-col">
+        <!-- Top Talkgroups (24h) -->
+        <div class="stats-section">
+          <h3 class="stats-section-title">
+            <mat-icon>radio</mat-icon>
+            Top 10 Channels — Last 24h
+          </h3>
+          @if (stats.topTalkgroups.length === 0) {
+            <div class="stats-empty">No data yet.</div>
+          }
+          @for (tg of stats.topTalkgroups; track tg; let i = $index) {
+            <div class="bar-row">
+              <span class="bar-rank">#{{ i + 1 }}</span>
+              <span class="bar-label" [title]="tg.label">{{ tg.label }}</span>
+              <div class="bar-track">
+                <div class="bar-fill"
+                  [style.width.%]="statsBarPct(tg.count, statsMaxCount(stats.topTalkgroups))">
+                </div>
+              </div>
+              <span class="bar-count">{{ tg.count }}</span>
+            </div>
+          }
+        </div>
+        <!-- Top 10 Departments by Tone (24h) -->
+        <div class="stats-section">
+          <h3 class="stats-section-title">
+            <mat-icon>notifications_active</mat-icon>
+            Top 10 Depts by Tone — Last 24h
+          </h3>
+          @if (stats.topDepartmentsByTone.length === 0) {
+            <div class="stats-empty">No tone dispatches in the last 24h.</div>
+          }
+          @for (dept of stats.topDepartmentsByTone; track dept; let i = $index) {
+            <div class="bar-row tone-row">
+              <span class="bar-rank">#{{ i + 1 }}</span>
+              <span class="bar-label" [title]="dept.label">{{ dept.label }}</span>
+              <div class="bar-track">
+                <div class="bar-fill tone-fill"
+                  [style.width.%]="statsBarPct(dept.count, statsMaxCount(stats.topDepartmentsByTone))">
+                </div>
+              </div>
+              <span class="bar-count">{{ dept.count }}</span>
+            </div>
+          }
+        </div>
+      </div>
+      <!-- Calls by Hour of Day -->
+      <div class="stats-section">
+        <h3 class="stats-section-title">
+          <mat-icon>schedule</mat-icon>
+          Activity by Hour of Day — Last 7 Days
+        </h3>
+        <div class="hour-chart-outer">
+          <!-- Y-axis -->
+          <div class="chart-y-axis">
+            @for (tick of statsYTicks(stats.callsByHour); track tick) {
+              <span class="y-tick">{{ tick }}</span>
+            }
+          </div>
+          <!-- Chart area -->
+          <div class="hour-chart-area">
+            <div class="chart-grid">
+              @for (tick of statsYTicks(stats.callsByHour); track tick) {
+                <div class="grid-line"></div>
+              }
+            </div>
+            <div class="hour-chart">
+              @for (h of stats.callsByHour; track h) {
+                <div class="hour-col"
+                  [title]="statsHourLabel(h.hour) + ': ' + h.count + ' calls'">
+                  <div class="hour-bar-wrap">
+                    <div class="hour-bar"
+                      [style.height.%]="statsBarPct(h.count, statsMaxCount(stats.callsByHour))">
+                    </div>
+                  </div>
+                  <span class="hour-label">{{ statsHourLabel(h.hour) }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stats-footer">
+        Updated {{ stats.generatedAt | date:'shortTime' }} &nbsp;·&nbsp; Auto-refreshes every 30s
+      </div>
+    }
+  </div>
+}
 
 </div>

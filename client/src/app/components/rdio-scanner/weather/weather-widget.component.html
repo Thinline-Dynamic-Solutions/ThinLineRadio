@@ -1,66 +1,85 @@
 <section class="weather-widget" aria-label="Local weather">
-    <div class="weather-widget__head">
-        <div class="weather-widget__title-row">
-            <mat-icon class="weather-widget__icon">cloud</mat-icon>
-            <span class="weather-widget__title">Weather</span>
-            <button type="button"
-                    class="weather-widget__zip-btn"
-                    *ngIf="!editingZip"
-                    (click)="startZipEdit()"
-                    [matTooltip]="zipInput ? 'Change ZIP code' : 'Set ZIP code'">
-                {{ zipInput || 'Set ZIP' }}
-            </button>
-            <input *ngIf="editingZip"
-                   class="weather-widget__zip-input"
-                   type="text"
-                   maxlength="10"
-                   placeholder="12345"
-                   [(ngModel)]="zipInput"
-                   (blur)="saveZip()"
-                   (keydown)="onZipKeydown($event)"
-                   autofocus>
-        </div>
-        <span class="weather-widget__location" *ngIf="weather?.locationLabel">{{ weather!.locationLabel }}</span>
+  <div class="weather-widget__head">
+    <div class="weather-widget__title-row">
+      <mat-icon class="weather-widget__icon">cloud</mat-icon>
+      <span class="weather-widget__title">Weather</span>
+      @if (!editingZip) {
+        <button type="button"
+          class="weather-widget__zip-btn"
+          (click)="startZipEdit()"
+          [matTooltip]="zipInput ? 'Change ZIP code' : 'Set ZIP code'">
+          {{ zipInput || 'Set ZIP' }}
+        </button>
+      }
+      @if (editingZip) {
+        <input
+          class="weather-widget__zip-input"
+          type="text"
+          maxlength="10"
+          placeholder="12345"
+          [(ngModel)]="zipInput"
+          (blur)="saveZip()"
+          (keydown)="onZipKeydown($event)"
+          autofocus>
+      }
     </div>
+    @if (weather?.locationLabel) {
+      <span class="weather-widget__location">{{ weather!.locationLabel }}</span>
+    }
+  </div>
 
-    <div class="weather-widget__empty" *ngIf="!zipInput && !loading">
-        <span>Set your ZIP code for local forecast.</span>
+  @if (!zipInput && !loading) {
+    <div class="weather-widget__empty">
+      <span>Set your ZIP code for local forecast.</span>
     </div>
+  }
 
-    <div class="weather-widget__error" *ngIf="error">{{ error }}</div>
+  @if (error) {
+    <div class="weather-widget__error">{{ error }}</div>
+  }
 
-    <div class="weather-widget__loading" *ngIf="loading">
-        <mat-spinner diameter="18"></mat-spinner>
+  @if (loading) {
+    <div class="weather-widget__loading">
+      <mat-spinner diameter="18"></mat-spinner>
     </div>
+  }
 
-    <ng-container *ngIf="weather">
-        <div class="weather-widget__current">
-            <div class="weather-widget__temp">{{ tempLabel(weather.currentTempF) }}</div>
-            <div class="weather-widget__conditions">{{ weather.currentConditions || '—' }}</div>
-        </div>
-
-        <div class="weather-widget__section" *ngIf="weather.hourly.length">
-            <div class="weather-widget__section-label">Next 5 hours</div>
-            <div class="weather-widget__hourly">
-                <div class="weather-widget__hour" *ngFor="let hour of weather.hourly">
-                    <span class="weather-widget__hour-time">{{ formatHour(hour.startTime) }}</span>
-                    <span class="weather-widget__hour-temp">{{ tempLabel(hour.temperature, hour.temperatureUnit) }}</span>
-                    <span class="weather-widget__hour-pop" *ngIf="precipLabel(hour.probabilityOfPrecipitation)">
-                        {{ precipLabel(hour.probabilityOfPrecipitation) }}
-                    </span>
-                </div>
+  @if (weather) {
+    <div class="weather-widget__current">
+      <div class="weather-widget__temp">{{ tempLabel(weather.currentTempF) }}</div>
+      <div class="weather-widget__conditions">{{ weather.currentConditions || '—' }}</div>
+    </div>
+    @if (weather.hourly.length) {
+      <div class="weather-widget__section">
+        <div class="weather-widget__section-label">Next 5 hours</div>
+        <div class="weather-widget__hourly">
+          @for (hour of weather.hourly; track hour) {
+            <div class="weather-widget__hour">
+              <span class="weather-widget__hour-time">{{ formatHour(hour.startTime) }}</span>
+              <span class="weather-widget__hour-temp">{{ tempLabel(hour.temperature, hour.temperatureUnit) }}</span>
+              @if (precipLabel(hour.probabilityOfPrecipitation)) {
+                <span class="weather-widget__hour-pop">
+                  {{ precipLabel(hour.probabilityOfPrecipitation) }}
+                </span>
+              }
             </div>
+          }
         </div>
-
-        <div class="weather-widget__section" *ngIf="weather.daily.length">
-            <div class="weather-widget__section-label">3-day</div>
-            <div class="weather-widget__daily">
-                <div class="weather-widget__day" *ngFor="let day of weather.daily">
-                    <span class="weather-widget__day-name">{{ formatDay(day) }}</span>
-                    <span class="weather-widget__day-temp">{{ tempLabel(day.temperature, day.temperatureUnit) }}</span>
-                    <span class="weather-widget__day-desc" [matTooltip]="day.shortForecast">{{ day.shortForecast }}</span>
-                </div>
+      </div>
+    }
+    @if (weather.daily.length) {
+      <div class="weather-widget__section">
+        <div class="weather-widget__section-label">3-day</div>
+        <div class="weather-widget__daily">
+          @for (day of weather.daily; track day) {
+            <div class="weather-widget__day">
+              <span class="weather-widget__day-name">{{ formatDay(day) }}</span>
+              <span class="weather-widget__day-temp">{{ tempLabel(day.temperature, day.temperatureUnit) }}</span>
+              <span class="weather-widget__day-desc" [matTooltip]="day.shortForecast">{{ day.shortForecast }}</span>
             </div>
+          }
         </div>
-    </ng-container>
+      </div>
+    }
+  }
 </section>

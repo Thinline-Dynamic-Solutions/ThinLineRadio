@@ -1,139 +1,135 @@
 <!--
- * *****************************************************************************
- * Copyright (C) 2025 Thinline Dynamic Solutions
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * ****************************************************************************
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
 -->
 <!-- Unauthenticated: show login -->
-<ng-container *ngIf="!authenticated">
-    <rdio-scanner-admin-login></rdio-scanner-admin-login>
-</ng-container>
+@if (!authenticated) {
+  <rdio-scanner-admin-login></rdio-scanner-admin-login>
+}
 
 <!-- Authenticated: show admin panel -->
-<ng-container *ngIf="authenticated">
-
-    <!-- Todos / notifications -->
-    <rdio-scanner-admin-todos></rdio-scanner-admin-todos>
-
-    <!-- Master Search Bar -->
-    <div class="admin-search-wrap" (keydown.escape)="closeSearch()">
-        <div class="admin-search-input-wrap">
-            <mat-icon class="search-icon">search</mat-icon>
-            <input
-                #searchInput
-                class="admin-search-input"
-                type="text"
-                placeholder="Search settings, tools…"
-                [(ngModel)]="searchQuery"
-                (input)="onSearch()"
-                (focus)="onSearchFocus()"
-                (blur)="onSearchBlur()"
-                autocomplete="off"
-                spellcheck="false">
-            <button *ngIf="searchQuery" class="search-clear-btn" type="button" (mousedown)="clearSearch()">
-                <mat-icon>close</mat-icon>
-            </button>
-        </div>
-        <div class="admin-search-results" *ngIf="searchResultsVisible && searchResults.length > 0">
-            <button
-                *ngFor="let result of searchResults; let i = index"
-                type="button"
-                class="search-result-item"
-                [class.active]="searchActiveIndex === i"
-                (mousedown)="navigateToResult(result)">
-                <mat-icon class="result-icon">{{ result.icon }}</mat-icon>
-                <div class="result-body">
-                    <span class="result-label">{{ result.label }}</span>
-                    <span class="result-breadcrumb">{{ result.breadcrumb }}</span>
-                </div>
-                <mat-icon class="result-arrow">chevron_right</mat-icon>
-            </button>
-        </div>
-        <div class="admin-search-results admin-search-empty" *ngIf="searchResultsVisible && searchQuery && searchResults.length === 0">
-            <mat-icon>search_off</mat-icon>
-            <span>No results for "{{ searchQuery }}"</span>
-        </div>
+@if (authenticated) {
+  <!-- Todos / notifications -->
+  <rdio-scanner-admin-todos></rdio-scanner-admin-todos>
+  <!-- Master Search Bar -->
+  <div class="admin-search-wrap" (keydown.escape)="closeSearch()">
+    <div class="admin-search-input-wrap">
+      <mat-icon class="search-icon">search</mat-icon>
+      <input
+        #searchInput
+        class="admin-search-input"
+        type="text"
+        placeholder="Search settings, tools…"
+        [(ngModel)]="searchQuery"
+        (input)="onSearch()"
+        (focus)="onSearchFocus()"
+        (blur)="onSearchBlur()"
+        autocomplete="off"
+        spellcheck="false">
+      @if (searchQuery) {
+        <button class="search-clear-btn" type="button" (mousedown)="clearSearch()">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
     </div>
-
-    <!-- Top-level tab navigation -->
-    <mat-tab-group
-        class="admin-tab-group"
-        [selectedIndex]="selectedTabIndex"
-        (selectedTabChange)="onTabChange($event)"
-        animationDuration="150ms">
-
-        <!-- ── Config ─────────────────────────────── -->
-        <mat-tab>
-            <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">settings</mat-icon>
-                <span class="tab-label">Config</span>
-            </ng-template>
-            <div class="tab-content">
-                <rdio-scanner-admin-config #configComponent [hideActions]="true"></rdio-scanner-admin-config>
+    @if (searchResultsVisible && searchResults.length > 0) {
+      <div class="admin-search-results">
+        @for (result of searchResults; track result; let i = $index) {
+          <button
+            type="button"
+            class="search-result-item"
+            [class.active]="searchActiveIndex === i"
+            (mousedown)="navigateToResult(result)">
+            <mat-icon class="result-icon">{{ result.icon }}</mat-icon>
+            <div class="result-body">
+              <span class="result-label">{{ result.label }}</span>
+              <span class="result-breadcrumb">{{ result.breadcrumb }}</span>
             </div>
-        </mat-tab>
-
-        <!-- ── Logs ──────────────────────────────── -->
-        <mat-tab>
-            <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">article</mat-icon>
-                <span class="tab-label">Logs</span>
-            </ng-template>
-            <div class="tab-content">
-                <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
-            </div>
-        </mat-tab>
-
-        <!-- ── System Health ─────────────────────── -->
-        <mat-tab>
-            <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">health_and_safety</mat-icon>
-                <span class="tab-label">System Health</span>
-            </ng-template>
-            <div class="tab-content">
-                <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
-            </div>
-        </mat-tab>
-
-        <!-- ── Tools ─────────────────────────────── -->
-        <mat-tab>
-            <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">build</mat-icon>
-                <span class="tab-label">Tools</span>
-            </ng-template>
-            <div class="tab-content">
-                <rdio-scanner-admin-tools
-                    #toolsComponent
-                    (config)="onConfigFromTools($event)"
-                    (configSaved)="onConfigSavedFromTools($event)">
-                </rdio-scanner-admin-tools>
-            </div>
-        </mat-tab>
-
-        <!-- ── Assistant ─────────────────────────── -->
-        <mat-tab>
-            <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">smart_toy</mat-icon>
-                <span class="tab-label">Assistant</span>
-            </ng-template>
-            <div class="tab-content">
-                <rdio-scanner-admin-assistant></rdio-scanner-admin-assistant>
-            </div>
-        </mat-tab>
-
-    </mat-tab-group>
-
-
-</ng-container>
+            <mat-icon class="result-arrow">chevron_right</mat-icon>
+          </button>
+        }
+      </div>
+    }
+    @if (searchResultsVisible && searchQuery && searchResults.length === 0) {
+      <div class="admin-search-results admin-search-empty">
+        <mat-icon>search_off</mat-icon>
+        <span>No results for "{{ searchQuery }}"</span>
+      </div>
+    }
+  </div>
+  <!-- Top-level tab navigation -->
+  <mat-tab-group
+    class="admin-tab-group"
+    [selectedIndex]="selectedTabIndex"
+    (selectedTabChange)="onTabChange($event)"
+    animationDuration="150ms">
+    <!-- ── Config ─────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">settings</mat-icon>
+        <span class="tab-label">Config</span>
+      </ng-template>
+      <div class="tab-content">
+        <rdio-scanner-admin-config #configComponent [hideActions]="true"></rdio-scanner-admin-config>
+      </div>
+    </mat-tab>
+    <!-- ── Logs ──────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">article</mat-icon>
+        <span class="tab-label">Logs</span>
+      </ng-template>
+      <div class="tab-content">
+        <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
+      </div>
+    </mat-tab>
+    <!-- ── System Health ─────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">health_and_safety</mat-icon>
+        <span class="tab-label">System Health</span>
+      </ng-template>
+      <div class="tab-content">
+        <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
+      </div>
+    </mat-tab>
+    <!-- ── Tools ─────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">build</mat-icon>
+        <span class="tab-label">Tools</span>
+      </ng-template>
+      <div class="tab-content">
+        <rdio-scanner-admin-tools
+          #toolsComponent
+          (config)="onConfigFromTools($event)"
+          (configSaved)="onConfigSavedFromTools($event)">
+        </rdio-scanner-admin-tools>
+      </div>
+    </mat-tab>
+    <!-- ── Assistant ─────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">smart_toy</mat-icon>
+        <span class="tab-label">Assistant</span>
+      </ng-template>
+      <div class="tab-content">
+        <rdio-scanner-admin-assistant></rdio-scanner-admin-assistant>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+}

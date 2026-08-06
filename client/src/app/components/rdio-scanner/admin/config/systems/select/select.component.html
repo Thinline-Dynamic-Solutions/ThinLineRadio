@@ -1,60 +1,70 @@
 <div>
-    <div mat-dialog-title>Systems and talkgroups selection</div>
-    <div [formGroup]="select" mat-dialog-content>
-        <mat-checkbox color="primary" [disableRipple]="true" formControlName="all"
-            [indeterminate]="indeterminate.everything">
-            Everything
-        </mat-checkbox>
-        <h3 class="mat-caption">Groups</h3>
-        <div class="flex-row wrap" formArrayName="groups">
-            <div *ngFor="let group of configGroups; index as groupIndex; trackBy: trackByGroupId" [formGroupName]="groupIndex">
-                <mat-checkbox color="primary" [disableRipple]="true" formControlName="checked"
-                    [indeterminate]="indeterminate.groups[groupIndex]">
-                    {{ group.value.label }}
-                </mat-checkbox>
-            </div>
+  <div mat-dialog-title>Systems and talkgroups selection</div>
+  <div [formGroup]="select" mat-dialog-content>
+    <mat-checkbox color="primary" [disableRipple]="true" formControlName="all"
+      [indeterminate]="indeterminate.everything">
+      Everything
+    </mat-checkbox>
+    <h3 class="mat-caption">Groups</h3>
+    <div class="flex-row wrap" formArrayName="groups">
+      @for (group of configGroups; track trackByGroupId(groupIndex, group); let groupIndex = $index) {
+        <div [formGroupName]="groupIndex">
+          <mat-checkbox color="primary" [disableRipple]="true" formControlName="checked"
+            [indeterminate]="indeterminate.groups[groupIndex]">
+            {{ group.value.label }}
+          </mat-checkbox>
         </div>
-        <h3 class="mat-caption">Tags</h3>
-        <div class="flex-row wrap" formArrayName="tags">
-            <div *ngFor="let tag of configTags; index as tagIndex; trackBy: trackByTagId" [formGroupName]="tagIndex">
-                <mat-checkbox color="primary" [disableRipple]="true" formControlName="checked"
-                    [indeterminate]="indeterminate.tags[tagIndex]">
-                    {{ tag.value.label }}
-                </mat-checkbox>
-            </div>
-        </div>
-        <h3 class="mat-caption">
-            Systems
-            <button type="button" mat-button (click)="expandAll()" style="font-size: 0.75rem;">Expand All</button>
-            <button type="button" mat-button (click)="collapseAll()" style="font-size: 0.75rem;">Collapse All</button>
-        </h3>
-        <div formArrayName="systems">
-            <div *ngFor="let system of configSystems; index as systemIndex; trackBy: trackBySystemId" [formGroupName]="systemIndex">
-                <div class="flex-row margin" style="align-items: center;">
-                    <button type="button" mat-icon-button (click)="toggleSystem(systemIndex)" style="margin-right: 8px;">
-                        <mat-icon>{{ expandedSystems[systemIndex] ? 'expand_more' : 'chevron_right' }}</mat-icon>
-                    </button>
-                    <mat-checkbox color="primary" [disableRipple]="true" formControlName="all"
-                        [indeterminate]="indeterminate.systems[systemIndex]">
-                        {{ system.value.label }}
-                        <span style="color: #999; font-size: 0.85em; margin-left: 8px;">
-                            ({{ configTalkgroups[systemIndex].length }} talkgroups)
-                        </span>
-                    </mat-checkbox>
-                </div>
-                <div *ngIf="expandedSystems[systemIndex]" class="flex-row wrap indent margin" formArrayName="talkgroups">
-                    <div *ngFor="let talkgroup of configTalkgroups[systemIndex]; index as talkgroupIndex; trackBy: trackByTalkgroupId"
-                        [formGroupName]="talkgroupIndex">
-                        <mat-checkbox color="primary" [disableRipple]="true" formControlName="checked">
-                            {{ talkgroup.value.label }}
-                        </mat-checkbox>
-                    </div>
-                </div>
-            </div>
-        </div>
+      }
     </div>
-    <div mat-dialog-actions>
-        <button mat-raised-button (click)="cancel()">Cancel</button>
-        <button mat-raised-button color="primary" (click)="accept()">Ok</button>
+    <h3 class="mat-caption">Tags</h3>
+    <div class="flex-row wrap" formArrayName="tags">
+      @for (tag of configTags; track trackByTagId(tagIndex, tag); let tagIndex = $index) {
+        <div [formGroupName]="tagIndex">
+          <mat-checkbox color="primary" [disableRipple]="true" formControlName="checked"
+            [indeterminate]="indeterminate.tags[tagIndex]">
+            {{ tag.value.label }}
+          </mat-checkbox>
+        </div>
+      }
     </div>
+    <h3 class="mat-caption">
+      Systems
+      <button type="button" mat-button (click)="expandAll()" style="font-size: 0.75rem;">Expand All</button>
+      <button type="button" mat-button (click)="collapseAll()" style="font-size: 0.75rem;">Collapse All</button>
+    </h3>
+    <div formArrayName="systems">
+      @for (system of configSystems; track trackBySystemId(systemIndex, system); let systemIndex = $index) {
+        <div [formGroupName]="systemIndex">
+          <div class="flex-row margin" style="align-items: center;">
+            <button type="button" mat-icon-button (click)="toggleSystem(systemIndex)" style="margin-right: 8px;">
+              <mat-icon>{{ expandedSystems[systemIndex] ? 'expand_more' : 'chevron_right' }}</mat-icon>
+            </button>
+            <mat-checkbox color="primary" [disableRipple]="true" formControlName="all"
+              [indeterminate]="indeterminate.systems[systemIndex]">
+              {{ system.value.label }}
+              <span style="color: #999; font-size: 0.85em; margin-left: 8px;">
+                ({{ configTalkgroups[systemIndex].length }} talkgroups)
+              </span>
+            </mat-checkbox>
+          </div>
+          @if (expandedSystems[systemIndex]) {
+            <div class="flex-row wrap indent margin" formArrayName="talkgroups">
+              @for (talkgroup of configTalkgroups[systemIndex]; track trackByTalkgroupId(talkgroupIndex, talkgroup); let talkgroupIndex = $index) {
+                <div
+                  [formGroupName]="talkgroupIndex">
+                  <mat-checkbox color="primary" [disableRipple]="true" formControlName="checked">
+                    {{ talkgroup.value.label }}
+                  </mat-checkbox>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+  <div mat-dialog-actions>
+    <button mat-raised-button (click)="cancel()">Cancel</button>
+    <button mat-raised-button color="primary" (click)="accept()">Ok</button>
+  </div>
 </div>

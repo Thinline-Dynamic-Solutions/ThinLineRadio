@@ -29,59 +29,62 @@ interface DialogRow extends Omit<MappingToneSetLocationRow, 'geoLat' | 'geoLon'>
     template: `
     <h2 mat-dialog-title>Assign locations to tone sets</h2>
     <mat-dialog-content>
-        <p class="intro">
-            When a tone set matches on a dispatch call, its location takes over on the incident map
-            and the parent talkgroup geo is not used. Use <strong>Suggest locations</strong> to draft
-            city/label and coordinates (Gemini + TLR geocoding), review the table, then click
-            <strong>Apply</strong> to save. Existing coordinates are left alone.
-        </p>
-
-        <div class="tsl-table" *ngIf="rows.length; else noRows">
-            <div class="tsl-head">
-                <span class="c-tg">Talkgroup</span>
-                <span class="c-label">Tone set</span>
-                <span class="c-query">City / label</span>
-                <span class="c-num">Lat</span>
-                <span class="c-num">Lon</span>
-                <span class="c-num">Radius</span>
-                <span class="c-actions"></span>
+      <p class="intro">
+        When a tone set matches on a dispatch call, its location takes over on the incident map
+        and the parent talkgroup geo is not used. Use <strong>Suggest locations</strong> to draft
+        city/label and coordinates (Gemini + TLR geocoding), review the table, then click
+        <strong>Apply</strong> to save. Existing coordinates are left alone.
+      </p>
+    
+      @if (rows.length) {
+        <div class="tsl-table">
+          <div class="tsl-head">
+            <span class="c-tg">Talkgroup</span>
+            <span class="c-label">Tone set</span>
+            <span class="c-query">City / label</span>
+            <span class="c-num">Lat</span>
+            <span class="c-num">Lon</span>
+            <span class="c-num">Radius</span>
+            <span class="c-actions"></span>
+          </div>
+          @for (row of rows; track row) {
+            <div class="tsl-row">
+              <span class="c-tg" [title]="row.talkgroupLabel">{{ row.talkgroupLabel }}</span>
+              <span class="c-label" [title]="row.label">{{ row.label }}</span>
+              <span class="c-query">
+                <input type="text" [(ngModel)]="row.geoCity" placeholder="City, township, zip…">
+              </span>
+              <span class="c-num">
+                <input type="number" step="any" [(ngModel)]="row.geoLat">
+              </span>
+              <span class="c-num">
+                <input type="number" step="any" [(ngModel)]="row.geoLon">
+              </span>
+              <span class="c-num">
+                <input type="number" step="any" [(ngModel)]="row.geoRadiusMiles" min="1" max="40">
+              </span>
+              <span class="c-actions">
+                <button mat-icon-button type="button" color="warn" (click)="clearRow(row)" aria-label="Clear">
+                  <mat-icon>clear</mat-icon>
+                </button>
+              </span>
             </div>
-            <div class="tsl-row" *ngFor="let row of rows">
-                <span class="c-tg" [title]="row.talkgroupLabel">{{ row.talkgroupLabel }}</span>
-                <span class="c-label" [title]="row.label">{{ row.label }}</span>
-                <span class="c-query">
-                    <input type="text" [(ngModel)]="row.geoCity" placeholder="City, township, zip…">
-                </span>
-                <span class="c-num">
-                    <input type="number" step="any" [(ngModel)]="row.geoLat">
-                </span>
-                <span class="c-num">
-                    <input type="number" step="any" [(ngModel)]="row.geoLon">
-                </span>
-                <span class="c-num">
-                    <input type="number" step="any" [(ngModel)]="row.geoRadiusMiles" min="1" max="40">
-                </span>
-                <span class="c-actions">
-                    <button mat-icon-button type="button" color="warn" (click)="clearRow(row)" aria-label="Clear">
-                        <mat-icon>clear</mat-icon>
-                    </button>
-                </span>
-            </div>
+          }
         </div>
-        <ng-template #noRows>
-            <p class="intro">No tone sets found on this system. Configure tone sets on talkgroups first.</p>
-        </ng-template>
+      } @else {
+        <p class="intro">No tone sets found on this system. Configure tone sets on talkgroups first.</p>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-        <button mat-button type="button" (click)="onCancel()">Cancel</button>
-        <button mat-stroked-button color="accent" type="button"
-            [disabled]="suggesting || applying || loading || !rows.length"
-            (click)="onSuggest()">
-            {{ suggesting ? 'Suggesting…' : 'Suggest locations' }}
-        </button>
-        <button mat-raised-button color="primary" type="button" [disabled]="applying || suggesting || !rows.length" (click)="onApply()">
-            {{ applying ? 'Saving…' : 'Apply' }}
-        </button>
+      <button mat-button type="button" (click)="onCancel()">Cancel</button>
+      <button mat-stroked-button color="accent" type="button"
+        [disabled]="suggesting || applying || loading || !rows.length"
+        (click)="onSuggest()">
+        {{ suggesting ? 'Suggesting…' : 'Suggest locations' }}
+      </button>
+      <button mat-raised-button color="primary" type="button" [disabled]="applying || suggesting || !rows.length" (click)="onApply()">
+        {{ applying ? 'Saving…' : 'Apply' }}
+      </button>
     </mat-dialog-actions>
     `,
     styles: [`

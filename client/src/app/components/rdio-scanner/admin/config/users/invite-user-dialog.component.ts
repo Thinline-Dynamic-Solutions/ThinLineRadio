@@ -33,30 +33,36 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
     </h2>
     <mat-dialog-content>
       <div class="results-summary">
-        <div class="success-count" *ngIf="data.successCount > 0">
-          <mat-icon>check_circle</mat-icon>
-          <span>{{ data.successCount }} invitation{{ data.successCount !== 1 ? 's' : '' }} sent successfully</span>
-        </div>
-        <div class="failure-count" *ngIf="data.failureCount > 0">
-          <mat-icon>error</mat-icon>
-          <span>{{ data.failureCount }} invitation{{ data.failureCount !== 1 ? 's' : '' }} failed</span>
-        </div>
-      </div>
-
-      <div class="results-list">
-        <div *ngFor="let result of data.results" class="result-item" [class.success]="result.success" [class.failure]="!result.success">
-          <mat-icon>{{ result.success ? 'check_circle' : 'error' }}</mat-icon>
-          <div class="result-details">
-            <div class="email">{{ result.email }}</div>
-            <div class="message">{{ result.message }}</div>
+        @if (data.successCount > 0) {
+          <div class="success-count">
+            <mat-icon>check_circle</mat-icon>
+            <span>{{ data.successCount }} invitation{{ data.successCount !== 1 ? 's' : '' }} sent successfully</span>
           </div>
-        </div>
+        }
+        @if (data.failureCount > 0) {
+          <div class="failure-count">
+            <mat-icon>error</mat-icon>
+            <span>{{ data.failureCount }} invitation{{ data.failureCount !== 1 ? 's' : '' }} failed</span>
+          </div>
+        }
+      </div>
+    
+      <div class="results-list">
+        @for (result of data.results; track result) {
+          <div class="result-item" [class.success]="result.success" [class.failure]="!result.success">
+            <mat-icon>{{ result.success ? 'check_circle' : 'error' }}</mat-icon>
+            <div class="result-details">
+              <div class="email">{{ result.email }}</div>
+              <div class="message">{{ result.message }}</div>
+            </div>
+          </div>
+        }
       </div>
     </mat-dialog-content>
     <mat-dialog-actions>
       <button mat-raised-button color="primary" (click)="onClose()">Close</button>
     </mat-dialog-actions>
-  `,
+    `,
     styles: [`
     mat-dialog-title {
       display: flex;
@@ -192,47 +198,57 @@ export class InvitationResultsDialogComponent {
       <form [formGroup]="inviteForm">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Email Addresses</mat-label>
-          <textarea matInput 
-                    formControlName="emails" 
-                    rows="6" 
-                    placeholder="Enter email addresses (one per line or comma-separated)"
-                    required></textarea>
+          <textarea matInput
+            formControlName="emails"
+            rows="6"
+            placeholder="Enter email addresses (one per line or comma-separated)"
+          required></textarea>
           <mat-hint>Enter one or multiple email addresses (one per line or comma-separated)</mat-hint>
-          <mat-error *ngIf="inviteForm.get('emails')?.hasError('required')">
-            At least one email is required
-          </mat-error>
-          <mat-error *ngIf="inviteForm.get('emails')?.hasError('invalidEmails')">
-            {{ getInvalidEmailsError() }}
-          </mat-error>
+          @if (inviteForm.get('emails')?.hasError('required')) {
+            <mat-error>
+              At least one email is required
+            </mat-error>
+          }
+          @if (inviteForm.get('emails')?.hasError('invalidEmails')) {
+            <mat-error>
+              {{ getInvalidEmailsError() }}
+            </mat-error>
+          }
         </mat-form-field>
-
-        <div class="email-count" *ngIf="getEmailCount() > 0">
-          <mat-icon>mail</mat-icon>
-          <span>{{ getEmailCount() }} email{{ getEmailCount() !== 1 ? 's' : '' }} to invite</span>
-        </div>
-
+    
+        @if (getEmailCount() > 0) {
+          <div class="email-count">
+            <mat-icon>mail</mat-icon>
+            <span>{{ getEmailCount() }} email{{ getEmailCount() !== 1 ? 's' : '' }} to invite</span>
+          </div>
+        }
+    
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>User Group</mat-label>
           <mat-select formControlName="groupId" required>
-            <mat-option *ngFor="let group of data.groups" [value]="group.id">
-              {{ group.name }}
-            </mat-option>
+            @for (group of data.groups; track group) {
+              <mat-option [value]="group.id">
+                {{ group.name }}
+              </mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="inviteForm.get('groupId')?.hasError('required')">
-            Group is required
-          </mat-error>
+          @if (inviteForm.get('groupId')?.hasError('required')) {
+            <mat-error>
+              Group is required
+            </mat-error>
+          }
         </mat-form-field>
       </form>
     </mat-dialog-content>
     <mat-dialog-actions>
       <button mat-button (click)="onCancel()">Cancel</button>
-      <button mat-raised-button color="primary" 
-              [disabled]="inviteForm.invalid" 
-              (click)="onInvite()">
+      <button mat-raised-button color="primary"
+        [disabled]="inviteForm.invalid"
+        (click)="onInvite()">
         Send {{ getEmailCount() > 1 ? getEmailCount() + ' Invitations' : 'Invitation' }}
       </button>
     </mat-dialog-actions>
-  `,
+    `,
     styles: [`
     .full-width {
       width: 100%;
@@ -385,50 +401,60 @@ export class InviteUserDialogComponent implements OnInit {
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Email</mat-label>
           <input matInput formControlName="email" type="email" required>
-          <mat-error *ngIf="createForm.get('email')?.hasError('required')">
-            Email is required
-          </mat-error>
-          <mat-error *ngIf="createForm.get('email')?.hasError('email')">
-            Invalid email format
-          </mat-error>
+          @if (createForm.get('email')?.hasError('required')) {
+            <mat-error>
+              Email is required
+            </mat-error>
+          }
+          @if (createForm.get('email')?.hasError('email')) {
+            <mat-error>
+              Invalid email format
+            </mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Password</mat-label>
           <input matInput formControlName="password" type="password" required>
-          <mat-error *ngIf="createForm.get('password')?.hasError('required')">
-            Password is required
-          </mat-error>
-          <mat-error *ngIf="createForm.get('password')?.hasError('minlength')">
-            Password must be at least 6 characters
-          </mat-error>
+          @if (createForm.get('password')?.hasError('required')) {
+            <mat-error>
+              Password is required
+            </mat-error>
+          }
+          @if (createForm.get('password')?.hasError('minlength')) {
+            <mat-error>
+              Password must be at least 6 characters
+            </mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>First Name</mat-label>
           <input matInput formControlName="firstName">
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Last Name</mat-label>
           <input matInput formControlName="lastName">
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Zip Code</mat-label>
           <input matInput formControlName="zipCode">
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>User Group</mat-label>
           <mat-select formControlName="userGroupId">
             <mat-option [value]="0">No Group</mat-option>
-            <mat-option *ngFor="let group of data.groups" [value]="group.id">
-              {{ group.name }}
-            </mat-option>
+            @for (group of data.groups; track group) {
+              <mat-option [value]="group.id">
+                {{ group.name }}
+              </mat-option>
+            }
           </mat-select>
         </mat-form-field>
-
+    
         <mat-checkbox formControlName="verified" class="full-width">
           Mark as verified (user won't need to verify email)
         </mat-checkbox>
@@ -440,7 +466,7 @@ export class InviteUserDialogComponent implements OnInit {
         Create User
       </button>
     </mat-dialog-actions>
-  `,
+    `,
     styles: [`
     mat-dialog-title {
       display: flex;
@@ -524,23 +550,31 @@ export class CreateUserDialogComponent implements OnInit {
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>New Password</mat-label>
           <input matInput formControlName="newPassword" type="password" required>
-          <mat-error *ngIf="resetForm.get('newPassword')?.hasError('required')">
-            Password is required
-          </mat-error>
-          <mat-error *ngIf="resetForm.get('newPassword')?.hasError('minlength')">
-            Password must be at least 6 characters
-          </mat-error>
+          @if (resetForm.get('newPassword')?.hasError('required')) {
+            <mat-error>
+              Password is required
+            </mat-error>
+          }
+          @if (resetForm.get('newPassword')?.hasError('minlength')) {
+            <mat-error>
+              Password must be at least 6 characters
+            </mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Confirm New Password</mat-label>
           <input matInput formControlName="confirmPassword" type="password" required>
-          <mat-error *ngIf="resetForm.get('confirmPassword')?.hasError('required')">
-            Confirm password is required
-          </mat-error>
-          <mat-error *ngIf="resetForm.hasError('passwordMismatch') && resetForm.get('confirmPassword')?.touched">
-            Passwords do not match
-          </mat-error>
+          @if (resetForm.get('confirmPassword')?.hasError('required')) {
+            <mat-error>
+              Confirm password is required
+            </mat-error>
+          }
+          @if (resetForm.hasError('passwordMismatch') && resetForm.get('confirmPassword')?.touched) {
+            <mat-error>
+              Passwords do not match
+            </mat-error>
+          }
         </mat-form-field>
       </form>
     </mat-dialog-content>
@@ -550,7 +584,7 @@ export class CreateUserDialogComponent implements OnInit {
         Reset Password
       </button>
     </mat-dialog-actions>
-  `,
+    `,
     styles: [`
     mat-dialog-title {
       display: flex;

@@ -1,72 +1,88 @@
-<ng-container *ngIf="form" [formGroup]="form">
+@if (form) {
+  <ng-container [formGroup]="form">
     <div class="row">
-        <p>
-            <span class="mat-body">Site ID</span><br>
-            <span class="mat-caption">Site identifier (e.g., "001", "021"). Preserves leading zeros.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="siteRef" placeholder="001" autocomplete="off">
-            <mat-error *ngIf="form?.get('siteRef')?.hasError('duplicate')">
-                Site ID is already defined
-            </mat-error>
-            <mat-error *ngIf="form?.get('siteRef')?.hasError('required')">
-                Site ID is required
-            </mat-error>
-        </mat-form-field>
+      <p>
+        <span class="mat-body">Site ID</span><br>
+        <span class="mat-caption">Site identifier (e.g., "001", "021"). Preserves leading zeros.</span>
+      </p>
+      <mat-form-field floatLabel="auto">
+        <input type="text" matInput formControlName="siteRef" placeholder="001" autocomplete="off">
+        @if (form?.get('siteRef')?.hasError('duplicate')) {
+          <mat-error>
+            Site ID is already defined
+          </mat-error>
+        }
+        @if (form?.get('siteRef')?.hasError('required')) {
+          <mat-error>
+            Site ID is required
+          </mat-error>
+        }
+      </mat-form-field>
     </div>
     <div class="row">
-        <p>
-            <span class="mat-body">RFSS</span><br>
-            <span class="mat-caption">Radio Frequency Sub-System ID (for P25 systems).</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="number" min="0" step="1" matInput formControlName="rfss" placeholder="0" autocomplete="off">
-            <mat-error *ngIf="form?.get('rfss')?.hasError('min')">
-                RFSS must be 0 or greater
-            </mat-error>
-        </mat-form-field>
+      <p>
+        <span class="mat-body">RFSS</span><br>
+        <span class="mat-caption">Radio Frequency Sub-System ID (for P25 systems).</span>
+      </p>
+      <mat-form-field floatLabel="auto">
+        <input type="number" min="0" step="1" matInput formControlName="rfss" placeholder="0" autocomplete="off">
+        @if (form?.get('rfss')?.hasError('min')) {
+          <mat-error>
+            RFSS must be 0 or greater
+          </mat-error>
+        }
+      </mat-form-field>
     </div>
     <div class="row">
-        <p>
-            <span class="mat-body">Label</span><br>
-            <span class="mat-caption">Site label.</span>
-        </p>
-        <mat-form-field floatLabel="auto">
-            <input type="text" matInput formControlName="label" placeholder="Label" autocomplete="off">
-            <mat-error *ngIf="form?.get('label')?.hasError('required')">
-                Label is required
-            </mat-error>
-        </mat-form-field>
+      <p>
+        <span class="mat-body">Label</span><br>
+        <span class="mat-caption">Site label.</span>
+      </p>
+      <mat-form-field floatLabel="auto">
+        <input type="text" matInput formControlName="label" placeholder="Label" autocomplete="off">
+        @if (form?.get('label')?.hasError('required')) {
+          <mat-error>
+            Label is required
+          </mat-error>
+        }
+      </mat-form-field>
     </div>
     <div class="row">
-        <p>
-            <span class="mat-body">Frequencies (MHz)</span><br>
-            <span class="mat-caption">Optional receive frequencies for this site (e.g., 154.12345), used when resolving site from call metadata.</span>
-        </p>
-        <div style="width: 100%;">
-            <div *ngFor="let freq of frequencies.controls; let i = index" style="display: flex; align-items: center; margin-bottom: 8px;">
-                <mat-form-field style="flex: 1; margin-right: 8px;">
-                    <input type="number" matInput [formControl]="$any(freq)" 
-                           placeholder="154.12345" step="0.00001" min="0" autocomplete="off">
-                    <mat-error *ngIf="$any(freq).hasError('required')">
-                        Frequency is required
-                    </mat-error>
-                    <mat-error *ngIf="$any(freq).hasError('min')">
-                        Frequency must be positive
-                    </mat-error>
-                </mat-form-field>
-                <button type="button" mat-icon-button color="warn" (click)="removeFrequency(i)">
-                    <mat-icon>delete</mat-icon>
-                </button>
-            </div>
-            <button type="button" mat-button color="accent" (click)="addFrequency()">
-                <mat-icon>add</mat-icon> Add Frequency
+      <p>
+        <span class="mat-body">Frequencies (MHz)</span><br>
+        <span class="mat-caption">Optional receive frequencies for this site (e.g., 154.12345), used when resolving site from call metadata.</span>
+      </p>
+      <div style="width: 100%;">
+        @for (freq of frequencies.controls; track freq; let i = $index) {
+          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            <mat-form-field style="flex: 1; margin-right: 8px;">
+              <input type="number" matInput [formControl]="$any(freq)"
+                placeholder="154.12345" step="0.00001" min="0" autocomplete="off">
+              @if ($any(freq).hasError('required')) {
+                <mat-error>
+                  Frequency is required
+                </mat-error>
+              }
+              @if ($any(freq).hasError('min')) {
+                <mat-error>
+                  Frequency must be positive
+                </mat-error>
+              }
+            </mat-form-field>
+            <button type="button" mat-icon-button color="warn" (click)="removeFrequency(i)">
+              <mat-icon>delete</mat-icon>
             </button>
-        </div>
+          </div>
+        }
+        <button type="button" mat-button color="accent" (click)="addFrequency()">
+          <mat-icon>add</mat-icon> Add Frequency
+        </button>
+      </div>
     </div>
     <div class="row bottom">
-        <button type="button" mat-button color="warn" (click)="remove.emit()">
-            Delete site
-        </button>
+      <button type="button" mat-button color="warn" (click)="remove.emit()">
+        Delete site
+      </button>
     </div>
-</ng-container>
+  </ng-container>
+}

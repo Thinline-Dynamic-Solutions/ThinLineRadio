@@ -1,198 +1,268 @@
 <div class="login-form">
   <!-- Blocked Message with Countdown -->
-  <div *ngIf="isBlocked" style="text-align: center; padding: 40px 20px;">
-    <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
-    <h2 style="color: #d32f2f; margin-bottom: 16px;">Too Many Failed Attempts</h2>
-    <p style="margin-bottom: 24px;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
-    <div style="font-size: 48px; font-weight: bold; color: #667eea; margin-bottom: 16px;">
-      {{ getCountdownDisplay() }}
+  @if (isBlocked) {
+    <div style="text-align: center; padding: 40px 20px;">
+      <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
+      <h2 style="color: #d32f2f; margin-bottom: 16px;">Too Many Failed Attempts</h2>
+      <p style="margin-bottom: 24px;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
+      <div style="font-size: 48px; font-weight: bold; color: #667eea; margin-bottom: 16px;">
+        {{ getCountdownDisplay() }}
+      </div>
+      <p style="color: #666;">Please wait before trying again.</p>
     </div>
-    <p style="color: #666;">Please wait before trying again.</p>
-  </div>
+  }
 
   <!-- Login Form -->
-  <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" *ngIf="!showForgotPassword && !showResetPassword && !showForcedPasswordReset && !isBlocked">
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Email</mat-label>
-      <input matInput type="email" formControlName="email" required>
-      <mat-error *ngIf="loginForm.get('email')?.hasError('required')">
-        Email is required
-      </mat-error>
-      <mat-error *ngIf="loginForm.get('email')?.hasError('email')">
-        Please enter a valid email address
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Password</mat-label>
-      <input matInput type="password" formControlName="password" required>
-      <mat-error *ngIf="loginForm.get('password')?.hasError('required')">
-        Password is required
-      </mat-error>
-    </mat-form-field>
-
-    <div class="error-message" *ngIf="error">
-      {{ error }}
-    </div>
-
-    <button mat-raised-button color="primary" type="submit" 
-            [disabled]="loginForm.invalid || loading" class="full-width">
-      <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-      <span *ngIf="!loading">Sign In</span>
-    </button>
-
-    <div style="text-align: center; margin-top: 16px;">
-      <a href="#" (click)="onForgotPassword(); $event.preventDefault()" 
-         style="color: #666; text-decoration: none; font-size: 14px;">
-        Forgot Password?
-      </a>
-    </div>
-  </form>
+  @if (!showForgotPassword && !showResetPassword && !showForcedPasswordReset && !isBlocked) {
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Email</mat-label>
+        <input matInput type="email" formControlName="email" required>
+        @if (loginForm.get('email')?.hasError('required')) {
+          <mat-error>
+            Email is required
+          </mat-error>
+        }
+        @if (loginForm.get('email')?.hasError('email')) {
+          <mat-error>
+            Please enter a valid email address
+          </mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Password</mat-label>
+        <input matInput type="password" formControlName="password" required>
+        @if (loginForm.get('password')?.hasError('required')) {
+          <mat-error>
+            Password is required
+          </mat-error>
+        }
+      </mat-form-field>
+      @if (error) {
+        <div class="error-message">
+          {{ error }}
+        </div>
+      }
+      <button mat-raised-button color="primary" type="submit"
+        [disabled]="loginForm.invalid || loading" class="full-width">
+        @if (loading) {
+          <mat-spinner diameter="20"></mat-spinner>
+        }
+        @if (!loading) {
+          <span>Sign In</span>
+        }
+      </button>
+      <div style="text-align: center; margin-top: 16px;">
+        <a href="#" (click)="onForgotPassword(); $event.preventDefault()"
+          style="color: #666; text-decoration: none; font-size: 14px;">
+          Forgot Password?
+        </a>
+      </div>
+    </form>
+  }
 
   <!-- Forced Password Reset Form -->
-  <form [formGroup]="forcedPasswordResetForm" (ngSubmit)="onForcedPasswordReset()" *ngIf="showForcedPasswordReset">
-    <h3 style="margin-bottom: 20px;">Password Update Required</h3>
-    <p style="color: #666; margin-bottom: 20px;">
-      Your administrator requires you to change your password before continuing.
-    </p>
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>New Password</mat-label>
-      <input matInput type="password" formControlName="newPassword" required>
-      <mat-error *ngIf="forcedPasswordResetForm.get('newPassword')?.touched && forcedPasswordResetForm.get('newPassword')?.invalid">
-        <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('required')">Password is required</span>
-        <span *ngIf="!forcedPasswordResetForm.get('newPassword')?.hasError('required')">
-          Missing: 
-          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('minlength')">8+ chars, </span>
-          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireUpper')">uppercase, </span>
-          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireLower')">lowercase, </span>
-          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireNumber')">number, </span>
-          <span *ngIf="forcedPasswordResetForm.get('newPassword')?.hasError('requireSpecial')">special char</span>
-        </span>
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Confirm Password</mat-label>
-      <input matInput type="password" formControlName="confirmPassword" required>
-      <mat-error *ngIf="forcedPasswordResetForm.get('confirmPassword')?.hasError('required')">
-        Please confirm your password
-      </mat-error>
-      <mat-error *ngIf="forcedPasswordResetForm.get('confirmPassword')?.hasError('passwordMismatch')">
-        Passwords do not match
-      </mat-error>
-    </mat-form-field>
-
-    <div class="error-message" *ngIf="error">
-      {{ error }}
-    </div>
-
-    <button mat-raised-button color="primary" type="submit" 
-            [disabled]="forcedPasswordResetForm.invalid || loading" class="full-width">
-      <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-      <span *ngIf="!loading">Update Password</span>
-    </button>
-  </form>
+  @if (showForcedPasswordReset) {
+    <form [formGroup]="forcedPasswordResetForm" (ngSubmit)="onForcedPasswordReset()">
+      <h3 style="margin-bottom: 20px;">Password Update Required</h3>
+      <p style="color: #666; margin-bottom: 20px;">
+        Your administrator requires you to change your password before continuing.
+      </p>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>New Password</mat-label>
+        <input matInput type="password" formControlName="newPassword" required>
+        @if (forcedPasswordResetForm.get('newPassword')?.touched && forcedPasswordResetForm.get('newPassword')?.invalid) {
+          <mat-error>
+            @if (forcedPasswordResetForm.get('newPassword')?.hasError('required')) {
+              <span>Password is required</span>
+            }
+            @if (!forcedPasswordResetForm.get('newPassword')?.hasError('required')) {
+              <span>
+                Missing:
+                @if (forcedPasswordResetForm.get('newPassword')?.hasError('minlength')) {
+                  <span>8+ chars, </span>
+                }
+                @if (forcedPasswordResetForm.get('newPassword')?.hasError('requireUpper')) {
+                  <span>uppercase, </span>
+                }
+                @if (forcedPasswordResetForm.get('newPassword')?.hasError('requireLower')) {
+                  <span>lowercase, </span>
+                }
+                @if (forcedPasswordResetForm.get('newPassword')?.hasError('requireNumber')) {
+                  <span>number, </span>
+                }
+                @if (forcedPasswordResetForm.get('newPassword')?.hasError('requireSpecial')) {
+                  <span>special char</span>
+                }
+              </span>
+            }
+          </mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Confirm Password</mat-label>
+        <input matInput type="password" formControlName="confirmPassword" required>
+        @if (forcedPasswordResetForm.get('confirmPassword')?.hasError('required')) {
+          <mat-error>
+            Please confirm your password
+          </mat-error>
+        }
+        @if (forcedPasswordResetForm.get('confirmPassword')?.hasError('passwordMismatch')) {
+          <mat-error>
+            Passwords do not match
+          </mat-error>
+        }
+      </mat-form-field>
+      @if (error) {
+        <div class="error-message">
+          {{ error }}
+        </div>
+      }
+      <button mat-raised-button color="primary" type="submit"
+        [disabled]="forcedPasswordResetForm.invalid || loading" class="full-width">
+        @if (loading) {
+          <mat-spinner diameter="20"></mat-spinner>
+        }
+        @if (!loading) {
+          <span>Update Password</span>
+        }
+      </button>
+    </form>
+  }
 
   <!-- Forgot Password Form -->
-  <form [formGroup]="forgotPasswordForm" (ngSubmit)="onRequestReset()" *ngIf="showForgotPassword && !showResetPassword">
-    <h3 style="margin-bottom: 20px;">Reset Password</h3>
-    <p style="color: #666; margin-bottom: 20px;">
-      Enter your email address and we'll send you a verification code to reset your password.
-    </p>
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Email</mat-label>
-      <input matInput type="email" formControlName="email" required>
-      <mat-error *ngIf="forgotPasswordForm.get('email')?.hasError('required')">
-        Email is required
-      </mat-error>
-      <mat-error *ngIf="forgotPasswordForm.get('email')?.hasError('email')">
-        Please enter a valid email address
-      </mat-error>
-    </mat-form-field>
-
-    <div class="error-message" *ngIf="error">
-      {{ error }}
-    </div>
-
-    <button mat-raised-button color="primary" type="submit" 
-            [disabled]="forgotPasswordForm.invalid || loading" class="full-width">
-      <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-      <span *ngIf="!loading">Send Verification Code</span>
-    </button>
-
-    <div style="text-align: center; margin-top: 16px;">
-      <a href="#" (click)="backToLogin(); $event.preventDefault()" 
-         style="color: #666; text-decoration: none; font-size: 14px;">
-        Back to Login
-      </a>
-    </div>
-  </form>
+  @if (showForgotPassword && !showResetPassword) {
+    <form [formGroup]="forgotPasswordForm" (ngSubmit)="onRequestReset()">
+      <h3 style="margin-bottom: 20px;">Reset Password</h3>
+      <p style="color: #666; margin-bottom: 20px;">
+        Enter your email address and we'll send you a verification code to reset your password.
+      </p>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Email</mat-label>
+        <input matInput type="email" formControlName="email" required>
+        @if (forgotPasswordForm.get('email')?.hasError('required')) {
+          <mat-error>
+            Email is required
+          </mat-error>
+        }
+        @if (forgotPasswordForm.get('email')?.hasError('email')) {
+          <mat-error>
+            Please enter a valid email address
+          </mat-error>
+        }
+      </mat-form-field>
+      @if (error) {
+        <div class="error-message">
+          {{ error }}
+        </div>
+      }
+      <button mat-raised-button color="primary" type="submit"
+        [disabled]="forgotPasswordForm.invalid || loading" class="full-width">
+        @if (loading) {
+          <mat-spinner diameter="20"></mat-spinner>
+        }
+        @if (!loading) {
+          <span>Send Verification Code</span>
+        }
+      </button>
+      <div style="text-align: center; margin-top: 16px;">
+        <a href="#" (click)="backToLogin(); $event.preventDefault()"
+          style="color: #666; text-decoration: none; font-size: 14px;">
+          Back to Login
+        </a>
+      </div>
+    </form>
+  }
 
   <!-- Reset Password Form -->
-  <form [formGroup]="resetPasswordForm" (ngSubmit)="onResetPassword()" *ngIf="showResetPassword">
-    <h3 style="margin-bottom: 20px;">Enter Verification Code</h3>
-    <p style="color: #666; margin-bottom: 20px;">
-      We've sent a 6-digit verification code to <strong>{{ resetEmail }}</strong>. 
-      Enter the code below along with your new password.
-    </p>
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Verification Code</mat-label>
-      <input matInput type="text" formControlName="code" 
-             placeholder="000000" maxlength="6" required>
-      <mat-hint>Enter the 6-digit code from your email</mat-hint>
-      <mat-error *ngIf="resetPasswordForm.get('code')?.hasError('required')">
-        Verification code is required
-      </mat-error>
-      <mat-error *ngIf="resetPasswordForm.get('code')?.hasError('pattern')">
-        Code must be 6 digits
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>New Password</mat-label>
-      <input matInput type="password" formControlName="newPassword" required>
-      <mat-error *ngIf="resetPasswordForm.get('newPassword')?.touched && resetPasswordForm.get('newPassword')?.invalid">
-        <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('required')">Password is required</span>
-        <span *ngIf="!resetPasswordForm.get('newPassword')?.hasError('required')">
-          Missing: 
-          <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('minlength')">8+ chars, </span>
-          <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireUpper')">uppercase, </span>
-          <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireLower')">lowercase, </span>
-          <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireNumber')">number, </span>
-          <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireSpecial')">special char</span>
-        </span>
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Confirm Password</mat-label>
-      <input matInput type="password" formControlName="confirmPassword" required>
-      <mat-error *ngIf="resetPasswordForm.get('confirmPassword')?.hasError('required')">
-        Please confirm your password
-      </mat-error>
-      <mat-error *ngIf="resetPasswordForm.get('confirmPassword')?.hasError('passwordMismatch')">
-        Passwords do not match
-      </mat-error>
-    </mat-form-field>
-
-    <div class="error-message" *ngIf="error">
-      {{ error }}
-    </div>
-
-    <button mat-raised-button color="primary" type="submit" 
-            [disabled]="resetPasswordForm.invalid || loading" class="full-width">
-      <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-      <span *ngIf="!loading">Reset Password</span>
-    </button>
-
-    <div style="text-align: center; margin-top: 16px;">
-      <a href="#" (click)="backToLogin(); $event.preventDefault()" 
-         style="color: #666; text-decoration: none; font-size: 14px;">
-        Back to Login
-      </a>
-    </div>
-  </form>
+  @if (showResetPassword) {
+    <form [formGroup]="resetPasswordForm" (ngSubmit)="onResetPassword()">
+      <h3 style="margin-bottom: 20px;">Enter Verification Code</h3>
+      <p style="color: #666; margin-bottom: 20px;">
+        We've sent a 6-digit verification code to <strong>{{ resetEmail }}</strong>.
+        Enter the code below along with your new password.
+      </p>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Verification Code</mat-label>
+        <input matInput type="text" formControlName="code"
+          placeholder="000000" maxlength="6" required>
+        <mat-hint>Enter the 6-digit code from your email</mat-hint>
+        @if (resetPasswordForm.get('code')?.hasError('required')) {
+          <mat-error>
+            Verification code is required
+          </mat-error>
+        }
+        @if (resetPasswordForm.get('code')?.hasError('pattern')) {
+          <mat-error>
+            Code must be 6 digits
+          </mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>New Password</mat-label>
+        <input matInput type="password" formControlName="newPassword" required>
+        @if (resetPasswordForm.get('newPassword')?.touched && resetPasswordForm.get('newPassword')?.invalid) {
+          <mat-error>
+            @if (resetPasswordForm.get('newPassword')?.hasError('required')) {
+              <span>Password is required</span>
+            }
+            @if (!resetPasswordForm.get('newPassword')?.hasError('required')) {
+              <span>
+                Missing:
+                @if (resetPasswordForm.get('newPassword')?.hasError('minlength')) {
+                  <span>8+ chars, </span>
+                }
+                @if (resetPasswordForm.get('newPassword')?.hasError('requireUpper')) {
+                  <span>uppercase, </span>
+                }
+                @if (resetPasswordForm.get('newPassword')?.hasError('requireLower')) {
+                  <span>lowercase, </span>
+                }
+                @if (resetPasswordForm.get('newPassword')?.hasError('requireNumber')) {
+                  <span>number, </span>
+                }
+                @if (resetPasswordForm.get('newPassword')?.hasError('requireSpecial')) {
+                  <span>special char</span>
+                }
+              </span>
+            }
+          </mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Confirm Password</mat-label>
+        <input matInput type="password" formControlName="confirmPassword" required>
+        @if (resetPasswordForm.get('confirmPassword')?.hasError('required')) {
+          <mat-error>
+            Please confirm your password
+          </mat-error>
+        }
+        @if (resetPasswordForm.get('confirmPassword')?.hasError('passwordMismatch')) {
+          <mat-error>
+            Passwords do not match
+          </mat-error>
+        }
+      </mat-form-field>
+      @if (error) {
+        <div class="error-message">
+          {{ error }}
+        </div>
+      }
+      <button mat-raised-button color="primary" type="submit"
+        [disabled]="resetPasswordForm.invalid || loading" class="full-width">
+        @if (loading) {
+          <mat-spinner diameter="20"></mat-spinner>
+        }
+        @if (!loading) {
+          <span>Reset Password</span>
+        }
+      </button>
+      <div style="text-align: center; margin-top: 16px;">
+        <a href="#" (click)="backToLogin(); $event.preventDefault()"
+          style="color: #666; text-decoration: none; font-size: 14px;">
+          Back to Login
+        </a>
+      </div>
+    </form>
+  }
 </div>

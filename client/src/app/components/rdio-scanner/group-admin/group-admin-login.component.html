@@ -1,60 +1,72 @@
 <div class="group-admin-login-container">
   <div class="login-card">
     <!-- Blocked Message with Countdown -->
-    <div *ngIf="isBlocked" style="text-align: center; padding: 40px 20px;">
-      <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
-      <h2 style="color: #d32f2f; margin-bottom: 16px;">Too Many Failed Attempts</h2>
-      <p style="margin-bottom: 24px;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
-      <div style="font-size: 48px; font-weight: bold; color: #667eea; margin-bottom: 16px;">
-        {{ getCountdownDisplay() }}
+    @if (isBlocked) {
+      <div style="text-align: center; padding: 40px 20px;">
+        <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
+        <h2 style="color: #d32f2f; margin-bottom: 16px;">Too Many Failed Attempts</h2>
+        <p style="margin-bottom: 24px;">Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
+        <div style="font-size: 48px; font-weight: bold; color: #667eea; margin-bottom: 16px;">
+          {{ getCountdownDisplay() }}
+        </div>
+        <p style="color: #666;">Please wait before trying again.</p>
       </div>
-      <p style="color: #666;">Please wait before trying again.</p>
-    </div>
+    }
 
-    <div *ngIf="!isBlocked">
-      <h2>Group Management Login</h2>
-      <p class="subtitle">Sign in to manage your group</p>
-      
-      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Email</mat-label>
-        <input matInput type="email" formControlName="email" required>
-        <mat-error *ngIf="loginForm.get('email')?.hasError('required')">
-          Email is required
-        </mat-error>
-        <mat-error *ngIf="loginForm.get('email')?.hasError('email')">
-          Please enter a valid email address
-        </mat-error>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Password</mat-label>
-        <input matInput type="password" formControlName="password" required>
-        <mat-error *ngIf="loginForm.get('password')?.hasError('required')">
-          Password is required
-        </mat-error>
-      </mat-form-field>
-
-      <!-- Cloudflare Turnstile Widget -->
-      <div *ngIf="turnstileEnabled && turnstileSiteKey" style="margin: 20px 0; display: flex; justify-content: center;">
-        <div id="turnstile-widget-group-admin"></div>
+    @if (!isBlocked) {
+      <div>
+        <h2>Group Management Login</h2>
+        <p class="subtitle">Sign in to manage your group</p>
+        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Email</mat-label>
+            <input matInput type="email" formControlName="email" required>
+            @if (loginForm.get('email')?.hasError('required')) {
+              <mat-error>
+                Email is required
+              </mat-error>
+            }
+            @if (loginForm.get('email')?.hasError('email')) {
+              <mat-error>
+                Please enter a valid email address
+              </mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Password</mat-label>
+            <input matInput type="password" formControlName="password" required>
+            @if (loginForm.get('password')?.hasError('required')) {
+              <mat-error>
+                Password is required
+              </mat-error>
+            }
+          </mat-form-field>
+          <!-- Cloudflare Turnstile Widget -->
+          @if (turnstileEnabled && turnstileSiteKey) {
+            <div style="margin: 20px 0; display: flex; justify-content: center;">
+              <div id="turnstile-widget-group-admin"></div>
+            </div>
+          }
+          @if (error) {
+            <div class="error-message">
+              {{ error }}
+            </div>
+          }
+          <button mat-raised-button color="primary" type="submit"
+            [disabled]="loginForm.invalid || loading || (turnstileEnabled && !turnstileToken)" class="full-width">
+            @if (loading) {
+              <mat-spinner diameter="20"></mat-spinner>
+            }
+            @if (!loading) {
+              <span>Sign In</span>
+            }
+          </button>
+        </form>
+        <div class="footer-links">
+          <a routerLink="/">Back to Main</a>
+        </div>
       </div>
-
-      <div class="error-message" *ngIf="error">
-        {{ error }}
-      </div>
-
-      <button mat-raised-button color="primary" type="submit" 
-              [disabled]="loginForm.invalid || loading || (turnstileEnabled && !turnstileToken)" class="full-width">
-        <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-        <span *ngIf="!loading">Sign In</span>
-      </button>
-    </form>
-
-      <div class="footer-links">
-        <a routerLink="/">Back to Main</a>
-      </div>
-    </div>
+    }
     <!-- End !isBlocked wrapper -->
   </div>
 </div>

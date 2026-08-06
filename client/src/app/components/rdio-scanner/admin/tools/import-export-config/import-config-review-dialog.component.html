@@ -1,62 +1,84 @@
 <h2 mat-dialog-title>Import for Review</h2>
 
 <mat-dialog-content>
-    <p class="intro">
-        Choose which sections from <strong>{{ data.fileName }}</strong> to load into the config panel.
-        Unselected sections keep your current server settings.
-    </p>
+  <p class="intro">
+    Choose which sections from <strong>{{ data.fileName }}</strong> to load into the config panel.
+    Unselected sections keep your current server settings.
+  </p>
 
-    <div class="select-all-row">
-        <mat-checkbox
-            [checked]="allSelected"
-            [indeterminate]="someSelected"
-            (change)="toggleAll($event.checked)">
-            Select all ({{ sections.length }})
-        </mat-checkbox>
-    </div>
+  <div class="select-all-row">
+    <mat-checkbox
+      [checked]="allSelected"
+      [indeterminate]="someSelected"
+      (change)="toggleAll($event.checked)">
+      Select all ({{ sections.length }})
+    </mat-checkbox>
+  </div>
 
-    <ul class="section-list" *ngIf="sections.length > 0">
-        <li *ngFor="let section of sections">
-            <mat-checkbox
-                [checked]="isSelected(section.key)"
-                (change)="toggleSection(section.key, $event.checked)">
-                <div class="section-content">
-                    <div class="section-body">
-                        <span class="section-label">{{ section.label }}</span>
-                        <span class="section-count">{{ section.count | number }}</span>
-                    </div>
-                    <span class="section-detail" *ngIf="section.detail">{{ section.detail }}</span>
-                    <span class="section-description">{{ section.description }}</span>
-                </div>
-            </mat-checkbox>
+  @if (sections.length > 0) {
+    <ul class="section-list">
+      @for (section of sections; track section) {
+        <li>
+          <mat-checkbox
+            [checked]="isSelected(section.key)"
+            (change)="toggleSection(section.key, $event.checked)">
+            <div class="section-content">
+              <div class="section-body">
+                <span class="section-label">{{ section.label }}</span>
+                <span class="section-count">{{ section.count | number }}</span>
+              </div>
+              @if (section.detail) {
+                <span class="section-detail">{{ section.detail }}</span>
+              }
+              <span class="section-description">{{ section.description }}</span>
+            </div>
+          </mat-checkbox>
         </li>
+      }
     </ul>
+  }
 
-    <p class="empty" *ngIf="sections.length === 0">
-        No importable sections were found in this file.
+  @if (sections.length === 0) {
+    <p class="empty">
+      No importable sections were found in this file.
     </p>
+  }
 
-    <div class="warnings" *ngIf="hasSystemsWithoutGroups || hasSystemsWithoutTags || hasUsersWithoutUserGroups">
-        <mat-icon>info</mat-icon>
-        <div>
-            <p *ngIf="hasSystemsWithoutGroups">Importing systems without groups may leave talkgroups referencing missing group labels.</p>
-            <p *ngIf="hasSystemsWithoutTags">Importing systems without tags may leave talkgroups referencing missing tags.</p>
-            <p *ngIf="hasUsersWithoutUserGroups">Importing users without user groups may leave accounts without permission groups.</p>
-        </div>
+  @if (hasSystemsWithoutGroups || hasSystemsWithoutTags || hasUsersWithoutUserGroups) {
+    <div class="warnings">
+      <mat-icon>info</mat-icon>
+      <div>
+        @if (hasSystemsWithoutGroups) {
+          <p>Importing systems without groups may leave talkgroups referencing missing group labels.</p>
+        }
+        @if (hasSystemsWithoutTags) {
+          <p>Importing systems without tags may leave talkgroups referencing missing tags.</p>
+        }
+        @if (hasUsersWithoutUserGroups) {
+          <p>Importing users without user groups may leave accounts without permission groups.</p>
+        }
+      </div>
     </div>
+  }
 
-    <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+  @if (errorMessage) {
+    <p class="error">{{ errorMessage }}</p>
+  }
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    <button mat-button type="button" (click)="cancel()" [disabled]="loading">Cancel</button>
-    <button
-        mat-raised-button
-        color="primary"
-        type="button"
-        (click)="continueToReview()"
-        [disabled]="loading || selectedCount === 0">
-        <mat-spinner *ngIf="loading" diameter="18"></mat-spinner>
-        <span *ngIf="!loading">Continue to Review ({{ selectedCount }})</span>
-    </button>
+  <button mat-button type="button" (click)="cancel()" [disabled]="loading">Cancel</button>
+  <button
+    mat-raised-button
+    color="primary"
+    type="button"
+    (click)="continueToReview()"
+    [disabled]="loading || selectedCount === 0">
+    @if (loading) {
+      <mat-spinner diameter="18"></mat-spinner>
+    }
+    @if (!loading) {
+      <span>Continue to Review ({{ selectedCount }})</span>
+    }
+  </button>
 </mat-dialog-actions>

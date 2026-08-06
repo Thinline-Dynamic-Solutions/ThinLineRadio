@@ -1,218 +1,255 @@
 <div class="admin-section-bar cn-page-header">
-    <p class="admin-section-hint">
-        Call natures are the incident categories shown on call cards. Add transcript phrases under each category for automatic matching.
-        A category can also force-expire its incidents off the live map after a set number of minutes, even when the viewer's selected time range would still include them.
-    </p>
-    <button type="button" mat-stroked-button (click)="addNew()">
-        <mat-icon>add</mat-icon>
-        Add Category
-    </button>
+  <p class="admin-section-hint">
+    Call natures are the incident categories shown on call cards. Add transcript phrases under each category for automatic matching.
+    A category can also force-expire its incidents off the live map after a set number of minutes, even when the viewer's selected time range would still include them.
+  </p>
+  <button type="button" mat-stroked-button (click)="addNew()">
+    <mat-icon>add</mat-icon>
+    Add Category
+  </button>
 </div>
 
 <div class="cn-learn-panel">
-    <div class="cn-learn-header">
-        <div>
-            <div class="cn-learn-title">
-                <mat-icon>psychology</mat-icon>
-                Phrase suggestions from transcripts
-            </div>
-            <p class="cn-learn-disclaimer">
-                Enable <strong>Suggest phrases from transcripts</strong> in the toggles above (then Save if the panel shows dirty).
-                ThinLine will watch new calls and can scan recent history for local jargon
-                (for example <code>10-50 PI</code> under an accident category).
-                Suggestions are specific to <em>your</em> scanner traffic.
-                <strong>Nothing is applied until you Accept</strong>.
-            </p>
-        </div>
-        <div class="cn-learn-actions">
-            <button type="button" mat-stroked-button
-                    (click)="scanHistory()"
-                    [disabled]="scanning || !learnEnabled">
-                <mat-icon>manage_search</mat-icon>
-                {{ scanning ? 'Scanning…' : 'Scan recent transcripts' }}
-            </button>
-            <button type="button" mat-button (click)="loadSuggestions()" [disabled]="loadingSuggestions || scanning">
-                <mat-icon>refresh</mat-icon>
-                Refresh
-            </button>
-        </div>
+  <div class="cn-learn-header">
+    <div>
+      <div class="cn-learn-title">
+        <mat-icon>psychology</mat-icon>
+        Phrase suggestions from transcripts
+      </div>
+      <p class="cn-learn-disclaimer">
+        Enable <strong>Suggest phrases from transcripts</strong> in the toggles above (then Save if the panel shows dirty).
+        ThinLine will watch new calls and can scan recent history for local jargon
+        (for example <code>10-50 PI</code> under an accident category).
+        Suggestions are specific to <em>your</em> scanner traffic.
+        <strong>Nothing is applied until you Accept</strong>.
+      </p>
     </div>
+    <div class="cn-learn-actions">
+      <button type="button" mat-stroked-button
+        (click)="scanHistory()"
+        [disabled]="scanning || !learnEnabled">
+        <mat-icon>manage_search</mat-icon>
+        {{ scanning ? 'Scanning…' : 'Scan recent transcripts' }}
+      </button>
+      <button type="button" mat-button (click)="loadSuggestions()" [disabled]="loadingSuggestions || scanning">
+        <mat-icon>refresh</mat-icon>
+        Refresh
+      </button>
+    </div>
+  </div>
 
-    <p class="cn-learn-status" *ngIf="!learnEnabled">
-        Phrase learning is off. Turn on the toggle above to collect suggestions.
+  @if (!learnEnabled) {
+    <p class="cn-learn-status">
+      Phrase learning is off. Turn on the toggle above to collect suggestions.
     </p>
-    <p class="cn-learn-status" *ngIf="learnEnabled && learnStatus">
-        Learning on · ready after {{ learnStatus.minSightings }} sighting(s) ·
-        {{ learnStatus.pendingReady }} ready · {{ learnStatus.pendingAll }} pending
+  }
+  @if (learnEnabled && learnStatus) {
+    <p class="cn-learn-status">
+      Learning on · ready after {{ learnStatus.minSightings }} sighting(s) ·
+      {{ learnStatus.pendingReady }} ready · {{ learnStatus.pendingAll }} pending
     </p>
-    <p class="cn-learn-status" *ngIf="scanMessage">{{ scanMessage }}</p>
+  }
+  @if (scanMessage) {
+    <p class="cn-learn-status">{{ scanMessage }}</p>
+  }
 
-    <div class="cn-suggest-block" *ngIf="readySuggestions.length">
-        <div class="cn-section-label">Ready to review
-            <span class="cn-count-badge">{{ readySuggestions.length }}</span>
+  @if (readySuggestions.length) {
+    <div class="cn-suggest-block">
+      <div class="cn-section-label">Ready to review
+        <span class="cn-count-badge">{{ readySuggestions.length }}</span>
+      </div>
+      @for (s of readySuggestions; track s) {
+        <div class="cn-suggest-row">
+          <div class="cn-suggest-meta">
+            <span class="cn-suggest-label">{{ s.label }}</span>
+            <span class="cn-suggest-phrase">{{ s.phrase }}</span>
+            <span class="cn-suggest-count">{{ s.sightings }} sightings</span>
+          </div>
+          <div class="cn-suggest-btns">
+            <button type="button" mat-stroked-button color="primary" (click)="acceptSuggestion(s)">
+              <mat-icon>check</mat-icon>
+              Accept
+            </button>
+            <button type="button" mat-button (click)="dismissSuggestion(s)">
+              Dismiss
+            </button>
+          </div>
         </div>
-        <div class="cn-suggest-row" *ngFor="let s of readySuggestions">
-            <div class="cn-suggest-meta">
-                <span class="cn-suggest-label">{{ s.label }}</span>
-                <span class="cn-suggest-phrase">{{ s.phrase }}</span>
-                <span class="cn-suggest-count">{{ s.sightings }} sightings</span>
-            </div>
-            <div class="cn-suggest-btns">
-                <button type="button" mat-stroked-button color="primary" (click)="acceptSuggestion(s)">
-                    <mat-icon>check</mat-icon>
-                    Accept
-                </button>
-                <button type="button" mat-button (click)="dismissSuggestion(s)">
-                    Dismiss
-                </button>
-            </div>
-        </div>
+      }
     </div>
+  }
 
-    <div class="cn-suggest-block cn-suggest-emerging" *ngIf="emergingSuggestions.length">
-        <div class="cn-section-label">Emerging (need more sightings)
-            <span class="cn-count-badge">{{ emergingSuggestions.length }}</span>
+  @if (emergingSuggestions.length) {
+    <div class="cn-suggest-block cn-suggest-emerging">
+      <div class="cn-section-label">Emerging (need more sightings)
+        <span class="cn-count-badge">{{ emergingSuggestions.length }}</span>
+      </div>
+      @for (s of emergingSuggestions; track s) {
+        <div class="cn-suggest-row">
+          <div class="cn-suggest-meta">
+            <span class="cn-suggest-label">{{ s.label }}</span>
+            <span class="cn-suggest-phrase">{{ s.phrase }}</span>
+            <span class="cn-suggest-count">{{ s.sightings }} / {{ learnStatus?.minSightings || 3 }}</span>
+          </div>
+          <div class="cn-suggest-btns">
+            <button type="button" mat-button (click)="dismissSuggestion(s)">Dismiss</button>
+          </div>
         </div>
-        <div class="cn-suggest-row" *ngFor="let s of emergingSuggestions">
-            <div class="cn-suggest-meta">
-                <span class="cn-suggest-label">{{ s.label }}</span>
-                <span class="cn-suggest-phrase">{{ s.phrase }}</span>
-                <span class="cn-suggest-count">{{ s.sightings }} / {{ learnStatus?.minSightings || 3 }}</span>
-            </div>
-            <div class="cn-suggest-btns">
-                <button type="button" mat-button (click)="dismissSuggestion(s)">Dismiss</button>
-            </div>
-        </div>
+      }
     </div>
+  }
 </div>
 
 <mat-form-field appearance="outline" class="cn-search">
-    <mat-label>Search categories or phrases</mat-label>
-    <input matInput [(ngModel)]="searchFilter" autocomplete="off">
-    <mat-icon matSuffix>search</mat-icon>
+  <mat-label>Search categories or phrases</mat-label>
+  <input matInput [(ngModel)]="searchFilter" autocomplete="off">
+  <mat-icon matSuffix>search</mat-icon>
 </mat-form-field>
 
-<div *ngIf="loading" class="cn-loading">
+@if (loading) {
+  <div class="cn-loading">
     <mat-spinner diameter="28"></mat-spinner>
     <span>Loading call natures…</span>
-</div>
+  </div>
+}
 
-<div *ngIf="!loading && callNatures.length === 0" class="cn-empty">
+@if (!loading && callNatures.length === 0) {
+  <div class="cn-empty">
     <mat-icon>category</mat-icon>
     <p class="mat-body">No call nature categories configured</p>
     <button type="button" mat-raised-button color="primary" (click)="addNew()">
-        <mat-icon>add</mat-icon>
-        Add First Category
+      <mat-icon>add</mat-icon>
+      Add First Category
     </button>
-</div>
+  </div>
+}
 
-<div *ngIf="!loading && callNatures.length > 0 && filteredNatures.length === 0" class="cn-empty">
+@if (!loading && callNatures.length > 0 && filteredNatures.length === 0) {
+  <div class="cn-empty">
     <p class="mat-caption">No categories match your search.</p>
-</div>
+  </div>
+}
 
-<div *ngIf="!loading" class="cn-cards">
-    <div *ngFor="let nature of filteredNatures"
-         class="cn-card"
-         [class.cn-card--editing]="editingIndex === indexOfNature(nature)"
-         [class.cn-card--disabled]="!nature.enabled">
-
-        <ng-container *ngIf="editingIndex !== indexOfNature(nature)">
-            <div class="cn-card-header">
-                <div class="cn-card-meta">
-                    <span class="cn-card-name">{{ nature.label || 'Unnamed' }}</span>
-                    <span class="cn-count-badge">{{ (nature.phrases || []).length }}</span>
-                    <span class="cn-disabled-badge" *ngIf="!nature.enabled">Disabled</span>
-                    <span class="cn-expire-badge" *ngIf="nature.expireMinutes"
-                          matTooltip="Incidents in this category are removed from the map {{ formatExpire(nature.expireMinutes) }} after dispatch">
-                        <mat-icon>timer</mat-icon>
-                        Expires {{ formatExpire(nature.expireMinutes) }}
-                    </span>
-                </div>
-                <div class="cn-card-actions">
-                    <button mat-icon-button (click)="startEdit(indexOfNature(nature))" matTooltip="Edit phrases">
-                        <mat-icon>edit</mat-icon>
-                    </button>
-                    <button mat-icon-button color="warn" (click)="deleteNature(indexOfNature(nature))" matTooltip="Delete category">
-                        <mat-icon>delete</mat-icon>
-                    </button>
-                </div>
-            </div>
-            <div class="cn-preview" *ngIf="nature.phrases?.length">
-                <span *ngFor="let phrase of (nature.phrases | slice:0:10)" class="cn-chip">{{ phrase }}</span>
-                <span *ngIf="(nature.phrases?.length || 0) > 10" class="cn-chip cn-chip--more">
-                    +{{ (nature.phrases?.length || 0) - 10 }} more
+@if (!loading) {
+  <div class="cn-cards">
+    @for (nature of filteredNatures; track nature) {
+      <div
+        class="cn-card"
+        [class.cn-card--editing]="editingIndex === indexOfNature(nature)"
+        [class.cn-card--disabled]="!nature.enabled">
+        @if (editingIndex !== indexOfNature(nature)) {
+          <div class="cn-card-header">
+            <div class="cn-card-meta">
+              <span class="cn-card-name">{{ nature.label || 'Unnamed' }}</span>
+              <span class="cn-count-badge">{{ (nature.phrases || []).length }}</span>
+              @if (!nature.enabled) {
+                <span class="cn-disabled-badge">Disabled</span>
+              }
+              @if (nature.expireMinutes) {
+                <span class="cn-expire-badge"
+                  matTooltip="Incidents in this category are removed from the map {{ formatExpire(nature.expireMinutes) }} after dispatch">
+                  <mat-icon>timer</mat-icon>
+                  Expires {{ formatExpire(nature.expireMinutes) }}
                 </span>
+              }
             </div>
-            <p *ngIf="!nature.phrases?.length" class="cn-none">No matching phrases yet</p>
-        </ng-container>
-
-        <ng-container *ngIf="editingIndex === indexOfNature(nature) && editingForm">
-            <div class="cn-edit-header">
+            <div class="cn-card-actions">
+              <button mat-icon-button (click)="startEdit(indexOfNature(nature))" matTooltip="Edit phrases">
                 <mat-icon>edit</mat-icon>
-                <span>Edit call nature</span>
+              </button>
+              <button mat-icon-button color="warn" (click)="deleteNature(indexOfNature(nature))" matTooltip="Delete category">
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
-            <form [formGroup]="editingForm" class="cn-edit-form" (ngSubmit)="saveEdit()">
-                <div class="cn-edit-row">
-                    <mat-form-field appearance="outline" class="cn-field-label">
-                        <mat-label>Category label</mat-label>
-                        <input matInput formControlName="label" autocomplete="off">
-                    </mat-form-field>
-                    <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+          </div>
+          @if (nature.phrases?.length) {
+            <div class="cn-preview">
+              @for (phrase of (nature.phrases | slice:0:10); track phrase) {
+                <span class="cn-chip">{{ phrase }}</span>
+              }
+              @if ((nature.phrases?.length || 0) > 10) {
+                <span class="cn-chip cn-chip--more">
+                  +{{ (nature.phrases?.length || 0) - 10 }} more
+                </span>
+              }
+            </div>
+          }
+          @if (!nature.phrases?.length) {
+            <p class="cn-none">No matching phrases yet</p>
+          }
+        }
+        @if (editingIndex === indexOfNature(nature) && editingForm) {
+          <div class="cn-edit-header">
+            <mat-icon>edit</mat-icon>
+            <span>Edit call nature</span>
+          </div>
+          <form [formGroup]="editingForm" class="cn-edit-form" (ngSubmit)="saveEdit()">
+            <div class="cn-edit-row">
+              <mat-form-field appearance="outline" class="cn-field-label">
+                <mat-label>Category label</mat-label>
+                <input matInput formControlName="label" autocomplete="off">
+              </mat-form-field>
+              <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+            </div>
+            <div class="cn-edit-row cn-expire-row">
+              <mat-form-field appearance="outline" class="cn-field-expire">
+                <mat-label>Force expire (minutes)</mat-label>
+                <input matInput type="number" min="0" max="10080" step="5"
+                  formControlName="expireMinutes" autocomplete="off">
+                <mat-hint>0 = never expire</mat-hint>
+                <mat-error>Whole number between 0 and 10080 (7 days)</mat-error>
+              </mat-form-field>
+              <p class="cn-expire-hint">
+                Removes this category's incidents from the live map after this many minutes, overriding the viewer's time range.
+                Disabled categories never expire incidents.
+              </p>
+            </div>
+            <div class="cn-edit-phrases">
+              <div class="cn-phrases-toolbar">
+                <span class="cn-section-label">
+                  Transcript phrases
+                  <span class="cn-count-badge">{{ editingPhrases.length }}</span>
+                </span>
+              </div>
+              <div class="cn-add-row">
+                <mat-form-field appearance="outline" class="cn-add-field">
+                  <mat-label>Add phrase</mat-label>
+                  <input matInput [(ngModel)]="newPhraseText" [ngModelOptions]="{standalone: true}"
+                    (keydown.enter)="$event.preventDefault(); addPhraseFromInput()"
+                    autocomplete="off">
+                </mat-form-field>
+                <button type="button" mat-stroked-button class="cn-add-btn" (click)="addPhraseFromInput()">
+                  <mat-icon>add</mat-icon>
+                  Add
+                </button>
+              </div>
+              @if (editingPhrases.length) {
+                <div class="cn-edit-chips">
+                  @for (phrase of editingPhrases; track phrase) {
+                    <span class="cn-edit-chip">
+                      <span class="cn-chip-text">{{ phrase }}</span>
+                      <button type="button" mat-icon-button class="cn-remove-btn"
+                        (click)="removePhrase(editingForm!, phrase)">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </span>
+                  }
                 </div>
-
-                <div class="cn-edit-row cn-expire-row">
-                    <mat-form-field appearance="outline" class="cn-field-expire">
-                        <mat-label>Force expire (minutes)</mat-label>
-                        <input matInput type="number" min="0" max="10080" step="5"
-                               formControlName="expireMinutes" autocomplete="off">
-                        <mat-hint>0 = never expire</mat-hint>
-                        <mat-error>Whole number between 0 and 10080 (7 days)</mat-error>
-                    </mat-form-field>
-                    <p class="cn-expire-hint">
-                        Removes this category's incidents from the live map after this many minutes, overriding the viewer's time range.
-                        Disabled categories never expire incidents.
-                    </p>
-                </div>
-
-                <div class="cn-edit-phrases">
-                    <div class="cn-phrases-toolbar">
-                        <span class="cn-section-label">
-                            Transcript phrases
-                            <span class="cn-count-badge">{{ editingPhrases.length }}</span>
-                        </span>
-                    </div>
-                    <div class="cn-add-row">
-                        <mat-form-field appearance="outline" class="cn-add-field">
-                            <mat-label>Add phrase</mat-label>
-                            <input matInput [(ngModel)]="newPhraseText" [ngModelOptions]="{standalone: true}"
-                                   (keydown.enter)="$event.preventDefault(); addPhraseFromInput()"
-                                   autocomplete="off">
-                        </mat-form-field>
-                        <button type="button" mat-stroked-button class="cn-add-btn" (click)="addPhraseFromInput()">
-                            <mat-icon>add</mat-icon>
-                            Add
-                        </button>
-                    </div>
-                    <div class="cn-edit-chips" *ngIf="editingPhrases.length">
-                        <span *ngFor="let phrase of editingPhrases" class="cn-edit-chip">
-                            <span class="cn-chip-text">{{ phrase }}</span>
-                            <button type="button" mat-icon-button class="cn-remove-btn"
-                                    (click)="removePhrase(editingForm!, phrase)">
-                                <mat-icon>close</mat-icon>
-                            </button>
-                        </span>
-                    </div>
-                    <p *ngIf="!editingPhrases.length" class="cn-none">Add phrases that appear in transcripts for this category.</p>
-                </div>
-
-                <div class="cn-edit-actions">
-                    <button type="button" mat-button (click)="cancelEdit()">Cancel</button>
-                    <button type="submit" mat-raised-button color="primary" [disabled]="editingForm.invalid">
-                        <mat-icon>save</mat-icon>
-                        Save
-                    </button>
-                </div>
-            </form>
-        </ng-container>
-    </div>
-</div>
+              }
+              @if (!editingPhrases.length) {
+                <p class="cn-none">Add phrases that appear in transcripts for this category.</p>
+              }
+            </div>
+            <div class="cn-edit-actions">
+              <button type="button" mat-button (click)="cancelEdit()">Cancel</button>
+              <button type="submit" mat-raised-button color="primary" [disabled]="editingForm.invalid">
+                <mat-icon>save</mat-icon>
+                Save
+              </button>
+            </div>
+          </form>
+        }
+      </div>
+    }
+  </div>
+}

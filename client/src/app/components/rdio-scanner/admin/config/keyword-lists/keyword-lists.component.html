@@ -1,178 +1,191 @@
 <!--
- * *****************************************************************************
- * Copyright (C) 2025 Thinline Dynamic Solutions
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * ****************************************************************************
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
 -->
 <div class="admin-section-bar kw-page-header">
-    <p class="admin-section-hint">Keyword lists drive real-time call alerting based on transcript matching.</p>
-    <button type="button" mat-stroked-button (click)="addNew()">
-        <mat-icon>add</mat-icon>
-        Add Keyword List
-    </button>
+  <p class="admin-section-hint">Keyword lists drive real-time call alerting based on transcript matching.</p>
+  <button type="button" mat-stroked-button (click)="addNew()">
+    <mat-icon>add</mat-icon>
+    Add Keyword List
+  </button>
 </div>
 
 <!-- Loading -->
-<div *ngIf="loading" class="kw-loading">
+@if (loading) {
+  <div class="kw-loading">
     <mat-spinner diameter="28"></mat-spinner>
     <span>Loading keyword lists…</span>
-</div>
+  </div>
+}
 
 <!-- Empty State -->
-<div *ngIf="!loading && keywordLists.length === 0" class="kw-empty">
+@if (!loading && keywordLists.length === 0) {
+  <div class="kw-empty">
     <mat-icon>search_off</mat-icon>
     <p class="mat-body">No keyword lists configured</p>
     <p class="mat-caption">Create a keyword list to enable real-time call alerting.</p>
     <button type="button" mat-raised-button color="primary" (click)="addNew()">
-        <mat-icon>add</mat-icon>
-        Add First List
+      <mat-icon>add</mat-icon>
+      Add First List
     </button>
-</div>
+  </div>
+}
 
 <!-- Keyword List Cards -->
-<div *ngIf="!loading" class="kw-cards">
-
-    <div *ngFor="let list of keywordLists; let i = index"
-         class="kw-card"
-         [class.kw-card--editing]="editingIndex === i">
-
+@if (!loading) {
+  <div class="kw-cards">
+    @for (list of keywordLists; track list; let i = $index) {
+      <div
+        class="kw-card"
+        [class.kw-card--editing]="editingIndex === i">
         <!-- ── Display Mode ──────────────────────────────── -->
-        <ng-container *ngIf="editingIndex !== i">
-            <div class="kw-card-header">
-                <div class="kw-card-meta">
-                    <span class="kw-card-name">{{ list.label || 'Unnamed List' }}</span>
-                    <span class="kw-count-badge">{{ (list.keywords || []).length }}</span>
-                </div>
-                <div class="kw-card-actions">
-                    <button mat-icon-button (click)="startEdit(i)" matTooltip="Edit list">
-                        <mat-icon>edit</mat-icon>
-                    </button>
-                    <button mat-icon-button color="warn" (click)="deleteList(i)" matTooltip="Delete list">
-                        <mat-icon>delete</mat-icon>
-                    </button>
-                </div>
+        @if (editingIndex !== i) {
+          <div class="kw-card-header">
+            <div class="kw-card-meta">
+              <span class="kw-card-name">{{ list.label || 'Unnamed List' }}</span>
+              <span class="kw-count-badge">{{ (list.keywords || []).length }}</span>
             </div>
-            <p *ngIf="list.description" class="kw-description">{{ list.description }}</p>
-            <div class="kw-preview" *ngIf="list.keywords?.length">
-                <span *ngFor="let kw of (list.keywords | slice:0:12)" class="kw-chip">{{ kw }}</span>
-                <span *ngIf="(list.keywords?.length || 0) > 12" class="kw-chip kw-chip--more">
-                    +{{ (list.keywords?.length || 0) - 12 }} more
-                </span>
-            </div>
-            <p *ngIf="!list.keywords?.length" class="kw-none">No keywords defined yet</p>
-        </ng-container>
-
-        <!-- ── Edit Mode ─────────────────────────────────── -->
-        <ng-container *ngIf="editingIndex === i && editingForm">
-            <div class="kw-edit-header">
+            <div class="kw-card-actions">
+              <button mat-icon-button (click)="startEdit(i)" matTooltip="Edit list">
                 <mat-icon>edit</mat-icon>
-                <span>{{ list.label ? 'Editing: ' + list.label : 'New Keyword List' }}</span>
+              </button>
+              <button mat-icon-button color="warn" (click)="deleteList(i)" matTooltip="Delete list">
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
-
-            <div [formGroup]="editingForm" class="kw-edit-form">
-
-                <!-- Label + Order row -->
-                <div class="kw-edit-row">
-                    <mat-form-field appearance="outline" class="kw-field-label">
-                        <mat-label>Label</mat-label>
-                        <input matInput formControlName="label" placeholder="e.g. Fire Keywords" autocomplete="off">
-                        <mat-error *ngIf="editingForm.get('label')?.hasError('required')">Required</mat-error>
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="kw-field-order">
-                        <mat-label>Order</mat-label>
-                        <input type="number" matInput formControlName="order" min="0" autocomplete="off">
-                    </mat-form-field>
+          </div>
+          @if (list.description) {
+            <p class="kw-description">{{ list.description }}</p>
+          }
+          @if (list.keywords?.length) {
+            <div class="kw-preview">
+              @for (kw of (list.keywords | slice:0:12); track kw) {
+                <span class="kw-chip">{{ kw }}</span>
+              }
+              @if ((list.keywords?.length || 0) > 12) {
+                <span class="kw-chip kw-chip--more">
+                  +{{ (list.keywords?.length || 0) - 12 }} more
+                </span>
+              }
+            </div>
+          }
+          @if (!list.keywords?.length) {
+            <p class="kw-none">No keywords defined yet</p>
+          }
+        }
+        <!-- ── Edit Mode ─────────────────────────────────── -->
+        @if (editingIndex === i && editingForm) {
+          <div class="kw-edit-header">
+            <mat-icon>edit</mat-icon>
+            <span>{{ list.label ? 'Editing: ' + list.label : 'New Keyword List' }}</span>
+          </div>
+          <div [formGroup]="editingForm" class="kw-edit-form">
+            <!-- Label + Order row -->
+            <div class="kw-edit-row">
+              <mat-form-field appearance="outline" class="kw-field-label">
+                <mat-label>Label</mat-label>
+                <input matInput formControlName="label" placeholder="e.g. Fire Keywords" autocomplete="off">
+                @if (editingForm.get('label')?.hasError('required')) {
+                  <mat-error>Required</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="kw-field-order">
+                <mat-label>Order</mat-label>
+                <input type="number" matInput formControlName="order" min="0" autocomplete="off">
+              </mat-form-field>
+            </div>
+            <!-- Description -->
+            <mat-form-field appearance="outline" class="kw-field-full">
+              <mat-label>Description</mat-label>
+              <textarea matInput formControlName="description" rows="2"
+              placeholder="Optional — e.g. Imported from JSON file · 51 keywords"></textarea>
+            </mat-form-field>
+            <!-- Keywords Section -->
+            <div class="kw-edit-keywords">
+              <!-- Keywords toolbar -->
+              <div class="kw-keywords-toolbar">
+                <span class="kw-section-label">
+                  Keywords
+                  <span class="kw-count-badge">{{ currentEditingKeywords.length }}</span>
+                </span>
+                <div class="kw-toolbar-actions">
+                  <input type="file"
+                    accept=".txt,.json,text/plain,application/json"
+                    style="display:none"
+                    #fileInput
+                    (change)="importKeywordsFromFile(editingForm, $event)">
+                  <button type="button" mat-stroked-button (click)="fileInput.click()">
+                    <mat-icon>upload_file</mat-icon>
+                    Import File
+                  </button>
                 </div>
-
-                <!-- Description -->
-                <mat-form-field appearance="outline" class="kw-field-full">
-                    <mat-label>Description</mat-label>
-                    <textarea matInput formControlName="description" rows="2"
-                              placeholder="Optional — e.g. Imported from JSON file · 51 keywords"></textarea>
+              </div>
+              <!-- Inline add input -->
+              <div class="kw-add-row">
+                <mat-form-field appearance="outline" class="kw-add-field" subscriptSizing="dynamic">
+                  <mat-label>Add keyword</mat-label>
+                  <input matInput
+                    [(ngModel)]="newKeywordText"
+                    [ngModelOptions]="{standalone: true}"
+                    placeholder="Type and press Enter…"
+                    (keydown.enter)="addKeywordFromInput(); $event.preventDefault()" autocomplete="off">
                 </mat-form-field>
-
-                <!-- Keywords Section -->
-                <div class="kw-edit-keywords">
-
-                    <!-- Keywords toolbar -->
-                    <div class="kw-keywords-toolbar">
-                        <span class="kw-section-label">
-                            Keywords
-                            <span class="kw-count-badge">{{ currentEditingKeywords.length }}</span>
-                        </span>
-                        <div class="kw-toolbar-actions">
-                            <input type="file"
-                                   accept=".txt,.json,text/plain,application/json"
-                                   style="display:none"
-                                   #fileInput
-                                   (change)="importKeywordsFromFile(editingForm, $event)">
-                            <button type="button" mat-stroked-button (click)="fileInput.click()">
-                                <mat-icon>upload_file</mat-icon>
-                                Import File
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Inline add input -->
-                    <div class="kw-add-row">
-                        <mat-form-field appearance="outline" class="kw-add-field" subscriptSizing="dynamic">
-                            <mat-label>Add keyword</mat-label>
-                            <input matInput
-                                   [(ngModel)]="newKeywordText"
-                                   [ngModelOptions]="{standalone: true}"
-                                   placeholder="Type and press Enter…"
-                                   (keydown.enter)="addKeywordFromInput(); $event.preventDefault()" autocomplete="off">
-                        </mat-form-field>
-                        <button type="button" mat-flat-button color="primary"
-                                class="kw-add-btn"
-                                [disabled]="!newKeywordText.trim()"
-                                (click)="addKeywordFromInput()">
-                            <mat-icon>add</mat-icon>
-                            Add
-                        </button>
-                    </div>
-
-                    <!-- Current keywords as chips -->
-                    <div class="kw-edit-chips" *ngIf="currentEditingKeywords.length > 0">
-                        <span *ngFor="let kw of currentEditingKeywords" class="kw-edit-chip">
-                            <span class="kw-chip-text">{{ kw }}</span>
-                            <button mat-icon-button class="kw-remove-btn"
-                                    (click)="removeKeyword(editingForm, kw)"
-                                    [matTooltip]="'Remove ' + kw">
-                                <mat-icon>close</mat-icon>
-                            </button>
-                        </span>
-                    </div>
-                    <p *ngIf="currentEditingKeywords.length === 0" class="kw-none">
-                        No keywords yet — type above or import a file.
-                    </p>
+                <button type="button" mat-flat-button color="primary"
+                  class="kw-add-btn"
+                  [disabled]="!newKeywordText.trim()"
+                  (click)="addKeywordFromInput()">
+                  <mat-icon>add</mat-icon>
+                  Add
+                </button>
+              </div>
+              <!-- Current keywords as chips -->
+              @if (currentEditingKeywords.length > 0) {
+                <div class="kw-edit-chips">
+                  @for (kw of currentEditingKeywords; track kw) {
+                    <span class="kw-edit-chip">
+                      <span class="kw-chip-text">{{ kw }}</span>
+                      <button mat-icon-button class="kw-remove-btn"
+                        (click)="removeKeyword(editingForm, kw)"
+                        [matTooltip]="'Remove ' + kw">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </span>
+                  }
                 </div>
-
-                <!-- Edit Actions -->
-                <div class="kw-edit-actions">
-                    <button type="button" mat-button (click)="cancelEdit()">Cancel</button>
-                    <button type="button" mat-raised-button color="primary"
-                            (click)="saveEdit()"
-                            [disabled]="editingForm.invalid">
-                        <mat-icon>save</mat-icon>
-                        Save List
-                    </button>
-                </div>
-
+              }
+              @if (currentEditingKeywords.length === 0) {
+                <p class="kw-none">
+                  No keywords yet — type above or import a file.
+                </p>
+              }
             </div>
-        </ng-container>
-
-    </div>
-</div>
+            <!-- Edit Actions -->
+            <div class="kw-edit-actions">
+              <button type="button" mat-button (click)="cancelEdit()">Cancel</button>
+              <button type="button" mat-raised-button color="primary"
+                (click)="saveEdit()"
+                [disabled]="editingForm.invalid">
+                <mat-icon>save</mat-icon>
+                Save List
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+}

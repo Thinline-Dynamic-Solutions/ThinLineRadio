@@ -2,29 +2,36 @@
   <div class="post-verify-card">
     <div class="header">
       <h1>Choose your plan</h1>
-      <p *ngIf="email">Signed in as {{ email }}</p>
+      @if (email) {
+        <p>Signed in as {{ email }}</p>
+      }
     </div>
 
     <div class="body">
-      <div *ngIf="loading" class="centered">
-        <mat-spinner diameter="48"></mat-spinner>
-        <p>Loading…</p>
-      </div>
+      @if (loading) {
+        <div class="centered">
+          <mat-spinner diameter="48"></mat-spinner>
+          <p>Loading…</p>
+        </div>
+      }
 
-      <div *ngIf="error && !loading" class="error-box">
-        <mat-icon color="warn">error</mat-icon>
-        <p>{{ error }}</p>
-        <button mat-stroked-button type="button" routerLink="/">Home</button>
-      </div>
+      @if (error && !loading) {
+        <div class="error-box">
+          <mat-icon color="warn">error</mat-icon>
+          <p>{{ error }}</p>
+          <button mat-stroked-button type="button" routerLink="/">Home</button>
+        </div>
+      }
 
-      <rdio-scanner-stripe-checkout
-        *ngIf="checkoutConfig && !loading"
-        [config]="checkoutConfig"
-        [email]="email"
-        [customSuccessUrl]="checkoutSuccessUrl"
-        [customCancelUrl]="checkoutCancelUrl"
-        (checkoutCancel)="onCheckoutCancel()">
-      </rdio-scanner-stripe-checkout>
+      @if (checkoutConfig && !loading) {
+        <rdio-scanner-stripe-checkout
+          [config]="checkoutConfig"
+          [email]="email"
+          [customSuccessUrl]="checkoutSuccessUrl"
+          [customCancelUrl]="checkoutCancelUrl"
+          (checkoutCancel)="onCheckoutCancel()">
+        </rdio-scanner-stripe-checkout>
+      }
     </div>
   </div>
 </div>
