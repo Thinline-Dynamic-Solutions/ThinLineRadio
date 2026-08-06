@@ -103,19 +103,16 @@ func copilotFinalizeToneSet(ts ToneSet) ToneSet {
 }
 
 func (admin *Admin) copilotFindTalkgroup(systemID, talkgroupID uint64, talkgroupRef uint) (*System, *Talkgroup, error) {
-	system, ok := admin.Controller.Systems.GetSystemById(systemID)
-	if !ok {
-		return nil, nil, fmt.Errorf("system %d not found", systemID)
-	}
-	for _, tg := range system.Talkgroups.List {
-		if talkgroupID > 0 && tg.Id == talkgroupID {
-			return system, tg, nil
+	system, tg, hint, err := admin.copilotResolveTalkgroup(systemID, 0, "", talkgroupID, talkgroupRef, "")
+	if err != nil {
+		if hint != nil {
+			if note, ok := hint["talkgroupIdNote"]; ok {
+				return nil, nil, fmt.Errorf("%w (%v)", err, note)
+			}
 		}
-		if talkgroupRef > 0 && tg.TalkgroupRef == talkgroupRef {
-			return system, tg, nil
-		}
+		return nil, nil, err
 	}
-	return nil, nil, fmt.Errorf("talkgroup not found in system %d", systemID)
+	return system, tg, nil
 }
 
 func (admin *Admin) copilotGetTalkgroupConfig(systemID, talkgroupID uint64, talkgroupRef uint) (map[string]any, error) {

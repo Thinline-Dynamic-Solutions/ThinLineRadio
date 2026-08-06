@@ -167,65 +167,13 @@ rdio-scanner-admin {
         }
     }
 
-    /* ── Tab group ───────────────────────────── */
-    .admin-tab-group {
+    /* ── Main shell (replaces top tabs) ───────── */
+    .admin-shell {
         background: #1e1e1e;
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-
-        /* Tab header bar */
-        ::ng-deep .mat-mdc-tab-header {
-            background: #161616;
-            border-bottom: 2px solid #2a2a2a;
-        }
-
-        /* Individual tab labels */
-        ::ng-deep .mat-mdc-tab {
-            min-width: 120px;
-            opacity: 0.65;
-            transition: opacity 0.2s;
-
-            &.mdc-tab--active {
-                opacity: 1;
-            }
-        }
-
-        /* Active tab indicator */
-        ::ng-deep .mdc-tab-indicator__content--underline {
-            border-color: #cc0000 !important;
-            border-top-width: 3px !important;
-        }
-
-        /* Tab label text & icon */
-        ::ng-deep .mat-mdc-tab .mdc-tab__text-label {
-            color: #ccc;
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        ::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
-            color: #fff;
-        }
-
-        .tab-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
-        }
-
-        /* Tab body */
-        ::ng-deep .mat-mdc-tab-body-content {
-            overflow: visible;
-        }
-
-        .tab-content {
-            padding: 0;
-            min-height: 120px;
-        }
+        min-height: 120px;
     }
 
 }
@@ -233,26 +181,8 @@ rdio-scanner-admin {
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 719px) {
     rdio-scanner-admin {
-        .admin-tab-group {
+        .admin-shell {
             border-radius: 6px;
-
-            ::ng-deep .mat-mdc-tab {
-                min-width: 80px;
-            }
-
-            .tab-label {
-                display: none;
-            }
-
-            .tab-icon {
-                font-size: 22px;
-                width: 22px;
-                height: 22px;
-            }
-
-            .tab-content {
-                padding: 12px;
-            }
         }
     }
 }

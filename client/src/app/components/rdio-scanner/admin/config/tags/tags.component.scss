@@ -16,31 +16,122 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
  */
-/* ── Empty state ─────────────────────────────────────────────── */
+
+.admin-section-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.admin-section-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.search-field {
+    flex: 1 1 220px;
+    max-width: 320px;
+    margin: 0 !important;
+    font-size: 13px;
+
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+
+    ::ng-deep .mat-mdc-text-field-wrapper {
+        background: transparent !important;
+        padding-left: 4px;
+    }
+
+    ::ng-deep .mat-mdc-form-field-flex {
+        height: 36px;
+        align-items: center;
+    }
+
+    ::ng-deep .mat-mdc-form-field-infix {
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+        min-height: unset;
+    }
+
+    ::ng-deep .mdc-notched-outline__leading,
+    ::ng-deep .mdc-notched-outline__notch,
+    ::ng-deep .mdc-notched-outline__trailing {
+        border-color: #333 !important;
+    }
+
+    ::ng-deep input {
+        color: #e0e0e0 !important;
+        font-size: 13px;
+    }
+
+    ::ng-deep input::placeholder {
+        color: #666;
+    }
+
+    mat-icon[matPrefix] {
+        color: #666;
+        margin-right: 4px;
+    }
+}
+
 .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     color: #666;
+    text-align: center;
+    gap: 4px;
+    padding: 24px 12px;
+
+    p { margin: 0; }
 }
 
-/* ── Table wrapper ───────────────────────────────────────────── */
 .table-wrapper {
+    width: 100%;
     border-radius: 8px;
-    overflow: hidden;
     border: 1px solid #2a2a2a;
+    min-width: 0;
+    overflow: hidden;
 }
 
-/* ── Table ───────────────────────────────────────────────────── */
+.dual-tables {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+
+    &.single-column {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 960px) {
+    .dual-tables {
+        grid-template-columns: 1fr;
+    }
+}
+
 .tags-table {
+    display: block;
     width: 100%;
     background: #1a1a1a;
 
-    /* Header */
+    .mat-mdc-header-row,
+    .mat-mdc-row {
+        display: flex;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
     .mat-mdc-header-row {
         background: #141414;
         border-bottom: 1px solid #2a2a2a;
         height: 36px;
+        min-height: 36px;
     }
 
     .mat-mdc-header-cell {
@@ -50,14 +141,15 @@
         text-transform: uppercase;
         letter-spacing: 0.8px;
         border-bottom: none;
+        box-sizing: border-box;
     }
 
-    /* Rows */
     .mat-mdc-row {
         border-bottom: 1px solid #222;
         background: #1a1a1a;
         transition: background 0.15s;
         height: 44px;
+        min-height: 44px;
 
         &:last-child { border-bottom: none; }
         &:hover { background: #1f1f1f; }
@@ -69,16 +161,62 @@
         vertical-align: middle;
         padding-top: 8px;
         padding-bottom: 8px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+    }
+
+    // Label takes all leftover space; other cols stay fixed so delete sits on the right edge
+    .mat-column-drag {
+        flex: 0 0 40px;
+        width: 40px;
+        max-width: 40px;
+        padding-left: 8px !important;
+        padding-right: 0 !important;
+    }
+
+    .mat-column-color {
+        flex: 0 0 150px;
+        width: 150px;
+        max-width: 150px;
+    }
+
+    .mat-column-label {
+        flex: 1 1 0%;
+        min-width: 0;
+        width: auto;
+
+        .cell-content,
+        .label-field {
+            min-width: 0;
+            width: 100%;
+            flex: 1 1 auto;
+        }
+    }
+
+    .mat-column-usage {
+        flex: 0 0 100px;
+        width: 100px;
+        max-width: 100px;
+    }
+
+    .mat-column-delete {
+        flex: 0 0 48px;
+        width: 48px;
+        max-width: 48px;
+        justify-content: flex-end;
+        padding-left: 0 !important;
+        padding-right: 4px !important;
     }
 }
 
-/* ── Column widths ───────────────────────────────────────────── */
-.drag-col   { width: 40px;  min-width: 40px;  padding-left: 8px !important; }
-.color-col  { width: 180px; min-width: 160px; }
-.usage-col  { width: 100px; min-width: 90px;  }
-.delete-col { width: 52px;  min-width: 52px;  text-align: right; padding-right: 8px !important; }
+.drag-col,
+.color-col,
+.usage-col,
+.delete-col {
+    // widths handled via .mat-column-* flex rules above
+}
 
-/* ── Drag handle ─────────────────────────────────────────────── */
 .drag-handle {
     color: #555;
     cursor: grab;
@@ -87,6 +225,11 @@
     height: 20px;
 
     &:hover { color: #888; }
+
+    &.drag-disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
 }
 
 .cdk-drag-preview {
@@ -98,7 +241,6 @@
 
 .cdk-drag-placeholder { opacity: 0.2; }
 
-/* ── Color swatch ────────────────────────────────────────────── */
 .color-swatch {
     display: inline-block;
     width: 14px;
@@ -117,19 +259,17 @@
     color: #e0e0e0;
 }
 
-/* ── Cell content wrapper (flex, vertically centered) ────────── */
 .cell-content {
     display: flex;
     align-items: center;
     gap: 4px;
 }
 
-/* ── Inline form fields ──────────────────────────────────────── */
 .color-field,
 .label-field {
     width: 100%;
+    max-width: none;
     font-size: 13px;
-    // Strip Angular Material's default top margin on outline fields
     margin-top: 0 !important;
 
     ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
@@ -149,6 +289,8 @@
         padding-top: 8px !important;
         padding-bottom: 8px !important;
         min-height: unset;
+        min-width: 0 !important;
+        width: 100%;
     }
 
     ::ng-deep .mdc-notched-outline__leading,
@@ -175,9 +317,6 @@
     }
 }
 
-.color-field { max-width: 165px; }
-
-/* ── Usage chips ─────────────────────────────────────────────── */
 .chip-unused,
 .chip-inuse {
     font-size: 11px !important;
@@ -186,6 +325,16 @@
     min-height: 22px !important;
     border-radius: 11px !important;
     pointer-events: none;
+    white-space: nowrap !important;
+    padding: 0 8px !important;
+    overflow: visible !important;
+
+    ::ng-deep .mdc-evolution-chip__action,
+    ::ng-deep .mdc-evolution-chip__text-label,
+    ::ng-deep .mat-mdc-chip-action-label {
+        overflow: visible !important;
+        padding: 0 !important;
+    }
 }
 
 .chip-unused {
@@ -200,11 +349,17 @@
     border: 1px solid rgba(76, 175, 80, 0.3) !important;
 }
 
-/* ── Row error icon ──────────────────────────────────────────── */
 .row-error {
     font-size: 16px;
     width: 16px;
     height: 16px;
     vertical-align: middle;
     margin-left: 4px;
+}
+
+.tags-paginator {
+    margin-top: 8px;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    background: #1a1a1a;
 }

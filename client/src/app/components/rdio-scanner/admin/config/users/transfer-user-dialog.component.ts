@@ -17,13 +17,13 @@
  * ****************************************************************************
  */
 
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, Inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 
 @Component({
-  selector: 'rdio-scanner-transfer-user-dialog',
-  template: `
+    selector: 'rdio-scanner-transfer-user-dialog',
+    template: `
     <h2 mat-dialog-title>Transfer User to Group</h2>
     <mat-dialog-content>
       <p class="mat-body" style="margin-bottom: 16px;">
@@ -34,26 +34,30 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
           <mat-label>Target Group</mat-label>
           <mat-select formControlName="groupId" required>
             <mat-option [value]="0">No Group (Unassigned)</mat-option>
-            <mat-option *ngFor="let group of availableGroups" [value]="group.id">
-              {{ group.name }}
-            </mat-option>
+            @for (group of availableGroups; track group) {
+              <mat-option [value]="group.id">
+                {{ group.name }}
+              </mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="transferForm.get('groupId')?.hasError('required')">
-            Group selection is required
-          </mat-error>
+          @if (transferForm.get('groupId')?.hasError('required')) {
+            <mat-error>
+              Group selection is required
+            </mat-error>
+          }
         </mat-form-field>
       </form>
     </mat-dialog-content>
     <mat-dialog-actions>
       <button mat-button (click)="onCancel()">Cancel</button>
-      <button mat-raised-button color="primary" 
-              [disabled]="transferForm.invalid" 
-              (click)="onTransfer()">
+      <button mat-raised-button color="primary"
+        [disabled]="transferForm.invalid"
+        (click)="onTransfer()">
         Transfer User
       </button>
     </mat-dialog-actions>
-  `,
-  styles: [`
+    `,
+    styles: [`
     .full-width {
       width: 100%;
       margin-bottom: 16px;
@@ -61,7 +65,9 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
     mat-dialog-content {
       min-width: 400px;
     }
-  `]
+  `],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class TransferUserDialogComponent implements OnInit {
   transferForm: FormGroup;

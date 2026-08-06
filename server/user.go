@@ -62,6 +62,7 @@ type User struct {
 	SystemNoAudioAlertSystems string // JSON: "*" or [systemId,...] — which systems' no-audio alerts the user can view
 	ApiKeyNoAudioAlertApiKeys string // JSON: "*" or [apiKeyId,...] — which API keys' no-audio alerts the user can view
 	ForcePasswordReset        bool
+	Suspended                 bool   // Admin-suspended: cannot login, connect, or use the service
 	ResetCode                 string
 	ResetCodeExpires          uint64
 	EmailChangeCode           string
@@ -745,6 +746,11 @@ func (u *User) PinExpired() bool {
 	return uint64(time.Now().Unix()) > u.PinExpiresAt
 }
 
+// IsSuspended reports whether the account has been admin-suspended.
+func (u *User) IsSuspended() bool {
+	return u != nil && u.Suspended
+}
+
 func (u *User) EffectiveDelay(call *Call, defaultDelay uint) uint {
 	if u == nil || call == nil || call.System == nil || call.Talkgroup == nil {
 		return defaultDelay
@@ -1068,7 +1074,7 @@ func (users *Users) Read(db *Database) error {
 	users.pins = make(map[string]*User)
 	users.groupAdmins = make(map[uint64]*User)
 
-	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("userGroupIds", ''), COALESCE("systemAdmin", false), COALESCE("pushSystemNoAudioAlerts", false), COALESCE("pushApiKeyNoAudioAlerts", false), COALESCE("systemNoAudioAlertSystems", ''), COALESCE("apiKeyNoAudioAlertApiKeys", ''), COALESCE("forcePasswordReset", false), "resetCode", "resetCodeExpires", "accountExpiresAt", COALESCE("mobileSetupTokenHash", ''), COALESCE("mobileSetupTokenExpires", 0), COALESCE("mobileWelcomeEmailSent", false) FROM "users"`)
+	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("userGroupIds", ''), COALESCE("systemAdmin", false), COALESCE("pushSystemNoAudioAlerts", false), COALESCE("pushApiKeyNoAudioAlerts", false), COALESCE("systemNoAudioAlertSystems", ''), COALESCE("apiKeyNoAudioAlertApiKeys", ''), COALESCE("forcePasswordReset", false), COALESCE("suspended", false), "resetCode", "resetCodeExpires", "accountExpiresAt", COALESCE("mobileSetupTokenHash", ''), COALESCE("mobileSetupTokenExpires", 0), COALESCE("mobileWelcomeEmailSent", false) FROM "users"`)
 	if err != nil {
 		return formatError(err, "")
 	}
@@ -1091,6 +1097,7 @@ func (users *Users) Read(db *Database) error {
 		var systemNoAudioAlertSystems sql.NullString
 		var apiKeyNoAudioAlertApiKeys sql.NullString
 		var forcePasswordReset sql.NullBool
+		var suspended sql.NullBool
 		var resetCode sql.NullString
 		var resetCodeExpires sql.NullInt64
 		var accountExpiresAt sql.NullInt64
@@ -1098,7 +1105,7 @@ func (users *Users) Read(db *Database) error {
 		var mobileSetupTokenExpires sql.NullInt64
 		var mobileWelcomeEmailSent sql.NullBool
 
-		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &talkgroups, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &userGroupIds, &systemAdmin, &pushSystemNoAudioAlerts, &pushApiKeyNoAudioAlerts, &systemNoAudioAlertSystems, &apiKeyNoAudioAlertApiKeys, &forcePasswordReset, &resetCode, &resetCodeExpires, &accountExpiresAt, &mobileSetupTokenHash, &mobileSetupTokenExpires, &mobileWelcomeEmailSent)
+		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &talkgroups, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &userGroupIds, &systemAdmin, &pushSystemNoAudioAlerts, &pushApiKeyNoAudioAlerts, &systemNoAudioAlertSystems, &apiKeyNoAudioAlertApiKeys, &forcePasswordReset, &suspended, &resetCode, &resetCodeExpires, &accountExpiresAt, &mobileSetupTokenHash, &mobileSetupTokenExpires, &mobileWelcomeEmailSent)
 		if err != nil {
 			return formatError(err, "")
 		}
@@ -1163,6 +1170,9 @@ func (users *Users) Read(db *Database) error {
 		}
 		if forcePasswordReset.Valid {
 			user.ForcePasswordReset = forcePasswordReset.Bool
+		}
+		if suspended.Valid {
+			user.Suspended = suspended.Bool
 		}
 		if resetCode.Valid {
 			user.ResetCode = resetCode.String
@@ -1285,8 +1295,8 @@ func (users *Users) Write(db *Database) error {
 				accountExpiresAtVal = int64(0)
 			}
 
-			result, err := db.Sql.Exec(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", "systemAdmin", "pushSystemNoAudioAlerts", "pushApiKeyNoAudioAlerts", "systemNoAudioAlertSystems", "apiKeyNoAudioAlertApiKeys", "forcePasswordReset", "resetCode", "resetCodeExpires", "accountExpiresAt", "mobileSetupTokenHash", "mobileSetupTokenExpires", "mobileWelcomeEmailSent", "userGroupIds") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)`,
-				user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.PushSystemNoAudioAlerts, user.PushApiKeyNoAudioAlerts, user.SystemNoAudioAlertSystems, user.ApiKeyNoAudioAlertApiKeys, user.ForcePasswordReset, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.MobileSetupTokenHash, int64(user.MobileSetupTokenExpires), user.MobileWelcomeEmailSent, userGroupIds)
+			result, err := db.Sql.Exec(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", "systemAdmin", "pushSystemNoAudioAlerts", "pushApiKeyNoAudioAlerts", "systemNoAudioAlertSystems", "apiKeyNoAudioAlertApiKeys", "forcePasswordReset", "suspended", "resetCode", "resetCodeExpires", "accountExpiresAt", "mobileSetupTokenHash", "mobileSetupTokenExpires", "mobileWelcomeEmailSent", "userGroupIds") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)`,
+				user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.PushSystemNoAudioAlerts, user.PushApiKeyNoAudioAlerts, user.SystemNoAudioAlertSystems, user.ApiKeyNoAudioAlertApiKeys, user.ForcePasswordReset, user.Suspended, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.MobileSetupTokenHash, int64(user.MobileSetupTokenExpires), user.MobileWelcomeEmailSent, userGroupIds)
 			if err != nil {
 				return formatError(err, "")
 			}
@@ -1345,8 +1355,8 @@ func (users *Users) Write(db *Database) error {
 				accountExpiresAtVal = int64(0)
 			}
 
-			_, err = db.Sql.Exec(`UPDATE "users" SET "email"=$1, "password"=$2, "pin"=$3, "pinExpiresAt"=$4, "connectionLimit"=$5, "verified"=$6, "verificationToken"=$7, "createdAt"=$8, "lastLogin"=$9, "firstName"=$10, "lastName"=$11, "zipCode"=$12, "systems"=$13, "talkgroups"=$14, "delay"=$15, "systemDelays"=$16, "talkgroupDelays"=$17, "settings"=$18, "stripeCustomerId"=$19, "stripeSubscriptionId"=$20, "subscriptionStatus"=$21, "userGroupId"=$22, "isGroupAdmin"=$23, "systemAdmin"=$24, "pushSystemNoAudioAlerts"=$25, "pushApiKeyNoAudioAlerts"=$26, "systemNoAudioAlertSystems"=$27, "apiKeyNoAudioAlertApiKeys"=$28, "forcePasswordReset"=$29, "resetCode"=$30, "resetCodeExpires"=$31, "accountExpiresAt"=$32, "mobileSetupTokenHash"=$33, "mobileSetupTokenExpires"=$34, "mobileWelcomeEmailSent"=$35, "userGroupIds"=$36 WHERE "userId"=$37`,
-				user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.PushSystemNoAudioAlerts, user.PushApiKeyNoAudioAlerts, user.SystemNoAudioAlertSystems, user.ApiKeyNoAudioAlertApiKeys, user.ForcePasswordReset, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.MobileSetupTokenHash, int64(user.MobileSetupTokenExpires), user.MobileWelcomeEmailSent, userGroupIds, user.Id)
+			_, err = db.Sql.Exec(`UPDATE "users" SET "email"=$1, "password"=$2, "pin"=$3, "pinExpiresAt"=$4, "connectionLimit"=$5, "verified"=$6, "verificationToken"=$7, "createdAt"=$8, "lastLogin"=$9, "firstName"=$10, "lastName"=$11, "zipCode"=$12, "systems"=$13, "talkgroups"=$14, "delay"=$15, "systemDelays"=$16, "talkgroupDelays"=$17, "settings"=$18, "stripeCustomerId"=$19, "stripeSubscriptionId"=$20, "subscriptionStatus"=$21, "userGroupId"=$22, "isGroupAdmin"=$23, "systemAdmin"=$24, "pushSystemNoAudioAlerts"=$25, "pushApiKeyNoAudioAlerts"=$26, "systemNoAudioAlertSystems"=$27, "apiKeyNoAudioAlertApiKeys"=$28, "forcePasswordReset"=$29, "suspended"=$30, "resetCode"=$31, "resetCodeExpires"=$32, "accountExpiresAt"=$33, "mobileSetupTokenHash"=$34, "mobileSetupTokenExpires"=$35, "mobileWelcomeEmailSent"=$36, "userGroupIds"=$37 WHERE "userId"=$38`,
+				user.Email, user.Password, pin, pinExpiresAt, connectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.PushSystemNoAudioAlerts, user.PushApiKeyNoAudioAlerts, user.SystemNoAudioAlertSystems, user.ApiKeyNoAudioAlertApiKeys, user.ForcePasswordReset, user.Suspended, resetCodeVal, resetCodeExpiresVal, accountExpiresAtVal, user.MobileSetupTokenHash, int64(user.MobileSetupTokenExpires), user.MobileWelcomeEmailSent, userGroupIds, user.Id)
 			if err != nil {
 				return formatError(err, "")
 			}
@@ -1513,8 +1523,8 @@ func (users *Users) SaveNewUser(user *User, db *Database) error {
 	}
 
 	// Insert user with all fields including systems, delays, settings, and Stripe data
-	err := db.Sql.QueryRow(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "accountExpiresAt", "userGroupId", "isGroupAdmin", "systemAdmin", "pushSystemNoAudioAlerts", "pushApiKeyNoAudioAlerts", "systemNoAudioAlertSystems", "apiKeyNoAudioAlertApiKeys", "forcePasswordReset", "mobileSetupTokenHash", "mobileSetupTokenExpires", "mobileWelcomeEmailSent", "userGroupIds") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34) RETURNING "userId"`,
-		user.Email, user.Password, user.Pin, user.PinExpiresAt, user.ConnectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.AccountExpiresAt, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.PushSystemNoAudioAlerts, user.PushApiKeyNoAudioAlerts, user.SystemNoAudioAlertSystems, user.ApiKeyNoAudioAlertApiKeys, user.ForcePasswordReset, user.MobileSetupTokenHash, int64(user.MobileSetupTokenExpires), user.MobileWelcomeEmailSent, user.UserGroupIds).Scan(&userId)
+	err := db.Sql.QueryRow(`INSERT INTO "users" ("email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "accountExpiresAt", "userGroupId", "isGroupAdmin", "systemAdmin", "pushSystemNoAudioAlerts", "pushApiKeyNoAudioAlerts", "systemNoAudioAlertSystems", "apiKeyNoAudioAlertApiKeys", "forcePasswordReset", "suspended", "mobileSetupTokenHash", "mobileSetupTokenExpires", "mobileWelcomeEmailSent", "userGroupIds") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35) RETURNING "userId"`,
+		user.Email, user.Password, user.Pin, user.PinExpiresAt, user.ConnectionLimit, user.Verified, user.VerificationToken, createdAtStr, lastLoginStr, user.FirstName, user.LastName, user.ZipCode, systems, user.Talkgroups, user.Delay, systemDelays, talkgroupDelays, settings, stripeCustomerId, stripeSubscriptionId, subscriptionStatus, user.AccountExpiresAt, user.UserGroupId, user.IsGroupAdmin, user.SystemAdmin, user.PushSystemNoAudioAlerts, user.PushApiKeyNoAudioAlerts, user.SystemNoAudioAlertSystems, user.ApiKeyNoAudioAlertApiKeys, user.ForcePasswordReset, user.Suspended, user.MobileSetupTokenHash, int64(user.MobileSetupTokenExpires), user.MobileWelcomeEmailSent, user.UserGroupIds).Scan(&userId)
 	if err != nil {
 		return formatError(err, "")
 	}

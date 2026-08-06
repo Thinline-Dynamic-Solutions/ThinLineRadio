@@ -24,7 +24,7 @@
   font-size: 1.35rem;
   font-weight: 700;
   text-align: center;
-  color: var(--primary-color, #00e676);
+  color: var(--primary-color, #7ec8e8);
 }
 
 .lede {
@@ -111,6 +111,51 @@
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.tier-row--selected {
+  border-color: rgba(126, 200, 232, 0.5);
+  background: rgba(126, 200, 232, 0.08);
+}
+
+.tier-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+
+  input[type='radio'] {
+    width: 16px;
+    height: 16px;
+    accent-color: #7ec8e8;
+  }
+}
+
+.tier-price-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.tier-price-chip {
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(204, 0, 0, 0.4);
+  color: #ff8a80;
+  background: rgba(204, 0, 0, 0.1);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tier-price-chip--selected {
+  border-color: #7ec8e8;
+  color: #0a0a0a;
+  background: #7ec8e8;
+  font-weight: 600;
 }
 
 .tier-main {
@@ -143,8 +188,8 @@
 }
 
 .tier-badge--primary {
-  background: rgba(0, 230, 118, 0.2);
-  color: #00e676;
+  background: rgba(126, 200, 232, 0.2);
+  color: #7ec8e8;
 }
 
 .tier-badge--paid {

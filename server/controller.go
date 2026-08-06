@@ -1280,6 +1280,32 @@ func (controller *Controller) processToneDetection(call *Call) {
 	}
 }
 
+// DisconnectUserClients kicks all active WebSocket clients for a user and sends an error payload.
+func (controller *Controller) DisconnectUserClients(userId uint64, reason string) {
+	if controller == nil || controller.Clients == nil || userId == 0 {
+		return
+	}
+	if reason == "" {
+		reason = "Access revoked"
+	}
+	controller.Clients.mutex.Lock()
+	defer controller.Clients.mutex.Unlock()
+	for client := range controller.Clients.Map {
+		if client.User == nil || client.User.Id != userId {
+			continue
+		}
+		msg := &Message{Command: MessageCommandError, Payload: reason}
+		select {
+		case client.Send <- msg:
+		default:
+		}
+		select {
+		case controller.Unregister <- client:
+		default:
+		}
+	}
+}
+
 // pruneAuthMutexes removes entries from authMutexes for user IDs that no longer exist.
 // Called periodically by the scheduler to prevent unbounded map growth.
 func (controller *Controller) pruneAuthMutexes() {
@@ -3201,6 +3227,17 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 			return nil
 		}
 
+		// Suspended accounts cannot authenticate at all (unlike expired PIN, which can still see pricing)
+		if user != nil && user.IsSuspended() {
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("suspended user pin auth denied for %s from %s", user.Email, client.GetRemoteAddr()))
+			msg := &Message{Command: MessageCommandError, Payload: "Account suspended"}
+			select {
+			case client.Send <- msg:
+			default:
+			}
+			return nil
+		}
+
 		// Check if PIN is expired - we still want to send config so user can see pricing options
 		var pinExpired bool
 		if user != nil {
@@ -3957,8 +3994,8 @@ func (controller *Controller) SyncConfigToFile() {
 		return
 	}
 
-	// Write to temp file first (atomic write)
-	fileName := filepath.Join(syncPath, "ThinLineRadioV7-config.json")
+	baseName := sanitizeConfigSyncFileName(controller.Options.ConfigSyncFileName)
+	fileName := filepath.Join(syncPath, baseName)
 	tempFileName := fileName + ".tmp"
 
 	// Write to temp file

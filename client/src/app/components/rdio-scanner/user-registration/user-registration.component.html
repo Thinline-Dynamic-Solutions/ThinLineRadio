@@ -1,246 +1,331 @@
 <div class="registration-container">
   <div class="registration-form">
     <h2>Create Account</h2>
-    
+
     <!-- Invite Only Notice -->
-    <div class="invite-only-notice" *ngIf="isInviteOnlyMode && !invitationCode && !success" style="padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; margin-bottom: 20px;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <mat-icon style="color: #856404;">info</mat-icon>
-        <strong style="color: #856404;">Registration is by invitation only - you need a valid invitation or registration code to create an account.</strong>
+    @if (isInviteOnlyMode && !invitationCode && !success) {
+      <div class="invite-only-notice" style="padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <mat-icon style="color: #856404;">info</mat-icon>
+          <strong style="color: #856404;">Registration is by invitation only - you need a valid invitation or registration code to create an account.</strong>
+        </div>
       </div>
-    </div>
-    
+    }
+
     <!-- Invitation Info -->
-    <div class="invitation-info" *ngIf="invitationGroupName && !success">
-      <mat-icon>mail</mat-icon>
-      <p>You've been invited to join <strong>{{ invitationGroupName }}</strong>!</p>
-    </div>
-    
+    @if (invitationGroupName && !success) {
+      <div class="invitation-info">
+        <mat-icon>mail</mat-icon>
+        <p>You've been invited to join <strong>{{ invitationGroupName }}</strong>!</p>
+      </div>
+    }
+
     <!-- Public Registration Group Info (only show when NOT invite-only mode) -->
-    <div class="public-registration-info" *ngIf="!success && !isInviteOnlyMode">
-      <div class="info-section" *ngIf="publicGroupInfo?.name">
-        <h3>{{ publicGroupInfo.name }}</h3>
-        <p *ngIf="publicGroupInfo?.description">{{ publicGroupInfo.description }}</p>
-      </div>
-      
-      <!-- Tier selection (multiple public tiers) -->
-      <div class="tiers-section" *ngIf="tiers.length > 0">
-        <h4>Choose your tiers</h4>
-        <p class="tiers-hint">Select one or more tiers to join. Paid tiers are billed together on a single subscription.</p>
-        <div class="tier-option" *ngFor="let t of tiers">
-          <label class="tier-check">
-            <input type="checkbox" [checked]="selectedTiers[t.groupId]" (change)="toggleTier(t.groupId)">
-            <span class="tier-title">{{ t.name }}</span>
-            <span class="tier-meta" *ngIf="t.talkgroupCount"> — {{ t.talkgroupCount }} channels</span>
-            <span class="tier-free" *ngIf="!t.billingEnabled"> · Free</span>
-          </label>
-          <p class="tier-desc" *ngIf="t.description">{{ t.description }}</p>
-          <div class="tier-prices" *ngIf="selectedTiers[t.groupId] && t.billingEnabled && t.pricingOptions?.length">
-            <label class="tier-price-option" *ngFor="let o of t.pricingOptions">
-              <input type="radio" name="price-{{ t.groupId }}" [value]="o.priceId"
-                     [checked]="tierPrice[t.groupId] === o.priceId"
-                     (change)="tierPrice[t.groupId] = o.priceId">
-              <span>{{ o.label }} — {{ o.amount }}</span>
-            </label>
+    @if (!success && !isInviteOnlyMode) {
+      <div class="public-registration-info">
+        @if (publicGroupInfo?.name) {
+          <div class="info-section">
+            <h3>{{ publicGroupInfo.name }}</h3>
+            @if (publicGroupInfo?.description) {
+              <p>{{ publicGroupInfo.description }}</p>
+            }
           </div>
-          <div class="tier-primary" *ngIf="selectedTiers[t.groupId] && selectedTierIds().length > 1">
-            <label>
-              <input type="radio" name="primaryTier" [value]="t.groupId"
-                     [checked]="primaryTierId === t.groupId"
-                     (change)="primaryTierId = t.groupId">
-              Set as primary (home) tier
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <!-- Legacy single-group pricing (only when the server returns no tiers) -->
-      <div class="pricing-section" *ngIf="tiers.length === 0 && publicGroupInfo?.billingEnabled && publicGroupInfo?.pricingOptions && publicGroupInfo.pricingOptions.length > 0">
-        <h4>Pricing Plans</h4>
-        <div class="pricing-options">
-          <div class="pricing-option" *ngFor="let option of publicGroupInfo.pricingOptions">
-            <div class="pricing-label">{{ option.label }}</div>
-            <div class="pricing-amount">{{ option.amount }}</div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Available Channels - Only visible in public mode -->
-      <div class="channels-section" *ngIf="!isInviteOnlyMode">
-        <button mat-button (click)="toggleChannels()" class="channels-toggle">
-          <mat-icon>{{ showChannels ? 'expand_less' : 'expand_more' }}</mat-icon>
-          <span>View Available Channels ({{ availableChannels.length }})</span>
-        </button>
-        
-          <div class="channels-list" *ngIf="showChannels && !loadingChannels">
-            <div *ngIf="availableChannels.length === 0" class="no-channels">
-              <p>No channels available at this time.</p>
-            </div>
-            <div class="channel-item" *ngFor="let system of availableChannels">
-              <div class="system-header">
-                <strong>{{ system.label }}</strong>
-                <span class="talkgroup-count" *ngIf="system.talkgroups">
-                  ({{ system.talkgroups.length }} channel{{ system.talkgroups.length !== 1 ? 's' : '' }})
-                </span>
+        }
+        <!-- Tier selection (multiple public tiers) -->
+        @if (tiers.length > 0) {
+          <div class="tiers-section">
+            <h4>Choose your tiers</h4>
+            <p class="tiers-hint">Select one or more tiers to join. Paid tiers are billed together on a single subscription.</p>
+            @for (t of tiers; track t) {
+              <div class="tier-option">
+                <label class="tier-check">
+                  <input type="checkbox" [checked]="selectedTiers[t.groupId]" (change)="toggleTier(t.groupId)">
+                  <span class="tier-title">{{ t.name }}</span>
+                  @if (t.talkgroupCount) {
+                    <span class="tier-meta"> — {{ t.talkgroupCount }} channels</span>
+                  }
+                  @if (!t.billingEnabled) {
+                    <span class="tier-free"> · Free</span>
+                  }
+                </label>
+                @if (t.description) {
+                  <p class="tier-desc">{{ t.description }}</p>
+                }
+                @if (selectedTiers[t.groupId] && t.billingEnabled && t.pricingOptions?.length) {
+                  <div class="tier-prices">
+                    @for (o of t.pricingOptions; track o) {
+                      <label class="tier-price-option">
+                        <input type="radio" name="price-{{ t.groupId }}" [value]="o.priceId"
+                          [checked]="tierPrice[t.groupId] === o.priceId"
+                          (change)="tierPrice[t.groupId] = o.priceId">
+                        <span>{{ o.label }} — {{ o.amount }}</span>
+                      </label>
+                    }
+                  </div>
+                }
+                @if (selectedTiers[t.groupId] && selectedTierIds().length > 1) {
+                  <div class="tier-primary">
+                    <label>
+                      <input type="radio" name="primaryTier" [value]="t.groupId"
+                        [checked]="primaryTierId === t.groupId"
+                        (change)="primaryTierId = t.groupId">
+                      Set as primary (home) tier
+                    </label>
+                  </div>
+                }
               </div>
-              <div class="talkgroups-list" *ngIf="system.talkgroups && system.talkgroups.length > 0">
-                <!-- Group by tag -->
-                <div class="talkgroup-group" *ngFor="let tagGroup of getTalkgroupsByTag(system.talkgroups)">
-                  <div class="tag-header" *ngIf="tagGroup.tag">
-                    <strong>{{ tagGroup.tag }}</strong>
-                  </div>
-                  <div class="talkgroup-items">
-                    <div class="talkgroup-item" *ngFor="let tg of tagGroup.talkgroups">
-                      <span class="talkgroup-label">{{ tg.label }}</span>
-                      <span class="talkgroup-description" *ngIf="tg.description">{{ tg.description }}</span>
-                    </div>
-                  </div>
+            }
+          </div>
+        }
+        <!-- Legacy single-group pricing (only when the server returns no tiers) -->
+        @if (tiers.length === 0 && publicGroupInfo?.billingEnabled && publicGroupInfo?.pricingOptions && publicGroupInfo.pricingOptions.length > 0) {
+          <div class="pricing-section">
+            <h4>Pricing Plans</h4>
+            <div class="pricing-options">
+              @for (option of publicGroupInfo.pricingOptions; track option) {
+                <div class="pricing-option">
+                  <div class="pricing-label">{{ option.label }}</div>
+                  <div class="pricing-amount">{{ option.amount }}</div>
                 </div>
-              </div>
+              }
             </div>
           </div>
-        
-        <div *ngIf="loadingChannels" class="loading-channels">
-          <mat-spinner diameter="24"></mat-spinner>
-          <span>Loading channels...</span>
-        </div>
+        }
+        <!-- Available Channels - Only visible in public mode -->
+        @if (!isInviteOnlyMode) {
+          <div class="channels-section">
+            <button mat-button (click)="toggleChannels()" class="channels-toggle">
+              <mat-icon>{{ showChannels ? 'expand_less' : 'expand_more' }}</mat-icon>
+              <span>View Available Channels ({{ availableChannels.length }})</span>
+            </button>
+            @if (showChannels && !loadingChannels) {
+              <div class="channels-list">
+                @if (availableChannels.length === 0) {
+                  <div class="no-channels">
+                    <p>No channels available at this time.</p>
+                  </div>
+                }
+                @for (system of availableChannels; track system) {
+                  <div class="channel-item">
+                    <div class="system-header">
+                      <strong>{{ system.label }}</strong>
+                      @if (system.talkgroups) {
+                        <span class="talkgroup-count">
+                          ({{ system.talkgroups.length }} channel{{ system.talkgroups.length !== 1 ? 's' : '' }})
+                        </span>
+                      }
+                    </div>
+                    @if (system.talkgroups && system.talkgroups.length > 0) {
+                      <div class="talkgroups-list">
+                        <!-- Group by tag -->
+                        @for (tagGroup of getTalkgroupsByTag(system.talkgroups); track tagGroup) {
+                          <div class="talkgroup-group">
+                            @if (tagGroup.tag) {
+                              <div class="tag-header">
+                                <strong>{{ tagGroup.tag }}</strong>
+                              </div>
+                            }
+                            <div class="talkgroup-items">
+                              @for (tg of tagGroup.talkgroups; track tg) {
+                                <div class="talkgroup-item">
+                                  <span class="talkgroup-label">{{ tg.label }}</span>
+                                  @if (tg.description) {
+                                    <span class="talkgroup-description">{{ tg.description }}</span>
+                                  }
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+            @if (loadingChannels) {
+              <div class="loading-channels">
+                <mat-spinner diameter="24"></mat-spinner>
+                <span>Loading channels...</span>
+              </div>
+            }
+          </div>
+        }
       </div>
-    </div>
-    
+    }
+
     <!-- Code Validation Step (Invite-Only Mode) -->
-    <div class="code-validation-step" *ngIf="isInviteOnlyMode && !codeValidated && !invitationCode && !success">
-      <p style="margin-bottom: 20px;">Enter your invitation or registration code to continue:</p>
-      
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Invitation/Registration Code</mat-label>
-        <input matInput type="text" [(ngModel)]="pendingAccessCode" placeholder="Enter your code" required>
-      </mat-form-field>
-
-      <div class="error-message" *ngIf="codeValidationError" style="margin-bottom: 15px;">
-        {{ codeValidationError }}
-      </div>
-
-      <button mat-raised-button color="primary" (click)="validateAccessCode()" 
-              [disabled]="!pendingAccessCode || validatingCode" class="full-width">
-        <mat-spinner diameter="20" *ngIf="validatingCode"></mat-spinner>
-        <span *ngIf="!validatingCode">Validate Code</span>
-      </button>
-    </div>
-    
-    <!-- Registration Form (shown after code validation in invite-only, or immediately in public mode) -->
-    <form [formGroup]="registrationForm" (ngSubmit)="onSubmit()" *ngIf="!success && (!isInviteOnlyMode || codeValidated || invitationCode)">
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Email</mat-label>
-        <input matInput type="email" formControlName="email" required>
-        <mat-error *ngIf="registrationForm.get('email')?.hasError('required')">
-          Email is required
-        </mat-error>
-        <mat-error *ngIf="registrationForm.get('email')?.hasError('email')">
-          Please enter a valid email address
-        </mat-error>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>First Name</mat-label>
-        <input matInput type="text" formControlName="firstName" required>
-        <mat-error *ngIf="registrationForm.get('firstName')?.hasError('required')">
-          First name is required
-        </mat-error>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Last Name</mat-label>
-        <input matInput type="text" formControlName="lastName" required>
-        <mat-error *ngIf="registrationForm.get('lastName')?.hasError('required')">
-          Last name is required
-        </mat-error>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Zip Code</mat-label>
-        <input matInput type="text" formControlName="zipCode" required>
-        <mat-error *ngIf="registrationForm.get('zipCode')?.hasError('required')">
-          Zip code is required
-        </mat-error>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Password</mat-label>
-        <input matInput type="password" formControlName="password" required>
-        <mat-error *ngIf="registrationForm.get('password')?.touched && registrationForm.get('password')?.invalid">
-          <span *ngIf="registrationForm.get('password')?.hasError('required')">Password is required</span>
-          <span *ngIf="!registrationForm.get('password')?.hasError('required')">
-            Missing: 
-            <span *ngIf="registrationForm.get('password')?.hasError('minlength')">8+ chars, </span>
-            <span *ngIf="registrationForm.get('password')?.hasError('requireUpper')">uppercase, </span>
-            <span *ngIf="registrationForm.get('password')?.hasError('requireLower')">lowercase, </span>
-            <span *ngIf="registrationForm.get('password')?.hasError('requireNumber')">number, </span>
-            <span *ngIf="registrationForm.get('password')?.hasError('requireSpecial')">special char</span>
-          </span>
-        </mat-error>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Confirm Password</mat-label>
-        <input matInput type="password" formControlName="confirmPassword" required>
-        <mat-error *ngIf="registrationForm.get('confirmPassword')?.hasError('required')">
-          Please confirm your password
-        </mat-error>
-        <mat-error *ngIf="registrationForm.get('confirmPassword')?.hasError('passwordMismatch')">
-          Passwords do not match
-        </mat-error>
-      </mat-form-field>
-
-      <!-- Code field for public mode or already validated -->
-      <mat-form-field appearance="outline" class="full-width" *ngIf="!invitationCode && !isInviteOnlyMode">
-        <mat-label>Invite Code (Optional)</mat-label>
-        <input matInput type="text" formControlName="accessCode" 
-               placeholder="Enter invite code if you have one">
-        <mat-hint>If you have an invite code, enter it here. Otherwise, leave blank for public registration.</mat-hint>
-      </mat-form-field>
-      
-      <!-- Hidden field for invitation code when using invitation link OR validated code in invite-only mode -->
-      <input type="hidden" formControlName="accessCode" *ngIf="invitationCode || (isInviteOnlyMode && codeValidated)">
-
-      <div class="error-message" *ngIf="error">
-        {{ error }}
-      </div>
-
-      <button mat-raised-button color="primary" type="submit" 
-              [disabled]="registrationForm.invalid || loading" class="full-width">
-        <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-        <span *ngIf="!loading">Create Account</span>
-      </button>
-
-      <p>Already have an account? <a href="#" (click)="$event.preventDefault(); switchToLogin()">Sign in</a></p>
-    </form>
-
-    <div class="success-message" *ngIf="success">
-      <mat-icon>check_circle</mat-icon>
-      <h3>Account Created Successfully!</h3>
-      
-      <!-- Prominent email verification notice -->
-      <div class="verification-notice" style="padding: 20px; background-color: #e3f2fd; border: 2px solid #2196f3; border-radius: 8px; margin: 20px 0;">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-          <mat-icon style="color: #1976d2; font-size: 32px; width: 32px; height: 32px;">mark_email_unread</mat-icon>
-          <h4 style="margin: 0; color: #1565c0; font-size: 18px;">Please Check Your Email</h4>
-        </div>
-        <p style="margin: 0; color: #0d47a1; font-size: 15px; line-height: 1.6;">
-          We've sent a verification link to <strong>{{ registrationForm.get('email')?.value }}</strong>. 
-          Please check your inbox (and spam folder) and click the verification link to activate your account.
-        </p>
-      </div>
-      
-      <p *ngIf="generatedPin" class="pin-message">
-        Your listener PIN is <strong>{{ generatedPin }}</strong>. Keep this safe—you'll use it to connect the client.
-      </p>
-      
-      <div class="resend-section">
-        <p class="resend-text">Didn't receive the email? <a href="#" (click)="$event.preventDefault(); resendVerification()">Resend verification email</a></p>
-        <button mat-raised-button color="primary" (click)="switchToLogin()" class="full-width">
-          Continue to Sign In
+    @if (isInviteOnlyMode && !codeValidated && !invitationCode && !success) {
+      <div class="code-validation-step">
+        <p style="margin-bottom: 20px;">Enter your invitation or registration code to continue:</p>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Invitation/Registration Code</mat-label>
+          <input matInput type="text" [(ngModel)]="pendingAccessCode" placeholder="Enter your code" required>
+        </mat-form-field>
+        @if (codeValidationError) {
+          <div class="error-message" style="margin-bottom: 15px;">
+            {{ codeValidationError }}
+          </div>
+        }
+        <button mat-raised-button color="primary" (click)="validateAccessCode()"
+          [disabled]="!pendingAccessCode || validatingCode" class="full-width">
+          @if (validatingCode) {
+            <mat-spinner diameter="20"></mat-spinner>
+          }
+          @if (!validatingCode) {
+            <span>Validate Code</span>
+          }
         </button>
       </div>
-    </div>
+    }
+
+    <!-- Registration Form (shown after code validation in invite-only, or immediately in public mode) -->
+    @if (!success && (!isInviteOnlyMode || codeValidated || invitationCode)) {
+      <form [formGroup]="registrationForm" (ngSubmit)="onSubmit()">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" required>
+          @if (registrationForm.get('email')?.hasError('required')) {
+            <mat-error>
+              Email is required
+            </mat-error>
+          }
+          @if (registrationForm.get('email')?.hasError('email')) {
+            <mat-error>
+              Please enter a valid email address
+            </mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>First Name</mat-label>
+          <input matInput type="text" formControlName="firstName" required>
+          @if (registrationForm.get('firstName')?.hasError('required')) {
+            <mat-error>
+              First name is required
+            </mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Last Name</mat-label>
+          <input matInput type="text" formControlName="lastName" required>
+          @if (registrationForm.get('lastName')?.hasError('required')) {
+            <mat-error>
+              Last name is required
+            </mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Zip Code</mat-label>
+          <input matInput type="text" formControlName="zipCode" required>
+          @if (registrationForm.get('zipCode')?.hasError('required')) {
+            <mat-error>
+              Zip code is required
+            </mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Password</mat-label>
+          <input matInput type="password" formControlName="password" required>
+          @if (registrationForm.get('password')?.touched && registrationForm.get('password')?.invalid) {
+            <mat-error>
+              @if (registrationForm.get('password')?.hasError('required')) {
+                <span>Password is required</span>
+              }
+              @if (!registrationForm.get('password')?.hasError('required')) {
+                <span>
+                  Missing:
+                  @if (registrationForm.get('password')?.hasError('minlength')) {
+                    <span>8+ chars, </span>
+                  }
+                  @if (registrationForm.get('password')?.hasError('requireUpper')) {
+                    <span>uppercase, </span>
+                  }
+                  @if (registrationForm.get('password')?.hasError('requireLower')) {
+                    <span>lowercase, </span>
+                  }
+                  @if (registrationForm.get('password')?.hasError('requireNumber')) {
+                    <span>number, </span>
+                  }
+                  @if (registrationForm.get('password')?.hasError('requireSpecial')) {
+                    <span>special char</span>
+                  }
+                </span>
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Confirm Password</mat-label>
+          <input matInput type="password" formControlName="confirmPassword" required>
+          @if (registrationForm.get('confirmPassword')?.hasError('required')) {
+            <mat-error>
+              Please confirm your password
+            </mat-error>
+          }
+          @if (registrationForm.get('confirmPassword')?.hasError('passwordMismatch')) {
+            <mat-error>
+              Passwords do not match
+            </mat-error>
+          }
+        </mat-form-field>
+        <!-- Code field for public mode or already validated -->
+        @if (!invitationCode && !isInviteOnlyMode) {
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Invite Code (Optional)</mat-label>
+            <input matInput type="text" formControlName="accessCode"
+              placeholder="Enter invite code if you have one">
+            <mat-hint>If you have an invite code, enter it here. Otherwise, leave blank for public registration.</mat-hint>
+          </mat-form-field>
+        }
+        <!-- Hidden field for invitation code when using invitation link OR validated code in invite-only mode -->
+        @if (invitationCode || (isInviteOnlyMode && codeValidated)) {
+          <input type="hidden" formControlName="accessCode">
+        }
+        @if (error) {
+          <div class="error-message">
+            {{ error }}
+          </div>
+        }
+        <button mat-raised-button color="primary" type="submit"
+          [disabled]="registrationForm.invalid || loading" class="full-width">
+          @if (loading) {
+            <mat-spinner diameter="20"></mat-spinner>
+          }
+          @if (!loading) {
+            <span>Create Account</span>
+          }
+        </button>
+        <p>Already have an account? <a href="#" (click)="$event.preventDefault(); switchToLogin()">Sign in</a></p>
+      </form>
+    }
+
+    @if (success) {
+      <div class="success-message">
+        <mat-icon>check_circle</mat-icon>
+        <h3>Account Created Successfully!</h3>
+        <!-- Prominent email verification notice -->
+        <div class="verification-notice" style="padding: 20px; background-color: #e3f2fd; border: 2px solid #2196f3; border-radius: 8px; margin: 20px 0;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+            <mat-icon style="color: #1976d2; font-size: 32px; width: 32px; height: 32px;">mark_email_unread</mat-icon>
+            <h4 style="margin: 0; color: #1565c0; font-size: 18px;">Please Check Your Email</h4>
+          </div>
+          <p style="margin: 0; color: #0d47a1; font-size: 15px; line-height: 1.6;">
+            We've sent a verification link to <strong>{{ registrationForm.get('email')?.value }}</strong>.
+            Please check your inbox (and spam folder) and click the verification link to activate your account.
+          </p>
+        </div>
+        @if (generatedPin) {
+          <p class="pin-message">
+            Your listener PIN is <strong>{{ generatedPin }}</strong>. Keep this safe—you'll use it to connect the client.
+          </p>
+        }
+        <div class="resend-section">
+          <p class="resend-text">Didn't receive the email? <a href="#" (click)="$event.preventDefault(); resendVerification()">Resend verification email</a></p>
+          <button mat-raised-button color="primary" (click)="switchToLogin()" class="full-width">
+            Continue to Sign In
+          </button>
+        </div>
+      </div>
+    }
   </div>
 </div>

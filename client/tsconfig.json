@@ -13,16 +13,13 @@
     "declaration": false,
     "downlevelIteration": true,
     "experimentalDecorators": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "importHelpers": true,
     "target": "es2022",
     "module": "es2022",
-    "lib": [
-      "es2022",
-      "dom"
-    ],
     "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "ignoreDeprecations": "6.0"
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

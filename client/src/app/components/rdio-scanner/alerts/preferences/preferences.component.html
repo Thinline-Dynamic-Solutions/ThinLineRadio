@@ -16,231 +16,264 @@
         (focus)="isSearchFocused = true"
         (blur)="isSearchFocused = false"
         class="search-input">
-      <button *ngIf="searchQuery" mat-icon-button class="clear-button" type="button" (click)="clearSearch()">
-        <mat-icon>clear</mat-icon>
-      </button>
+      @if (searchQuery) {
+        <button mat-icon-button class="clear-button" type="button" (click)="clearSearch()">
+          <mat-icon>clear</mat-icon>
+        </button>
+      }
     </div>
   </div>
 
   <div class="preferences-content">
-    <div *ngIf="loading" class="loading">
-      <p>Loading preferences...</p>
-    </div>
+    @if (loading) {
+      <div class="loading">
+        <p>Loading preferences...</p>
+      </div>
+    }
 
-    <div *ngIf="!loading && systems && systems.length === 0" class="empty-state">
-      <mat-icon class="empty-icon">notifications_off</mat-icon>
-      <h3>No systems configured</h3>
-      <p>No talkgroups are available for alert preferences</p>
-    </div>
+    @if (!loading && systems && systems.length === 0) {
+      <div class="empty-state">
+        <mat-icon class="empty-icon">notifications_off</mat-icon>
+        <h3>No systems configured</h3>
+        <p>No talkgroups are available for alert preferences</p>
+      </div>
+    }
 
-    <div *ngIf="!loading && systems && systems.length > 0" class="prefs-board-layout">
-      <nav class="prefs-systems-bar">
-        <div
-          *ngFor="let system of getSystemsForSidebar()"
-          class="system-chip"
-          role="button"
-          tabindex="0"
-          [class.active]="detailSystemId === system.id"
-          [title]="system.label"
-          (click)="selectDetailSystem(system.id)"
-          (keydown.enter)="selectDetailSystem(system.id)"
-          (keydown.space)="$event.preventDefault(); selectDetailSystem(system.id)">
-          <span class="system-chip-icon">
-            <mat-icon>radio</mat-icon>
-          </span>
-          <span class="system-chip-body">
-            <span class="system-chip-label">{{ system.label }}</span>
-            <span class="system-chip-meta">
-              <span class="enabled-count">{{ getEnabledCountInSystem(system) }}</span>
-              <span class="total-count">/ {{ getFilteredTalkgroups(system).length }}</span>
-            </span>
-          </span>
-          <span class="system-chip-badge">
+    @if (!loading && systems && systems.length > 0) {
+      <div class="prefs-split">
+        <aside class="prefs-sidebar" [class.is-collapsed]="systemsRailCollapsed">
+          <div class="sidebar-head">
+            <span class="sidebar-head-label">Systems</span>
             <button type="button"
-                    class="toggle-badge mini"
-                    [class.all]="isAllEnabledInSystem(system)"
-                    [class.some]="isSomeEnabledInSystem(system)"
-                    [title]="isAllEnabledInSystem(system) ? 'All enabled — click to disable' : isSomeEnabledInSystem(system) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
-                    (click)="toggleSystemAlerts(system, $event)">
-              {{ isAllEnabledInSystem(system) ? 'All' : isSomeEnabledInSystem(system) ? 'Some' : 'None' }}
+              class="sidebar-collapse-btn"
+              [attr.aria-expanded]="!systemsRailCollapsed"
+              [attr.aria-label]="systemsRailCollapsed ? 'Expand systems list' : 'Collapse systems list'"
+              [title]="systemsRailCollapsed ? 'Expand systems' : 'Collapse systems'"
+              (click)="toggleSystemsRail()">
+              <mat-icon>{{ systemsRailCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
             </button>
-          </span>
-        </div>
-      </nav>
-
-      <main class="prefs-detail">
-        <ng-container *ngIf="getDetailSystem() as ds">
-          <div class="prefs-detail-header system-card-header">
-            <div class="system-icon">
-              <mat-icon>radio</mat-icon>
-            </div>
-            <div class="system-info">
-              <div class="system-label">{{ ds.label }}</div>
-              <div class="system-stats">
-                <span class="enabled-count">{{ getEnabledCountInSystem(ds) }}</span>
-                <span class="total-count">/ {{ getFilteredTalkgroups(ds).length }} in view</span>
-              </div>
-            </div>
-            <div class="system-toggle">
-              <button type="button"
-                      class="toggle-badge"
-                      [class.all]="isAllEnabledInSystem(ds)"
-                      [class.some]="isSomeEnabledInSystem(ds)"
-                      [title]="isAllEnabledInSystem(ds) ? 'All enabled — click to disable' : isSomeEnabledInSystem(ds) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
-                      (click)="toggleSystemAlerts(ds, $event)">
-                {{ isAllEnabledInSystem(ds) ? 'All' : isSomeEnabledInSystem(ds) ? 'Some' : 'None' }}
-              </button>
-            </div>
-            <div class="system-actions">
-              <button type="button" class="mini-button" (click)="setSystemAlertsStatus(ds, true, $event)">Enable</button>
-              <button type="button" class="mini-button" (click)="setSystemAlertsStatus(ds, false, $event)">Disable</button>
-            </div>
           </div>
-
-          <div class="prefs-detail-body" *ngIf="getFilteredTalkgroups(ds).length > 0">
-            <div *ngFor="let tagGroup of groupTalkgroupsByTag(ds); trackBy: trackTagGroup" class="tag-group">
-              <div class="tag-header"
-                   (click)="onTagHeaderClick($event, ds.id, tagGroup.tag)"
-                   (contextmenu)="$event.preventDefault()">
-                <div class="tag-icon" [style.color]="getTagColor(tagGroup.tag)">
-                  <mat-icon>{{ getTagIcon(tagGroup.tag) }}</mat-icon>
-                </div>
-                <div class="tag-label" [style.color]="getTagColor(tagGroup.tag)">{{ tagGroup.tag || 'Untagged' }}</div>
-                <div class="tag-count">{{ tagGroup.talkgroups.length }}</div>
-                <div class="tag-toggle">
-                  <span class="toggle-badge"
-                        [class.all]="isAllEnabledInTag(ds.id, tagGroup.tag)"
-                        [class.some]="isSomeEnabledInTag(ds.id, tagGroup.tag)"
-                        (click)="toggleTagAlerts(ds.id, tagGroup.tag, tagGroup.talkgroups, $event)">
-                    {{ isAllEnabledInTag(ds.id, tagGroup.tag) ? 'All' : isSomeEnabledInTag(ds.id, tagGroup.tag) ? 'Some' : 'None' }}
+          <nav class="sidebar-list">
+            @for (system of getSystemsForSidebar(); track system.id) {
+              <button type="button"
+                class="sidebar-system-row"
+                [class.active]="detailSystemId === system.id"
+                [class.status-all]="isAllEnabledInSystem(system)"
+                [class.status-some]="isSomeEnabledInSystem(system)"
+                [class.status-none]="!isSomeEnabledInSystem(system) && !isAllEnabledInSystem(system)"
+                [title]="system.label"
+                (click)="selectDetailSystem(system.id)">
+                <span class="sidebar-row-icon">
+                  <mat-icon>radio</mat-icon>
+                </span>
+                <span class="sidebar-row-body">
+                  <span class="sidebar-row-label">{{ system.label }}</span>
+                  <span class="sidebar-row-meta">
+                    <span class="enabled-count">{{ getEnabledCountInSystem(system) }}</span>
+                    <span class="total-count">/ {{ getFilteredTalkgroups(system).length }}</span>
                   </span>
-                </div>
-                <div class="tag-actions">
-                  <button class="mini-button" (click)="setTagAlertsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, true, $event)">Enable</button>
-                  <button class="mini-button" (click)="setTagAlertsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, false, $event)">Disable</button>
-                </div>
-                <mat-icon class="expand-icon">{{ isTagExpanded(ds.id, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                </span>
+              </button>
+            }
+          </nav>
+        </aside>
+        <main class="prefs-detail">
+          @if (getDetailSystem(); as ds) {
+            <div class="prefs-detail-header system-card-header">
+              <div class="system-icon">
+                <mat-icon>radio</mat-icon>
               </div>
-
-              <div *ngIf="isTagExpanded(ds.id, tagGroup.tag)" class="tag-content">
-                <div *ngIf="keywordLists.length > 0" class="tag-keyword-lists">
-                  <div class="keyword-list-toolbar-label">Keyword lists (all talkgroups in {{ tagGroup.tag }})</div>
-                  <div class="keyword-list-toggles">
-                    <div *ngFor="let list of keywordLists" class="keyword-list-toggle">
-                      <button type="button"
-                              class="keyword-list-toggle-btn"
-                              [class.active]="isKeywordListSelectedForTag(ds.id, tagGroup.tag, list.id)"
-                              (click)="toggleKeywordListForTag(ds.id, tagGroup.tag, tagGroup.talkgroups, list.id, $event)">
-                        {{ list.label }}
-                      </button>
-                      <button type="button"
-                              class="keyword-list-info-btn"
-                              [attr.aria-label]="'View keywords in ' + list.label"
-                              (click)="openKeywordListInfo(list, $event)">
-                        <mat-icon>info_outline</mat-icon>
-                      </button>
-                    </div>
-                  </div>
+              <div class="system-info">
+                <div class="system-label">{{ ds.label }}</div>
+                <div class="system-stats">
+                  <span class="enabled-count">{{ getEnabledCountInSystem(ds) }}</span>
+                  <span class="total-count">/ {{ getFilteredTalkgroups(ds).length }} in view</span>
                 </div>
-
-                <div class="talkgroup-grid">
-                  <div *ngFor="let talkgroup of tagGroup.talkgroups; trackBy: trackTalkgroup">
-                    <ng-container *ngIf="getPreference(ds.id, talkgroup.id) as preference">
-                      <div class="talkgroup-preference-chip"
-                           [class.enabled]="preference.alertEnabled">
-
-                        <div class="chip-header" (click)="toggleAlertEnabled(ds.id, talkgroup.id, $event)">
-                          <div class="chip-content">
-                            <div class="chip-label">{{ talkgroup.label }}</div>
-                            <div *ngIf="talkgroup.name && talkgroup.name !== talkgroup.label" class="chip-name">{{ talkgroup.name }}</div>
-                            <div class="chip-id">ID: {{ talkgroup.id }}</div>
-                          </div>
-                          <div class="chip-toggle">
-                            <mat-icon>{{ preference.alertEnabled ? 'notifications_active' : 'notifications_off' }}</mat-icon>
-                          </div>
-                        </div>
-
-                        <div *ngIf="preference.alertEnabled" class="chip-options">
-                          <div class="option-row">
-                            <label class="option-checkbox" (click)="$event.stopPropagation()">
-                              <input type="checkbox"
-                                     [checked]="preference.toneAlerts"
-                                     [disabled]="!talkgroup.toneDetectionEnabled"
-                                     (click)="toggleToneAlertsWithTalkgroup(ds.id, talkgroup.id, talkgroup, $event); $event.stopPropagation()">
-                              <span>Tone Alerts</span>
-                              <span *ngIf="!talkgroup.toneDetectionEnabled" class="disabled-hint">(Admin must enable)</span>
-                            </label>
-                          </div>
-
-                          <div class="tone-set-selection"
-                               *ngIf="preference.toneAlerts && talkgroup.toneDetectionEnabled && talkgroup.toneSets?.length">
-                            <div class="tone-set-label">Tone Sets</div>
-                            <div class="tone-set-options">
-                              <label *ngFor="let toneSet of talkgroup.toneSets" class="option-checkbox">
-                                <input type="checkbox"
-                                       [checked]="isToneSetSelected(preference, toneSet.id)"
-                                       (change)="toggleToneSetSelection(preference, toneSet.id, $event)">
-                                <span>{{ toneSet.label || toneSet.id }}</span>
-                              </label>
-                            </div>
-                            <p class="tone-set-hint">Leave unchecked to alert on all tone sets.</p>
-                          </div>
-
-                          <div class="option-row">
-                            <label class="option-checkbox" (click)="$event.stopPropagation()">
-                              <input type="checkbox"
-                                     [checked]="preference.keywordAlerts"
-                                     (click)="toggleKeywordAlerts(ds.id, talkgroup.id, $event); $event.stopPropagation()">
-                              <span>Keyword Alerts</span>
-                            </label>
-                          </div>
-
-                          <div *ngIf="preference.keywordAlerts" class="keywords-section">
-                            <div *ngIf="keywordLists.length > 0" class="keyword-lists">
-                              <div class="keyword-list-toolbar-label">Keyword lists</div>
-                              <div class="keyword-list-toggles keyword-list-toggles--stacked">
-                                <div *ngFor="let list of keywordLists" class="keyword-list-toggle">
+              </div>
+              <div class="system-toggle">
+                <button type="button"
+                  class="toggle-badge"
+                  [class.all]="isAllEnabledInSystem(ds)"
+                  [class.some]="isSomeEnabledInSystem(ds)"
+                  [title]="isAllEnabledInSystem(ds) ? 'All enabled — click to disable' : isSomeEnabledInSystem(ds) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
+                  (click)="toggleSystemAlerts(ds, $event)">
+                  {{ isAllEnabledInSystem(ds) ? 'All' : isSomeEnabledInSystem(ds) ? 'Some' : 'None' }}
+                </button>
+              </div>
+              <div class="system-actions">
+                <button type="button" class="mini-button" (click)="setSystemAlertsStatus(ds, true, $event)">Enable</button>
+                <button type="button" class="mini-button" (click)="setSystemAlertsStatus(ds, false, $event)">Disable</button>
+              </div>
+            </div>
+            @if (getFilteredTalkgroups(ds).length > 0) {
+              <div class="prefs-detail-body">
+                @for (tagGroup of groupTalkgroupsByTag(ds); track trackTagGroup($index, tagGroup)) {
+                  <div class="tag-group">
+                    <div class="tag-header"
+                      [style.--tag-accent]="getTagColor(tagGroup.tag)"
+                      (click)="onTagHeaderClick($event, ds.id, tagGroup.tag)"
+                      (contextmenu)="$event.preventDefault()">
+                      <div class="tag-icon" [style.color]="getTagColor(tagGroup.tag)">
+                        <mat-icon>{{ getTagIcon(tagGroup.tag) }}</mat-icon>
+                      </div>
+                      <div class="tag-label">{{ tagGroup.tag || 'Untagged' }}</div>
+                      <div class="tag-count">{{ tagGroup.talkgroups.length }}</div>
+                      <div class="tag-toggle">
+                        <span class="toggle-badge"
+                          [class.all]="isAllEnabledInTag(ds.id, tagGroup.tag)"
+                          [class.some]="isSomeEnabledInTag(ds.id, tagGroup.tag)"
+                          (click)="toggleTagAlerts(ds.id, tagGroup.tag, tagGroup.talkgroups, $event)">
+                          {{ isAllEnabledInTag(ds.id, tagGroup.tag) ? 'All' : isSomeEnabledInTag(ds.id, tagGroup.tag) ? 'Some' : 'None' }}
+                        </span>
+                      </div>
+                      <div class="tag-actions">
+                        <button class="mini-button" (click)="setTagAlertsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, true, $event)">Enable</button>
+                        <button class="mini-button" (click)="setTagAlertsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, false, $event)">Disable</button>
+                      </div>
+                      <mat-icon class="expand-icon">{{ isTagExpanded(ds.id, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                    </div>
+                    @if (isTagExpanded(ds.id, tagGroup.tag)) {
+                      <div class="tag-content">
+                        @if (keywordLists.length > 0) {
+                          <div class="tag-keyword-lists">
+                            <div class="keyword-list-toolbar-label">Keyword lists (all talkgroups in {{ tagGroup.tag }})</div>
+                            <div class="keyword-list-toggles">
+                              @for (list of keywordLists; track list.id) {
+                                <div class="keyword-list-toggle">
                                   <button type="button"
-                                          class="keyword-list-toggle-btn"
-                                          [class.active]="isKeywordListSelected(preference, list.id)"
-                                          (click)="toggleKeywordListSelection(preference, list.id, $event)">
+                                    class="keyword-list-toggle-btn"
+                                    [class.active]="isKeywordListSelectedForTag(ds.id, tagGroup.tag, list.id)"
+                                    (click)="toggleKeywordListForTag(ds.id, tagGroup.tag, tagGroup.talkgroups, list.id, $event)">
                                     {{ list.label }}
                                   </button>
                                   <button type="button"
-                                          class="keyword-list-info-btn"
-                                          [attr.aria-label]="'View keywords in ' + list.label"
-                                          (click)="openKeywordListInfo(list, $event)">
+                                    class="keyword-list-info-btn"
+                                    [attr.aria-label]="'View keywords in ' + list.label"
+                                    (click)="openKeywordListInfo(list, $event)">
                                     <mat-icon>info_outline</mat-icon>
                                   </button>
                                 </div>
-                              </div>
+                              }
                             </div>
-                            <p *ngIf="keywordLists.length === 0" class="no-keyword-lists">
-                              No keyword lists available. Contact an administrator to create keyword lists.
-                            </p>
                           </div>
+                        }
+                        <div class="talkgroup-list">
+                          @for (talkgroup of tagGroup.talkgroups; track trackTalkgroup($index, talkgroup)) {
+                            @if (getPreference(ds.id, talkgroup.id); as preference) {
+                              <div class="talkgroup-preference-row"
+                                [class.enabled]="preference.alertEnabled">
+                                <div class="row-header" (click)="toggleAlertEnabled(ds.id, talkgroup.id, $event)">
+                                  <div class="row-content">
+                                    <div class="row-label">{{ talkgroup.label }}</div>
+                                    @if (talkgroup.name && talkgroup.name !== talkgroup.label) {
+                                      <div class="row-name">{{ talkgroup.name }}</div>
+                                    }
+                                    <div class="row-id">ID: {{ talkgroup.id }}</div>
+                                  </div>
+                                  <div class="row-toggle">
+                                    <mat-icon>{{ preference.alertEnabled ? 'notifications_active' : 'notifications_off' }}</mat-icon>
+                                  </div>
+                                </div>
+                                @if (preference.alertEnabled) {
+                                  <div class="row-options">
+                                    <div class="option-row">
+                                      <label class="option-checkbox" (click)="$event.stopPropagation()">
+                                        <input type="checkbox"
+                                          [checked]="preference.toneAlerts"
+                                          [disabled]="!talkgroup.toneDetectionEnabled"
+                                          (click)="toggleToneAlertsWithTalkgroup(ds.id, talkgroup.id, talkgroup, $event); $event.stopPropagation()">
+                                        <span>Tone Alerts</span>
+                                        @if (!talkgroup.toneDetectionEnabled) {
+                                          <span class="disabled-hint">(Admin must enable)</span>
+                                        }
+                                      </label>
+                                    </div>
+                                    @if (preference.toneAlerts && talkgroup.toneDetectionEnabled && talkgroup.toneSets?.length) {
+                                      <div class="tone-set-selection">
+                                        <div class="tone-set-label">Tone Sets</div>
+                                        <div class="tone-set-options">
+                                          @for (toneSet of talkgroup.toneSets; track toneSet.id) {
+                                            <label class="option-checkbox">
+                                              <input type="checkbox"
+                                                [checked]="isToneSetSelected(preference, toneSet.id)"
+                                                (change)="toggleToneSetSelection(preference, toneSet.id, $event)">
+                                              <span>{{ toneSet.label || toneSet.id }}</span>
+                                            </label>
+                                          }
+                                        </div>
+                                        <p class="tone-set-hint">Leave unchecked to alert on all tone sets.</p>
+                                      </div>
+                                    }
+                                    <div class="option-row">
+                                      <label class="option-checkbox" (click)="$event.stopPropagation()">
+                                        <input type="checkbox"
+                                          [checked]="preference.keywordAlerts"
+                                          (click)="toggleKeywordAlerts(ds.id, talkgroup.id, $event); $event.stopPropagation()">
+                                        <span>Keyword Alerts</span>
+                                      </label>
+                                    </div>
+                                    @if (preference.keywordAlerts) {
+                                      <div class="keywords-section">
+                                        @if (keywordLists.length > 0) {
+                                          <div class="keyword-lists">
+                                            <div class="keyword-list-toolbar-label">Keyword lists</div>
+                                            <div class="keyword-list-toggles keyword-list-toggles--stacked">
+                                              @for (list of keywordLists; track list.id) {
+                                                <div class="keyword-list-toggle">
+                                                  <button type="button"
+                                                    class="keyword-list-toggle-btn"
+                                                    [class.active]="isKeywordListSelected(preference, list.id)"
+                                                    (click)="toggleKeywordListSelection(preference, list.id, $event)">
+                                                    {{ list.label }}
+                                                  </button>
+                                                  <button type="button"
+                                                    class="keyword-list-info-btn"
+                                                    [attr.aria-label]="'View keywords in ' + list.label"
+                                                    (click)="openKeywordListInfo(list, $event)">
+                                                    <mat-icon>info_outline</mat-icon>
+                                                  </button>
+                                                </div>
+                                              }
+                                            </div>
+                                          </div>
+                                        }
+                                        @if (keywordLists.length === 0) {
+                                          <p class="no-keyword-lists">
+                                            No keyword lists available. Contact an administrator to create keyword lists.
+                                          </p>
+                                        }
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                            }
+                          }
                         </div>
                       </div>
-                    </ng-container>
+                    }
                   </div>
-                </div>
+                }
               </div>
+            }
+            @if (getFilteredTalkgroups(ds).length === 0) {
+              <div class="prefs-detail-empty empty-message">
+                @if (searchQuery.trim()) {
+                  No talkgroups match your search
+                } @else {
+                  No talkgroups in this system
+                }
+              </div>
+            }
+          }
+          @if (!getDetailSystem()) {
+            <div class="prefs-detail-empty">
+              <mat-icon>touch_app</mat-icon>
+              <span>Select a system</span>
             </div>
-          </div>
-
-          <div *ngIf="getFilteredTalkgroups(ds).length === 0" class="prefs-detail-empty empty-message">
-            <ng-container *ngIf="searchQuery.trim(); else noTgs">
-              No talkgroups match your search
-            </ng-container>
-            <ng-template #noTgs>No talkgroups in this system</ng-template>
-          </div>
-        </ng-container>
-
-        <div *ngIf="!getDetailSystem()" class="prefs-detail-empty">
-          <mat-icon>touch_app</mat-icon>
-          <span>Select a system</span>
-        </div>
-      </main>
-    </div>
+          }
+        </main>
+      </div>
+    }
   </div>
 </div>

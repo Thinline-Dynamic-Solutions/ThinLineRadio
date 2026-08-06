@@ -1,150 +1,202 @@
 <!--
- * *****************************************************************************
- * Copyright (C) 2025 Thinline Dynamic Solutions
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * ****************************************************************************
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
 -->
 <div class="system-health-container">
 
-    <div class="admin-section-bar sh-options-hint">
-        <p class="admin-section-hint">
-            Alert thresholds and monitoring settings live under
-            <strong>Options → Alert &amp; Health Monitoring</strong>.
-        </p>
+  <div class="admin-section-bar sh-options-hint">
+    <p class="admin-section-hint">
+      Alert thresholds and monitoring settings live under
+      <strong>Options → Alert &amp; Health Monitoring</strong>.
+    </p>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h3>Total</h3>
+      <div class="value">{{ stats.total }}</div>
+    </div>
+    <div class="stat-card critical">
+      <h3>Critical</h3>
+      <div class="value">{{ stats.critical }}</div>
+    </div>
+    <div class="stat-card error">
+      <h3>Errors</h3>
+      <div class="value">{{ stats.error }}</div>
+    </div>
+    <div class="stat-card warning">
+      <h3>Warnings</h3>
+      <div class="value">{{ stats.warning }}</div>
+    </div>
+  </div>
+
+  <div class="alerts-section">
+    <div class="admin-section-bar alerts-header">
+      <p class="admin-section-hint">Alert categories — collapsed by default. Expand a row to review or clear.</p>
+      <div class="admin-section-actions">
+        <button mat-stroked-button color="primary" (click)="loadAlerts()" [disabled]="loading">
+          <mat-icon>refresh</mat-icon>
+          Refresh
+        </button>
+      </div>
     </div>
 
-    <div class="stats-grid">
-        <div class="stat-card">
-            <h3>Total</h3>
-            <div class="value">{{ stats.total }}</div>
-        </div>
-        <div class="stat-card critical">
-            <h3>Critical</h3>
-            <div class="value">{{ stats.critical }}</div>
-        </div>
-        <div class="stat-card error">
-            <h3>Errors</h3>
-            <div class="value">{{ stats.error }}</div>
-        </div>
-        <div class="stat-card warning">
-            <h3>Warnings</h3>
-            <div class="value">{{ stats.warning }}</div>
-        </div>
-    </div>
+    @if (loading) {
+      <div class="loading">
+        <mat-spinner diameter="28"></mat-spinner>
+        <p>Loading alerts…</p>
+      </div>
+    }
 
-    <div class="alerts-section">
-        <div class="admin-section-bar alerts-header">
-            <p class="admin-section-hint">Active system alerts grouped by type.</p>
-            <div class="admin-section-actions">
-                <button mat-stroked-button color="primary" (click)="loadAlerts()" [disabled]="loading">
-                    <mat-icon>refresh</mat-icon>
-                    Refresh
-                </button>
+    @if (error) {
+      <div class="error-message">
+        <mat-icon>error</mat-icon>
+        <span>{{ error }}</span>
+      </div>
+    }
+
+    @if (!loading && !error) {
+      <div class="alerts-list">
+        @for (groupType of getGroupedAlertKeys(); track groupType) {
+          <div class="alert-group"
+            [class.is-clear]="isCategoryClear(groupType)"
+            [class.is-expanded]="isCategoryExpanded(groupType)"
+            [class.severity-critical]="getGroupHighestSeverity(groupType) === 'critical'"
+            [class.severity-error]="getGroupHighestSeverity(groupType) === 'error'"
+            [class.severity-warning]="getGroupHighestSeverity(groupType) === 'warning'"
+            [class.severity-info]="getGroupHighestSeverity(groupType) === 'info'"
+            [class.severity-clear]="isCategoryClear(groupType)">
+            <div class="alert-group-header"
+              role="button"
+              tabindex="0"
+              (click)="toggleCategory(groupType)"
+              (keydown.enter)="toggleCategory(groupType)"
+              (keydown.space)="$event.preventDefault(); toggleCategory(groupType)"
+              [class.is-disabled]="isCategoryClear(groupType)"
+              [attr.aria-expanded]="isCategoryExpanded(groupType)"
+              [attr.aria-disabled]="isCategoryClear(groupType)">
+              <mat-icon class="alert-group-chevron">
+                {{ isCategoryClear(groupType) ? 'check_circle' : (isCategoryExpanded(groupType) ? 'expand_more' : 'chevron_right') }}
+              </mat-icon>
+              <h3>{{ getAlertTypeLabel(groupType) }}</h3>
+              <div class="alert-group-actions">
+                <span class="alert-status" [attr.data-severity]="getGroupHighestSeverity(groupType)">
+                  {{ getGroupStatusLabel(groupType) }}
+                </span>
+                @if (!isCategoryClear(groupType)) {
+                  <span class="alert-count">{{ getGroupCount(groupType) }}</span>
+                  <button mat-stroked-button color="warn"
+                    type="button"
+                    (click)="dismissAllAlertsInGroup(groupType, $event)"
+                    title="Dismiss all alerts in this group">
+                    <mat-icon>clear_all</mat-icon>
+                    Clear
+                  </button>
+                }
+              </div>
             </div>
-        </div>
 
-        <div *ngIf="loading" class="loading">
-            <mat-spinner diameter="28"></mat-spinner>
-            <p>Loading alerts…</p>
-        </div>
-
-        <div *ngIf="error" class="error-message">
-            <mat-icon>error</mat-icon>
-            <span>{{ error }}</span>
-        </div>
-
-        <div *ngIf="!loading && !error && alerts.length === 0" class="no-alerts">
-            <mat-icon>check_circle</mat-icon>
-            <p>No alerts</p>
-        </div>
-
-        <div *ngIf="!loading && !error && alerts.length > 0" class="alerts-list">
-            <div *ngFor="let groupType of getGroupedAlertKeys()" class="alert-group">
-                <div class="alert-group-header">
-                    <h3>{{ getAlertTypeLabel(groupType) }}</h3>
-                    <div class="alert-group-actions">
-                        <span class="alert-count">{{ getGroupedAlerts()[groupType].length }}</span>
-                        <button mat-stroked-button color="warn" (click)="dismissAllAlertsInGroup(groupType)" title="Dismiss all alerts in this group">
-                            <mat-icon>clear_all</mat-icon>
-                            Clear
-                        </button>
-                    </div>
-                </div>
-                <div *ngFor="let alert of getGroupedAlerts()[groupType]" class="alert-item" [ngClass]="alert.severity">
+            @if (isCategoryExpanded(groupType) && !isCategoryClear(groupType)) {
+              <div class="alert-group-body">
+                @for (alert of getGroupAlerts(groupType); track alert.id) {
+                  <div class="alert-item" [ngClass]="alert.severity">
                     <div class="alert-header">
-                        <div class="alert-title-section">
-                            <div class="alert-title">
-                                <span class="alert-icon">{{ getSeverityIcon(alert.severity) }}</span>
-                                {{ alert.title }}
-                            </div>
+                      <div class="alert-title-section">
+                        <div class="alert-title">
+                          <span class="alert-icon">{{ getSeverityIcon(alert.severity) }}</span>
+                          {{ alert.title }}
                         </div>
-                        <div class="alert-actions">
-                            <div class="alert-time">{{ formatDate(alert.createdAt) }}</div>
-                            <button mat-icon-button (click)="dismissAlert(alert.id)" title="Dismiss alert">
-                                <mat-icon>close</mat-icon>
-                            </button>
-                        </div>
+                      </div>
+                      <div class="alert-actions">
+                        <div class="alert-time">{{ formatDate(alert.createdAt) }}</div>
+                        <button mat-icon-button (click)="dismissAlert(alert.id)" title="Dismiss alert">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </div>
                     </div>
                     <div class="alert-message">{{ alert.message }}</div>
-
-                    <div *ngIf="alert.alertType === 'transcription_failure'" class="transcription-failure-details">
+                    @if (alert.alertType === 'transcription_failure') {
+                      <div class="transcription-failure-details">
                         <div class="failure-controls">
-                            <button mat-stroked-button color="warn" (click)="resetFailures()" [disabled]="loadingFailedCalls">
-                                <mat-icon>refresh</mat-icon>
-                                Reset failures
-                            </button>
+                          <button mat-stroked-button color="warn" (click)="resetFailures()" [disabled]="loadingFailedCalls">
+                            <mat-icon>refresh</mat-icon>
+                            Reset failures
+                          </button>
                         </div>
-
-                        <div *ngIf="loadingFailedCalls" class="loading-calls">
+                        @if (loadingFailedCalls) {
+                          <div class="loading-calls">
                             <mat-spinner diameter="22"></mat-spinner>
                             <span>Loading failed calls…</span>
-                        </div>
-
-                        <div *ngIf="!loadingFailedCalls && failedCalls.length > 0" class="failed-calls-list">
+                          </div>
+                        }
+                        @if (!loadingFailedCalls && failedCalls.length > 0) {
+                          <div class="failed-calls-list">
                             <h4>Failed calls ({{ failedCalls.length }})</h4>
-                            <div class="failed-call-item" *ngFor="let call of failedCalls">
+                            @for (call of failedCalls; track call.callId) {
+                              <div class="failed-call-item">
                                 <div class="call-info">
-                                    <div class="call-header">
-                                        <strong>Call #{{ call.callId }}</strong>
-                                        <span class="call-time">{{ formatDate(call.timestamp) }}</span>
+                                  <div class="call-header">
+                                    <strong>Call #{{ call.callId }}</strong>
+                                    <span class="call-time">{{ formatDate(call.timestamp) }}</span>
+                                  </div>
+                                  <div class="call-details">
+                                    @if (call.systemLabel) {
+                                      <span>{{ call.systemLabel }}</span>
+                                    }
+                                    @if (call.systemLabel && call.talkgroupLabel) {
+                                      <span> / </span>
+                                    }
+                                    @if (call.talkgroupLabel) {
+                                      <span>{{ call.talkgroupLabel }}</span>
+                                    }
+                                    @if (call.talkgroupName && call.talkgroupLabel) {
+                                      <span> ({{ call.talkgroupName }})</span>
+                                    }
+                                  </div>
+                                  @if (call.failureReason) {
+                                    <div class="failure-reason">
+                                      <mat-icon class="error-icon">error</mat-icon>
+                                      <span class="failure-text">{{ call.failureReason }}</span>
                                     </div>
-                                    <div class="call-details">
-                                        <span *ngIf="call.systemLabel">{{ call.systemLabel }}</span>
-                                        <span *ngIf="call.systemLabel && call.talkgroupLabel"> / </span>
-                                        <span *ngIf="call.talkgroupLabel">{{ call.talkgroupLabel }}</span>
-                                        <span *ngIf="call.talkgroupName && call.talkgroupLabel"> ({{ call.talkgroupName }})</span>
-                                    </div>
-                                    <div *ngIf="call.failureReason" class="failure-reason">
-                                        <mat-icon class="error-icon">error</mat-icon>
-                                        <span class="failure-text">{{ call.failureReason }}</span>
-                                    </div>
+                                  }
                                 </div>
                                 <button mat-stroked-button (click)="playCall(call.callId)" [title]="isPlaying(call.callId) ? 'Stop' : 'Play'">
-                                    <mat-icon>{{ isPlaying(call.callId) ? 'pause' : 'play_arrow' }}</mat-icon>
-                                    {{ isPlaying(call.callId) ? 'Stop' : 'Play' }}
+                                  <mat-icon>{{ isPlaying(call.callId) ? 'pause' : 'play_arrow' }}</mat-icon>
+                                  {{ isPlaying(call.callId) ? 'Stop' : 'Play' }}
                                 </button>
-                            </div>
-                        </div>
-
-                        <div *ngIf="!loadingFailedCalls && failedCalls.length === 0" class="no-failed-calls">
+                              </div>
+                            }
+                          </div>
+                        }
+                        @if (!loadingFailedCalls && failedCalls.length === 0) {
+                          <div class="no-failed-calls">
                             <mat-icon>check_circle</mat-icon>
                             <span>No failed calls</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
 </div>

@@ -1047,3 +1047,338 @@ $text-hint:     #777;
     }
   }
 }
+
+// ─── AlertPage / Central Management theme (CM-paired scanners) ───────────────
+$ap-gold: #f0a500;
+$ap-red: #cc0000;
+
+.auth-screen.cm-mode {
+  align-items: center;
+  justify-content: center;
+  background: #07091b;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(204, 0, 0, 0.18) 0%, rgba(240, 165, 0, 0.06) 35%, transparent 65%),
+    radial-gradient(ellipse at 80% 100%, rgba(30, 58, 143, 0.1) 0%, transparent 45%),
+    linear-gradient(160deg, #07091b 0%, #0a0d1f 55%, #0d0b1a 100%);
+  background-attachment: fixed;
+  padding: 20px;
+
+  .auth-container {
+    background: linear-gradient(175deg, #0e1525 0%, #111827 60%, #0d1122 100%);
+    border-radius: 14px;
+    border: 1px solid rgba(240, 165, 0, 0.1);
+    box-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(240, 165, 0, 0.12),
+      0 0 60px rgba(204, 0, 0, 0.06);
+    padding: 0;
+    overflow: hidden;
+    max-width: 480px;
+  }
+
+  .ap-logo-section {
+    background: linear-gradient(135deg, #060a1c 0%, #0a1028 60%, #0d0718 100%);
+    padding: 32px 30px 22px;
+    text-align: center;
+    position: relative;
+  }
+
+  @keyframes ap-gradient-sweep-h {
+    0% { background-position: 200% center; }
+    100% { background-position: -100% center; }
+  }
+
+  @keyframes ap-gradient-sweep-v {
+    0% { background-position: center 200%; }
+    100% { background-position: center -100%; }
+  }
+
+  .ap-logo-section::before,
+  .ap-logo-section::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, $ap-gold 20%, $ap-red 50%, $ap-gold 80%, transparent 100%);
+    background-size: 200% 100%;
+    animation: ap-gradient-sweep-h 6s linear infinite;
+  }
+
+  .ap-logo-section::before { top: 0; }
+  .ap-logo-section::after { bottom: 0; }
+
+  .ap-logo-edge {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, transparent 0%, $ap-gold 20%, $ap-red 50%, $ap-gold 80%, transparent 100%);
+    background-size: 100% 200%;
+    animation: ap-gradient-sweep-v 6s linear infinite;
+  }
+
+  .ap-logo-edge-left { left: 0; }
+  .ap-logo-edge-right { right: 0; }
+
+  .ap-logo-img {
+    max-width: 320px;
+    width: 100%;
+    height: auto;
+    max-height: 90px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto 10px;
+    filter: drop-shadow(0 4px 12px rgba(240, 165, 0, 0.2));
+  }
+
+  .ap-logo-subtitle {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+  }
+
+  .ap-scanner-name {
+    margin: 12px 0 0;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .auth-tabs {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: linear-gradient(90deg, #080d20 0%, #0c1230 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+    button {
+      background: none;
+      color: rgba(255, 255, 255, 0.45);
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      padding: 14px 10px;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      font-family: Roboto, sans-serif;
+
+      & + button {
+        border-left: none;
+      }
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      &.active {
+        background: rgba(240, 165, 0, 0.05);
+        color: $ap-gold;
+        border-bottom-color: $ap-gold;
+        font-weight: 600;
+        text-shadow: 0 0 16px rgba(240, 165, 0, 0.4);
+      }
+    }
+  }
+
+  .auth-form.ap-auth-form {
+    padding: 0;
+    width: 100%;
+  }
+
+  .ap-native-form {
+    padding: 28px 30px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
+
+    h2 {
+      margin: 0 0 22px;
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: 0.2px;
+      text-align: left;
+    }
+  }
+
+  .ap-form-group {
+    margin-bottom: 18px;
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 500;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    input {
+      width: 100%;
+      padding: 11px 14px;
+      background: rgba(7, 9, 27, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.92);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-sizing: border-box;
+      font-family: Roboto, sans-serif;
+      outline: none;
+
+      &::placeholder {
+        color: rgba(255, 255, 255, 0.28);
+      }
+
+      &:focus {
+        border-color: $ap-gold;
+        box-shadow: 0 0 0 3px rgba(240, 165, 0, 0.12), 0 0 12px rgba(240, 165, 0, 0.08);
+        background: rgba(10, 13, 32, 0.9);
+      }
+    }
+  }
+
+  .ap-form-links {
+    margin: 0 0 18px;
+    text-align: right;
+
+    a {
+      color: $ap-gold;
+      font-size: 13px;
+      text-decoration: none;
+
+      &:hover {
+        color: #ffc433;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .ap-form-subtitle {
+    margin: -10px 0 22px;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: left;
+  }
+
+  .ap-success-message {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    background: rgba(76, 175, 80, 0.12);
+    border-left: 3px solid #81c784;
+    border-radius: 6px;
+    color: #a5d6a7;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .ap-manage-account {
+    margin: 16px 0 0;
+    text-align: center;
+    font-size: 13px;
+
+    a {
+      color: rgba(255, 255, 255, 0.45);
+      text-decoration: none;
+      transition: color 0.2s;
+
+      &:hover {
+        color: $ap-gold;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .ap-btn-primary {
+    width: 100%;
+    padding: 13px;
+    background: linear-gradient(135deg, $ap-red 0%, #8b0000 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    font-family: Roboto, sans-serif;
+    box-shadow: 0 2px 14px rgba(204, 0, 0, 0.3);
+    transition: box-shadow 0.2s, transform 0.15s;
+
+    &:hover:not(:disabled) {
+      box-shadow: 0 4px 22px rgba(204, 0, 0, 0.55);
+      transform: translateY(-1px);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+  }
+
+  .ap-error-message {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    background: rgba(204, 0, 0, 0.12);
+    border-left: 3px solid $ap-red;
+    border-radius: 6px;
+    color: #ffb4a9;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .ap-needs-sub {
+    margin: 0 0 16px;
+    padding: 14px;
+    background: rgba(30, 58, 143, 0.2);
+    border: 1px solid rgba(66, 165, 245, 0.35);
+    border-radius: 8px;
+
+    p {
+      margin: 0 0 12px;
+      color: #90caf9;
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: left;
+    }
+  }
+
+  .ap-tlr-banner {
+    padding: 18px 30px;
+    text-align: center;
+    position: relative;
+    background: linear-gradient(135deg, #060a1c 0%, #0a0d1e 100%);
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(240, 165, 0, 0.25) 50%, transparent 100%);
+    }
+  }
+
+  .ap-tlr-banner-img {
+    height: 26px;
+    width: auto;
+    opacity: 0.5;
+    display: block;
+    margin: 0 auto;
+    filter: brightness(0.9);
+    transition: opacity 0.2s, filter 0.2s;
+
+    &:hover {
+      opacity: 0.75;
+      filter: brightness(1.1);
+    }
+  }
+}

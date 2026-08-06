@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { RdioScannerConfig } from '../rdio-scanner';
 
 export interface StripeCheckoutTier {
@@ -44,7 +44,9 @@ interface TierChoice extends StripeCheckoutTier {
 @Component({
     selector: 'rdio-scanner-stripe-checkout',
     templateUrl: './stripe-checkout.component.html',
-    styleUrls: ['./stripe-checkout.component.scss']
+    styleUrls: ['./stripe-checkout.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerStripeCheckoutComponent implements OnInit, OnDestroy, OnChanges {
     @Input() config!: RdioScannerConfig;

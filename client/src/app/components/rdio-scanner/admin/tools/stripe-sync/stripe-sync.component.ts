@@ -1,11 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
 
 @Component({
     selector: 'rdio-scanner-admin-stripe-sync',
     templateUrl: './stripe-sync.component.html',
-    styleUrls: ['./stripe-sync.component.scss']
+    styleUrls: ['./stripe-sync.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminStripeSyncComponent {
     syncing = false;

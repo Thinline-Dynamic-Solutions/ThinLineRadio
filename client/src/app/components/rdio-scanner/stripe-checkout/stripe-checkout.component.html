@@ -5,101 +5,135 @@
   </div>
 
   <div class="checkout-content">
-    <div class="error-message" *ngIf="error">
-      {{ error }}
-    </div>
+    @if (error) {
+      <div class="error-message">
+        {{ error }}
+      </div>
+    }
 
     <div class="payment-form">
       <!-- Pre-built multi-tier items (no picker) -->
-      <ng-container *ngIf="checkoutItems?.length; else tiersOrSingle">
+      @if (checkoutItems?.length) {
         <div class="subscription-info">
           <p>You have {{ checkoutItems!.length }} unpaid tier{{ checkoutItems!.length === 1 ? '' : 's' }} to subscribe to. They will be billed together on one subscription.</p>
         </div>
         <div class="pricing-options">
-          <div class="pricing-card selected" *ngFor="let item of checkoutItems">
-            <div class="pricing-header">
-              <h3>{{ item.name || ('Tier ' + item.groupId) }}</h3>
-              <mat-icon class="checkmark">check_circle</mat-icon>
+          @for (item of checkoutItems; track item) {
+            <div class="pricing-card selected">
+              <div class="pricing-header">
+                <h3>{{ item.name || ('Tier ' + item.groupId) }}</h3>
+                <mat-icon class="checkmark">check_circle</mat-icon>
+              </div>
+              @if (item.label || item.amount) {
+                <div class="pricing-amount">
+                  @if (item.label) {
+                    <span>{{ item.label }}</span>
+                  }
+                  @if (item.label && item.amount) {
+                    <span> — </span>
+                  }
+                  @if (item.amount) {
+                    <span>{{ item.amount }}</span>
+                  }
+                </div>
+              }
             </div>
-            <div class="pricing-amount" *ngIf="item.label || item.amount">
-              <span *ngIf="item.label">{{ item.label }}</span>
-              <span *ngIf="item.label && item.amount"> — </span>
-              <span *ngIf="item.amount">{{ item.amount }}</span>
-            </div>
-          </div>
+          }
         </div>
-      </ng-container>
-
-      <ng-template #tiersOrSingle>
+      } @else {
         <!-- Interactive multi-tier picker (unpaid + available public tiers) -->
-        <ng-container *ngIf="usesTierPicker; else singlePriceCheckout">
+        @if (usesTierPicker) {
           <div class="subscription-info">
             <p>Select one plan to continue. You can add other tiers later from Settings.</p>
           </div>
-
-          <div class="tier-choice" *ngFor="let t of tierChoices" [class.has-selection]="isTierSelected(t)">
-            <div class="tier-choice-header">
-              <span class="tier-choice-copy">
-                <span class="tier-choice-name">{{ t.name }}</span>
-                <span class="tier-choice-desc" *ngIf="t.description">{{ t.description }}</span>
-                <span class="tier-choice-required" *ngIf="t.required">Unpaid on your account</span>
-              </span>
-            </div>
-
-            <div class="pricing-options pricing-options--compact">
-              <div *ngFor="let option of t.pricingOptions"
-                   class="pricing-card pricing-card--compact"
-                   [class.selected]="isPlanSelected(t, option.priceId)"
-                   (click)="selectTierPrice(t, option.priceId)">
-                <div class="pricing-header">
-                  <h3>{{ option.label }}</h3>
-                  <mat-icon *ngIf="isPlanSelected(t, option.priceId)" class="checkmark">check_circle</mat-icon>
-                </div>
-                <div class="pricing-amount">{{ option.amount }}</div>
-                <div class="trial-badge" *ngIf="option.trialDays && option.trialDays > 0">
-                  <mat-icon>schedule</mat-icon>
-                  <span>{{ option.trialDays }}-day trial</span>
-                </div>
+          @for (t of tierChoices; track t) {
+            <div class="tier-choice" [class.has-selection]="isTierSelected(t)">
+              <div class="tier-choice-header">
+                <span class="tier-choice-copy">
+                  <span class="tier-choice-name">{{ t.name }}</span>
+                  @if (t.description) {
+                    <span class="tier-choice-desc">{{ t.description }}</span>
+                  }
+                  @if (t.required) {
+                    <span class="tier-choice-required">Unpaid on your account</span>
+                  }
+                </span>
+              </div>
+              <div class="pricing-options pricing-options--compact">
+                @for (option of t.pricingOptions; track option) {
+                  <div
+                    class="pricing-card pricing-card--compact"
+                    [class.selected]="isPlanSelected(t, option.priceId)"
+                    (click)="selectTierPrice(t, option.priceId)">
+                    <div class="pricing-header">
+                      <h3>{{ option.label }}</h3>
+                      @if (isPlanSelected(t, option.priceId)) {
+                        <mat-icon class="checkmark">check_circle</mat-icon>
+                      }
+                    </div>
+                    <div class="pricing-amount">{{ option.amount }}</div>
+                    @if (option.trialDays && option.trialDays > 0) {
+                      <div class="trial-badge">
+                        <mat-icon>schedule</mat-icon>
+                        <span>{{ option.trialDays }}-day trial</span>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             </div>
-          </div>
-        </ng-container>
-      </ng-template>
-
-      <ng-template #singlePriceCheckout>
-        <div class="subscription-info" *ngIf="!isChangingPlan">
-          <p>You need an active subscription to access {{ getBranding() }}.</p>
-          <p>Select a pricing option below and click Subscribe to continue.</p>
-        </div>
-        <div class="subscription-info" *ngIf="isChangingPlan">
-          <p>Your current subscription will be canceled and replaced with the new plan.</p>
-          <p>Select a new pricing option below and click Subscribe to continue.</p>
-        </div>
-
-        <div class="pricing-options" *ngIf="config.options && config.options.pricingOptions && config.options.pricingOptions.length > 0">
-          <div *ngFor="let option of config.options.pricingOptions"
-               class="pricing-card"
-               [class.selected]="selectedPriceId === option.priceId"
-               [class.current-plan]="currentPriceId === option.priceId"
-               [class.disabled]="currentPriceId === option.priceId"
-               (click)="currentPriceId !== option.priceId && selectPrice(option.priceId)">
-            <div class="pricing-header">
-              <h3>{{ option.label }}</h3>
-              <mat-icon *ngIf="selectedPriceId === option.priceId" class="checkmark">check_circle</mat-icon>
-              <span *ngIf="currentPriceId === option.priceId" class="current-badge">Current Plan</span>
+          }
+        } @else {
+          @if (!isChangingPlan) {
+            <div class="subscription-info">
+              <p>You need an active subscription to access {{ getBranding() }}.</p>
+              <p>Select a pricing option below and click Subscribe to continue.</p>
             </div>
-            <div class="pricing-amount">{{ option.amount }}</div>
-            <div class="trial-badge" *ngIf="option.trialDays && option.trialDays > 0">
-              <mat-icon>schedule</mat-icon>
-              <span>{{ option.trialDays }}-day free trial</span>
+          }
+          @if (isChangingPlan) {
+            <div class="subscription-info">
+              <p>Your current subscription will be canceled and replaced with the new plan.</p>
+              <p>Select a new pricing option below and click Subscribe to continue.</p>
             </div>
-          </div>
-        </div>
+          }
+          @if (config.options && config.options.pricingOptions && config.options.pricingOptions.length > 0) {
+            <div class="pricing-options">
+              @for (option of config.options.pricingOptions; track option) {
+                <div
+                  class="pricing-card"
+                  [class.selected]="selectedPriceId === option.priceId"
+                  [class.current-plan]="currentPriceId === option.priceId"
+                  [class.disabled]="currentPriceId === option.priceId"
+                  (click)="currentPriceId !== option.priceId && selectPrice(option.priceId)">
+                  <div class="pricing-header">
+                    <h3>{{ option.label }}</h3>
+                    @if (selectedPriceId === option.priceId) {
+                      <mat-icon class="checkmark">check_circle</mat-icon>
+                    }
+                    @if (currentPriceId === option.priceId) {
+                      <span class="current-badge">Current Plan</span>
+                    }
+                  </div>
+                  <div class="pricing-amount">{{ option.amount }}</div>
+                  @if (option.trialDays && option.trialDays > 0) {
+                    <div class="trial-badge">
+                      <mat-icon>schedule</mat-icon>
+                      <span>{{ option.trialDays }}-day free trial</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+          @if (!config.options || !config.options.pricingOptions || config.options.pricingOptions.length === 0) {
+            <div class="error-message">
+              No pricing options available. Please contact support.
+            </div>
+          }
+        }
+      }
 
-        <div *ngIf="!config.options || !config.options.pricingOptions || config.options.pricingOptions.length === 0" class="error-message">
-          No pricing options available. Please contact support.
-        </div>
-      </ng-template>
+
 
       <div class="checkout-actions">
         <button
@@ -107,8 +141,12 @@
           class="subscribe-button"
           (click)="handleSubmit()"
           [disabled]="!canSubmit()">
-          <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-          <span *ngIf="!loading">{{ isChangingPlan ? 'Change Plan' : 'Subscribe Now' }}</span>
+          @if (loading) {
+            <mat-spinner diameter="20"></mat-spinner>
+          }
+          @if (!loading) {
+            <span>{{ isChangingPlan ? 'Change Plan' : 'Subscribe Now' }}</span>
+          }
         </button>
 
         <button

@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectorRef, Component, Input, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, Input, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { KeywordList, RdioScannerAdminService } from '../../admin.service';
@@ -26,6 +26,8 @@ import { KeywordList, RdioScannerAdminService } from '../../admin.service';
     selector: 'rdio-scanner-admin-keyword-lists',
     templateUrl: './keyword-lists.component.html',
     styleUrls: ['./keyword-lists.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminKeywordListsComponent implements OnInit, OnDestroy {
     /**

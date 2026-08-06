@@ -1,677 +1,1005 @@
-<div class="auth-screen">
+<div class="auth-screen" [class.cm-mode]="cmMode">
   <div class="auth-container">
     <!-- Blocked Message with Countdown -->
-    <div *ngIf="isBlocked" class="auth-blocked">
-      <div class="auth-blocked-icon">🔒</div>
-      <h2>Too Many Failed Attempts</h2>
-      <p>Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
-      <div class="auth-blocked-countdown">
-        {{ getCountdownDisplay() }}
+    @if (isBlocked) {
+      <div class="auth-blocked">
+        <div class="auth-blocked-icon">🔒</div>
+        <h2>Too Many Failed Attempts</h2>
+        <p>Your IP address has been temporarily blocked due to multiple failed login attempts.</p>
+        <div class="auth-blocked-countdown">
+          {{ getCountdownDisplay() }}
+        </div>
+        <p>Please wait before trying again.</p>
       </div>
-      <p>Please wait before trying again.</p>
-    </div>
+    }
 
-    <div *ngIf="!isBlocked">
-      <div class="auth-header">
-        <a *ngIf="!logoError && logoUrl"
-           class="auth-logo-link"
-           href="https://www.thinlineradio.com"
-           target="_blank"
-           rel="noopener noreferrer">
-          <img [src]="logoUrl"
-               [style.border-radius]="getLogoBorderRadius()"
-               class="auth-logo"
-               alt="Logo"
-               (error)="onLogoError($event)"
-               (load)="logoError = false">
-        </a>
-        <h1>{{ getBranding() }}</h1>
-        <p *ngIf="isUserRegistrationEnabled()">Sign in to your account or create a new one</p>
-        <p *ngIf="!isUserRegistrationEnabled()">Sign in to your account</p>
-      </div>
-
-      <div class="auth-tabs">
-      <button type="button" 
-              [class.active]="authMode === 'login'" 
+    @if (!isBlocked) {
+      <div>
+        @if (cmMode) {
+          <div class="ap-logo-section">
+            <span class="ap-logo-edge ap-logo-edge-left"></span>
+            <span class="ap-logo-edge ap-logo-edge-right"></span>
+            <img [src]="getAlertPageLogoUrl()"
+              class="ap-logo-img"
+              alt="AlertPage Radio"
+              (error)="onLogoError($event)">
+            <p class="ap-logo-subtitle">AlertPage Radio powered by Thinline Radio</p>
+            @if (getScannerName()) {
+              <p class="ap-scanner-name">{{ getScannerName() }}</p>
+            }
+          </div>
+        } @else {
+          <div class="auth-header">
+            @if (!logoError && logoUrl) {
+              <a
+                class="auth-logo-link"
+                href="https://www.thinlineradio.com"
+                target="_blank"
+                rel="noopener noreferrer">
+                <img [src]="logoUrl"
+                  [style.border-radius]="getLogoBorderRadius()"
+                  class="auth-logo"
+                  alt="Logo"
+                  (error)="onLogoError($event)"
+                  (load)="logoError = false">
+              </a>
+            }
+            <h1>{{ getBranding() }}</h1>
+            @if (isUserRegistrationEnabled()) {
+              <p>Sign in to your account or create a new one</p>
+            }
+            @if (!isUserRegistrationEnabled()) {
+              <p>Sign in to your account</p>
+            }
+          </div>
+        }
+        @if (!(cmMode && (showCMForgotPassword || showCMResetPassword))) {
+          <div class="auth-tabs">
+            <button type="button"
+              [class.active]="authMode === 'login'"
               (click)="setAuthMode('login')">
-        Sign In
-      </button>
-      <button type="button" 
-              *ngIf="isUserRegistrationEnabled()"
-              [class.active]="authMode === 'register'" 
-              (click)="setAuthMode('register')">
-        Sign Up
-      </button>
-      <button type="button" 
-              [class.active]="authMode === 'group-admin'" 
-              (click)="setAuthMode('group-admin')">
-        <span class="tab-label-full">Manage Group</span>
-        <span class="tab-label-short">Manage</span>
-      </button>
-    </div>
-
-    <!-- Login Form -->
-    <div class="auth-form" *ngIf="authMode === 'login'">
-      <form [formGroup]="loginForm" (ngSubmit)="onLogin()">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" required autocomplete="email">
-          <mat-error *ngIf="loginForm.get('email')?.hasError('required')">
-            Email is required
-          </mat-error>
-          <mat-error *ngIf="loginForm.get('email')?.hasError('email')">
-            Please enter a valid email address
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
-          <input matInput type="password" formControlName="password" required autocomplete="current-password">
-          <mat-error *ngIf="loginForm.get('password')?.hasError('required')">
-            Password is required
-          </mat-error>
-        </mat-form-field>
-
-        <div class="error-message" *ngIf="error">
-          {{ error }}
-        </div>
-
-        <!-- Cloudflare Turnstile Widget -->
-        <div *ngIf="turnstileEnabled && turnstileSiteKey" class="turnstile-wrap">
-          <div *ngIf="turnstilePending" class="turnstile-placeholder">
-            <mat-spinner diameter="20"></mat-spinner>
-            <span>Loading security check…</span>
+              {{ cmMode ? 'Login' : 'Sign In' }}
+            </button>
+            @if (cmMode) {
+              <button type="button" (click)="openCMSignup()">
+                Register
+              </button>
+            } @else if (isUserRegistrationEnabled()) {
+              <button type="button"
+                [class.active]="authMode === 'register'"
+                (click)="setAuthMode('register')">
+                Sign Up
+              </button>
+            }
+            @if (!cmMode) {
+              <button type="button"
+                [class.active]="authMode === 'group-admin'"
+                (click)="setAuthMode('group-admin')">
+                <span class="tab-label-full">Manage Group</span>
+                <span class="tab-label-short">Manage</span>
+              </button>
+            }
           </div>
-          <div id="turnstile-widget-auth"></div>
-        </div>
-
-        <div class="auth-link-row">
-          <a href="#" class="auth-text-link" (click)="onForgotPassword(); $event.preventDefault()">
-            Forgot Password?
-          </a>
-        </div>
-
-        <button mat-raised-button color="primary" type="submit" 
-                [disabled]="loading || (turnstileEnabled && !turnstileToken)" class="full-width">
-          <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-          <span *ngIf="!loading">Sign In</span>
-        </button>
-      </form>
-    </div>
-
-    <!-- Forgot Password Form -->
-    <div class="auth-form" *ngIf="showForgotPassword && !showResetPassword">
-      <h3 style="margin-bottom: 20px;">Reset Password</h3>
-      <p style="color: #666; margin-bottom: 20px;">
-        Enter your email address and we'll send you a verification code to reset your password.
-      </p>
-
-      <form [formGroup]="forgotPasswordForm" (ngSubmit)="onRequestReset()">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" required>
-          <mat-error *ngIf="forgotPasswordForm.get('email')?.hasError('required')">
-            Email is required
-          </mat-error>
-          <mat-error *ngIf="forgotPasswordForm.get('email')?.hasError('email')">
-            Please enter a valid email address
-          </mat-error>
-        </mat-form-field>
-
-        <div class="error-message" *ngIf="error">
-          {{ error }}
-        </div>
-
-        <button mat-raised-button color="primary" type="submit" 
-                [disabled]="forgotPasswordForm.invalid || loading" class="full-width">
-          <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-          <span *ngIf="!loading">Send Verification Code</span>
-        </button>
-
-        <div class="auth-link-row">
-          <a href="#" class="auth-text-link" (click)="backToLogin(); $event.preventDefault()">
-            Back to Login
-          </a>
-        </div>
-      </form>
-    </div>
-
-    <!-- Reset Password Form -->
-    <div class="auth-form" *ngIf="showResetPassword">
-      <h3 style="margin-bottom: 20px;">Enter Verification Code</h3>
-      <p style="color: #666; margin-bottom: 20px;">
-        We've sent a 6-digit verification code to <strong>{{ resetEmail }}</strong>. 
-        Enter the code below along with your new password.
-      </p>
-
-      <form [formGroup]="resetPasswordForm" (ngSubmit)="onResetPassword()">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Verification Code</mat-label>
-          <input matInput type="text" formControlName="code" 
-                 placeholder="000000" maxlength="6" required>
-          <mat-hint>Enter the 6-digit code from your email</mat-hint>
-          <mat-error *ngIf="resetPasswordForm.get('code')?.hasError('required')">
-            Verification code is required
-          </mat-error>
-          <mat-error *ngIf="resetPasswordForm.get('code')?.hasError('pattern')">
-            Code must be 6 digits
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>New Password</mat-label>
-          <input matInput type="password" formControlName="newPassword" required>
-          <mat-error *ngIf="resetPasswordForm.get('newPassword')?.touched && resetPasswordForm.get('newPassword')?.invalid">
-            <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('required')">Password is required</span>
-            <span *ngIf="!resetPasswordForm.get('newPassword')?.hasError('required')">
-              Missing: 
-              <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('minlength')">8+ chars, </span>
-              <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireUpper')">uppercase, </span>
-              <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireLower')">lowercase, </span>
-              <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireNumber')">number, </span>
-              <span *ngIf="resetPasswordForm.get('newPassword')?.hasError('requireSpecial')">special char</span>
-            </span>
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Confirm Password</mat-label>
-          <input matInput type="password" formControlName="confirmPassword" required>
-          <mat-error *ngIf="resetPasswordForm.get('confirmPassword')?.hasError('required')">
-            Please confirm your password
-          </mat-error>
-          <mat-error *ngIf="resetPasswordForm.get('confirmPassword')?.hasError('passwordMismatch')">
-            Passwords do not match
-          </mat-error>
-        </mat-form-field>
-
-        <div class="error-message" *ngIf="error">
-          {{ error }}
-        </div>
-
-        <button mat-raised-button color="primary" type="submit" 
-                [disabled]="resetPasswordForm.invalid || loading" class="full-width">
-          <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-          <span *ngIf="!loading">Reset Password</span>
-        </button>
-
-        <div class="auth-link-row">
-          <a href="#" class="auth-text-link" (click)="backToLogin(); $event.preventDefault()">
-            Back to Login
-          </a>
-        </div>
-      </form>
-    </div>
-
-    <!-- Registration Form -->
-    <div class="auth-form" *ngIf="authMode === 'register' && isUserRegistrationEnabled()">
-
-      <div *ngIf="!registrationSettingsLoaded" class="auth-loading">
-        <mat-spinner diameter="40"></mat-spinner>
-        <p>Loading registration options…</p>
-      </div>
-
-      <ng-container *ngIf="registrationSettingsLoaded">
-      
-      <!-- Invite Only Notice -->
-      <div class="invite-only-notice" *ngIf="isInviteOnlyMode && !success" style="padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; margin-bottom: 20px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <mat-icon style="color: #856404;">info</mat-icon>
-          <strong style="color: #856404;">Registration is by invitation only - you need a valid invitation or registration code to create an account.</strong>
-        </div>
-      </div>
-      
-      <!-- Code Validation Step (Invite-Only Mode) -->
-      <div class="code-validation-step" *ngIf="isInviteOnlyMode && !codeValidated && !success">
-        <p style="margin-bottom: 20px;">Enter your invitation or registration code to continue:</p>
-        
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Invitation/Registration Code</mat-label>
-          <input matInput type="text" name="pendingAccessCode" [(ngModel)]="pendingAccessCode"
-                 [ngModelOptions]="{standalone: true}" autocomplete="one-time-code" placeholder="Enter your code" required>
-        </mat-form-field>
-
-        <div class="error-message" *ngIf="codeValidationError" style="margin-bottom: 15px;">
-          {{ codeValidationError }}
-        </div>
-
-        <button mat-raised-button color="primary" (click)="validateAccessCode()" 
-                [disabled]="!pendingAccessCode || validatingCode" class="full-width">
-          <mat-spinner diameter="20" *ngIf="validatingCode"></mat-spinner>
-          <span *ngIf="!validatingCode">Validate Code</span>
-        </button>
-      </div>
-      
-      <!-- Code Validated Success Message -->
-      <div class="code-validated-notice" *ngIf="isInviteOnlyMode && codeValidated && !success" style="padding: 15px; background-color: #d4edda; border: 1px solid #28a745; border-radius: 4px; margin-bottom: 20px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <mat-icon style="color: #155724;">check_circle</mat-icon>
-          <strong style="color: #155724;">Invite Code Validated, Please Fill Out the Form</strong>
-        </div>
-      </div>
-      
-      <!-- Public Registration Group Info (only show when NOT invite-only mode) -->
-      <div class="public-registration-info" *ngIf="!success && !isInviteOnlyMode">
-        <!-- Single tier: show it as a heading (classic single-group signup) -->
-        <div class="info-section" *ngIf="tiers.length < 2 && publicGroupInfo?.name">
-          <h3>{{ publicGroupInfo.name }}</h3>
-          <p *ngIf="publicGroupInfo?.description">{{ publicGroupInfo.description }}</p>
-        </div>
-
-        <!-- Multiple tiers: let the user pick one or more -->
-        <div class="tiers-section" *ngIf="tiers.length > 1">
-          <h4>Choose your tiers</h4>
-          <p class="tiers-hint">Select one or more tiers. Paid tiers are billed together on a single subscription.</p>
-          <div class="tier-option" *ngFor="let t of tiers" [class.tier-option--selected]="selectedTiers[t.groupId]">
-            <label class="tier-check">
-              <input type="checkbox" [checked]="selectedTiers[t.groupId]" (change)="toggleTier(t.groupId)">
-              <span class="tier-copy">
-                <span class="tier-title">{{ t.name }}</span>
-                <span class="tier-meta" *ngIf="t.talkgroupCount">{{ t.talkgroupCount }} channels</span>
-                <span class="tier-free" *ngIf="!t.billingEnabled">Free</span>
-              </span>
-            </label>
-            <p class="tier-desc" *ngIf="t.description">{{ t.description }}</p>
-
-            <!-- Always show pricing summary for paid tiers -->
-            <div class="tier-price-summary" *ngIf="t.billingEnabled && t.pricingOptions?.length">
-              <div class="tier-price-chip" *ngFor="let o of t.pricingOptions">
-                <span class="chip-label">{{ o.label }}</span>
-                <span class="chip-amount">{{ o.amount }}</span>
-                <span class="chip-trial" *ngIf="o.trialDays">{{ o.trialDays }}-day trial</span>
-              </div>
-            </div>
-
-            <!-- When selected, choose which plan to bill -->
-            <div class="tier-prices" *ngIf="selectedTiers[t.groupId] && t.billingEnabled && t.pricingOptions?.length">
-              <p class="tier-prices-label">Select a plan</p>
-              <label class="tier-price-option" *ngFor="let o of t.pricingOptions">
-                <input type="radio" name="tier-price-{{ t.groupId }}" [value]="o.priceId"
-                       [checked]="tierPrice[t.groupId] === o.priceId"
-                       (change)="setTierPrice(t.groupId, o.priceId)">
-                <span>{{ o.label }} &mdash; {{ o.amount }}</span>
-              </label>
-            </div>
-            <p class="tier-price-missing" *ngIf="tierMissingPricing(t)">
-              This paid tier has no pricing plans configured. Contact the site admin or choose another tier.
-            </p>
-            <div class="tier-primary" *ngIf="selectedTiers[t.groupId] && selectedTierIds().length > 1">
-              <label>
-                <input type="radio" name="primaryTier" [value]="t.groupId"
-                       [checked]="primaryTierId === t.groupId"
-                       (change)="primaryTierId = t.groupId">
-                Set as primary (home) tier
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Pricing Information (single-tier only; plan is chosen after signup on /setup/plan) -->
-        <div class="pricing-section" *ngIf="tiers.length < 2 && publicGroupInfo?.billingEnabled && publicGroupInfo?.pricingOptions && publicGroupInfo.pricingOptions.length > 0">
-          <h4>Pricing Plans</h4>
-          <p class="pricing-hint">You’ll choose a plan after creating your account.</p>
-          <div class="pricing-options">
-            <div class="pricing-option" *ngFor="let option of publicGroupInfo.pricingOptions">
-              <div class="pricing-label">{{ option.label }}</div>
-              <div class="pricing-amount">{{ option.amount }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Available Channels - Only in public mode -->
-        <div class="channels-section" *ngIf="!isInviteOnlyMode">
-          <button mat-button type="button" (click)="toggleChannels()" class="channels-toggle">
-            <mat-icon>{{ showChannels ? 'expand_less' : 'expand_more' }}</mat-icon>
-            <span>View Available Channels ({{ getTotalChannelCount() }})</span>
-          </button>
-          
-          <div class="channels-list" *ngIf="showChannels && !loadingChannels">
-            <div *ngIf="availableChannels.length === 0" class="no-channels">
-              <p>No channels available at this time.</p>
-            </div>
-            <div class="channel-item" *ngFor="let system of availableChannels">
-              <div class="system-header">
-                <strong>{{ system.label }}</strong>
-                <span class="talkgroup-count" *ngIf="system.talkgroups">
-                  ({{ system.talkgroups.length }} channel{{ system.talkgroups.length !== 1 ? 's' : '' }})
-                </span>
-              </div>
-              <div class="talkgroups-list" *ngIf="system.talkgroups && system.talkgroups.length > 0">
-                <!-- Group by tag -->
-                <div class="talkgroup-group" *ngFor="let tagGroup of getTalkgroupsByTag(system.talkgroups)">
-                  <div class="tag-header" *ngIf="tagGroup.tag">
-                    <strong>{{ tagGroup.tag }}</strong>
+        }
+        <!-- Login Form -->
+        @if (authMode === 'login') {
+          <div class="auth-form" [class.ap-auth-form]="cmMode">
+            @if (cmMode) {
+              @if (showCMResetPassword) {
+                <form class="ap-native-form" (ngSubmit)="onCMResetPassword()">
+                  <h2>Reset Password</h2>
+                  <p class="ap-form-subtitle">Enter your new AlertPage password below.</p>
+                  <div class="ap-form-group">
+                    <label for="ap-reset-password">New Password</label>
+                    <input id="ap-reset-password" type="password" name="cmResetPassword"
+                      [(ngModel)]="cmResetPasswordValue" [ngModelOptions]="{standalone: true}"
+                      required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
                   </div>
-                  <div class="talkgroup-items">
-                    <div class="talkgroup-item" *ngFor="let tg of tagGroup.talkgroups">
-                      <span class="talkgroup-label">{{ tg.label }}</span>
-                      <span class="talkgroup-description" *ngIf="tg.description">{{ tg.description }}</span>
+                  <div class="ap-form-group">
+                    <label for="ap-reset-confirm">Confirm Password</label>
+                    <input id="ap-reset-confirm" type="password" name="cmResetConfirm"
+                      [(ngModel)]="cmResetConfirmValue" [ngModelOptions]="{standalone: true}"
+                      required autocomplete="new-password" placeholder="Re-enter password">
+                  </div>
+                  @if (error) {
+                    <div class="ap-error-message">{{ error }}</div>
+                  }
+                  <button type="submit" class="ap-btn-primary" [disabled]="loading">
+                    @if (loading) {
+                      <span>Resetting...</span>
+                    } @else {
+                      <span>Reset Password</span>
+                    }
+                  </button>
+                  <p class="ap-manage-account">
+                    <a href="#" (click)="backToCMLogin(); $event.preventDefault()">Back to Login</a>
+                  </p>
+                </form>
+              } @else if (showCMForgotPassword) {
+                <form class="ap-native-form" [formGroup]="forgotPasswordForm" (ngSubmit)="onRequestReset()">
+                  <h2>Forgot Password</h2>
+                  <p class="ap-form-subtitle">Enter your email and we will send an AlertPage password reset link. You will finish the reset on AlertPage, then return here to sign in.</p>
+                  <div class="ap-form-group">
+                    <label for="ap-forgot-email">Email</label>
+                    <input id="ap-forgot-email" type="email" formControlName="email" required autocomplete="email" placeholder="you@example.com">
+                  </div>
+                  @if (error) {
+                    <div class="ap-error-message">{{ error }}</div>
+                  }
+                  @if (cmForgotSuccess) {
+                    <div class="ap-success-message">{{ cmForgotSuccess }}</div>
+                  }
+                  <button type="submit" class="ap-btn-primary" [disabled]="loading || forgotPasswordForm.invalid">
+                    @if (loading) {
+                      <span>Sending...</span>
+                    } @else {
+                      <span>Send Reset Link</span>
+                    }
+                  </button>
+                  <p class="ap-manage-account">
+                    <a href="#" (click)="backToCMLogin(); $event.preventDefault()">Back to Login</a>
+                  </p>
+                </form>
+              } @else {
+                <form [formGroup]="loginForm" (ngSubmit)="onLogin()" class="ap-native-form">
+                  <h2>Welcome Back</h2>
+                  <div class="ap-form-group">
+                    <label for="ap-email">Email</label>
+                    <input id="ap-email" type="email" formControlName="email" required autocomplete="email" placeholder="you@example.com">
+                  </div>
+                  <div class="ap-form-group">
+                    <label for="ap-password">Password</label>
+                    <input id="ap-password" type="password" formControlName="password" required autocomplete="current-password" placeholder="Your password">
+                  </div>
+                  @if (error) {
+                    <div class="ap-error-message">{{ error }}</div>
+                  }
+                  @if (needsSubscription) {
+                    <div class="ap-needs-sub">
+                      <p>{{ needsSubscriptionMessage }}</p>
+                      <button type="button" class="ap-btn-primary" (click)="openCMPortal()">Open AlertPage</button>
                     </div>
+                  }
+                  <div class="ap-form-links">
+                    <a href="#" (click)="onForgotPassword(); $event.preventDefault()">Forgot Password?</a>
+                  </div>
+                  <button type="submit" class="ap-btn-primary" [disabled]="loading || loginForm.invalid">
+                    @if (loading) {
+                      <span>Signing In...</span>
+                    } @else {
+                      <span>Login</span>
+                    }
+                  </button>
+                  @if (cmPortalUrl) {
+                    <p class="ap-manage-account">
+                      <a [href]="cmPortalUrl" target="_blank" rel="noopener noreferrer">Manage account on AlertPage</a>
+                    </p>
+                  }
+                </form>
+              }
+              <div class="ap-tlr-banner">
+                <a href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">
+                  <img src="assets/icons/TLR-logo-banner.png" alt="Thinline Radio" class="ap-tlr-banner-img">
+                </a>
+              </div>
+            } @else {
+              <form [formGroup]="loginForm" (ngSubmit)="onLogin()">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Email</mat-label>
+                  <input matInput type="email" formControlName="email" required autocomplete="email">
+                  @if (loginForm.get('email')?.hasError('required')) {
+                    <mat-error>
+                      Email is required
+                    </mat-error>
+                  }
+                  @if (loginForm.get('email')?.hasError('email')) {
+                    <mat-error>
+                      Please enter a valid email address
+                    </mat-error>
+                  }
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Password</mat-label>
+                  <input matInput type="password" formControlName="password" required autocomplete="current-password">
+                  @if (loginForm.get('password')?.hasError('required')) {
+                    <mat-error>
+                      Password is required
+                    </mat-error>
+                  }
+                </mat-form-field>
+                @if (error) {
+                  <div class="error-message">
+                    {{ error }}
+                  </div>
+                }
+                <!-- Cloudflare Turnstile Widget -->
+                @if (turnstileEnabled && turnstileSiteKey) {
+                  <div class="turnstile-wrap">
+                    @if (turnstilePending) {
+                      <div class="turnstile-placeholder">
+                        <mat-spinner diameter="20"></mat-spinner>
+                        <span>Loading security check…</span>
+                      </div>
+                    }
+                    <div id="turnstile-widget-auth"></div>
+                  </div>
+                }
+                <div class="auth-link-row">
+                  <a href="#" class="auth-text-link" (click)="onForgotPassword(); $event.preventDefault()">
+                    Forgot Password?
+                  </a>
+                </div>
+                <button mat-raised-button color="primary" type="submit"
+                  [disabled]="loading || (turnstileEnabled && !turnstileToken)" class="full-width">
+                  @if (loading) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  }
+                  @if (!loading) {
+                    <span>Sign In</span>
+                  }
+                </button>
+              </form>
+            }
+          </div>
+        }
+        <!-- Forgot Password Form -->
+        @if (showForgotPassword && !showResetPassword) {
+          <div class="auth-form">
+            <h3 style="margin-bottom: 20px;">Reset Password</h3>
+            <p style="color: #666; margin-bottom: 20px;">
+              Enter your email address and we'll send you a verification code to reset your password.
+            </p>
+            <form [formGroup]="forgotPasswordForm" (ngSubmit)="onRequestReset()">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Email</mat-label>
+                <input matInput type="email" formControlName="email" required>
+                @if (forgotPasswordForm.get('email')?.hasError('required')) {
+                  <mat-error>
+                    Email is required
+                  </mat-error>
+                }
+                @if (forgotPasswordForm.get('email')?.hasError('email')) {
+                  <mat-error>
+                    Please enter a valid email address
+                  </mat-error>
+                }
+              </mat-form-field>
+              @if (error) {
+                <div class="error-message">
+                  {{ error }}
+                </div>
+              }
+              <button mat-raised-button color="primary" type="submit"
+                [disabled]="forgotPasswordForm.invalid || loading" class="full-width">
+                @if (loading) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                }
+                @if (!loading) {
+                  <span>Send Verification Code</span>
+                }
+              </button>
+              <div class="auth-link-row">
+                <a href="#" class="auth-text-link" (click)="backToLogin(); $event.preventDefault()">
+                  Back to Login
+                </a>
+              </div>
+            </form>
+          </div>
+        }
+        <!-- Reset Password Form -->
+        @if (showResetPassword) {
+          <div class="auth-form">
+            <h3 style="margin-bottom: 20px;">Enter Verification Code</h3>
+            <p style="color: #666; margin-bottom: 20px;">
+              We've sent a 6-digit verification code to <strong>{{ resetEmail }}</strong>.
+              Enter the code below along with your new password.
+            </p>
+            <form [formGroup]="resetPasswordForm" (ngSubmit)="onResetPassword()">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Verification Code</mat-label>
+                <input matInput type="text" formControlName="code"
+                  placeholder="000000" maxlength="6" required>
+                <mat-hint>Enter the 6-digit code from your email</mat-hint>
+                @if (resetPasswordForm.get('code')?.hasError('required')) {
+                  <mat-error>
+                    Verification code is required
+                  </mat-error>
+                }
+                @if (resetPasswordForm.get('code')?.hasError('pattern')) {
+                  <mat-error>
+                    Code must be 6 digits
+                  </mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>New Password</mat-label>
+                <input matInput type="password" formControlName="newPassword" required>
+                @if (resetPasswordForm.get('newPassword')?.touched && resetPasswordForm.get('newPassword')?.invalid) {
+                  <mat-error>
+                    @if (resetPasswordForm.get('newPassword')?.hasError('required')) {
+                      <span>Password is required</span>
+                    }
+                    @if (!resetPasswordForm.get('newPassword')?.hasError('required')) {
+                      <span>
+                        Missing:
+                        @if (resetPasswordForm.get('newPassword')?.hasError('minlength')) {
+                          <span>8+ chars, </span>
+                        }
+                        @if (resetPasswordForm.get('newPassword')?.hasError('requireUpper')) {
+                          <span>uppercase, </span>
+                        }
+                        @if (resetPasswordForm.get('newPassword')?.hasError('requireLower')) {
+                          <span>lowercase, </span>
+                        }
+                        @if (resetPasswordForm.get('newPassword')?.hasError('requireNumber')) {
+                          <span>number, </span>
+                        }
+                        @if (resetPasswordForm.get('newPassword')?.hasError('requireSpecial')) {
+                          <span>special char</span>
+                        }
+                      </span>
+                    }
+                  </mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Confirm Password</mat-label>
+                <input matInput type="password" formControlName="confirmPassword" required>
+                @if (resetPasswordForm.get('confirmPassword')?.hasError('required')) {
+                  <mat-error>
+                    Please confirm your password
+                  </mat-error>
+                }
+                @if (resetPasswordForm.get('confirmPassword')?.hasError('passwordMismatch')) {
+                  <mat-error>
+                    Passwords do not match
+                  </mat-error>
+                }
+              </mat-form-field>
+              @if (error) {
+                <div class="error-message">
+                  {{ error }}
+                </div>
+              }
+              <button mat-raised-button color="primary" type="submit"
+                [disabled]="resetPasswordForm.invalid || loading" class="full-width">
+                @if (loading) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                }
+                @if (!loading) {
+                  <span>Reset Password</span>
+                }
+              </button>
+              <div class="auth-link-row">
+                <a href="#" class="auth-text-link" (click)="backToLogin(); $event.preventDefault()">
+                  Back to Login
+                </a>
+              </div>
+            </form>
+          </div>
+        }
+        <!-- Registration Form -->
+        @if (authMode === 'register' && isUserRegistrationEnabled()) {
+          <div class="auth-form">
+            @if (!registrationSettingsLoaded) {
+              <div class="auth-loading">
+                <mat-spinner diameter="40"></mat-spinner>
+                <p>Loading registration options…</p>
+              </div>
+            }
+            @if (registrationSettingsLoaded) {
+              <!-- Invite Only Notice -->
+              @if (isInviteOnlyMode && !success) {
+                <div class="invite-only-notice" style="padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; margin-bottom: 20px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <mat-icon style="color: #856404;">info</mat-icon>
+                    <strong style="color: #856404;">Registration is by invitation only - you need a valid invitation or registration code to create an account.</strong>
                   </div>
                 </div>
+              }
+              <!-- Code Validation Step (Invite-Only Mode) -->
+              @if (isInviteOnlyMode && !codeValidated && !success) {
+                <div class="code-validation-step">
+                  <p style="margin-bottom: 20px;">Enter your invitation or registration code to continue:</p>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Invitation/Registration Code</mat-label>
+                    <input matInput type="text" name="pendingAccessCode" [(ngModel)]="pendingAccessCode"
+                      [ngModelOptions]="{standalone: true}" autocomplete="one-time-code" placeholder="Enter your code" required>
+                  </mat-form-field>
+                  @if (codeValidationError) {
+                    <div class="error-message" style="margin-bottom: 15px;">
+                      {{ codeValidationError }}
+                    </div>
+                  }
+                  <button mat-raised-button color="primary" (click)="validateAccessCode()"
+                    [disabled]="!pendingAccessCode || validatingCode" class="full-width">
+                    @if (validatingCode) {
+                      <mat-spinner diameter="20"></mat-spinner>
+                    }
+                    @if (!validatingCode) {
+                      <span>Validate Code</span>
+                    }
+                  </button>
+                </div>
+              }
+              <!-- Code Validated Success Message -->
+              @if (isInviteOnlyMode && codeValidated && !success) {
+                <div class="code-validated-notice" style="padding: 15px; background-color: #d4edda; border: 1px solid #28a745; border-radius: 4px; margin-bottom: 20px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <mat-icon style="color: #155724;">check_circle</mat-icon>
+                    <strong style="color: #155724;">Invite Code Validated, Please Fill Out the Form</strong>
+                  </div>
+                </div>
+              }
+              <!-- Public Registration Group Info (only show when NOT invite-only mode and not CM) -->
+              @if (!success && !isInviteOnlyMode && !cmMode) {
+                <div class="public-registration-info">
+                  <!-- Single tier: show it as a heading (classic single-group signup) -->
+                  @if (tiers.length < 2 && publicGroupInfo?.name) {
+                    <div class="info-section">
+                      <h3>{{ publicGroupInfo.name }}</h3>
+                      @if (publicGroupInfo?.description) {
+                        <p>{{ publicGroupInfo.description }}</p>
+                      }
+                    </div>
+                  }
+                  <!-- Multiple tiers: let the user pick one or more -->
+                  @if (tiers.length > 1) {
+                    <div class="tiers-section">
+                      <h4>Choose your tiers</h4>
+                      <p class="tiers-hint">Select one or more tiers. Paid tiers are billed together on a single subscription.</p>
+                      @for (t of tiers; track t) {
+                        <div class="tier-option" [class.tier-option--selected]="selectedTiers[t.groupId]">
+                          <label class="tier-check">
+                            <input type="checkbox" [checked]="selectedTiers[t.groupId]" (change)="toggleTier(t.groupId)">
+                            <span class="tier-copy">
+                              <span class="tier-title">{{ t.name }}</span>
+                              @if (t.talkgroupCount) {
+                                <span class="tier-meta">{{ t.talkgroupCount }} channels</span>
+                              }
+                              @if (!t.billingEnabled) {
+                                <span class="tier-free">Free</span>
+                              }
+                            </span>
+                          </label>
+                          @if (t.description) {
+                            <p class="tier-desc">{{ t.description }}</p>
+                          }
+                          <!-- Always show pricing summary for paid tiers -->
+                          @if (t.billingEnabled && t.pricingOptions?.length) {
+                            <div class="tier-price-summary">
+                              @for (o of t.pricingOptions; track o) {
+                                <div class="tier-price-chip">
+                                  <span class="chip-label">{{ o.label }}</span>
+                                  <span class="chip-amount">{{ o.amount }}</span>
+                                  @if (o.trialDays) {
+                                    <span class="chip-trial">{{ o.trialDays }}-day trial</span>
+                                  }
+                                </div>
+                              }
+                            </div>
+                          }
+                          <!-- When selected, choose which plan to bill -->
+                          @if (selectedTiers[t.groupId] && t.billingEnabled && t.pricingOptions?.length) {
+                            <div class="tier-prices">
+                              <p class="tier-prices-label">Select a plan</p>
+                              @for (o of t.pricingOptions; track o) {
+                                <label class="tier-price-option">
+                                  <input type="radio" name="tier-price-{{ t.groupId }}" [value]="o.priceId"
+                                    [checked]="tierPrice[t.groupId] === o.priceId"
+                                    (change)="setTierPrice(t.groupId, o.priceId)">
+                                  <span>{{ o.label }} &mdash; {{ o.amount }}</span>
+                                </label>
+                              }
+                            </div>
+                          }
+                          @if (tierMissingPricing(t)) {
+                            <p class="tier-price-missing">
+                              This paid tier has no pricing plans configured. Contact the site admin or choose another tier.
+                            </p>
+                          }
+                          @if (selectedTiers[t.groupId] && selectedTierIds().length > 1) {
+                            <div class="tier-primary">
+                              <label>
+                                <input type="radio" name="primaryTier" [value]="t.groupId"
+                                  [checked]="primaryTierId === t.groupId"
+                                  (change)="primaryTierId = t.groupId">
+                                Set as primary (home) tier
+                              </label>
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                  <!-- Pricing Information (single-tier only; plan is chosen after signup on /setup/plan) -->
+                  @if (tiers.length < 2 && publicGroupInfo?.billingEnabled && publicGroupInfo?.pricingOptions && publicGroupInfo.pricingOptions.length > 0) {
+                    <div class="pricing-section">
+                      <h4>Pricing Plans</h4>
+                      <p class="pricing-hint">You’ll choose a plan after creating your account.</p>
+                      <div class="pricing-options">
+                        @for (option of publicGroupInfo.pricingOptions; track option) {
+                          <div class="pricing-option">
+                            <div class="pricing-label">{{ option.label }}</div>
+                            <div class="pricing-amount">{{ option.amount }}</div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                  <!-- Available Channels - Only in public mode -->
+                  @if (!isInviteOnlyMode) {
+                    <div class="channels-section">
+                      <button mat-button type="button" (click)="toggleChannels()" class="channels-toggle">
+                        <mat-icon>{{ showChannels ? 'expand_less' : 'expand_more' }}</mat-icon>
+                        <span>View Available Channels ({{ getTotalChannelCount() }})</span>
+                      </button>
+                      @if (showChannels && !loadingChannels) {
+                        <div class="channels-list">
+                          @if (availableChannels.length === 0) {
+                            <div class="no-channels">
+                              <p>No channels available at this time.</p>
+                            </div>
+                          }
+                          @for (system of availableChannels; track system) {
+                            <div class="channel-item">
+                              <div class="system-header">
+                                <strong>{{ system.label }}</strong>
+                                @if (system.talkgroups) {
+                                  <span class="talkgroup-count">
+                                    ({{ system.talkgroups.length }} channel{{ system.talkgroups.length !== 1 ? 's' : '' }})
+                                  </span>
+                                }
+                              </div>
+                              @if (system.talkgroups && system.talkgroups.length > 0) {
+                                <div class="talkgroups-list">
+                                  <!-- Group by tag -->
+                                  @for (tagGroup of getTalkgroupsByTag(system.talkgroups); track tagGroup) {
+                                    <div class="talkgroup-group">
+                                      @if (tagGroup.tag) {
+                                        <div class="tag-header">
+                                          <strong>{{ tagGroup.tag }}</strong>
+                                        </div>
+                                      }
+                                      <div class="talkgroup-items">
+                                        @for (tg of tagGroup.talkgroups; track tg) {
+                                          <div class="talkgroup-item">
+                                            <span class="talkgroup-label">{{ tg.label }}</span>
+                                            @if (tg.description) {
+                                              <span class="talkgroup-description">{{ tg.description }}</span>
+                                            }
+                                          </div>
+                                        }
+                                      </div>
+                                    </div>
+                                  }
+                                </div>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                      @if (loadingChannels) {
+                        <div class="auth-loading auth-loading--compact loading-channels">
+                          <mat-spinner diameter="24"></mat-spinner>
+                          <span>Loading channels…</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+              <!-- Signup step 1: email only (when server requires email verification) -->
+              @if (registrationSettingsLoaded && !success && emailVerificationRequired && !signupEmailCodeConfirmed && !emailVerificationStep && (!isInviteOnlyMode || codeValidated)) {
+                <form [formGroup]="registerForm">
+                  <p style="margin-bottom: 16px; color: #bbb;">Enter your email to receive a verification code.</p>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Email</mat-label>
+                    <input matInput type="email" formControlName="email" required autocomplete="email">
+                    @if (registerForm.get('email')?.hasError('required')) {
+                      <mat-error>Email is required</mat-error>
+                    }
+                    @if (registerForm.get('email')?.hasError('email')) {
+                      <mat-error>Please enter a valid email address</mat-error>
+                    }
+                  </mat-form-field>
+                  @if (error) {
+                    <div class="error-message" style="margin-bottom: 12px;">{{ error }}</div>
+                  }
+                  <button mat-raised-button color="primary" type="button" class="full-width"
+                    (click)="requestSignupEmailVerification()"
+                    [disabled]="registerForm.get('email')?.invalid || loading">
+                    @if (loading) {
+                      <mat-spinner diameter="20"></mat-spinner>
+                    }
+                    @if (!loading) {
+                      <span>Continue</span>
+                    }
+                  </button>
+                </form>
+              }
+              <!-- Signup step 2: enter 6-digit code -->
+              @if (registrationSettingsLoaded && !success && emailVerificationRequired && !signupEmailCodeConfirmed && emailVerificationStep) {
+                <div>
+                  <p style="margin-bottom: 8px; color: #bbb;">We sent a code to:</p>
+                  <p style="margin-bottom: 16px;"><strong>{{ pendingEmail }}</strong></p>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Verification code</mat-label>
+                    <input matInput type="text" name="signupVerificationCode" [(ngModel)]="verificationCode"
+                      [ngModelOptions]="{standalone: true}" maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+                      placeholder="6-digit code">
+                  </mat-form-field>
+                  @if (emailVerificationError) {
+                    <div class="error-message" style="margin-bottom: 12px;">{{ emailVerificationError }}</div>
+                  }
+                  <button mat-raised-button color="primary" type="button" class="full-width"
+                    (click)="verifySignupCodeAndContinue()"
+                    [disabled]="!verificationCode || verificationCode.length !== 6 || verifyingEmail">
+                    @if (verifyingEmail) {
+                      <mat-spinner diameter="20"></mat-spinner>
+                    }
+                    @if (!verifyingEmail) {
+                      <span>Verify code</span>
+                    }
+                  </button>
+                  <button mat-button type="button" class="full-width" style="margin-top: 8px;" (click)="backSignupEmailEntry()">
+                    Change email
+                  </button>
+                </div>
+              }
+              <!-- Registration Form (after invite code / public gate; after email+code when verification required) -->
+              @if (!success && (!isInviteOnlyMode || codeValidated) && (!emailVerificationRequired || signupEmailCodeConfirmed)) {
+                <form [formGroup]="registerForm" (ngSubmit)="onRegister()">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>First Name</mat-label>
+                    <input matInput type="text" formControlName="firstName" required>
+                    @if (registerForm.get('firstName')?.hasError('required')) {
+                      <mat-error>
+                        First name is required
+                      </mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Last Name</mat-label>
+                    <input matInput type="text" formControlName="lastName" required>
+                    @if (registerForm.get('lastName')?.hasError('required')) {
+                      <mat-error>
+                        Last name is required
+                      </mat-error>
+                    }
+                  </mat-form-field>
+                  @if (!cmMode) {
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>ZIP Code</mat-label>
+                      <input matInput type="text" formControlName="zipCode" placeholder="12345" required>
+                      @if (registerForm.get('zipCode')?.hasError('required')) {
+                        <mat-error>
+                          ZIP code is required
+                        </mat-error>
+                      }
+                      @if (registerForm.get('zipCode')?.hasError('pattern')) {
+                        <mat-error>
+                          Please enter a valid ZIP code (12345 or 12345-6789)
+                        </mat-error>
+                      }
+                    </mat-form-field>
+                  }
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Email</mat-label>
+                    <input matInput type="email" formControlName="email" required autocomplete="email"
+                      [readonly]="emailLockedAfterVerify">
+                    @if (emailLockedAfterVerify) {
+                      <mat-hint>Verified</mat-hint>
+                    }
+                    @if (registerForm.get('email')?.hasError('required')) {
+                      <mat-error>
+                        Email is required
+                      </mat-error>
+                    }
+                    @if (registerForm.get('email')?.hasError('email')) {
+                      <mat-error>
+                        Please enter a valid email address
+                      </mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Password</mat-label>
+                    <input matInput type="password" formControlName="password" required>
+                    @if (registerForm.get('password')?.touched && registerForm.get('password')?.invalid) {
+                      <mat-error>
+                        @if (registerForm.get('password')?.hasError('required')) {
+                          <span>Password is required</span>
+                        }
+                        @if (!registerForm.get('password')?.hasError('required')) {
+                          <span>
+                            Missing:
+                            @if (registerForm.get('password')?.hasError('minlength')) {
+                              <span>8+ chars, </span>
+                            }
+                            @if (registerForm.get('password')?.hasError('requireUpper')) {
+                              <span>uppercase, </span>
+                            }
+                            @if (registerForm.get('password')?.hasError('requireLower')) {
+                              <span>lowercase, </span>
+                            }
+                            @if (registerForm.get('password')?.hasError('requireNumber')) {
+                              <span>number, </span>
+                            }
+                            @if (registerForm.get('password')?.hasError('requireSpecial')) {
+                              <span>special char</span>
+                            }
+                          </span>
+                        }
+                      </mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Confirm Password</mat-label>
+                    <input matInput type="password" formControlName="confirmPassword" required>
+                    @if (registerForm.get('confirmPassword')?.hasError('required')) {
+                      <mat-error>
+                        Please confirm your password
+                      </mat-error>
+                    }
+                    @if (registerForm.get('confirmPassword')?.hasError('passwordMismatch')) {
+                      <mat-error>
+                        Passwords do not match
+                      </mat-error>
+                    }
+                  </mat-form-field>
+                  <!-- Invite Code field (public mode only; do not gate on accessCode value or the field vanishes on first keystroke) -->
+                  @if (!cmMode && !isInviteOnlyMode) {
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Invite Code (Optional)</mat-label>
+                      <input matInput type="text" formControlName="accessCode" placeholder="Enter invite code if you have one" autocomplete="one-time-code">
+                      <mat-hint>If you received an invite code, enter it here.</mat-hint>
+                    </mat-form-field>
+                  }
+                  <!-- Hidden field when code already validated in invite-only mode -->
+                  @if (isInviteOnlyMode && codeValidated) {
+                    <input type="hidden" formControlName="accessCode">
+                  }
+                  @if (error) {
+                    <div class="error-message">
+                      {{ error }}
+                    </div>
+                  }
+                  @if (needsSubscription) {
+                    <div class="error-message" style="background: #1a2a3a; border-left: 4px solid #42a5f5; color: #90caf9;">
+                      <p style="margin: 0 0 12px;">{{ needsSubscriptionMessage }}</p>
+                      <button mat-raised-button color="primary" type="button" (click)="openCMPortal()" class="full-width">
+                        Open AlertPage
+                      </button>
+                    </div>
+                  }
+                  <!-- Cloudflare Turnstile Widget (hidden when using invitation code) -->
+                  @if (!cmMode && turnstileEnabled && turnstileSiteKey && shouldShowTurnstile()) {
+                    <div class="turnstile-wrap">
+                      @if (turnstilePending) {
+                        <div class="turnstile-placeholder">
+                          <mat-spinner diameter="20"></mat-spinner>
+                          <span>Loading security check…</span>
+                        </div>
+                      }
+                      <div id="turnstile-widget-auth"></div>
+                    </div>
+                  }
+                  <!-- Info message when Turnstile is skipped for invitations -->
+                  @if (turnstileEnabled && !shouldShowTurnstile()) {
+                    <div style="margin: 20px 0; padding: 12px; background: #1a2a1a; border-left: 4px solid #4caf50; border-radius: 4px;">
+                      <div style="display: flex; align-items: center; gap: 8px; color: #81c784;">
+                        <mat-icon style="font-size: 20px; width: 20px; height: 20px;">shield</mat-icon>
+                        <span style="font-size: 14px;">CAPTCHA verification skipped - using validated invitation code</span>
+                      </div>
+                    </div>
+                  }
+                  <button mat-raised-button color="primary" type="submit"
+                    [disabled]="(cmMode ? (registerForm.get('firstName')?.invalid || registerForm.get('lastName')?.invalid || registerForm.get('email')?.invalid || registerForm.get('password')?.invalid || registerForm.get('confirmPassword')?.invalid) : registerForm.invalid) || loading || (!cmMode && turnstileEnabled && !turnstileToken && !registerForm.get('invitationCode')?.value)" class="full-width">
+                    @if (loading) {
+                      <mat-spinner diameter="20"></mat-spinner>
+                    }
+                    @if (!loading) {
+                      <span>Sign Up</span>
+                    }
+                  </button>
+                </form>
+              }
+              <!-- Success screen — lives outside the form so !success on the form doesn't hide it -->
+              @if (success) {
+                <div class="success-message">
+                  <mat-icon>check_circle</mat-icon>
+                  <h3>Account Created Successfully!</h3>
+                  <!-- Auto-verified notice — when registered via invite/access code -->
+                  @if (registeredWithCode) {
+                    <div
+                      class="verification-notice"
+                      style="padding: 20px; background-color: #1a2a1a; border: 2px solid #4caf50; border-radius: 8px; margin: 20px 0;">
+                      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                        <mat-icon style="color: #4caf50; font-size: 32px; width: 32px; height: 32px;">verified_user</mat-icon>
+                        <h4 style="margin: 0; color: #f0f0f0; font-size: 18px;">Account Verified</h4>
+                      </div>
+                      <p style="margin: 0; color: #bbb; font-size: 15px; line-height: 1.6;">
+                        Your account is ready. You can sign in now.
+                      </p>
+                    </div>
+                  }
+                  <!-- Email verification notice — shown when NOT registered via code -->
+                  @if (!registeredWithCode && config?.options?.emailServiceEnabled !== false) {
+                    <div
+                      class="verification-notice"
+                      style="padding: 20px; background-color: #1e2a35; border: 2px solid #cc0000; border-radius: 8px; margin: 20px 0;">
+                      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                        <mat-icon style="color: #cc0000; font-size: 32px; width: 32px; height: 32px;">mark_email_unread</mat-icon>
+                        <h4 style="margin: 0; color: #f0f0f0; font-size: 18px;">Check Your Email</h4>
+                      </div>
+                      <p style="margin: 0; color: #bbb; font-size: 15px; line-height: 1.6;">
+                        We've sent a verification link to <strong style="color: #f0f0f0;">{{ registerForm.get('email')?.value }}</strong>.
+                        Please check your inbox (and spam folder) and click the link to activate your account.
+                      </p>
+                      <button mat-button type="button" (click)="resendVerification()"
+                        style="margin-top: 12px; color: #cc0000;">
+                        Didn't receive it? Resend verification email
+                      </button>
+                      @if (successMessage && successMessage !== 'Registration successful! Please check your email to verify your account.') {
+                        <p
+                          style="margin: 8px 0 0; color: #81c784; font-size: 13px;">
+                          {{ successMessage }}
+                        </p>
+                      }
+                    </div>
+                  }
+                  <!-- No-email fallback — only shown when email service is explicitly disabled -->
+                  @if (config?.options?.emailServiceEnabled === false) {
+                    <div
+                      style="padding: 16px; background-color: #1a2a1a; border: 2px solid #4caf50; border-radius: 8px; margin: 20px 0;">
+                      <p style="margin: 0; color: #a5d6a7; font-size: 15px; line-height: 1.6;">
+                        Your account is ready. You can now sign in with your email and password.
+                      </p>
+                    </div>
+                  }
+                  <button mat-raised-button color="primary" type="button" (click)="setAuthMode('login')" class="full-width" style="margin-top: 8px;">
+                    Continue to Sign In
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        }
+        <!-- Stripe Checkout -->
+        @if (showCheckout) {
+          <div class="checkout-overlay">
+            <div class="checkout-backdrop" (click)="onCheckoutCancel()"></div>
+            <div class="checkout-modal">
+              @if (config) {
+                <rdio-scanner-stripe-checkout
+                  [config]="config"
+                  [email]="$safeNavigationMigration(loginForm.get('email')?.value)"
+                  (checkoutSuccess)="onCheckoutSuccess($event)"
+                  (checkoutError)="onCheckoutError($event)"
+                  (checkoutCancel)="onCheckoutCancel()">
+                </rdio-scanner-stripe-checkout>
+              }
+            </div>
+          </div>
+        }
+        <!-- Checkout Success Modal -->
+        @if (showCheckoutSuccess) {
+          <div class="checkout-overlay">
+            <div class="checkout-backdrop" (click)="closeCheckoutSuccess()"></div>
+            <div class="checkout-modal">
+              <div class="checkout-success">
+                <div class="success-icon">
+                  <mat-icon>check_circle</mat-icon>
+                </div>
+                <h2>Subscription Successful!</h2>
+                <p>Your subscription has been activated. You can now log in to access all features.</p>
+                <button mat-raised-button color="primary" (click)="closeCheckoutSuccess()">
+                  Continue
+                </button>
               </div>
             </div>
           </div>
-          
-          <div *ngIf="loadingChannels" class="auth-loading auth-loading--compact loading-channels">
-            <mat-spinner diameter="24"></mat-spinner>
-            <span>Loading channels…</span>
+        }
+        <!-- Checkout Cancel Modal -->
+        @if (showCheckoutCancel) {
+          <div class="checkout-overlay">
+            <div class="checkout-backdrop" (click)="closeCheckoutCancel()"></div>
+            <div class="checkout-modal">
+              <div class="checkout-cancel">
+                <div class="cancel-icon">
+                  <mat-icon>cancel</mat-icon>
+                </div>
+                <h2>Checkout Cancelled</h2>
+                <p>Your subscription was not completed. You can try again anytime.</p>
+                <button mat-raised-button color="primary" (click)="closeCheckoutCancel()">
+                  Continue
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Signup step 1: email only (when server requires email verification) -->
-      <form [formGroup]="registerForm" *ngIf="registrationSettingsLoaded && !success && emailVerificationRequired && !signupEmailCodeConfirmed && !emailVerificationStep && (!isInviteOnlyMode || codeValidated)">
-        <p style="margin-bottom: 16px; color: #bbb;">Enter your email to receive a verification code.</p>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" required autocomplete="email">
-          <mat-error *ngIf="registerForm.get('email')?.hasError('required')">Email is required</mat-error>
-          <mat-error *ngIf="registerForm.get('email')?.hasError('email')">Please enter a valid email address</mat-error>
-        </mat-form-field>
-        <div class="error-message" *ngIf="error" style="margin-bottom: 12px;">{{ error }}</div>
-        <button mat-raised-button color="primary" type="button" class="full-width"
-                (click)="requestSignupEmailVerification()"
-                [disabled]="registerForm.get('email')?.invalid || loading">
-          <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-          <span *ngIf="!loading">Continue</span>
-        </button>
-      </form>
-
-      <!-- Signup step 2: enter 6-digit code -->
-      <div *ngIf="registrationSettingsLoaded && !success && emailVerificationRequired && !signupEmailCodeConfirmed && emailVerificationStep">
-        <p style="margin-bottom: 8px; color: #bbb;">We sent a code to:</p>
-        <p style="margin-bottom: 16px;"><strong>{{ pendingEmail }}</strong></p>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Verification code</mat-label>
-          <input matInput type="text" name="signupVerificationCode" [(ngModel)]="verificationCode"
-                 [ngModelOptions]="{standalone: true}" maxlength="6" inputmode="numeric" autocomplete="one-time-code"
-                 placeholder="6-digit code">
-        </mat-form-field>
-        <div class="error-message" *ngIf="emailVerificationError" style="margin-bottom: 12px;">{{ emailVerificationError }}</div>
-        <button mat-raised-button color="primary" type="button" class="full-width"
-                (click)="verifySignupCodeAndContinue()"
-                [disabled]="!verificationCode || verificationCode.length !== 6 || verifyingEmail">
-          <mat-spinner diameter="20" *ngIf="verifyingEmail"></mat-spinner>
-          <span *ngIf="!verifyingEmail">Verify code</span>
-        </button>
-        <button mat-button type="button" class="full-width" style="margin-top: 8px;" (click)="backSignupEmailEntry()">
-          Change email
-        </button>
-      </div>
-      
-      <!-- Registration Form (after invite code / public gate; after email+code when verification required) -->
-      <form [formGroup]="registerForm" (ngSubmit)="onRegister()" *ngIf="!success && (!isInviteOnlyMode || codeValidated) && (!emailVerificationRequired || signupEmailCodeConfirmed)">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>First Name</mat-label>
-          <input matInput type="text" formControlName="firstName" required>
-          <mat-error *ngIf="registerForm.get('firstName')?.hasError('required')">
-            First name is required
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Last Name</mat-label>
-          <input matInput type="text" formControlName="lastName" required>
-          <mat-error *ngIf="registerForm.get('lastName')?.hasError('required')">
-            Last name is required
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>ZIP Code</mat-label>
-          <input matInput type="text" formControlName="zipCode" placeholder="12345" required>
-          <mat-error *ngIf="registerForm.get('zipCode')?.hasError('required')">
-            ZIP code is required
-          </mat-error>
-          <mat-error *ngIf="registerForm.get('zipCode')?.hasError('pattern')">
-            Please enter a valid ZIP code (12345 or 12345-6789)
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" required autocomplete="email"
-                 [readonly]="emailLockedAfterVerify">
-          <mat-hint *ngIf="emailLockedAfterVerify">Verified</mat-hint>
-          <mat-error *ngIf="registerForm.get('email')?.hasError('required')">
-            Email is required
-          </mat-error>
-          <mat-error *ngIf="registerForm.get('email')?.hasError('email')">
-            Please enter a valid email address
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
-          <input matInput type="password" formControlName="password" required>
-          <mat-error *ngIf="registerForm.get('password')?.touched && registerForm.get('password')?.invalid">
-            <span *ngIf="registerForm.get('password')?.hasError('required')">Password is required</span>
-            <span *ngIf="!registerForm.get('password')?.hasError('required')">
-              Missing: 
-              <span *ngIf="registerForm.get('password')?.hasError('minlength')">8+ chars, </span>
-              <span *ngIf="registerForm.get('password')?.hasError('requireUpper')">uppercase, </span>
-              <span *ngIf="registerForm.get('password')?.hasError('requireLower')">lowercase, </span>
-              <span *ngIf="registerForm.get('password')?.hasError('requireNumber')">number, </span>
-              <span *ngIf="registerForm.get('password')?.hasError('requireSpecial')">special char</span>
-            </span>
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Confirm Password</mat-label>
-          <input matInput type="password" formControlName="confirmPassword" required>
-          <mat-error *ngIf="registerForm.get('confirmPassword')?.hasError('required')">
-            Please confirm your password
-          </mat-error>
-          <mat-error *ngIf="registerForm.get('confirmPassword')?.hasError('passwordMismatch')">
-            Passwords do not match
-          </mat-error>
-        </mat-form-field>
-
-        <!-- Invite Code field (public mode only; do not gate on accessCode value or the field vanishes on first keystroke) -->
-        <mat-form-field appearance="outline" class="full-width" *ngIf="!isInviteOnlyMode">
-          <mat-label>Invite Code (Optional)</mat-label>
-          <input matInput type="text" formControlName="accessCode" placeholder="Enter invite code if you have one" autocomplete="one-time-code">
-          <mat-hint>If you received an invite code, enter it here.</mat-hint>
-        </mat-form-field>
-        
-        <!-- Hidden field when code already validated in invite-only mode -->
-        <input type="hidden" formControlName="accessCode" *ngIf="isInviteOnlyMode && codeValidated">
-
-        <div class="error-message" *ngIf="error">
-          {{ error }}
-        </div>
-
-        <!-- Cloudflare Turnstile Widget (hidden when using invitation code) -->
-        <div *ngIf="turnstileEnabled && turnstileSiteKey && shouldShowTurnstile()" class="turnstile-wrap">
-          <div *ngIf="turnstilePending" class="turnstile-placeholder">
-            <mat-spinner diameter="20"></mat-spinner>
-            <span>Loading security check…</span>
-          </div>
-          <div id="turnstile-widget-auth"></div>
-        </div>
-        
-        <!-- Info message when Turnstile is skipped for invitations -->
-        <div *ngIf="turnstileEnabled && !shouldShowTurnstile()" style="margin: 20px 0; padding: 12px; background: #1a2a1a; border-left: 4px solid #4caf50; border-radius: 4px;">
-          <div style="display: flex; align-items: center; gap: 8px; color: #81c784;">
-            <mat-icon style="font-size: 20px; width: 20px; height: 20px;">shield</mat-icon>
-            <span style="font-size: 14px;">CAPTCHA verification skipped - using validated invitation code</span>
-          </div>
-        </div>
-
-        <button mat-raised-button color="primary" type="submit" 
-                [disabled]="registerForm.invalid || loading || (turnstileEnabled && !turnstileToken && !registerForm.get('invitationCode')?.value)" class="full-width">
-          <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
-          <span *ngIf="!loading">Sign Up</span>
-        </button>
-      </form>
-
-      <!-- Success screen — lives outside the form so !success on the form doesn't hide it -->
-      <div class="success-message" *ngIf="success">
-        <mat-icon>check_circle</mat-icon>
-        <h3>Account Created Successfully!</h3>
-
-        <!-- Auto-verified notice — when registered via invite/access code -->
-        <div *ngIf="registeredWithCode"
-             class="verification-notice"
-             style="padding: 20px; background-color: #1a2a1a; border: 2px solid #4caf50; border-radius: 8px; margin: 20px 0;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-            <mat-icon style="color: #4caf50; font-size: 32px; width: 32px; height: 32px;">verified_user</mat-icon>
-            <h4 style="margin: 0; color: #f0f0f0; font-size: 18px;">Account Verified</h4>
-          </div>
-          <p style="margin: 0; color: #bbb; font-size: 15px; line-height: 1.6;">
-            Your account is ready. You can sign in now.
-          </p>
-        </div>
-
-        <!-- Email verification notice — shown when NOT registered via code -->
-        <div *ngIf="!registeredWithCode && config?.options?.emailServiceEnabled !== false"
-             class="verification-notice"
-             style="padding: 20px; background-color: #1e2a35; border: 2px solid #cc0000; border-radius: 8px; margin: 20px 0;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-            <mat-icon style="color: #cc0000; font-size: 32px; width: 32px; height: 32px;">mark_email_unread</mat-icon>
-            <h4 style="margin: 0; color: #f0f0f0; font-size: 18px;">Check Your Email</h4>
-          </div>
-          <p style="margin: 0; color: #bbb; font-size: 15px; line-height: 1.6;">
-            We've sent a verification link to <strong style="color: #f0f0f0;">{{ registerForm.get('email')?.value }}</strong>.
-            Please check your inbox (and spam folder) and click the link to activate your account.
-          </p>
-          <button mat-button type="button" (click)="resendVerification()"
-                  style="margin-top: 12px; color: #cc0000;">
-            Didn't receive it? Resend verification email
-          </button>
-          <p *ngIf="successMessage && successMessage !== 'Registration successful! Please check your email to verify your account.'"
-             style="margin: 8px 0 0; color: #81c784; font-size: 13px;">
-            {{ successMessage }}
-          </p>
-        </div>
-
-        <!-- No-email fallback — only shown when email service is explicitly disabled -->
-        <div *ngIf="config?.options?.emailServiceEnabled === false"
-             style="padding: 16px; background-color: #1a2a1a; border: 2px solid #4caf50; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0; color: #a5d6a7; font-size: 15px; line-height: 1.6;">
-            Your account is ready. You can now sign in with your email and password.
-          </p>
-        </div>
-
-        <button mat-raised-button color="primary" type="button" (click)="setAuthMode('login')" class="full-width" style="margin-top: 8px;">
-          Continue to Sign In
-        </button>
-      </div>
-
-      </ng-container>
-    </div>
-
-    <!-- Stripe Checkout -->
-    <div class="checkout-overlay" *ngIf="showCheckout">
-      <div class="checkout-backdrop" (click)="onCheckoutCancel()"></div>
-      <div class="checkout-modal">
-        <rdio-scanner-stripe-checkout
-          *ngIf="config"
-          [config]="config"
-          [email]="loginForm.get('email')?.value"
-          (checkoutSuccess)="onCheckoutSuccess($event)"
-          (checkoutError)="onCheckoutError($event)"
-          (checkoutCancel)="onCheckoutCancel()">
-        </rdio-scanner-stripe-checkout>
-      </div>
-    </div>
-
-    <!-- Checkout Success Modal -->
-    <div class="checkout-overlay" *ngIf="showCheckoutSuccess">
-      <div class="checkout-backdrop" (click)="closeCheckoutSuccess()"></div>
-      <div class="checkout-modal">
-        <div class="checkout-success">
-          <div class="success-icon">
-            <mat-icon>check_circle</mat-icon>
-          </div>
-          <h2>Subscription Successful!</h2>
-          <p>Your subscription has been activated. You can now log in to access all features.</p>
-          <button mat-raised-button color="primary" (click)="closeCheckoutSuccess()">
-            Continue
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Checkout Cancel Modal -->
-    <div class="checkout-overlay" *ngIf="showCheckoutCancel">
-      <div class="checkout-backdrop" (click)="closeCheckoutCancel()"></div>
-      <div class="checkout-modal">
-        <div class="checkout-cancel">
-          <div class="cancel-icon">
-            <mat-icon>cancel</mat-icon>
-          </div>
-          <h2>Checkout Cancelled</h2>
-          <p>Your subscription was not completed. You can try again anytime.</p>
-          <button mat-raised-button color="primary" (click)="closeCheckoutCancel()">
-            Continue
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Group Admin Login -->
-    <div class="auth-form" *ngIf="authMode === 'group-admin'">
-      <p class="group-admin-description">Group administrators can manage their group settings, users, and registration codes.</p>
-      <form [formGroup]="groupAdminForm" (ngSubmit)="onGroupAdminLogin()">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" required>
-          <mat-error *ngIf="groupAdminForm.get('email')?.hasError('required')">
-            Email is required
-          </mat-error>
-          <mat-error *ngIf="groupAdminForm.get('email')?.hasError('email')">
-            Please enter a valid email address
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
-          <input matInput type="password" formControlName="password" required>
-          <mat-error *ngIf="groupAdminForm.get('password')?.hasError('required')">
-            Password is required
-          </mat-error>
-        </mat-form-field>
-
-        <!-- Cloudflare Turnstile Widget -->
-        <div *ngIf="turnstileEnabled && turnstileSiteKey" class="turnstile-wrap">
-          <div *ngIf="turnstilePending" class="turnstile-placeholder">
-            <mat-spinner diameter="20"></mat-spinner>
-            <span>Loading security check…</span>
-          </div>
-          <div id="turnstile-widget-auth"></div>
-        </div>
-
-        <div class="error-message" *ngIf="groupAdminError">
-          {{ groupAdminError }}
-        </div>
-
-        <button mat-raised-button color="primary" type="submit" 
+        }
+        <!-- Group Admin Login -->
+        @if (authMode === 'group-admin') {
+          <div class="auth-form">
+            <p class="group-admin-description">Group administrators can manage their group settings, users, and registration codes.</p>
+            <form [formGroup]="groupAdminForm" (ngSubmit)="onGroupAdminLogin()">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Email</mat-label>
+                <input matInput type="email" formControlName="email" required>
+                @if (groupAdminForm.get('email')?.hasError('required')) {
+                  <mat-error>
+                    Email is required
+                  </mat-error>
+                }
+                @if (groupAdminForm.get('email')?.hasError('email')) {
+                  <mat-error>
+                    Please enter a valid email address
+                  </mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Password</mat-label>
+                <input matInput type="password" formControlName="password" required>
+                @if (groupAdminForm.get('password')?.hasError('required')) {
+                  <mat-error>
+                    Password is required
+                  </mat-error>
+                }
+              </mat-form-field>
+              <!-- Cloudflare Turnstile Widget -->
+              @if (turnstileEnabled && turnstileSiteKey) {
+                <div class="turnstile-wrap">
+                  @if (turnstilePending) {
+                    <div class="turnstile-placeholder">
+                      <mat-spinner diameter="20"></mat-spinner>
+                      <span>Loading security check…</span>
+                    </div>
+                  }
+                  <div id="turnstile-widget-auth"></div>
+                </div>
+              }
+              @if (groupAdminError) {
+                <div class="error-message">
+                  {{ groupAdminError }}
+                </div>
+              }
+              <button mat-raised-button color="primary" type="submit"
                 [disabled]="groupAdminForm.invalid || groupAdminLoading || (turnstileEnabled && !turnstileToken)" class="full-width">
-          <mat-spinner diameter="20" *ngIf="groupAdminLoading"></mat-spinner>
-          <span *ngIf="!groupAdminLoading">Sign In</span>
-        </button>
-      </form>
-    </div>
-
-    </div>
+                @if (groupAdminLoading) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                }
+                @if (!groupAdminLoading) {
+                  <span>Sign In</span>
+                }
+              </button>
+            </form>
+          </div>
+        }
+      </div>
+    }
     <!-- End !isBlocked wrapper -->
 
     <!-- Support Section -->
-    <div class="support-section">
-      <p class="support-text" *ngIf="hasSupportEmail()">
-        Need help? Contact us at 
-        <a [href]="'mailto:' + getSupportEmail()" class="support-link">{{ getSupportEmail() }}</a>
-      </p>
-      <p class="no-support-text" *ngIf="!hasSupportEmail()">
-        The owner of this server has not provided email support.
-      </p>
-    <a class="brand-banner-link" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">
-      <img src="assets/icons/tlr-logo.png" class="brand-banner-footer" alt="ThinLine Radio">
-    </a>
-    <p class="server-version" *ngIf="getServerVersion()">ThinLine Radio v{{ getServerVersion() }}</p>
-    <a class="server-site" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">www.thinlineradio.com</a>
+    @if (!cmMode) {
+      <div class="support-section">
+        @if (hasSupportEmail()) {
+          <p class="support-text">
+            Need help? Contact us at
+            <a [href]="'mailto:' + getSupportEmail()" class="support-link">{{ getSupportEmail() }}</a>
+          </p>
+        }
+        @if (!hasSupportEmail()) {
+          <p class="no-support-text">
+            The owner of this server has not provided email support.
+          </p>
+        }
+        <a class="brand-banner-link" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">
+          <img src="assets/icons/tlr-logo.png" class="brand-banner-footer" alt="ThinLine Radio">
+        </a>
+        @if (getServerVersion()) {
+          <p class="server-version">ThinLine Radio v{{ getServerVersion() }}</p>
+        }
+        <a class="server-site" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">www.thinlineradio.com</a>
+      </div>
+    }
   </div>
-</div>

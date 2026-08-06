@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { AbstractControl, FormBuilder, FormGroup, FormArray, ValidationErrors, Validators } from '@angular/forms';
@@ -26,7 +26,7 @@ import { PageEvent } from '@angular/material/paginator';
 import { RdioScannerAdminService, System, Apikey } from '../../admin.service';
 import { InviteUserDialogComponent, InvitationResultsDialogComponent, CreateUserDialogComponent, ResetPasswordDialogComponent } from './invite-user-dialog.component';
 import { TransferUserDialogComponent } from './transfer-user-dialog.component';
-import { RdioScannerAdminSystemsSelectComponent } from '../systems/select/select.component';
+import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
 
 export interface FCMToken {
     id: number;
@@ -68,6 +68,7 @@ export interface User {
     systemNoAudioAlertSystems?: string;
     apiKeyNoAudioAlertApiKeys?: string;
     forcePasswordReset?: boolean;
+    suspended?: boolean;
     stripeCustomerId: string;
     stripeSubscriptionId: string;
     subscriptionStatus: string;
@@ -79,7 +80,9 @@ export interface User {
 @Component({
     selector: 'rdio-scanner-admin-users',
     templateUrl: './users.component.html',
-    styleUrls: ['./users.component.scss']
+    styleUrls: ['./users.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChanges {
     @Input() userRegistrationEnabled = false;
@@ -105,7 +108,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     groupFilter = '';
     /** '' = all; 'active' includes trialing; 'problem' = past_due/unpaid/incomplete. */
     subscriptionFilter = '';
-    /** '' = all; pin_expired | account_expired | verified | unverified. */
+    /** '' = all; pin_expired | account_expired | suspended | verified | unverified. */
     statusFilter = '';
     /** name | lastLoginDesc | lastLoginAsc */
     sortMode: 'name' | 'lastLoginDesc' | 'lastLoginAsc' = 'name';
@@ -216,6 +219,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             pushSystemNoAudioAlerts: [false],
             pushApiKeyNoAudioAlerts: [false],
             forcePasswordReset: [false],
+            suspended: [false],
             stripeCustomerId: [''],
             stripeSubscriptionId: [''],
             subscriptionStatus: ['']
@@ -269,6 +273,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
                 pushApiKeyNoAudioAlerts: user.pushApiKeyNoAudioAlerts || false,
                 forcePasswordReset: user.forcePasswordReset || false,
+                suspended: user.suspended || false,
                 stripeCustomerId: user.stripeCustomerId || '',
                 stripeSubscriptionId: user.stripeSubscriptionId || '',
                 subscriptionStatus: user.subscriptionStatus || '',
@@ -541,7 +546,6 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         }
 
         try {
-            // Build the form arrays for the dialog
             const groupsArray = this.fb.array(
                 this.configGroups.map((group: any) => this.adminService.newGroupForm(group))
             );
@@ -549,34 +553,30 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 this.configTags.map((tag: any) => this.adminService.newTagForm(tag))
             );
             const systemsArray = this.fb.array(
-                this.systems.map((system: any) => this.adminService.newSystemForm(system))
+                this.systems.map((system: any) => this.adminService.newSystemForm(system, true, true))
             );
 
-            // Create the root form that contains groups, tags, systems, and the access form
-            // This properly sets up the form hierarchy so accessForm.root points to rootForm
+            const currentAccess = this.parseSystemsAccess(this.editForm.get('systems')?.value);
             const rootForm = this.fb.group({
                 groups: groupsArray,
                 tags: tagsArray,
                 systems: systemsArray,
                 access: this.fb.group({
-                    systems: [this.editForm.get('systems')?.value || '*']
-                })
+                    systems: [currentAccess],
+                }),
             });
-
-            // Get the access form from the root - now it has root property set correctly
             const accessForm = rootForm.get('access') as FormGroup;
 
-            const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, { 
-                data: accessForm,
-                width: '90vw',
-                maxWidth: '1200px',
-                maxHeight: '90vh'
+            const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, {
+                ...SYSTEMS_SELECT_DIALOG_OPTIONS,
+                data: { access: accessForm, rawSystems: this.systems },
             });
 
             matDialogRef.afterClosed().subscribe((data) => {
                 if (data !== null && data !== undefined) {
                     this.editForm.get('systems')?.setValue(data);
                     this.editForm.markAsDirty();
+                    this.cdr.markForCheck();
                 }
             });
         } catch (error) {
@@ -586,6 +586,45 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 panelClass: ['error-snackbar']
             });
         }
+    }
+
+    /** Normalize stored systems access (JSON string, array, or '*') for the picker. */
+    private parseSystemsAccess(value: any): '*' | Array<{ id: number; talkgroups: number[] | '*' }> {
+        if (value === '*' || value === '' || value == null) {
+            return '*';
+        }
+        let parsed = value;
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed || trimmed === '*') {
+                return '*';
+            }
+            try {
+                parsed = JSON.parse(trimmed);
+            } catch {
+                return '*';
+            }
+        }
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            return '*';
+        }
+        if (typeof parsed[0] === 'number') {
+            return parsed.map((id: number) => ({ id, talkgroups: '*' as const }));
+        }
+        return parsed;
+    }
+
+    get userSystemsAccessIsAll(): boolean {
+        return this.parseSystemsAccess(this.editForm.get('systems')?.value) === '*';
+    }
+
+    get userSystemsAccessSummary(): string {
+        const access = this.parseSystemsAccess(this.editForm.get('systems')?.value);
+        if (access === '*') {
+            return 'All systems';
+        }
+        const n = access.length;
+        return n === 1 ? '1 system (custom)' : `${n} systems (custom)`;
     }
 
     ngOnDestroy(): void {
@@ -655,6 +694,36 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         } catch (error: any) {
             console.error('Failed to delete user:', error);
             const msg = error?.error?.error || error?.message || 'Failed to delete user';
+            this.matSnackBar.open(msg, 'Close', {
+                duration: 4000,
+                panelClass: ['error-snackbar']
+            });
+        }
+    }
+
+    async setUserSuspended(user: User, suspended: boolean): Promise<void> {
+        const action = suspended ? 'suspend' : 'unsuspend';
+        const confirmMsg = suspended
+            ? `Suspend ${user.email}? They will be unable to log in or connect until unsuspended.`
+            : `Unsuspend ${user.email}? They will regain normal access.`;
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        try {
+            await this.adminService.setUserSuspended(user.id, suspended);
+            this.matSnackBar.open(
+                suspended ? `Suspended ${user.email}` : `Unsuspended ${user.email}`,
+                'Close',
+                { duration: 3000, panelClass: ['success-snackbar'] },
+            );
+            await this.loadUsers(true);
+            if (this.form && this.form.parent) {
+                this.form.parent.markAsDirty();
+            }
+        } catch (error: any) {
+            console.error(`Failed to ${action} user:`, error);
+            const msg = error?.error?.error || error?.message || `Failed to ${action} user`;
             this.matSnackBar.open(msg, 'Close', {
                 duration: 4000,
                 panelClass: ['error-snackbar']
@@ -807,7 +876,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             lastName: user.lastName,
             zipCode: user.zipCode,
             verified: user.verified,
-            systems: user.systems || '*',
+            systems: this.parseSystemsAccess(user.systems),
             delay: user.delay,
             pin: user.pin,
             pinExpiresAt: pinExpiresAtValue,
@@ -823,6 +892,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
             pushApiKeyNoAudioAlerts: user.pushApiKeyNoAudioAlerts || false,
             forcePasswordReset: user.forcePasswordReset || false,
+            suspended: user.suspended || false,
             stripeCustomerId: user.stripeCustomerId || '',
             stripeSubscriptionId: user.stripeSubscriptionId || '',
             subscriptionStatus: user.subscriptionStatus || ''
@@ -944,6 +1014,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             pushSystemNoAudioAlerts: !!formValue.pushSystemNoAudioAlerts,
             pushApiKeyNoAudioAlerts: !!formValue.pushApiKeyNoAudioAlerts,
             forcePasswordReset: !!formValue.forcePasswordReset,
+            suspended: !!formValue.suspended,
             stripeCustomerId: (formValue.stripeCustomerId ?? '').toString().trim(),
             stripeSubscriptionId: (formValue.stripeSubscriptionId ?? '').toString().trim(),
             subscriptionStatus: (formValue.subscriptionStatus ?? '').toString().trim(),
@@ -1159,6 +1230,8 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 return !!user.pinExpired;
             case 'account_expired':
                 return !!(user.accountExpiresAt && user.accountExpiresAt > 0 && user.accountExpiresAt < now);
+            case 'suspended':
+                return !!user.suspended;
             case 'verified':
                 return !!user.verified;
             case 'unverified':

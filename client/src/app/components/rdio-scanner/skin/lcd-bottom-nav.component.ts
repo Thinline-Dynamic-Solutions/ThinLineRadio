@@ -33,6 +33,7 @@ export interface LcdNavItem {
     templateUrl: './lcd-bottom-nav.component.html',
     styleUrls: ['./lcd-bottom-nav.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerLcdBottomNavComponent {
     @Input() items: LcdNavItem[] = [];

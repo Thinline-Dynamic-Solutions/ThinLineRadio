@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormBuilder, FormGroup } from '@angular/forms';
 
@@ -27,8 +27,8 @@ export interface DeleteSystemDialogData {
 }
 
 @Component({
-  selector: 'rdio-scanner-delete-system-dialog',
-  template: `
+    selector: 'rdio-scanner-delete-system-dialog',
+    template: `
     <h2 mat-dialog-title>Delete System</h2>
     <mat-dialog-content>
       <p class="mat-body" style="margin-bottom: 12px;">
@@ -55,6 +55,8 @@ export interface DeleteSystemDialogData {
       </button>
     </mat-dialog-actions>
   `,
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class DeleteSystemDialogComponent {
   confirmForm: FormGroup;

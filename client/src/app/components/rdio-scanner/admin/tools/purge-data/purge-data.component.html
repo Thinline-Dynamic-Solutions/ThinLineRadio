@@ -1,311 +1,345 @@
 <div class="purge-data-container">
-    <div class="tool-header">
-        <h3>Purge Data</h3>
-        <p class="mat-body-2">
-            Permanently delete all calls or logs from the database. These actions cannot be undone.
-        </p>
+  <div class="tool-header">
+    <h3>Purge Data</h3>
+    <p class="mat-body-2">
+      Permanently delete all calls or logs from the database. These actions cannot be undone.
+    </p>
+  </div>
+
+  <div class="warning-box">
+    <mat-icon class="warning-icon">warning</mat-icon>
+    <div class="warning-text">
+      <strong>WARNING:</strong> These operations are destructive and permanent.
+      Each button only deletes the selected data type (calls or logs). Data cannot be recovered.
+    </div>
+  </div>
+
+  <div class="purge-actions">
+    <div class="purge-section">
+      <h4>Purge Calls</h4>
+      <p class="mat-caption">
+        Delete all radio calls including audio recordings, transcripts, and metadata.
+      </p>
+      <button
+        mat-raised-button
+        color="warn"
+        (click)="purgeCalls()"
+        [disabled]="purgingCalls">
+        @if (!purgingCalls) {
+          <mat-icon>delete_forever</mat-icon>
+        }
+        @if (purgingCalls) {
+          <mat-spinner diameter="20"></mat-spinner>
+        }
+        @if (!purgingCalls) {
+          <span>Purge All Calls</span>
+        }
+        @if (purgingCalls) {
+          <span>Purging...</span>
+        }
+      </button>
     </div>
 
-    <div class="warning-box">
-        <mat-icon class="warning-icon">warning</mat-icon>
-        <div class="warning-text">
-            <strong>WARNING:</strong> These operations are destructive and permanent. 
-            Each button only deletes the selected data type (calls or logs). Data cannot be recovered.
-        </div>
+    <div class="purge-section">
+      <h4>Purge Logs</h4>
+      <p class="mat-caption">
+        Delete all system logs including errors, warnings, and info messages.
+      </p>
+      <button
+        mat-raised-button
+        color="warn"
+        (click)="purgeLogs()"
+        [disabled]="purgingLogs">
+        @if (!purgingLogs) {
+          <mat-icon>delete_forever</mat-icon>
+        }
+        @if (purgingLogs) {
+          <mat-spinner diameter="20"></mat-spinner>
+        }
+        @if (!purgingLogs) {
+          <span>Purge All Logs</span>
+        }
+        @if (purgingLogs) {
+          <span>Purging...</span>
+        }
+      </button>
     </div>
+  </div>
 
-    <div class="purge-actions">
-        <div class="purge-section">
-            <h4>Purge Calls</h4>
-            <p class="mat-caption">
-                Delete all radio calls including audio recordings, transcripts, and metadata.
-            </p>
-            <button 
-                mat-raised-button 
-                color="warn" 
-                (click)="purgeCalls()"
-                [disabled]="purgingCalls">
-                <mat-icon *ngIf="!purgingCalls">delete_forever</mat-icon>
-                <mat-spinner diameter="20" *ngIf="purgingCalls"></mat-spinner>
-                <span *ngIf="!purgingCalls">Purge All Calls</span>
-                <span *ngIf="purgingCalls">Purging...</span>
-            </button>
-        </div>
+  <!-- Selective Delete Section -->
+  <div class="selective-delete-section">
+    <mat-expansion-panel [(expanded)]="showSelectiveLogs" (afterExpand)="logsPanelOpened()">
+      <mat-expansion-panel-header>
+        <mat-panel-title>
+          <mat-icon>checklist</mat-icon>
+          Selective Delete - Logs
+        </mat-panel-title>
+        <mat-panel-description>
+          Select and delete specific logs
+          @if (selectedLogIds.size > 0) {
+            <span class="selected-count">
+              ({{ selectedLogIds.size }} selected)
+            </span>
+          }
+        </mat-panel-description>
+      </mat-expansion-panel-header>
 
-        <div class="purge-section">
-            <h4>Purge Logs</h4>
-            <p class="mat-caption">
-                Delete all system logs including errors, warnings, and info messages.
-            </p>
-            <button 
-                mat-raised-button 
-                color="warn" 
-                (click)="purgeLogs()"
-                [disabled]="purgingLogs">
-                <mat-icon *ngIf="!purgingLogs">delete_forever</mat-icon>
-                <mat-spinner diameter="20" *ngIf="purgingLogs"></mat-spinner>
-                <span *ngIf="!purgingLogs">Purge All Logs</span>
-                <span *ngIf="purgingLogs">Purging...</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Selective Delete Section -->
-    <div class="selective-delete-section">
-        <mat-expansion-panel [(expanded)]="showSelectiveLogs" (afterExpand)="logsPanelOpened()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>checklist</mat-icon>
-                    Selective Delete - Logs
-                </mat-panel-title>
-                <mat-panel-description>
-                    Select and delete specific logs
-                    <span *ngIf="selectedLogIds.size > 0" class="selected-count">
-                        ({{ selectedLogIds.size }} selected)
-                    </span>
-                </mat-panel-description>
-            </mat-expansion-panel-header>
-
-            <div *ngIf="showSelectiveLogs" class="selective-content">
-                <div class="selection-actions" *ngIf="logsQuery && logsQuery.logs.length > 0">
-                    <button mat-button (click)="selectAllLogsOnPage()" [disabled]="logsQueryPending">
-                        Select All on Page
-                    </button>
-                    <button mat-button (click)="selectAllLogsInBatch()" [disabled]="logsQueryPending">
-                        Select All in Batch ({{ logsQuery.logs.length }})
-                    </button>
-                    <button mat-button (click)="deselectAllLogs()" [disabled]="logsQueryPending">
-                        Deselect All
-                    </button>
-                    <button 
-                        mat-raised-button 
-                        color="warn" 
-                        (click)="deleteSelectedLogs()"
-                        [disabled]="purgingLogs || selectedLogIds.size === 0">
-                        <mat-icon>delete</mat-icon>
-                        Delete Selected ({{ selectedLogIds.size }})
-                    </button>
-                </div>
-
-                <mat-table [dataSource]="logs">
-                    <ng-container matColumnDef="select">
-                        <mat-header-cell *matHeaderCellDef>
-                            <mat-checkbox (change)="selectAllLogsOnPage()"></mat-checkbox>
-                        </mat-header-cell>
-                        <mat-cell *matCellDef="let log">
-                            <mat-checkbox 
-                                [checked]="isLogSelected(log?.id)"
-                                (change)="toggleLogSelection(log?.id)"
-                                [disabled]="!log || logsQueryPending">
-                            </mat-checkbox>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="level">
-                        <mat-header-cell *matHeaderCellDef>Level</mat-header-cell>
-                        <mat-cell *matCellDef="let log">
-                            <mat-icon *ngIf="log?.level === 'error'" class="error">error</mat-icon>
-                            <mat-icon *ngIf="log?.level === 'info'" class="info">notifications</mat-icon>
-                            <mat-icon *ngIf="log?.level === 'warn'" class="warn">warning</mat-icon>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="date">
-                        <mat-header-cell *matHeaderCellDef>Date</mat-header-cell>
-                        <mat-cell *matCellDef="let log">
-                            <span>{{ log?.dateTime | date:'MM/dd' }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="time">
-                        <mat-header-cell *matHeaderCellDef>Time</mat-header-cell>
-                        <mat-cell *matCellDef="let log">
-                            <span>{{ log?.dateTime | date:'HH:mm' }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="message">
-                        <mat-header-cell *matHeaderCellDef>Message</mat-header-cell>
-                        <mat-cell *matCellDef="let log">
-                            <span>{{ log?.message }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <mat-header-row *matHeaderRowDef="['select', 'level', 'date', 'time', 'message']"></mat-header-row>
-                    <mat-row *matRowDef="let row; columns: ['select', 'level', 'date', 'time', 'message']"></mat-row>
-                </mat-table>
-
-                <mat-paginator 
-                    #logsPaginator
-                    [disabled]="logsQueryPending" 
-                    [length]="logsQuery?.count || 0" 
-                    [hidePageSize]="true"
-                    [pageSize]="logs.value.length" 
-                    [showFirstLastButtons]="true" 
-                    (page)="refreshLogs()">
-                </mat-paginator>
-
-                <form autocomplete="off" [formGroup]="logsForm">
-                    <mat-form-field>
-                        <mat-label>Sort order</mat-label>
-                        <mat-select formControlName="sort" (selectionChange)="reloadLogs()">
-                            <mat-option [value]="1">Ascending</mat-option>
-                            <mat-option [value]="-1">Descending</mat-option>
-                        </mat-select>
-                    </mat-form-field>
-                    <mat-form-field>
-                        <mat-label>Date & Time</mat-label>
-                        <input 
-                            matInput 
-                            type="datetime-local" 
-                            formControlName="date" 
-                            placeholder="YYYY-MM-DDTHH:MM"
-                            (change)="reloadLogs()" autocomplete="off">
-                    </mat-form-field>
-                    <mat-form-field>
-                        <mat-label>Level</mat-label>
-                        <mat-select formControlName="level" (selectionChange)="reloadLogs()">
-                            <mat-option value="info">Informative</mat-option>
-                            <mat-option value="warn">Warning</mat-option>
-                            <mat-option value="error">Error</mat-option>
-                        </mat-select>
-                    </mat-form-field>
-                    <button type="button" mat-raised-button [disabled]="logsQueryPending" (click)="reloadLogs()">
-                        Reload
-                    </button>
-                </form>
+      @if (showSelectiveLogs) {
+        <div class="selective-content">
+          @if (logsQuery && logsQuery.logs.length > 0) {
+            <div class="selection-actions">
+              <button mat-button (click)="selectAllLogsOnPage()" [disabled]="logsQueryPending">
+                Select All on Page
+              </button>
+              <button mat-button (click)="selectAllLogsInBatch()" [disabled]="logsQueryPending">
+                Select All in Batch ({{ logsQuery.logs.length }})
+              </button>
+              <button mat-button (click)="deselectAllLogs()" [disabled]="logsQueryPending">
+                Deselect All
+              </button>
+              <button
+                mat-raised-button
+                color="warn"
+                (click)="deleteSelectedLogs()"
+                [disabled]="purgingLogs || selectedLogIds.size === 0">
+                <mat-icon>delete</mat-icon>
+                Delete Selected ({{ selectedLogIds.size }})
+              </button>
             </div>
-        </mat-expansion-panel>
+          }
+          <mat-table [dataSource]="logs">
+            <ng-container matColumnDef="select">
+              <mat-header-cell *matHeaderCellDef>
+                <mat-checkbox (change)="selectAllLogsOnPage()"></mat-checkbox>
+              </mat-header-cell>
+              <mat-cell *matCellDef="let log">
+                <mat-checkbox
+                  [checked]="isLogSelected($safeNavigationMigration(log?.id))"
+                  (change)="toggleLogSelection($safeNavigationMigration(log?.id))"
+                  [disabled]="!log || logsQueryPending">
+                </mat-checkbox>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="level">
+              <mat-header-cell *matHeaderCellDef>Level</mat-header-cell>
+              <mat-cell *matCellDef="let log">
+                @if (log?.level === 'error') {
+                  <mat-icon class="error">error</mat-icon>
+                }
+                @if (log?.level === 'info') {
+                  <mat-icon class="info">notifications</mat-icon>
+                }
+                @if (log?.level === 'warn') {
+                  <mat-icon class="warn">warning</mat-icon>
+                }
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="date">
+              <mat-header-cell *matHeaderCellDef>Date</mat-header-cell>
+              <mat-cell *matCellDef="let log">
+                <span>{{ $safeNavigationMigration(log?.dateTime) | date:'MM/dd' }}</span>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="time">
+              <mat-header-cell *matHeaderCellDef>Time</mat-header-cell>
+              <mat-cell *matCellDef="let log">
+                <span>{{ $safeNavigationMigration(log?.dateTime) | date:'HH:mm' }}</span>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="message">
+              <mat-header-cell *matHeaderCellDef>Message</mat-header-cell>
+              <mat-cell *matCellDef="let log">
+                <span>{{ log?.message }}</span>
+              </mat-cell>
+            </ng-container>
+            <mat-header-row *matHeaderRowDef="['select', 'level', 'date', 'time', 'message']"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: ['select', 'level', 'date', 'time', 'message']"></mat-row>
+          </mat-table>
+          <mat-paginator
+            #logsPaginator
+            [disabled]="logsQueryPending"
+            [length]="logsQuery?.count || 0"
+            [hidePageSize]="true"
+            [pageSize]="logs.value.length"
+            [showFirstLastButtons]="true"
+            (page)="refreshLogs()">
+          </mat-paginator>
+          <form autocomplete="off" [formGroup]="logsForm">
+            <mat-form-field>
+              <mat-label>Sort order</mat-label>
+              <mat-select formControlName="sort" (selectionChange)="reloadLogs()">
+                <mat-option [value]="1">Ascending</mat-option>
+                <mat-option [value]="-1">Descending</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Date & Time</mat-label>
+              <input
+                matInput
+                type="datetime-local"
+                formControlName="date"
+                placeholder="YYYY-MM-DDTHH:MM"
+                (change)="reloadLogs()" autocomplete="off">
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Level</mat-label>
+              <mat-select formControlName="level" (selectionChange)="reloadLogs()">
+                <mat-option value="info">Informative</mat-option>
+                <mat-option value="warn">Warning</mat-option>
+                <mat-option value="error">Error</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <button type="button" mat-raised-button [disabled]="logsQueryPending" (click)="reloadLogs()">
+              Reload
+            </button>
+          </form>
+        </div>
+      }
+    </mat-expansion-panel>
 
-        <!-- Selective Delete - Calls -->
-        <mat-expansion-panel [(expanded)]="showSelectiveCalls" (afterExpand)="callsPanelOpened()">
-            <mat-expansion-panel-header>
-                <mat-panel-title>
-                    <mat-icon>checklist</mat-icon>
-                    Selective Delete - Calls
-                </mat-panel-title>
-                <mat-panel-description>
-                    Select and delete specific calls
-                    <span *ngIf="selectedCallIds.size > 0" class="selected-count">
-                        ({{ selectedCallIds.size }} selected)
-                    </span>
-                </mat-panel-description>
-            </mat-expansion-panel-header>
+    <!-- Selective Delete - Calls -->
+    <mat-expansion-panel [(expanded)]="showSelectiveCalls" (afterExpand)="callsPanelOpened()">
+      <mat-expansion-panel-header>
+        <mat-panel-title>
+          <mat-icon>checklist</mat-icon>
+          Selective Delete - Calls
+        </mat-panel-title>
+        <mat-panel-description>
+          Select and delete specific calls
+          @if (selectedCallIds.size > 0) {
+            <span class="selected-count">
+              ({{ selectedCallIds.size }} selected)
+            </span>
+          }
+        </mat-panel-description>
+      </mat-expansion-panel-header>
 
-            <div *ngIf="showSelectiveCalls" class="selective-content">
-                <div class="selection-actions" *ngIf="callsQuery && callsQuery.results.length > 0">
-                    <button mat-button (click)="selectAllCallsOnPage()" [disabled]="callsQueryPending">
-                        Select All on Page
-                    </button>
-                    <button mat-button (click)="selectAllCallsInBatch()" [disabled]="callsQueryPending">
-                        Select All in Batch ({{ callsQuery.results.length }})
-                    </button>
-                    <button mat-button (click)="deselectAllCalls()" [disabled]="callsQueryPending">
-                        Deselect All
-                    </button>
-                    <button 
-                        mat-raised-button 
-                        color="warn" 
-                        (click)="deleteSelectedCalls()"
-                        [disabled]="purgingCalls || selectedCallIds.size === 0">
-                        <mat-icon>delete</mat-icon>
-                        Delete Selected ({{ selectedCallIds.size }})
-                    </button>
-                </div>
-
-                <mat-table [dataSource]="calls">
-                    <ng-container matColumnDef="select">
-                        <mat-header-cell *matHeaderCellDef>
-                            <mat-checkbox (change)="selectAllCallsOnPage()"></mat-checkbox>
-                        </mat-header-cell>
-                        <mat-cell *matCellDef="let call">
-                            <mat-checkbox 
-                                [checked]="isCallSelected(call?.id)"
-                                (change)="toggleCallSelection(call?.id)"
-                                [disabled]="!call || callsQueryPending">
-                            </mat-checkbox>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="id">
-                        <mat-header-cell *matHeaderCellDef>ID</mat-header-cell>
-                        <mat-cell *matCellDef="let call">
-                            <span>{{ call?.id }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="date">
-                        <mat-header-cell *matHeaderCellDef>Date</mat-header-cell>
-                        <mat-cell *matCellDef="let call">
-                            <span>{{ call?.dateTime | date:'MM/dd' }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="time">
-                        <mat-header-cell *matHeaderCellDef>Time</mat-header-cell>
-                        <mat-cell *matCellDef="let call">
-                            <span>{{ call?.dateTime | date:'HH:mm' }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="system">
-                        <mat-header-cell *matHeaderCellDef>System</mat-header-cell>
-                        <mat-cell *matCellDef="let call">
-                            <span>{{ getSystemLabel(call?.system || 0) || call?.system }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <ng-container matColumnDef="talkgroup">
-                        <mat-header-cell *matHeaderCellDef>Talkgroup</mat-header-cell>
-                        <mat-cell *matCellDef="let call">
-                            <span>{{ getTalkgroupLabel(call?.system || 0, call?.talkgroup || 0) || call?.talkgroup }}</span>
-                        </mat-cell>
-                    </ng-container>
-                    <mat-header-row *matHeaderRowDef="['select', 'id', 'date', 'time', 'system', 'talkgroup']"></mat-header-row>
-                    <mat-row *matRowDef="let row; columns: ['select', 'id', 'date', 'time', 'system', 'talkgroup']"></mat-row>
-                </mat-table>
-
-                <mat-paginator 
-                    #callsPaginator
-                    [disabled]="callsQueryPending" 
-                    [length]="callsQuery?.count || 0" 
-                    [hidePageSize]="true"
-                    [pageSize]="calls.value.length" 
-                    [showFirstLastButtons]="true" 
-                    (page)="refreshCalls()">
-                </mat-paginator>
-
-                <form autocomplete="off" [formGroup]="callsForm">
-                    <mat-form-field>
-                        <mat-label>Sort order</mat-label>
-                        <mat-select formControlName="sort" (selectionChange)="reloadCalls()">
-                            <mat-option [value]="1">Ascending</mat-option>
-                            <mat-option [value]="-1">Descending</mat-option>
-                        </mat-select>
-                    </mat-form-field>
-                    <mat-form-field>
-                        <mat-label>Date & Time</mat-label>
-                        <input 
-                            matInput 
-                            type="datetime-local" 
-                            formControlName="date" 
-                            placeholder="YYYY-MM-DDTHH:MM"
-                            (change)="reloadCalls()" autocomplete="off">
-                    </mat-form-field>
-                    <mat-form-field>
-                        <mat-label>System</mat-label>
-                        <mat-select formControlName="system" (selectionChange)="callsForm.patchValue({talkgroup: null}); reloadCalls()">
-                            <mat-option [value]="null">All Systems</mat-option>
-                            <mat-option *ngFor="let system of getSystems()" [value]="system.id">
-                                {{ system.label }}
-                            </mat-option>
-                        </mat-select>
-                    </mat-form-field>
-                    <mat-form-field *ngIf="callsForm.get('system')?.value">
-                        <mat-label>Talkgroup</mat-label>
-                        <mat-select formControlName="talkgroup" (selectionChange)="reloadCalls()">
-                            <mat-option [value]="null">All Talkgroups</mat-option>
-                            <mat-option *ngFor="let talkgroup of getTalkgroups(callsForm.get('system')?.value)" [value]="talkgroup.id">
-                                {{ talkgroup.label }}
-                            </mat-option>
-                        </mat-select>
-                    </mat-form-field>
-                    <button type="button" mat-raised-button [disabled]="callsQueryPending" (click)="reloadCalls()">
-                        Reload
-                    </button>
-                </form>
+      @if (showSelectiveCalls) {
+        <div class="selective-content">
+          @if (callsQuery && callsQuery.results.length > 0) {
+            <div class="selection-actions">
+              <button mat-button (click)="selectAllCallsOnPage()" [disabled]="callsQueryPending">
+                Select All on Page
+              </button>
+              <button mat-button (click)="selectAllCallsInBatch()" [disabled]="callsQueryPending">
+                Select All in Batch ({{ callsQuery.results.length }})
+              </button>
+              <button mat-button (click)="deselectAllCalls()" [disabled]="callsQueryPending">
+                Deselect All
+              </button>
+              <button
+                mat-raised-button
+                color="warn"
+                (click)="deleteSelectedCalls()"
+                [disabled]="purgingCalls || selectedCallIds.size === 0">
+                <mat-icon>delete</mat-icon>
+                Delete Selected ({{ selectedCallIds.size }})
+              </button>
             </div>
-        </mat-expansion-panel>
-    </div>
+          }
+          <mat-table [dataSource]="calls">
+            <ng-container matColumnDef="select">
+              <mat-header-cell *matHeaderCellDef>
+                <mat-checkbox (change)="selectAllCallsOnPage()"></mat-checkbox>
+              </mat-header-cell>
+              <mat-cell *matCellDef="let call">
+                <mat-checkbox
+                  [checked]="isCallSelected($safeNavigationMigration(call?.id))"
+                  (change)="toggleCallSelection($safeNavigationMigration(call?.id))"
+                  [disabled]="!call || callsQueryPending">
+                </mat-checkbox>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="id">
+              <mat-header-cell *matHeaderCellDef>ID</mat-header-cell>
+              <mat-cell *matCellDef="let call">
+                <span>{{ call?.id }}</span>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="date">
+              <mat-header-cell *matHeaderCellDef>Date</mat-header-cell>
+              <mat-cell *matCellDef="let call">
+                <span>{{ $safeNavigationMigration(call?.dateTime) | date:'MM/dd' }}</span>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="time">
+              <mat-header-cell *matHeaderCellDef>Time</mat-header-cell>
+              <mat-cell *matCellDef="let call">
+                <span>{{ $safeNavigationMigration(call?.dateTime) | date:'HH:mm' }}</span>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="system">
+              <mat-header-cell *matHeaderCellDef>System</mat-header-cell>
+              <mat-cell *matCellDef="let call">
+                <span>{{ getSystemLabel(call?.system || 0) || call?.system }}</span>
+              </mat-cell>
+            </ng-container>
+            <ng-container matColumnDef="talkgroup">
+              <mat-header-cell *matHeaderCellDef>Talkgroup</mat-header-cell>
+              <mat-cell *matCellDef="let call">
+                <span>{{ getTalkgroupLabel(call?.system || 0, call?.talkgroup || 0) || call?.talkgroup }}</span>
+              </mat-cell>
+            </ng-container>
+            <mat-header-row *matHeaderRowDef="['select', 'id', 'date', 'time', 'system', 'talkgroup']"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: ['select', 'id', 'date', 'time', 'system', 'talkgroup']"></mat-row>
+          </mat-table>
+          <mat-paginator
+            #callsPaginator
+            [disabled]="callsQueryPending"
+            [length]="callsQuery?.count || 0"
+            [hidePageSize]="true"
+            [pageSize]="calls.value.length"
+            [showFirstLastButtons]="true"
+            (page)="refreshCalls()">
+          </mat-paginator>
+          <form autocomplete="off" [formGroup]="callsForm">
+            <mat-form-field>
+              <mat-label>Sort order</mat-label>
+              <mat-select formControlName="sort" (selectionChange)="reloadCalls()">
+                <mat-option [value]="1">Ascending</mat-option>
+                <mat-option [value]="-1">Descending</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Date & Time</mat-label>
+              <input
+                matInput
+                type="datetime-local"
+                formControlName="date"
+                placeholder="YYYY-MM-DDTHH:MM"
+                (change)="reloadCalls()" autocomplete="off">
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>System</mat-label>
+              <mat-select formControlName="system" (selectionChange)="callsForm.patchValue({talkgroup: null}); reloadCalls()">
+                <mat-option [value]="null">All Systems</mat-option>
+                @for (system of getSystems(); track system) {
+                  <mat-option [value]="system.id">
+                    {{ system.label }}
+                  </mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            @if (callsForm.get('system')?.value) {
+              <mat-form-field>
+                <mat-label>Talkgroup</mat-label>
+                <mat-select formControlName="talkgroup" (selectionChange)="reloadCalls()">
+                  <mat-option [value]="null">All Talkgroups</mat-option>
+                  @for (talkgroup of getTalkgroups($safeNavigationMigration(callsForm.get('system')?.value)); track talkgroup) {
+                    <mat-option [value]="talkgroup.id">
+                      {{ talkgroup.label }}
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+            <button type="button" mat-raised-button [disabled]="callsQueryPending" (click)="reloadCalls()">
+              Reload
+            </button>
+          </form>
+        </div>
+      }
+    </mat-expansion-panel>
+  </div>
 </div>
 

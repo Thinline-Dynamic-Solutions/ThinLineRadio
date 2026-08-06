@@ -15,6 +15,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
     templateUrl: './lcd-frame.component.html',
     styleUrls: ['./lcd-frame.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerLcdFrameComponent {
     /** Toggle the CRT scanline overlay on top of the LCD face. */

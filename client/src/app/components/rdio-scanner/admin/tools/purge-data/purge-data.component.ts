@@ -1,4 +1,4 @@
-import { Component, ViewChild } from '@angular/core';
+import { Component, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -8,7 +8,9 @@ import { Log, LogsQuery, LogsQueryOptions, CallSearchResult, CallsQuery, CallsQu
 @Component({
     selector: 'rdio-scanner-admin-purge-data',
     templateUrl: './purge-data.component.html',
-    styleUrls: ['./purge-data.component.scss']
+    styleUrls: ['./purge-data.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminPurgeDataComponent {
     purgingCalls = false;

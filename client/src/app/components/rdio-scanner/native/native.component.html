@@ -1,18 +1,18 @@
 <div>
-    <div>
-        <p>Did you know that Thinline&nbsp;Radio works natively on {{ deviceType }} devices?</p>
-    </div>
-    <div>
-        <ng-container *ngIf="isAndroid">
-            <a href="https://play.google.com/store/apps/details?id=com.thinlinedynamicsolutions.ohiorsn" target="_blank">
-                <google-play-badge></google-play-badge>
-            </a>
-        </ng-container>
-        <ng-container *ngIf="isApple">
-            <a href="https://apps.apple.com/us/app/ohiorsn/id6740734031" target="_blank">
-                <app-store-badge></app-store-badge>
-            </a>
-        </ng-container>
-    </div>
+  <div>
+    <p>Did you know that Thinline&nbsp;Radio works natively on {{ deviceType }} devices?</p>
+  </div>
+  <div>
+    @if (isAndroid) {
+      <a href="https://play.google.com/store/apps/details?id=com.thinlinedynamicsolutions.ohiorsn" target="_blank">
+        <google-play-badge></google-play-badge>
+      </a>
+    }
+    @if (isApple) {
+      <a href="https://apps.apple.com/us/app/ohiorsn/id6740734031" target="_blank">
+        <app-store-badge></app-store-badge>
+      </a>
+    }
+  </div>
 </div>
 <div class="countdown">{{ countdown }}</div>

@@ -1,56 +1,217 @@
 /*
  * ThinLine skin — Material component overrides (global)
  *
- * The scanner UI uses mat.define-light-theme(); expansion panels and a few
- * other widgets stay white unless we override them here. Scoped under
+ * The scanner UI uses mat.define-light-theme(); expansion panels, tabs, and
+ * form fields stay white unless we override them here. Scoped under
  * `.thinline-skin` so admin views are unaffected.
+ *
+ * UI chrome uses --tlr-accent (cyan). Neon green is reserved for LEDs
+ * (--tlr-led-green), not page chrome.
  */
 
-/* mat-tab bodies use the light-theme canvas; with `height: 100%` on
-   `.mat-mdc-tab-body-content` the white shows below short tab content
-   and flashes briefly during tab switches. */
 .thinline-skin {
+    /* ── Tab bodies / board canvas ───────────────────────────────────── */
     .mat-mdc-tab-body,
     .mat-mdc-tab-body-active,
     .mat-mdc-tab-body-content {
         background: var(--tlr-board-surface) !important;
+        color: var(--tlr-text);
+    }
+
+    /* ── LCD tab strip ───────────────────────────────────────────────── */
+    .mat-mdc-tab-header {
+        background: linear-gradient(180deg, #1a1f26 0%, #14181e 100%) !important;
+        border-bottom: 1px solid var(--tlr-header-divider) !important;
+    }
+
+    .mat-mdc-tab-labels {
+        gap: 2px;
+        padding: 3px 8px 0 !important;
+    }
+
+    .mat-mdc-tab {
+        opacity: 1 !important;
+        min-width: 88px !important;
+        height: 40px !important;
+        padding: 0 12px !important;
+        border-radius: 8px 8px 0 0;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .mat-mdc-tab .mdc-tab__text-label {
+        color: var(--tlr-nav-inactive) !important;
+        font-family: var(--tlr-font-primary) !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.1em !important;
+        text-transform: uppercase !important;
+    }
+
+    .mat-mdc-tab.mdc-tab--active {
+        background: rgba(126, 200, 232, 0.08) !important;
+    }
+
+    .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+        color: var(--tlr-accent) !important;
+        text-shadow: none;
+    }
+
+    .mat-mdc-tab:not(.mdc-tab--active):hover {
+        background: rgba(255, 255, 255, 0.04) !important;
+    }
+
+    .mdc-tab-indicator .mdc-tab-indicator__content--underline {
+        border-color: var(--tlr-accent) !important;
+        border-top-width: 2px !important;
+        box-shadow: none;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────── */
+    .mat-mdc-raised-button.mat-primary,
+    .mat-mdc-unelevated-button.mat-primary {
+        --mdc-protected-button-container-color: var(--tlr-accent);
+        --mdc-protected-button-label-text-color: #0a1014;
+        --mdc-filled-button-container-color: var(--tlr-accent);
+        --mdc-filled-button-label-text-color: #0a1014;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+    }
+
+    .mat-mdc-outlined-button {
+        --mdc-outlined-button-outline-color: rgba(126, 200, 232, 0.4);
+        --mdc-outlined-button-label-text-color: var(--tlr-accent);
+    }
+
+    .mat-mdc-button.mat-warn,
+    .mat-mdc-outlined-button.mat-warn {
+        --mdc-text-button-label-text-color: var(--tlr-error);
+        --mdc-outlined-button-label-text-color: var(--tlr-error);
+        --mdc-outlined-button-outline-color: rgba(255, 23, 68, 0.4);
+    }
+
+    /* ── Form fields (outline) ───────────────────────────────────────── */
+    .mat-mdc-form-field {
+        --mdc-outlined-text-field-container-shape: 8px;
+        --mdc-outlined-text-field-outline-color: rgba(255, 255, 255, 0.18);
+        --mdc-outlined-text-field-hover-outline-color: rgba(126, 200, 232, 0.45);
+        --mdc-outlined-text-field-focus-outline-color: var(--tlr-accent);
+        --mdc-outlined-text-field-label-text-color: var(--tlr-text-secondary);
+        --mdc-outlined-text-field-input-text-color: var(--tlr-text);
+        --mdc-filled-text-field-container-color: rgba(0, 0, 0, 0.35);
+        --mdc-filled-text-field-input-text-color: var(--tlr-text);
+        --mdc-filled-text-field-label-text-color: var(--tlr-text-secondary);
+    }
+
+    .mat-mdc-form-field .mat-mdc-text-field-wrapper {
+        background: rgba(0, 0, 0, 0.28);
+    }
+
+    .mat-mdc-select-value,
+    .mat-mdc-select-arrow {
+        color: var(--tlr-text);
+    }
+
+    /* ── Cards / panels / snackbars ──────────────────────────────────── */
+    .mat-mdc-card {
+        background: rgba(0, 0, 0, 0.28) !important;
+        color: var(--tlr-text) !important;
+        border: 1px solid var(--tlr-bezel-border) !important;
+        border-radius: 10px !important;
+        box-shadow: none !important;
+    }
+
+    .mat-mdc-snack-bar-container {
+        --mdc-snackbar-container-color: #1a222a;
+        --mdc-snackbar-supporting-text-color: var(--tlr-text);
+    }
+
+    .mat-mdc-progress-spinner circle,
+    .mat-mdc-progress-bar .mdc-linear-progress__bar-inner {
+        stroke: var(--tlr-accent);
+    }
+
+    /* ── Tables ──────────────────────────────────────────────────────── */
+    .mat-mdc-table {
+        background: transparent !important;
+        color: var(--tlr-text);
+    }
+
+    .mat-mdc-header-row {
+        background: rgba(0, 0, 0, 0.35) !important;
+    }
+
+    .mat-mdc-header-cell {
+        color: var(--tlr-accent) !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        border-bottom-color: var(--tlr-header-divider) !important;
+    }
+
+    .mat-mdc-cell {
+        color: var(--tlr-text) !important;
+        border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+        font-size: 12px;
+    }
+
+    .mat-mdc-row:hover {
+        background: rgba(126, 200, 232, 0.06) !important;
+    }
+
+    /* ── Checkbox / slide-toggle accents ─────────────────────────────── */
+    .mat-mdc-checkbox.mat-primary {
+        --mdc-checkbox-selected-checkmark-color: #0a1014;
+        --mdc-checkbox-selected-focus-icon-color: var(--tlr-accent);
+        --mdc-checkbox-selected-hover-icon-color: var(--tlr-accent);
+        --mdc-checkbox-selected-icon-color: var(--tlr-accent);
+        --mdc-checkbox-selected-pressed-icon-color: var(--tlr-accent);
+    }
+
+    .mat-mdc-slide-toggle.mat-primary {
+        --mdc-switch-selected-track-color: rgba(126, 200, 232, 0.45);
+        --mdc-switch-selected-handle-color: var(--tlr-accent);
+        --mdc-switch-selected-hover-handle-color: var(--tlr-accent);
+        --mdc-switch-selected-pressed-handle-color: var(--tlr-accent);
+        --mdc-switch-selected-focus-handle-color: var(--tlr-accent);
     }
 }
 
+/* Alerts expansion panels (full tab + board embed) */
 .thinline-skin rdio-scanner-alerts {
     .alerts-list .mat-expansion-panel.alert-group-panel {
-        background: var(--tlr-lcd-gradient) !important;
+        background: rgba(0, 0, 0, 0.28) !important;
         color: var(--tlr-text) !important;
         border: 1px solid var(--tlr-bezel-border) !important;
-        border-radius: 4px !important;
+        border-radius: 8px !important;
         box-shadow: none !important;
 
         &:hover {
-            border-color: rgba(57, 255, 20, 0.22) !important;
-            box-shadow: 0 0 10px rgba(57, 255, 20, 0.08) !important;
+            border-color: rgba(126, 200, 232, 0.28) !important;
+            box-shadow: none !important;
         }
 
         .mat-expansion-panel-header {
             background: transparent !important;
             color: var(--tlr-text) !important;
-            min-height: 30px !important;
-            height: 30px !important;
-            padding: 0 6px 0 8px !important;
+            min-height: 34px !important;
+            height: 34px !important;
+            padding: 0 8px 0 10px !important;
 
             &:hover,
             &:focus {
-                background: rgba(57, 255, 20, 0.04) !important;
+                background: rgba(126, 200, 232, 0.05) !important;
             }
         }
 
         &.mat-expanded > .mat-expansion-panel-header {
-            background: rgba(57, 255, 20, 0.03) !important;
+            background: rgba(126, 200, 232, 0.04) !important;
         }
 
         .mat-expansion-panel-body {
-            background: var(--tlr-lcd-gradient) !important;
+            background: transparent !important;
             border-top: 1px solid var(--tlr-header-divider);
-            padding: 4px 6px 6px;
+            padding: 6px 8px 8px;
         }
 
         .mat-expansion-indicator::after {
@@ -72,8 +233,8 @@
             }
 
             .group-type-chip.channel {
-                background: rgba(57, 255, 20, 0.1);
-                border-color: rgba(57, 255, 20, 0.35);
+                background: rgba(126, 200, 232, 0.1);
+                border-color: rgba(126, 200, 232, 0.35);
                 box-shadow: none;
             }
 
@@ -82,7 +243,7 @@
             }
 
             .group-name {
-                color: var(--tlr-primary) !important;
+                color: var(--tlr-accent) !important;
                 font-family: var(--tlr-font-primary);
                 font-size: 11px !important;
                 font-weight: 600;
@@ -113,6 +274,6 @@
     }
 
     .alerts-list .mat-expansion-panel.alert-group-panel.channel-alert-group {
-        border-left: 2px solid var(--tlr-primary) !important;
+        border-left: 2px solid var(--tlr-accent) !important;
     }
 }

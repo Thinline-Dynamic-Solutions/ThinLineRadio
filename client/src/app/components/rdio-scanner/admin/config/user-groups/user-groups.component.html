@@ -2,660 +2,677 @@
   <div class="header-actions admin-section-bar">
     <p class="admin-section-hint">Create groups, set access limits, and assign system/talkgroup permissions.</p>
     <div class="admin-section-actions">
-    <button mat-raised-button color="primary" (click)="createGroup()" *ngIf="!showCreateForm">
-      Create New Group
-    </button>
-    <button mat-raised-button (click)="loadGroups()" [disabled]="loading">
-      Refresh
-    </button>
+      @if (!showCreateForm) {
+        <button mat-raised-button color="primary" (click)="createGroup()">
+          Create New Group
+        </button>
+      }
+      <button mat-raised-button (click)="loadGroups()" [disabled]="loading">
+        Refresh
+      </button>
     </div>
   </div>
 
-  <div *ngIf="showCreateForm" class="create-form">
-    <h4>{{ editingGroup ? 'Edit Group' : 'Create New Group' }}</h4>
-    <form [formGroup]="groupForm" (ngSubmit)="saveGroup()" autocomplete="off">
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Group Name</mat-label>
-        <input matInput formControlName="name" required autocomplete="off">
-        <mat-error *ngIf="groupForm.get('name')?.hasError('required')">
-          Name is required
-        </mat-error>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Description</mat-label>
-        <textarea matInput formControlName="description" rows="3"></textarea>
-      </mat-form-field>
-
-      <div class="form-section">
-        <h4>System Access</h4>
-        <p class="mat-caption">Select systems this group can access and optionally restrict to specific talkgroups. Leave empty to allow access to all systems.</p>
-        
-        <div *ngFor="let access of selectedSystemAccess; let i = index" class="system-access-entry">
-          <mat-form-field appearance="outline" class="system-select">
-            <mat-label>System</mat-label>
-            <mat-select [(ngModel)]="access.id" [ngModelOptions]="{standalone: true}" (ngModelChange)="onSystemSelected(i, $event)">
-              <mat-option *ngFor="let system of getSystemsForAccessRow(i)" [value]="system.systemRef">
-                {{ system.label || ('System ' + system.systemRef) }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-          
-          <div *ngIf="access.id > 0" class="talkgroup-selection">
-            <div class="talkgroup-controls">
-              <button mat-button type="button" 
-                      (click)="hasTalkgroupsSelected(access) ? unselectAllTalkgroups(i) : selectAllTalkgroups(i)">
-                <mat-icon>{{ hasTalkgroupsSelected(access) ? 'deselect' : 'select_all' }}</mat-icon>
-                {{ hasTalkgroupsSelected(access) ? 'Unselect All Talkgroups' : 'Select All Talkgroups' }}
-              </button>
-              <span class="talkgroup-status">
-                {{ access.talkgroups === '*' ? 'All talkgroups' : getTalkgroupCount(access) + ' talkgroups selected' }}
-              </span>
-            </div>
-            <div class="talkgroups-list" *ngIf="getTalkgroupsForSystemAccess(access.id).length > 0">
-              <mat-checkbox 
-                *ngFor="let tg of getTalkgroupsForSystemAccess(access.id)"
-                [checked]="isTalkgroupSelected(i, tg.talkgroupRef)"
-                (change)="toggleTalkgroupInSystem(i, tg.talkgroupRef, $event)">
-                {{ tg.label || ('Talkgroup ' + tg.talkgroupRef) }}
-              </mat-checkbox>
-            </div>
-          </div>
-          
-          <button mat-icon-button type="button" (click)="removeSystemAccess(i)" color="warn">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </div>
-        <button mat-button type="button" (click)="addSystemAccess()">
-          <mat-icon>add</mat-icon>
-          Add System
-        </button>
-      </div>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Default Delay (minutes)</mat-label>
-        <input matInput type="number" formControlName="delay" min="0" autocomplete="off">
-        <mat-hint>Default delay for all systems and talkgroups. Set to 0 to disable.</mat-hint>
-      </mat-form-field>
-
-      <div class="form-section">
-        <h4>System-Specific Delays</h4>
-        <p class="mat-caption">Override default delay for specific systems.</p>
-        <div *ngFor="let entry of systemDelayEntries; let i = index" class="delay-entry">
-          <mat-form-field appearance="outline" class="system-select">
-            <mat-label>System</mat-label>
-            <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}">
-              <mat-option *ngFor="let system of systems" [value]="system.systemRef">
-                {{ system.label || ('System ' + system.systemRef) }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="delay-input">
-            <mat-label>Delay (minutes)</mat-label>
-            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
-          </mat-form-field>
-          <button mat-icon-button type="button" (click)="removeSystemDelay(i)" color="warn">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </div>
-        <button mat-button type="button" (click)="addSystemDelay()">
-          <mat-icon>add</mat-icon>
-          Add System Delay
-        </button>
-      </div>
-
-      <div class="form-section">
-        <h4>Talkgroup-Specific Delays</h4>
-        <p class="mat-caption">Override default delay for specific talkgroups.</p>
-        <div *ngFor="let entry of talkgroupDelayEntries; let i = index" class="delay-entry">
-          <mat-form-field appearance="outline" class="system-select">
-            <mat-label>System</mat-label>
-            <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}" (ngModelChange)="onTalkgroupDelaySystemSelected(i)">
-              <mat-option *ngFor="let system of systems" [value]="system.systemRef">
-                {{ system.label || ('System ' + system.systemRef) }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="talkgroup-select" *ngIf="entry.systemId > 0">
-            <mat-label>Talkgroup</mat-label>
-            <mat-select [(ngModel)]="entry.talkgroupId" [ngModelOptions]="{standalone: true}">
-              <mat-option *ngFor="let talkgroup of getTalkgroupsForSystem(entry.systemId)" [value]="talkgroup.talkgroupRef">
-                {{ talkgroup.label || ('Talkgroup ' + talkgroup.talkgroupRef) }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="delay-input">
-            <mat-label>Delay (minutes)</mat-label>
-            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
-          </mat-form-field>
-          <button mat-icon-button type="button" (click)="removeTalkgroupDelay(i)" color="warn">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </div>
-        <button mat-button type="button" (click)="addTalkgroupDelay()">
-          <mat-icon>add</mat-icon>
-          Add Talkgroup Delay
-        </button>
-      </div>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Connection Limit</mat-label>
-        <input matInput type="number" formControlName="connectionLimit" min="0" autocomplete="off">
-        <mat-hint>Per-user connection limit (0 = unlimited)</mat-hint>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Max Users</mat-label>
-        <input matInput type="number" formControlName="maxUsers" min="0" autocomplete="off">
-        <mat-hint>Maximum number of users allowed in this group (0 = unlimited). Only system admin can modify.</mat-hint>
-      </mat-form-field>
-
-      <mat-checkbox formControlName="billingEnabled">Billing Enabled</mat-checkbox>
-      
-      <div *ngIf="groupForm.get('billingEnabled')?.value" class="form-section">
-        <h4>Billing Settings</h4>
-        
+  @if (showCreateForm) {
+    <div class="create-form">
+      <h4>{{ editingGroup ? 'Edit Group' : 'Create New Group' }}</h4>
+      <form [formGroup]="groupForm" (ngSubmit)="saveGroup()" autocomplete="off">
         <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Billing Mode</mat-label>
-          <mat-select formControlName="billingMode">
-            <mat-option value="all_users">All Users (each user has their own customer ID)</mat-option>
-            <mat-option value="group_admin">Group Admin (all admins share one customer ID)</mat-option>
-          </mat-select>
-          <mat-hint>How billing is handled for users in this group</mat-hint>
+          <mat-label>Group Name</mat-label>
+          <input matInput formControlName="name" required autocomplete="off">
+          @if (groupForm.get('name')?.hasError('required')) {
+            <mat-error>
+              Name is required
+            </mat-error>
+          }
         </mat-form-field>
-
-        <h5 style="margin-top: 20px; margin-bottom: 10px;">Pricing Options (up to 3)</h5>
-        <p class="mat-caption" style="margin-bottom: 15px;">Configure different pricing tiers (e.g., Monthly, Yearly, Lifetime). At least one is required.</p>
-        
-        <div formArrayName="pricingOptions">
-          <div *ngFor="let option of pricingOptionsArray.controls; let i = index" [formGroupName]="i" class="pricing-option">
-            <div class="pricing-option-header">
-              <strong>Option {{i + 1}}</strong>
-              <button mat-icon-button color="warn" type="button" (click)="removePricingOption(i)" 
-                      [disabled]="pricingOptionsArray.length <= 1">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Description</mat-label>
+          <textarea matInput formControlName="description" rows="3"></textarea>
+        </mat-form-field>
+        <div class="form-section">
+          <h4>System Access</h4>
+          <p class="mat-caption">
+            Choose which systems and talkgroups this group can access.
+            Leave as <strong>All</strong> to allow every system.
+          </p>
+          <div class="system-access-picker">
+            <span class="access-badge"
+              [class.access-all]="systemAccessIsAll"
+              [class.access-custom]="!systemAccessIsAll">
+              {{ systemAccessIsAll ? 'All' : 'Custom' }}
+            </span>
+            <span class="system-access-summary">{{ systemAccessSummary }}</span>
+            <button type="button" mat-stroked-button color="primary" (click)="selectGroupSystems()">
+              <mat-icon>tune</mat-icon>
+              Choose Systems
+            </button>
+          </div>
+        </div>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Default Delay (minutes)</mat-label>
+          <input matInput type="number" formControlName="delay" min="0" autocomplete="off">
+          <mat-hint>Default delay for all systems and talkgroups. Set to 0 to disable.</mat-hint>
+        </mat-form-field>
+        <div class="form-section">
+          <h4>System-Specific Delays</h4>
+          <p class="mat-caption">Override default delay for specific systems.</p>
+          @for (entry of systemDelayEntries; track entry; let i = $index) {
+            <div class="delay-entry">
+              <mat-form-field appearance="outline" class="system-select">
+                <mat-label>System</mat-label>
+                <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}">
+                  @for (system of systems; track system) {
+                    <mat-option [value]="system.systemRef">
+                      {{ system.label || ('System ' + system.systemRef) }}
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="delay-input">
+                <mat-label>Delay (minutes)</mat-label>
+                <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeSystemDelay(i)" color="warn">
                 <mat-icon>delete</mat-icon>
               </button>
             </div>
-            
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Stripe Price ID</mat-label>
-              <input matInput type="text" formControlName="priceId" placeholder="price_1234567890" autocomplete="off">
-              <mat-hint>Stripe Price ID from your Stripe Dashboard</mat-hint>
-              <mat-error *ngIf="option.get('priceId')?.hasError('required')">Price ID is required</mat-error>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Label</mat-label>
-              <input matInput type="text" formControlName="label" placeholder="e.g., Monthly, Yearly" autocomplete="off">
-              <mat-hint>Display label for this pricing option</mat-hint>
-              <mat-error *ngIf="option.get('label')?.hasError('required')">Label is required</mat-error>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Display Amount</mat-label>
-              <input matInput type="text" formControlName="amount" placeholder="e.g., $10/month, $100/year" autocomplete="off">
-              <mat-hint>Price to display to users (e.g., "$10/month")</mat-hint>
-              <mat-error *ngIf="option.get('amount')?.hasError('required')">Amount is required</mat-error>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Trial Period</mat-label>
-              <mat-select formControlName="trialDays">
-                <mat-option [value]="0">No Trial</mat-option>
-                <mat-option [value]="1">1 Day</mat-option>
-                <mat-option [value]="3">3 Days</mat-option>
-                <mat-option [value]="7">7 Days</mat-option>
-                <mat-option [value]="14">14 Days</mat-option>
-                <mat-option [value]="21">21 Days</mat-option>
-                <mat-option [value]="30">30 Days</mat-option>
-              </mat-select>
-              <mat-hint>Trial period for this pricing option (Stripe API requirement)</mat-hint>
-            </mat-form-field>
-          </div>
-        </div>
-
-        <button mat-stroked-button type="button" (click)="addPricingOption()" 
-                [disabled]="pricingOptionsArray.length >= 3" style="margin-top: 10px;">
-          <mat-icon>add</mat-icon>
-          Add Pricing Option
-        </button>
-
-        <mat-form-field appearance="outline" class="full-width" style="margin-top: 20px;">
-          <mat-label>Tax Collection Mode</mat-label>
-          <mat-select formControlName="taxMode">
-            <mat-option value="none">None — No tax collected</mat-option>
-            <mat-option value="automatic">Automatic — Stripe calculates tax by customer address</mat-option>
-            <mat-option value="fixed">Fixed Rate — Apply a specific Stripe Tax Rate ID</mat-option>
-          </mat-select>
-          <mat-hint>Choose how sales tax is collected at checkout.</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width" *ngIf="groupForm.get('taxMode')?.value === 'fixed'" style="margin-top: 10px;">
-          <mat-label>Stripe Tax Rate ID</mat-label>
-          <input matInput formControlName="stripeTaxRateId" placeholder="txr_xxxxxxxxxxxxxxxx" autocomplete="off">
-          <mat-hint>Enter the Tax Rate ID from your Stripe Dashboard (Products → Tax rates). No customer address required.</mat-hint>
-        </mat-form-field>
-        <p class="mat-caption" *ngIf="groupForm.get('taxMode')?.value === 'automatic'" style="margin-top: 5px; margin-bottom: 15px;">
-          Stripe Automatic Tax will prompt the customer for their billing address during checkout. Ensure you have configured your origin address in the Stripe Tax settings.
-        </p>
-
-        <div *ngIf="editingGroup && groupForm.get('taxMode')?.value === 'fixed' && groupForm.get('stripeTaxRateId')?.value" style="margin-top: 10px; margin-bottom: 15px;">
-          <button mat-stroked-button color="accent" type="button" (click)="applyTaxRateToExistingSubscriptions(editingGroup)">
-            <mat-icon>sync</mat-icon>
-            Apply Tax Rate to Existing Subscribers
+          }
+          <button mat-button type="button" (click)="addSystemDelay()">
+            <mat-icon>add</mat-icon>
+            Add System Delay
           </button>
-          <p class="mat-caption" style="margin-top: 4px;">
-            Updates all current active subscriptions in this group to include this tax rate. New subscribers are covered automatically.
-          </p>
         </div>
-      </div>
-
-      <mat-checkbox formControlName="isPublicRegistration">Public Registration Group</mat-checkbox>
-      <mat-checkbox formControlName="allowAddExistingUsers">Allow Group Admins to Add Existing Users</mat-checkbox>
-
-      <!-- Group Admin header + mode selector at form level -->
-      <div class="form-section" *ngIf="!editingGroup">
-        <h4>Group Admin (Optional)</h4>
-        <p class="mat-caption">Assign an existing user or create a new user as the group admin.</p>
-        <mat-radio-group [(ngModel)]="groupAdminMode" [ngModelOptions]="{standalone: true}" (ngModelChange)="onGroupAdminModeChange()">
-          <mat-radio-button value="none">No Group Admin</mat-radio-button>
-          <mat-radio-button value="existing">Assign Existing User</mat-radio-button>
-          <mat-radio-button value="new">Create New User</mat-radio-button>
-        </mat-radio-group>
-      </div>
-
-      <!-- Group Admin: single searchable select -->
-      <div *ngIf="!editingGroup && groupAdminMode === 'existing'" class="admin-option">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Select Group Admin</mat-label>
-          <mat-select formControlName="groupAdminUserId" (openedChange)="userSearchQuery=''">
-            <div class="select-search-box" (click)="$event.stopPropagation()">
-              <mat-icon>search</mat-icon>
-              <input [(ngModel)]="userSearchQuery"
-                     [ngModelOptions]="{standalone: true}"
-                     placeholder="Search by email or name…"
-                     (keydown)="$event.stopPropagation()"
-                     (ngModelChange)="onUserSearchChange()" autocomplete="off">
+        <div class="form-section">
+          <h4>Talkgroup-Specific Delays</h4>
+          <p class="mat-caption">Override default delay for specific talkgroups.</p>
+          @for (entry of talkgroupDelayEntries; track entry; let i = $index) {
+            <div class="delay-entry">
+              <mat-form-field appearance="outline" class="system-select">
+                <mat-label>System</mat-label>
+                <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}" (ngModelChange)="onTalkgroupDelaySystemSelected(i)">
+                  @for (system of systems; track system) {
+                    <mat-option [value]="system.systemRef">
+                      {{ system.label || ('System ' + system.systemRef) }}
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              @if (entry.systemId > 0) {
+                <mat-form-field appearance="outline" class="talkgroup-select">
+                  <mat-label>Talkgroup</mat-label>
+                  <mat-select [(ngModel)]="entry.talkgroupId" [ngModelOptions]="{standalone: true}">
+                    @for (talkgroup of getTalkgroupsForSystem(entry.systemId); track talkgroup) {
+                      <mat-option [value]="talkgroup.talkgroupRef">
+                        {{ talkgroup.label || ('Talkgroup ' + talkgroup.talkgroupRef) }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
+              <mat-form-field appearance="outline" class="delay-input">
+                <mat-label>Delay (minutes)</mat-label>
+                <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeTalkgroupDelay(i)" color="warn">
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
-            <mat-option [value]="0">— None —</mat-option>
-            <mat-option *ngFor="let user of filteredUsers" [value]="user.id">
-              {{ user.email }}{{ getUserName(user) ? '  ·  ' + getUserName(user) : '' }}
-            </mat-option>
-            <mat-option *ngIf="filteredUsers.length === 0" disabled>No users match</mat-option>
-          </mat-select>
+          }
+          <button mat-button type="button" (click)="addTalkgroupDelay()">
+            <mat-icon>add</mat-icon>
+            Add Talkgroup Delay
+          </button>
+        </div>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Connection Limit</mat-label>
+          <input matInput type="number" formControlName="connectionLimit" min="0" autocomplete="off">
+          <mat-hint>Per-user connection limit (0 = unlimited)</mat-hint>
         </mat-form-field>
-      </div>
-
-      <div *ngIf="!editingGroup && groupAdminMode === 'new'" class="form-section admin-option">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Email</mat-label>
-            <input matInput type="email" formControlName="newGroupAdminEmail" required autocomplete="off">
-            <mat-error *ngIf="groupForm.get('newGroupAdminEmail')?.hasError('required')">
-              Email is required
-            </mat-error>
-            <mat-error *ngIf="groupForm.get('newGroupAdminEmail')?.hasError('email')">
-              Please enter a valid email
-            </mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Password</mat-label>
-            <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="newGroupAdminPassword" required minlength="6">
-            <mat-error *ngIf="groupForm.get('newGroupAdminPassword')?.hasError('required')">
-              Password is required
-            </mat-error>
-            <mat-error *ngIf="groupForm.get('newGroupAdminPassword')?.hasError('minlength')">
-              Password must be at least 6 characters
-            </mat-error>
-          </mat-form-field>
-
-          <div class="form-row">
-            <mat-form-field appearance="outline" class="half-width">
-              <mat-label>First Name</mat-label>
-              <input matInput type="text" formControlName="newGroupAdminFirstName" required autocomplete="off">
-              <mat-error *ngIf="groupForm.get('newGroupAdminFirstName')?.hasError('required')">
-                First name is required
-              </mat-error>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Max Users</mat-label>
+          <input matInput type="number" formControlName="maxUsers" min="0" autocomplete="off">
+          <mat-hint>Maximum number of users allowed in this group (0 = unlimited). Only system admin can modify.</mat-hint>
+        </mat-form-field>
+        <mat-checkbox formControlName="billingEnabled">Billing Enabled</mat-checkbox>
+        @if (groupForm.get('billingEnabled')?.value) {
+          <div class="form-section">
+            <h4>Billing Settings</h4>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Billing Mode</mat-label>
+              <mat-select formControlName="billingMode">
+                <mat-option value="all_users">All Users (each user has their own customer ID)</mat-option>
+                <mat-option value="group_admin">Group Admin (all admins share one customer ID)</mat-option>
+              </mat-select>
+              <mat-hint>How billing is handled for users in this group</mat-hint>
             </mat-form-field>
-
-            <mat-form-field appearance="outline" class="half-width">
-              <mat-label>Last Name</mat-label>
-              <input matInput type="text" formControlName="newGroupAdminLastName" required autocomplete="off">
-              <mat-error *ngIf="groupForm.get('newGroupAdminLastName')?.hasError('required')">
-                Last name is required
-              </mat-error>
+            <h5 style="margin-top: 20px; margin-bottom: 10px;">Pricing Options (up to 3)</h5>
+            <p class="mat-caption" style="margin-bottom: 15px;">Configure different pricing tiers (e.g., Monthly, Yearly, Lifetime). At least one is required.</p>
+            <div formArrayName="pricingOptions">
+              @for (option of pricingOptionsArray.controls; track option; let i = $index) {
+                <div [formGroupName]="i" class="pricing-option">
+                  <div class="pricing-option-header">
+                    <strong>Option {{i + 1}}</strong>
+                    <button mat-icon-button color="warn" type="button" (click)="removePricingOption(i)"
+                      [disabled]="pricingOptionsArray.length <= 1">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Stripe Price ID</mat-label>
+                    <input matInput type="text" formControlName="priceId" placeholder="price_1234567890" autocomplete="off">
+                    <mat-hint>Stripe Price ID from your Stripe Dashboard</mat-hint>
+                    @if (option.get('priceId')?.hasError('required')) {
+                      <mat-error>Price ID is required</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Label</mat-label>
+                    <input matInput type="text" formControlName="label" placeholder="e.g., Monthly, Yearly" autocomplete="off">
+                    <mat-hint>Display label for this pricing option</mat-hint>
+                    @if (option.get('label')?.hasError('required')) {
+                      <mat-error>Label is required</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Display Amount</mat-label>
+                    <input matInput type="text" formControlName="amount" placeholder="e.g., $10/month, $100/year" autocomplete="off">
+                    <mat-hint>Price to display to users (e.g., "$10/month")</mat-hint>
+                    @if (option.get('amount')?.hasError('required')) {
+                      <mat-error>Amount is required</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Trial Period</mat-label>
+                    <mat-select formControlName="trialDays">
+                      <mat-option [value]="0">No Trial</mat-option>
+                      <mat-option [value]="1">1 Day</mat-option>
+                      <mat-option [value]="3">3 Days</mat-option>
+                      <mat-option [value]="7">7 Days</mat-option>
+                      <mat-option [value]="14">14 Days</mat-option>
+                      <mat-option [value]="21">21 Days</mat-option>
+                      <mat-option [value]="30">30 Days</mat-option>
+                    </mat-select>
+                    <mat-hint>Trial period for this pricing option (Stripe API requirement)</mat-hint>
+                  </mat-form-field>
+                </div>
+              }
+            </div>
+            <button mat-stroked-button type="button" (click)="addPricingOption()"
+              [disabled]="pricingOptionsArray.length >= 3" style="margin-top: 10px;">
+              <mat-icon>add</mat-icon>
+              Add Pricing Option
+            </button>
+            <mat-form-field appearance="outline" class="full-width" style="margin-top: 20px;">
+              <mat-label>Tax Collection Mode</mat-label>
+              <mat-select formControlName="taxMode">
+                <mat-option value="none">None — No tax collected</mat-option>
+                <mat-option value="automatic">Automatic — Stripe calculates tax by customer address</mat-option>
+                <mat-option value="fixed">Fixed Rate — Apply a specific Stripe Tax Rate ID</mat-option>
+              </mat-select>
+              <mat-hint>Choose how sales tax is collected at checkout.</mat-hint>
+            </mat-form-field>
+            @if (groupForm.get('taxMode')?.value === 'fixed') {
+              <mat-form-field appearance="outline" class="full-width" style="margin-top: 10px;">
+                <mat-label>Stripe Tax Rate ID</mat-label>
+                <input matInput formControlName="stripeTaxRateId" placeholder="txr_xxxxxxxxxxxxxxxx" autocomplete="off">
+                <mat-hint>Enter the Tax Rate ID from your Stripe Dashboard (Products → Tax rates). No customer address required.</mat-hint>
+              </mat-form-field>
+            }
+            @if (groupForm.get('taxMode')?.value === 'automatic') {
+              <p class="mat-caption" style="margin-top: 5px; margin-bottom: 15px;">
+                Stripe Automatic Tax will prompt the customer for their billing address during checkout. Ensure you have configured your origin address in the Stripe Tax settings.
+              </p>
+            }
+            @if (editingGroup && groupForm.get('taxMode')?.value === 'fixed' && groupForm.get('stripeTaxRateId')?.value) {
+              <div style="margin-top: 10px; margin-bottom: 15px;">
+                <button mat-stroked-button color="accent" type="button" (click)="applyTaxRateToExistingSubscriptions(editingGroup)">
+                  <mat-icon>sync</mat-icon>
+                  Apply Tax Rate to Existing Subscribers
+                </button>
+                <p class="mat-caption" style="margin-top: 4px;">
+                  Updates all current active subscriptions in this group to include this tax rate. New subscribers are covered automatically.
+                </p>
+              </div>
+            }
+          </div>
+        }
+        <mat-checkbox formControlName="isPublicRegistration">Public Registration Group</mat-checkbox>
+        <mat-checkbox formControlName="allowAddExistingUsers">Allow Group Admins to Add Existing Users</mat-checkbox>
+        <!-- Group Admin header + mode selector at form level -->
+        @if (!editingGroup) {
+          <div class="form-section">
+            <h4>Group Admin (Optional)</h4>
+            <p class="mat-caption">Assign an existing user or create a new user as the group admin.</p>
+            <mat-radio-group [(ngModel)]="groupAdminMode" [ngModelOptions]="{standalone: true}" (ngModelChange)="onGroupAdminModeChange()">
+              <mat-radio-button value="none">No Group Admin</mat-radio-button>
+              <mat-radio-button value="existing">Assign Existing User</mat-radio-button>
+              <mat-radio-button value="new">Create New User</mat-radio-button>
+            </mat-radio-group>
+          </div>
+        }
+        <!-- Group Admin: single searchable select -->
+        @if (!editingGroup && groupAdminMode === 'existing') {
+          <div class="admin-option">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Select Group Admin</mat-label>
+              <mat-select formControlName="groupAdminUserId" (openedChange)="userSearchQuery=''">
+                <div class="select-search-box" (click)="$event.stopPropagation()">
+                  <mat-icon>search</mat-icon>
+                  <input [(ngModel)]="userSearchQuery"
+                    [ngModelOptions]="{standalone: true}"
+                    placeholder="Search by email or name…"
+                    (keydown)="$event.stopPropagation()"
+                    (ngModelChange)="onUserSearchChange()" autocomplete="off">
+                </div>
+                <mat-option [value]="0">— None —</mat-option>
+                @for (user of filteredUsers; track user) {
+                  <mat-option [value]="user.id">
+                    {{ user.email }}{{ getUserName(user) ? '  ·  ' + getUserName(user) : '' }}
+                  </mat-option>
+                }
+                @if (filteredUsers.length === 0) {
+                  <mat-option disabled>No users match</mat-option>
+                }
+              </mat-select>
             </mat-form-field>
           </div>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>ZIP Code</mat-label>
-            <input matInput type="text" formControlName="newGroupAdminZipCode" required pattern="^\d{5}(-\d{4})?$" autocomplete="off">
-            <mat-error *ngIf="groupForm.get('newGroupAdminZipCode')?.hasError('required')">
-              ZIP code is required
-            </mat-error>
-            <mat-error *ngIf="groupForm.get('newGroupAdminZipCode')?.hasError('pattern')">
-              Please enter a valid ZIP code
-            </mat-error>
-          </mat-form-field>
-      </div>
-
-      <div class="form-actions">
-        <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
-        <button mat-raised-button color="primary" type="submit" [disabled]="groupForm.invalid">
-          {{ editingGroup ? 'Update' : 'Create' }}
-        </button>
-      </div>
-    </form>
-  </div>
-
-  <div *ngIf="loading" class="loading">
-    <mat-spinner diameter="40"></mat-spinner>
-  </div>
-
-  <table mat-table [dataSource]="groups" *ngIf="!loading && !showCreateForm" class="groups-table">
-    <ng-container matColumnDef="name">
-      <th mat-header-cell *matHeaderCellDef>Name</th>
-      <td mat-cell *matCellDef="let group">{{ group.name }}</td>
-    </ng-container>
-
-    <ng-container matColumnDef="description">
-      <th mat-header-cell *matHeaderCellDef>Description</th>
-      <td mat-cell *matCellDef="let group">{{ group.description }}</td>
-    </ng-container>
-
-    <ng-container matColumnDef="billingEnabled">
-      <th mat-header-cell *matHeaderCellDef>Billing</th>
-      <td mat-cell *matCellDef="let group">
-        <mat-icon [class.enabled]="group.billingEnabled" [class.disabled]="!group.billingEnabled">
-          {{ group.billingEnabled ? 'check_circle' : 'cancel' }}
-        </mat-icon>
-      </td>
-    </ng-container>
-
-    <ng-container matColumnDef="isPublicRegistration">
-      <th mat-header-cell *matHeaderCellDef>Public Registration</th>
-      <td mat-cell *matCellDef="let group">
-        <mat-icon [class.enabled]="group.isPublicRegistration" [class.disabled]="!group.isPublicRegistration">
-          {{ group.isPublicRegistration ? 'check_circle' : 'cancel' }}
-        </mat-icon>
-      </td>
-    </ng-container>
-
-    <ng-container matColumnDef="actions">
-      <th mat-header-cell *matHeaderCellDef>Actions</th>
-      <td mat-cell *matCellDef="let group">
-        <button mat-icon-button (click)="editGroup(group)" matTooltip="Edit Group">
-          <mat-icon>edit</mat-icon>
-        </button>
-        <button mat-icon-button (click)="openCodesDialog(group)" matTooltip="Manage Registration Codes">
-          <mat-icon>vpn_key</mat-icon>
-        </button>
-        <button mat-icon-button (click)="openViewAdminsDialog(group)" matTooltip="View/Manage Group Admins" color="primary">
-          <mat-icon>admin_panel_settings</mat-icon>
-        </button>
-        <button mat-icon-button color="warn" (click)="deleteGroup(group.id)" matTooltip="Delete Group">
-          <mat-icon>delete</mat-icon>
-        </button>
-      </td>
-    </ng-container>
-
-    <tr mat-header-row *matHeaderRowDef="['name', 'description', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
-    <tr mat-row *matRowDef="let row; columns: ['name', 'description', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
-  </table>
-
-<!-- Delete Group Dialog -->
-<div class="codes-dialog-overlay" *ngIf="showDeleteGroupDialog" (click)="cancelGroupDelete()">
-  <div class="codes-dialog" (click)="$event.stopPropagation()">
-    <div class="dialog-header">
-      <h2>Delete Group: {{ groupToDelete?.name }}</h2>
-      <button mat-icon-button (click)="cancelGroupDelete()">
-        <mat-icon>close</mat-icon>
-      </button>
-    </div>
-    
-    <div class="dialog-content">
-      <p class="mat-body-1">This group has {{ usersInGroupToDelete.length }} user(s).</p>
-      <p class="mat-body-2">What would you like to do with the users?</p>
-      
-      <mat-radio-group [(ngModel)]="targetGroupIdForMove" class="delete-options" (change)="onDeleteOptionChange()">
-        <mat-radio-button [value]="null">
-          <strong>Unassign users</strong>
-          <div class="mat-caption">Keep users but remove them from this group</div>
-        </mat-radio-button>
-        
-        <mat-radio-button [value]="-1" *ngIf="availableGroupsForMove.length > 0">
-          <strong>Move users to another group</strong>
-          <div class="mat-caption">Select a group below</div>
-        </mat-radio-button>
-        
-        <mat-radio-button [value]="-2">
-          <strong>Delete users</strong>
-          <div class="mat-caption">Permanently delete all users in this group</div>
-        </mat-radio-button>
-      </mat-radio-group>
-      
-      <mat-form-field appearance="outline" class="full-width" *ngIf="targetGroupIdForMove === -1">
-        <mat-label>Target Group</mat-label>
-        <mat-select [(ngModel)]="selectedTargetGroupId" required (selectionChange)="onTargetGroupSelected($event)">
-          <mat-option *ngFor="let g of availableGroupsForMove" [value]="g.id">
-            {{ g.name }}
-          </mat-option>
-        </mat-select>
-      </mat-form-field>
-    </div>
-    
-    <div class="dialog-actions">
-      <button mat-button (click)="cancelGroupDelete()">Cancel</button>
-      <button mat-raised-button color="warn" (click)="confirmGroupDelete()" 
-              [disabled]="targetGroupIdForMove === -1 && !selectedTargetGroupId">
-        Delete Group
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- Registration Codes Dialog -->
-<div class="codes-dialog-overlay" *ngIf="showCodesDialog" (click)="closeCodesDialog()">
-  <div class="codes-dialog" (click)="$event.stopPropagation()">
-    <div class="dialog-header">
-      <h2>Registration Codes - {{ selectedGroupForCodes?.name }}</h2>
-      <button mat-icon-button (click)="closeCodesDialog()">
-        <mat-icon>close</mat-icon>
-      </button>
-    </div>
-
-    <div class="dialog-content">
-      <div class="generate-code-section">
-        <h3>Add Registration Code</h3>
-        <div class="form-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Code</mat-label>
-            <input matInput [(ngModel)]="newCodeForm.code" placeholder="Leave blank to auto-generate" style="text-transform: uppercase;" autocomplete="off">
-            <mat-hint>Custom code or leave blank to auto-generate</mat-hint>
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Label (Optional)</mat-label>
-            <input matInput [(ngModel)]="newCodeForm.label" placeholder="e.g. Fire Dept, Station 4" autocomplete="off">
-            <mat-hint>A name to help identify this code</mat-hint>
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Expiration Date</mat-label>
-            <input matInput [matDatepicker]="expirationPicker" [(ngModel)]="newCodeForm.expiresAt" placeholder="Leave empty for no expiration" autocomplete="off">
-            <mat-datepicker-toggle matSuffix [for]="expirationPicker"></mat-datepicker-toggle>
-            <mat-datepicker #expirationPicker></mat-datepicker>
-            <mat-hint>Leave empty for no expiration</mat-hint>
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Max Uses</mat-label>
-            <input matInput type="number" [(ngModel)]="newCodeForm.maxUses" placeholder="0 for unlimited" autocomplete="off">
-            <mat-hint>0 for unlimited</mat-hint>
-          </mat-form-field>
+        }
+        @if (!editingGroup && groupAdminMode === 'new') {
+          <div class="form-section admin-option">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Email</mat-label>
+              <input matInput type="email" formControlName="newGroupAdminEmail" required autocomplete="off">
+              @if (groupForm.get('newGroupAdminEmail')?.hasError('required')) {
+                <mat-error>
+                  Email is required
+                </mat-error>
+              }
+              @if (groupForm.get('newGroupAdminEmail')?.hasError('email')) {
+                <mat-error>
+                  Please enter a valid email
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Password</mat-label>
+              <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="newGroupAdminPassword" required minlength="6">
+              @if (groupForm.get('newGroupAdminPassword')?.hasError('required')) {
+                <mat-error>
+                  Password is required
+                </mat-error>
+              }
+              @if (groupForm.get('newGroupAdminPassword')?.hasError('minlength')) {
+                <mat-error>
+                  Password must be at least 6 characters
+                </mat-error>
+              }
+            </mat-form-field>
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>First Name</mat-label>
+                <input matInput type="text" formControlName="newGroupAdminFirstName" required autocomplete="off">
+                @if (groupForm.get('newGroupAdminFirstName')?.hasError('required')) {
+                  <mat-error>
+                    First name is required
+                  </mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Last Name</mat-label>
+                <input matInput type="text" formControlName="newGroupAdminLastName" required autocomplete="off">
+                @if (groupForm.get('newGroupAdminLastName')?.hasError('required')) {
+                  <mat-error>
+                    Last name is required
+                  </mat-error>
+                }
+              </mat-form-field>
+            </div>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>ZIP Code</mat-label>
+              <input matInput type="text" formControlName="newGroupAdminZipCode" required pattern="^\d{5}(-\d{4})?$" autocomplete="off">
+              @if (groupForm.get('newGroupAdminZipCode')?.hasError('required')) {
+                <mat-error>
+                  ZIP code is required
+                </mat-error>
+              }
+              @if (groupForm.get('newGroupAdminZipCode')?.hasError('pattern')) {
+                <mat-error>
+                  Please enter a valid ZIP code
+                </mat-error>
+              }
+            </mat-form-field>
+          </div>
+        }
+        <div class="form-actions">
+          <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="groupForm.invalid">
+            {{ editingGroup ? 'Update' : 'Create' }}
+          </button>
         </div>
-        <div class="form-row-actions">
-          <mat-checkbox [(ngModel)]="newCodeForm.isOneTime">One-time use</mat-checkbox>
-          <button mat-raised-button color="primary" (click)="generateCode()" [disabled]="generatingCode">
-            Add Code
+      </form>
+    </div>
+  }
+
+  @if (loading) {
+    <div class="loading">
+      <mat-spinner diameter="40"></mat-spinner>
+    </div>
+  }
+
+  @if (!loading && !showCreateForm) {
+    <table mat-table [dataSource]="groups" class="groups-table">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let group">{{ group.name }}</td>
+      </ng-container>
+      <ng-container matColumnDef="description">
+        <th mat-header-cell *matHeaderCellDef>Description</th>
+        <td mat-cell *matCellDef="let group">{{ group.description }}</td>
+      </ng-container>
+      <ng-container matColumnDef="billingEnabled">
+        <th mat-header-cell *matHeaderCellDef>Billing</th>
+        <td mat-cell *matCellDef="let group">
+          <mat-icon [class.enabled]="group.billingEnabled" [class.disabled]="!group.billingEnabled">
+            {{ group.billingEnabled ? 'check_circle' : 'cancel' }}
+          </mat-icon>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="isPublicRegistration">
+        <th mat-header-cell *matHeaderCellDef>Public Registration</th>
+        <td mat-cell *matCellDef="let group">
+          <mat-icon [class.enabled]="group.isPublicRegistration" [class.disabled]="!group.isPublicRegistration">
+            {{ group.isPublicRegistration ? 'check_circle' : 'cancel' }}
+          </mat-icon>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let group">
+          <button mat-icon-button (click)="editGroup(group)" matTooltip="Edit Group">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button (click)="openCodesDialog(group)" matTooltip="Manage Registration Codes">
+            <mat-icon>vpn_key</mat-icon>
+          </button>
+          <button mat-icon-button (click)="openViewAdminsDialog(group)" matTooltip="View/Manage Group Admins" color="primary">
+            <mat-icon>admin_panel_settings</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="deleteGroup(group.id)" matTooltip="Delete Group">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="['name', 'description', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
+      <tr mat-row *matRowDef="let row; columns: ['name', 'description', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
+    </table>
+  }
+
+  <!-- Delete Group Dialog -->
+  @if (showDeleteGroupDialog) {
+    <div class="codes-dialog-overlay" (click)="cancelGroupDelete()">
+      <div class="codes-dialog" (click)="$event.stopPropagation()">
+        <div class="dialog-header">
+          <h2>Delete Group: {{ groupToDelete?.name }}</h2>
+          <button mat-icon-button (click)="cancelGroupDelete()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="dialog-content">
+          <p class="mat-body-1">This group has {{ usersInGroupToDelete.length }} user(s).</p>
+          <p class="mat-body-2">What would you like to do with the users?</p>
+          <mat-radio-group [(ngModel)]="targetGroupIdForMove" class="delete-options" (change)="onDeleteOptionChange()">
+            <mat-radio-button [value]="null">
+              <strong>Unassign users</strong>
+              <div class="mat-caption">Keep users but remove them from this group</div>
+            </mat-radio-button>
+            @if (availableGroupsForMove.length > 0) {
+              <mat-radio-button [value]="-1">
+                <strong>Move users to another group</strong>
+                <div class="mat-caption">Select a group below</div>
+              </mat-radio-button>
+            }
+            <mat-radio-button [value]="-2">
+              <strong>Delete users</strong>
+              <div class="mat-caption">Permanently delete all users in this group</div>
+            </mat-radio-button>
+          </mat-radio-group>
+          @if (targetGroupIdForMove === -1) {
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Target Group</mat-label>
+              <mat-select [(ngModel)]="selectedTargetGroupId" required (selectionChange)="onTargetGroupSelected($event)">
+                @for (g of availableGroupsForMove; track g) {
+                  <mat-option [value]="g.id">
+                    {{ g.name }}
+                  </mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          }
+        </div>
+        <div class="dialog-actions">
+          <button mat-button (click)="cancelGroupDelete()">Cancel</button>
+          <button mat-raised-button color="warn" (click)="confirmGroupDelete()"
+            [disabled]="targetGroupIdForMove === -1 && !selectedTargetGroupId">
+            Delete Group
           </button>
         </div>
       </div>
-
-      <div *ngIf="loadingCodes" class="loading">
-        <mat-spinner diameter="40"></mat-spinner>
-      </div>
-
-      <table mat-table [dataSource]="codes" *ngIf="!loadingCodes && codes.length > 0" class="codes-table">
-        <ng-container matColumnDef="label">
-          <th mat-header-cell *matHeaderCellDef>Label</th>
-          <td mat-cell *matCellDef="let code">{{ code.label || '—' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="code">
-          <th mat-header-cell *matHeaderCellDef>Code</th>
-          <td mat-cell *matCellDef="let code">{{ code.code }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="uses">
-          <th mat-header-cell *matHeaderCellDef>Uses</th>
-          <td mat-cell *matCellDef="let code">
-            {{ code.currentUses }} / {{ code.maxUses === 0 ? '∞' : code.maxUses }}
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="expiresAt">
-          <th mat-header-cell *matHeaderCellDef>Expires</th>
-          <td mat-cell *matCellDef="let code">{{ formatDate(code.expiresAt) }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="isOneTime">
-          <th mat-header-cell *matHeaderCellDef>One-time</th>
-          <td mat-cell *matCellDef="let code">
-            <mat-icon>{{ code.isOneTime ? 'check' : 'close' }}</mat-icon>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="isActive">
-          <th mat-header-cell *matHeaderCellDef>Active</th>
-          <td mat-cell *matCellDef="let code">
-            <mat-icon [class.active]="code.isActive" [class.inactive]="!code.isActive">
-              {{ code.isActive ? 'check_circle' : 'cancel' }}
-            </mat-icon>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef>Actions</th>
-          <td mat-cell *matCellDef="let code">
-            <button mat-icon-button color="warn" (click)="deleteCode(code.id)" matTooltip="Delete Code">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="['label', 'code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
-        <tr mat-row *matRowDef="let row; columns: ['label', 'code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
-      </table>
-      <p *ngIf="!loadingCodes && codes.length === 0" class="empty-message">No registration codes generated yet</p>
     </div>
-  </div>
-</div>
+  }
 
-<!-- Group Admins Dialog (list + assign view in one overlay) -->
-<div class="codes-dialog-overlay" *ngIf="showViewAdminsDialog" (click)="showAssignView ? cancelAssignView() : closeViewAdminsDialog()">
-  <div class="codes-dialog" (click)="$event.stopPropagation()">
-
-    <!-- Header changes based on view -->
-    <div class="dialog-header">
-      <h2>{{ showAssignView ? 'Assign Group Admin — ' + selectedGroupForViewAdmins?.name : 'Group Admins — ' + selectedGroupForViewAdmins?.name }}</h2>
-      <button mat-icon-button (click)="showAssignView ? cancelAssignView() : closeViewAdminsDialog()">
-        <mat-icon>close</mat-icon>
-      </button>
-    </div>
-
-    <!-- ── LIST VIEW ── -->
-    <div class="dialog-content" *ngIf="!showAssignView">
-      <div class="dialog-actions" style="margin-bottom: 20px;">
-        <button mat-raised-button color="primary" (click)="openAssignAdminDialog(selectedGroupForViewAdmins!)">
-          <mat-icon>person_add</mat-icon>
-          Assign New Group Admin
-        </button>
-      </div>
-
-      <div *ngIf="loadingGroupAdmins" class="loading">
-        <mat-spinner diameter="40"></mat-spinner>
-      </div>
-
-      <table mat-table [dataSource]="groupAdmins" *ngIf="!loadingGroupAdmins && groupAdmins.length > 0" class="codes-table">
-        <ng-container matColumnDef="email">
-          <th mat-header-cell *matHeaderCellDef>Email</th>
-          <td mat-cell *matCellDef="let admin">{{ admin.email }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="name">
-          <th mat-header-cell *matHeaderCellDef>Name</th>
-          <td mat-cell *matCellDef="let admin">{{ admin.firstName }} {{ admin.lastName }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef>Actions</th>
-          <td mat-cell *matCellDef="let admin">
-            <button mat-icon-button color="warn" (click)="removeGroupAdmin(admin.id)" matTooltip="Remove Group Admin">
-              <mat-icon>remove_moderator</mat-icon>
-            </button>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="['email', 'name', 'actions']"></tr>
-        <tr mat-row *matRowDef="let row; columns: ['email', 'name', 'actions']"></tr>
-      </table>
-      <p *ngIf="!loadingGroupAdmins && groupAdmins.length === 0" class="empty-message">No group admins assigned</p>
-    </div>
-
-    <!-- ── ASSIGN VIEW ── -->
-    <div class="dialog-content assign-view" *ngIf="showAssignView">
-      <p class="mat-caption" style="margin-bottom: 16px;">Search for a user and click their row to assign them as group admin.</p>
-
-      <!-- Always-visible search bar -->
-      <div class="user-picker-search">
-        <mat-icon>search</mat-icon>
-        <input #assignSearchInput
-               [(ngModel)]="assignAdminSearchQuery"
-               placeholder="Search by email or name…"
-               (ngModelChange)="onAssignAdminSearchChange()"
-               autofocus autocomplete="off">
-        <button *ngIf="assignAdminSearchQuery" mat-icon-button class="clear-btn" (click)="assignAdminSearchQuery=''; onAssignAdminSearchChange()">
-          <mat-icon>close</mat-icon>
-        </button>
-      </div>
-
-      <!-- Scrollable user list -->
-      <div class="user-picker-list">
-        <div *ngFor="let user of filteredAssignUsers"
-             class="user-picker-row"
-             [class.selected]="selectedUserIdForAdmin === user.id"
-             (click)="selectedUserIdForAdmin = user.id">
-          <div class="user-picker-info">
-            <span class="user-picker-email">{{ user.email }}</span>
-            <span class="user-picker-name" *ngIf="getUserName(user)">{{ getUserName(user) }}</span>
+  <!-- Registration Codes Dialog -->
+  @if (showCodesDialog) {
+    <div class="codes-dialog-overlay" (click)="closeCodesDialog()">
+      <div class="codes-dialog" (click)="$event.stopPropagation()">
+        <div class="dialog-header">
+          <h2>Registration Codes - {{ selectedGroupForCodes?.name }}</h2>
+          <button mat-icon-button (click)="closeCodesDialog()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="dialog-content">
+          <div class="generate-code-section">
+            <h3>Add Registration Code</h3>
+            <div class="form-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Code</mat-label>
+                <input matInput [(ngModel)]="newCodeForm.code" placeholder="Leave blank to auto-generate" style="text-transform: uppercase;" autocomplete="off">
+                <mat-hint>Custom code or leave blank to auto-generate</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Label (Optional)</mat-label>
+                <input matInput [(ngModel)]="newCodeForm.label" placeholder="e.g. Fire Dept, Station 4" autocomplete="off">
+                <mat-hint>A name to help identify this code</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Expiration Date</mat-label>
+                <input matInput [matDatepicker]="expirationPicker" [(ngModel)]="newCodeForm.expiresAt" placeholder="Leave empty for no expiration" autocomplete="off">
+                <mat-datepicker-toggle matSuffix [for]="expirationPicker"></mat-datepicker-toggle>
+                <mat-datepicker #expirationPicker></mat-datepicker>
+                <mat-hint>Leave empty for no expiration</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Max Uses</mat-label>
+                <input matInput type="number" [(ngModel)]="newCodeForm.maxUses" placeholder="0 for unlimited" autocomplete="off">
+                <mat-hint>0 for unlimited</mat-hint>
+              </mat-form-field>
+            </div>
+            <div class="form-row-actions">
+              <mat-checkbox [(ngModel)]="newCodeForm.isOneTime">One-time use</mat-checkbox>
+              <button mat-raised-button color="primary" (click)="generateCode()" [disabled]="generatingCode">
+                Add Code
+              </button>
+            </div>
           </div>
-          <span *ngIf="user.isGroupAdmin" class="already-admin-badge">Already Admin</span>
-          <mat-icon *ngIf="selectedUserIdForAdmin === user.id" class="selected-check">check_circle</mat-icon>
+          @if (loadingCodes) {
+            <div class="loading">
+              <mat-spinner diameter="40"></mat-spinner>
+            </div>
+          }
+          @if (!loadingCodes && codes.length > 0) {
+            <table mat-table [dataSource]="codes" class="codes-table">
+              <ng-container matColumnDef="label">
+                <th mat-header-cell *matHeaderCellDef>Label</th>
+                <td mat-cell *matCellDef="let code">{{ code.label || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="code">
+                <th mat-header-cell *matHeaderCellDef>Code</th>
+                <td mat-cell *matCellDef="let code">{{ code.code }}</td>
+              </ng-container>
+              <ng-container matColumnDef="uses">
+                <th mat-header-cell *matHeaderCellDef>Uses</th>
+                <td mat-cell *matCellDef="let code">
+                  {{ code.currentUses }} / {{ code.maxUses === 0 ? '∞' : code.maxUses }}
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="expiresAt">
+                <th mat-header-cell *matHeaderCellDef>Expires</th>
+                <td mat-cell *matCellDef="let code">{{ formatDate(code.expiresAt) }}</td>
+              </ng-container>
+              <ng-container matColumnDef="isOneTime">
+                <th mat-header-cell *matHeaderCellDef>One-time</th>
+                <td mat-cell *matCellDef="let code">
+                  <mat-icon>{{ code.isOneTime ? 'check' : 'close' }}</mat-icon>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="isActive">
+                <th mat-header-cell *matHeaderCellDef>Active</th>
+                <td mat-cell *matCellDef="let code">
+                  <mat-icon [class.active]="code.isActive" [class.inactive]="!code.isActive">
+                    {{ code.isActive ? 'check_circle' : 'cancel' }}
+                  </mat-icon>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let code">
+                  <button mat-icon-button color="warn" (click)="deleteCode(code.id)" matTooltip="Delete Code">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="['label', 'code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
+              <tr mat-row *matRowDef="let row; columns: ['label', 'code', 'uses', 'expiresAt', 'isOneTime', 'isActive', 'actions']"></tr>
+            </table>
+          }
+          @if (!loadingCodes && codes.length === 0) {
+            <p class="empty-message">No registration codes generated yet</p>
+          }
         </div>
-        <div *ngIf="filteredAssignUsers.length === 0" class="user-picker-empty">
-          No users match your search
-        </div>
-      </div>
-
-      <div class="dialog-actions">
-        <button mat-button (click)="cancelAssignView()">Cancel</button>
-        <button mat-raised-button color="primary" (click)="assignGroupAdmin()" [disabled]="selectedUserIdForAdmin === 0">
-          <mat-icon>person_add</mat-icon>
-          Assign Admin
-        </button>
       </div>
     </div>
+  }
 
-  </div>
-</div>
+  <!-- Group Admins Dialog (list + assign view in one overlay) -->
+  @if (showViewAdminsDialog) {
+    <div class="codes-dialog-overlay" (click)="showAssignView ? cancelAssignView() : closeViewAdminsDialog()">
+      <div class="codes-dialog" (click)="$event.stopPropagation()">
+        <!-- Header changes based on view -->
+        <div class="dialog-header">
+          <h2>{{ showAssignView ? 'Assign Group Admin — ' + selectedGroupForViewAdmins?.name : 'Group Admins — ' + selectedGroupForViewAdmins?.name }}</h2>
+          <button mat-icon-button (click)="showAssignView ? cancelAssignView() : closeViewAdminsDialog()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <!-- ── LIST VIEW ── -->
+        @if (!showAssignView) {
+          <div class="dialog-content">
+            <div class="dialog-actions" style="margin-bottom: 20px;">
+              <button mat-raised-button color="primary" (click)="openAssignAdminDialog(selectedGroupForViewAdmins!)">
+                <mat-icon>person_add</mat-icon>
+                Assign New Group Admin
+              </button>
+            </div>
+            @if (loadingGroupAdmins) {
+              <div class="loading">
+                <mat-spinner diameter="40"></mat-spinner>
+              </div>
+            }
+            @if (!loadingGroupAdmins && groupAdmins.length > 0) {
+              <table mat-table [dataSource]="groupAdmins" class="codes-table">
+                <ng-container matColumnDef="email">
+                  <th mat-header-cell *matHeaderCellDef>Email</th>
+                  <td mat-cell *matCellDef="let admin">{{ admin.email }}</td>
+                </ng-container>
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Name</th>
+                  <td mat-cell *matCellDef="let admin">{{ admin.firstName }} {{ admin.lastName }}</td>
+                </ng-container>
+                <ng-container matColumnDef="actions">
+                  <th mat-header-cell *matHeaderCellDef>Actions</th>
+                  <td mat-cell *matCellDef="let admin">
+                    <button mat-icon-button color="warn" (click)="removeGroupAdmin(admin.id)" matTooltip="Remove Group Admin">
+                      <mat-icon>remove_moderator</mat-icon>
+                    </button>
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="['email', 'name', 'actions']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['email', 'name', 'actions']"></tr>
+              </table>
+            }
+            @if (!loadingGroupAdmins && groupAdmins.length === 0) {
+              <p class="empty-message">No group admins assigned</p>
+            }
+          </div>
+        }
+        <!-- ── ASSIGN VIEW ── -->
+        @if (showAssignView) {
+          <div class="dialog-content assign-view">
+            <p class="mat-caption" style="margin-bottom: 16px;">Search for a user and click their row to assign them as group admin.</p>
+            <!-- Always-visible search bar -->
+            <div class="user-picker-search">
+              <mat-icon>search</mat-icon>
+              <input #assignSearchInput
+                [(ngModel)]="assignAdminSearchQuery"
+                placeholder="Search by email or name…"
+                (ngModelChange)="onAssignAdminSearchChange()"
+                autofocus autocomplete="off">
+              @if (assignAdminSearchQuery) {
+                <button mat-icon-button class="clear-btn" (click)="assignAdminSearchQuery=''; onAssignAdminSearchChange()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+            </div>
+            <!-- Scrollable user list -->
+            <div class="user-picker-list">
+              @for (user of filteredAssignUsers; track user) {
+                <div
+                  class="user-picker-row"
+                  [class.selected]="selectedUserIdForAdmin === user.id"
+                  (click)="selectedUserIdForAdmin = user.id">
+                  <div class="user-picker-info">
+                    <span class="user-picker-email">{{ user.email }}</span>
+                    @if (getUserName(user)) {
+                      <span class="user-picker-name">{{ getUserName(user) }}</span>
+                    }
+                  </div>
+                  @if (user.isGroupAdmin) {
+                    <span class="already-admin-badge">Already Admin</span>
+                  }
+                  @if (selectedUserIdForAdmin === user.id) {
+                    <mat-icon class="selected-check">check_circle</mat-icon>
+                  }
+                </div>
+              }
+              @if (filteredAssignUsers.length === 0) {
+                <div class="user-picker-empty">
+                  No users match your search
+                </div>
+              }
+            </div>
+            <div class="dialog-actions">
+              <button mat-button (click)="cancelAssignView()">Cancel</button>
+              <button mat-raised-button color="primary" (click)="assignGroupAdmin()" [disabled]="selectedUserIdForAdmin === 0">
+                <mat-icon>person_add</mat-icon>
+                Assign Admin
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
 
 </div>
 

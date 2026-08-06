@@ -17,15 +17,17 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { RdioScannerConfig } from '../rdio-scanner';
 
 @Component({
-  selector: 'rdio-scanner-post-verify-plan',
-  templateUrl: './post-verify-plan.component.html',
-  styleUrls: ['./post-verify-plan.component.scss']
+    selector: 'rdio-scanner-post-verify-plan',
+    templateUrl: './post-verify-plan.component.html',
+    styleUrls: ['./post-verify-plan.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerPostVerifyPlanComponent implements OnInit {
   loading = true;

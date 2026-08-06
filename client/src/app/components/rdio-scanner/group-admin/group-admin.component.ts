@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -57,9 +57,11 @@ interface TransferRequest {
 }
 
 @Component({
-  selector: 'rdio-scanner-group-admin',
-  templateUrl: './group-admin.component.html',
-  styleUrls: ['./group-admin.component.scss']
+    selector: 'rdio-scanner-group-admin',
+    templateUrl: './group-admin.component.html',
+    styleUrls: ['./group-admin.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerGroupAdminComponent implements OnInit, OnDestroy {
   selectedTab = 0;

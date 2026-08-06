@@ -16,15 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
  */
+
+// Host fills the flush config content panel.
+:host {
+    display: block;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
 .users-container {
+    width: 100%;
+    box-sizing: border-box;
 
     // ─── Top Bar ───────────────────────────────────────────────────────────────
     .row.top {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 16px;
+        margin-bottom: 10px;
         gap: 16px;
+        padding: 12px 16px 0;
 
         p {
             margin: 0;
@@ -45,18 +57,101 @@
         display: flex;
         align-items: center;
         flex-wrap: wrap;
-        gap: 12px 16px;
-        margin-bottom: 16px;
+        gap: 8px 10px;
+        margin-bottom: 10px;
+        padding: 0 16px;
+        width: 100%;
+        box-sizing: border-box;
+
+        .search-field,
+        .filter-field {
+            margin: 0 !important;
+            font-size: 13px;
+
+            ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+                display: none;
+            }
+
+            ::ng-deep .mat-mdc-text-field-wrapper {
+                background: transparent !important;
+            }
+
+            ::ng-deep .mat-mdc-form-field-flex {
+                height: 36px;
+                align-items: center;
+            }
+
+            ::ng-deep .mat-mdc-form-field-infix {
+                padding-top: 8px !important;
+                padding-bottom: 8px !important;
+                min-height: unset;
+                width: auto;
+            }
+
+            // Kill the outline segment seams that look like vertical dividers.
+            ::ng-deep .mdc-notched-outline__leading,
+            ::ng-deep .mdc-notched-outline__notch,
+            ::ng-deep .mdc-notched-outline__trailing {
+                border-color: #333 !important;
+                border-width: 1px !important;
+            }
+
+            ::ng-deep .mdc-notched-outline__notch {
+                border-left: none !important;
+                border-right: none !important;
+                padding-left: 0;
+                padding-right: 0;
+            }
+
+            ::ng-deep .mat-mdc-select-arrow-wrapper {
+                transform: none;
+            }
+
+            // Extra: Material sometimes paints a hairline before the select arrow.
+            ::ng-deep .mat-mdc-form-field-infix::after,
+            ::ng-deep .mat-mdc-select-trigger::before {
+                display: none !important;
+                content: none !important;
+                border: none !important;
+            }
+        }
 
         .search-field {
             flex: 1 1 220px;
             min-width: 180px;
+
+            ::ng-deep input {
+                color: #e0e0e0 !important;
+                font-size: 13px;
+            }
+
+            mat-icon[matPrefix] {
+                color: #666;
+                margin-right: 4px;
+            }
         }
 
         .filter-field {
-            flex: 0 1 160px;
-            width: 160px;
-            min-width: 140px;
+            flex: 0 1 148px;
+            width: 148px;
+            min-width: 128px;
+
+            ::ng-deep .mat-mdc-form-field-focus-overlay {
+                background: transparent;
+            }
+
+            ::ng-deep .mdc-text-field--filled:not(.mdc-text-field--disabled) {
+                background: rgba(255, 255, 255, 0.04) !important;
+            }
+
+            ::ng-deep .mdc-text-field--filled:not(.mdc-text-field--disabled) .mdc-line-ripple::before,
+            ::ng-deep .mdc-text-field--filled:not(.mdc-text-field--disabled) .mdc-line-ripple::after {
+                border-bottom-color: #444;
+            }
+
+            ::ng-deep .mat-mdc-form-field-infix {
+                border: none !important;
+            }
         }
 
         .search-info {
@@ -71,8 +166,8 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 12px;
-        margin: 0 0 12px;
-        padding: 10px 12px;
+        margin: 0 16px 10px;
+        padding: 8px 12px;
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 8px;
         background: rgba(255, 255, 255, 0.04);
@@ -102,33 +197,128 @@
 
     // ─── Table Wrapper ─────────────────────────────────────────────────────────
     .table-wrapper {
-        border-radius: 8px;
-        overflow: hidden;
+        border-radius: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
         border: 1px solid #333;
+        border-left: none;
+        border-right: none;
+        width: 100%;
+        min-width: 100%;
+        box-sizing: border-box;
     }
 
     .users-table {
-        width: 100%;
+        display: block;
+        width: 100% !important;
+        min-width: 100%;
         background: transparent;
+        box-sizing: border-box;
+
+        // Flex rows — same width whether 2 users or 200 (search must not shrink columns).
+        .mat-mdc-header-row,
+        .user-row {
+            display: flex;
+            width: 100%;
+            box-sizing: border-box;
+            align-items: center;
+        }
+
+        .mat-mdc-header-cell,
+        .user-row .mat-mdc-cell {
+            display: flex;
+            align-items: center;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .mat-column-select {
+            flex: 0 0 44px;
+            width: 44px;
+            max-width: 44px;
+            padding-left: 12px !important;
+            padding-right: 4px !important;
+        }
+
+        .mat-column-avatar {
+            flex: 0 0 40px;
+            width: 40px;
+            max-width: 40px;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+        }
+
+        .mat-column-user {
+            flex: 3 1 0%;
+            min-width: 0;
+            width: auto;
+        }
+
+        .mat-column-group {
+            flex: 2 1 0%;
+            min-width: 0;
+            width: auto;
+        }
+
+        .mat-column-status {
+            flex: 2 1 0%;
+            min-width: 0;
+            width: auto;
+        }
+
+        .mat-column-pin {
+            flex: 0 0 168px;
+            width: 168px;
+            max-width: 168px;
+        }
+
+        .mat-column-lastLogin {
+            flex: 0 0 168px;
+            width: 168px;
+            max-width: 168px;
+            white-space: nowrap;
+        }
+
+        .mat-column-actions {
+            flex: 0 0 96px;
+            width: 96px;
+            max-width: 96px;
+            justify-content: flex-end;
+            padding-right: 8px !important;
+            margin-left: auto;
+        }
+
+        .mat-column-expandedDetail {
+            flex: 1 1 100%;
+            max-width: 100%;
+            width: 100%;
+        }
 
         // Header
         .mat-mdc-header-row {
             background: #1a1a1a;
             border-bottom: 1px solid #333;
+            height: 36px;
+            min-height: 36px;
         }
 
         .mat-mdc-header-cell {
             color: #aaa;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             letter-spacing: 0.5px;
             text-transform: uppercase;
             border-bottom: none;
-            padding: 0 12px;
+            padding: 0 10px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        // Data rows
+        // Data rows — fixed height for every user
         .user-row {
+            height: 48px;
+            min-height: 48px;
+            max-height: 48px;
             border-bottom: 1px solid #2a2a2a;
             transition: background 0.15s ease;
             cursor: default;
@@ -144,45 +334,51 @@
 
             .mat-mdc-cell {
                 border-bottom: none;
-                padding: 10px 12px;
-                vertical-align: middle;
+                padding: 4px 10px;
+                line-height: 1.25;
+                height: 100%;
             }
         }
 
-        // Detail row (expanded edit form)
+        // Collapsed detail rows must take no space (multiTemplateDataRows always emits them).
         .detail-row {
+            display: flex;
+            width: 100%;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            border: none !important;
+            overflow: hidden;
+
             .mat-mdc-cell {
-                padding: 0;
+                padding: 0 !important;
                 border-bottom: none;
+                overflow: hidden;
             }
 
-            &:not(:last-child) {
-                border-bottom: 1px solid #333;
+            &.detail-expanded {
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible;
+
+                &:not(:last-child) {
+                    border-bottom: 1px solid #333;
+                }
             }
         }
-    }
-
-    // Avatar column
-    .avatar-col {
-        width: 48px;
-        padding: 0 4px 0 12px !important;
-    }
-
-    .select-col {
-        width: 48px;
-        padding: 0 4px 0 12px !important;
     }
 
     .user-avatar {
-        width: 36px;
-        height: 36px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         background: #3f51b5;
         color: #fff;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 13px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.5px;
         flex-shrink: 0;
@@ -202,18 +398,26 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+        min-width: 0;
+        width: 100%;
 
         .user-name {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             color: #e0e0e0;
-            line-height: 1.3;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .user-email {
-            font-size: 12px;
+            font-size: 11px;
             color: #888;
-            line-height: 1.3;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     }
 
@@ -229,11 +433,20 @@
         font-size: 12px;
         color: #9fa8da;
         white-space: nowrap;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
         .group-icon {
             font-size: 14px;
             width: 14px;
             height: 14px;
+            flex-shrink: 0;
         }
     }
 
@@ -258,8 +471,10 @@
     // Status chips
     .status-chips {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 4px;
+        overflow: hidden;
+        max-width: 100%;
     }
 
     .chip {
@@ -314,16 +529,22 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+        min-width: 0;
 
         .pin-code {
             font-family: 'Roboto Mono', 'Courier New', monospace;
-            font-size: 13px;
+            font-size: 12px;
             color: #e0e0e0;
             background: rgba(255, 255, 255, 0.05);
             padding: 1px 6px;
             border-radius: 4px;
             border: 1px solid #333;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .pin-expired {
@@ -355,16 +576,16 @@
 
     // Actions column
     .actions-col {
-        width: 88px;
-        text-align: right;
+        justify-content: flex-end !important;
         padding-right: 8px !important;
     }
 
     .row-actions {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: flex-end;
         gap: 0;
+        flex-shrink: 0;
     }
 
     // Muted text helper
@@ -469,31 +690,210 @@
 
     // ─── Edit Form (inside expanded row) ───────────────────────────────────────
     .edit-form {
-        padding: 20px;
+        padding: 12px 16px;
+        font-size: 12px;
+
+        .section-label {
+            font-size: 12px !important;
+            margin: 0 0 8px !important;
+
+            mat-icon {
+                font-size: 14px !important;
+                width: 14px !important;
+                height: 14px !important;
+            }
+        }
 
         .form-row {
             display: flex;
-            gap: 16px;
-            margin-bottom: 4px;
+            flex-wrap: wrap;
+            gap: 10px 12px;
+            margin-bottom: 8px;
+            align-items: flex-end;
 
-            .full-width  { flex: 1; }
-            .half-width  { flex: 1; }
+            .full-width,
+            .half-width,
+            .flex-1 { flex: 1 1 140px; min-width: 140px; }
+            .flex-2 { flex: 2 1 200px; min-width: 180px; }
+
+            .field-zip {
+                flex: 0 1 100px;
+                min-width: 88px;
+                max-width: 120px;
+            }
+
+            .field-narrow {
+                flex: 0 1 110px;
+                min-width: 96px;
+                max-width: 130px;
+            }
+
+            .field-status {
+                flex: 0 1 150px;
+                min-width: 130px;
+                max-width: 180px;
+            }
 
             &.pin-row {
-                align-items: flex-start;
-
                 .pin-actions {
                     display: flex;
-                    align-items: center;
-                    padding-top: 8px;
+                    align-items: flex-end;
+                    padding-bottom: 2px;
+                    flex: 0 0 auto;
+
+                    button {
+                        height: 34px;
+                        line-height: 34px;
+                        font-size: 12px;
+                        padding: 0 10px;
+
+                        mat-icon {
+                            font-size: 16px;
+                            width: 16px;
+                            height: 16px;
+                            margin-right: 4px;
+                        }
+                    }
                 }
             }
 
             &.checkboxes-row {
-                gap: 24px;
+                gap: 10px 16px;
                 align-items: center;
                 flex-wrap: wrap;
-                margin-top: 8px;
+                margin-top: 2px;
+
+                ::ng-deep .mdc-label,
+                ::ng-deep .mat-mdc-checkbox .mdc-label {
+                    font-size: 12px;
+                }
+            }
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
+
+            &.full-width { flex: 1 1 100%; width: 100%; }
+            &.flex-1 { flex: 1 1 140px; min-width: 140px; }
+            &.flex-2 { flex: 2 1 200px; min-width: 180px; }
+            &.field-zip {
+                flex: 0 1 100px;
+                min-width: 88px;
+                max-width: 120px;
+            }
+            &.field-narrow {
+                flex: 0 1 110px;
+                min-width: 96px;
+                max-width: 130px;
+            }
+            &.field-status {
+                flex: 0 1 150px;
+                min-width: 130px;
+                max-width: 180px;
+            }
+            &.system-select,
+            &.talkgroup-select { flex: 2 1 160px; }
+            &.delay-input { flex: 1 1 100px; min-width: 88px; }
+        }
+
+        .field-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            color: #b0b0b0 !important;
+            line-height: 1.2;
+            margin: 0;
+            padding: 0 2px;
+        }
+
+        mat-form-field {
+            width: 100%;
+            font-size: 12px;
+        }
+
+        // Compact outline inputs — labels live outside (.field-label)
+        ::ng-deep .mat-mdc-form-field {
+            .mat-mdc-text-field-wrapper {
+                background: transparent !important;
+            }
+
+            .mat-mdc-form-field-flex {
+                height: 34px;
+                align-items: center;
+                padding: 0 8px !important;
+            }
+
+            .mat-mdc-form-field-infix {
+                padding-top: 6px !important;
+                padding-bottom: 6px !important;
+                min-height: unset !important;
+                width: auto;
+            }
+
+            // Hide Material's own floating label (we use .field-label)
+            .mdc-floating-label,
+            .mat-mdc-floating-label,
+            .mat-mdc-form-field-label-wrapper {
+                display: none !important;
+            }
+
+            .mat-mdc-form-field-input-control,
+            input.mat-mdc-input-element,
+            .mat-mdc-select-value,
+            .mat-mdc-select-value-text,
+            .mat-mdc-select-min-line {
+                font-size: 12px !important;
+                color: #e8e8e8 !important;
+            }
+
+            input.mat-mdc-input-element::placeholder {
+                color: #666 !important;
+            }
+
+            .mat-mdc-form-field-subscript-wrapper:not(:has(.mat-mdc-form-field-error)) {
+                display: none;
+            }
+
+            .mat-mdc-form-field-error {
+                font-size: 10px;
+            }
+
+            // Seamless outline (no vertical notch seams)
+            .mdc-notched-outline__leading,
+            .mdc-notched-outline__notch,
+            .mdc-notched-outline__trailing {
+                border-color: #444 !important;
+                border-width: 1px !important;
+            }
+
+            .mdc-notched-outline__notch {
+                border-left: none !important;
+                border-right: none !important;
+                padding: 0 !important;
+                width: 0 !important;
+            }
+
+            .mat-mdc-form-field-infix::after,
+            .mat-mdc-select-trigger::before {
+                display: none !important;
+                content: none !important;
+                border: none !important;
+            }
+
+            .mat-mdc-form-field-focus-overlay {
+                background: transparent !important;
+            }
+
+            &.mat-focused {
+                .mdc-notched-outline__leading,
+                .mdc-notched-outline__notch,
+                .mdc-notched-outline__trailing {
+                    border-color: #ef5350 !important;
+                }
             }
         }
 
@@ -501,24 +901,70 @@
             display: flex;
             flex-direction: column;
             gap: 2px;
-            margin: 0 0 16px 0;
+            margin: 0 0 8px 0;
             padding-left: 2px;
+            font-size: 11px;
         }
 
         .form-section {
-            margin: 16px 0;
-            padding: 14px 16px;
+            margin: 8px 0;
+            padding: 8px 10px;
             background: #111;
             border: 1px solid #2a2a2a;
             border-radius: 6px;
 
             .form-section-title {
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 600;
                 color: #aaa;
                 text-transform: uppercase;
-                letter-spacing: 0.6px;
-                margin: 0 0 10px 0;
+                letter-spacing: 0.5px;
+                margin: 0 0 6px 0;
+            }
+
+            .mat-caption {
+                font-size: 11px;
+            }
+
+            .system-access-picker {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                margin-top: 2px;
+
+                .access-badge {
+                    font-size: 10px;
+                    font-weight: 600;
+                    letter-spacing: 0.3px;
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                    background: #2a2a2a;
+                    color: #bbb;
+
+                    &.access-all {
+                        background: rgba(76, 175, 80, 0.15);
+                        color: #81c784;
+                    }
+
+                    &.access-custom {
+                        background: rgba(33, 150, 243, 0.15);
+                        color: #64b5f6;
+                    }
+                }
+
+                .system-access-summary {
+                    flex: 1;
+                    min-width: 100px;
+                    font-size: 12px;
+                    color: #ccc;
+                }
+
+                button {
+                    height: 30px;
+                    font-size: 12px;
+                    line-height: 30px;
+                }
             }
 
             .form-row {
@@ -528,31 +974,27 @@
 
         .delay-entry {
             display: flex;
-            gap: 12px;
-            align-items: flex-start;
-            margin-bottom: 8px;
-
-            .system-select   { flex: 2; }
-            .talkgroup-select { flex: 2; }
-            .delay-input     { flex: 1; min-width: 100px; }
+            gap: 8px;
+            align-items: flex-end;
+            margin-bottom: 4px;
         }
 
         .group-managed-note {
             display: flex;
             align-items: flex-start;
-            gap: 8px;
-            padding: 10px 14px;
+            gap: 6px;
+            padding: 6px 10px;
             background: rgba(255, 152, 0, 0.07);
             border: 1px solid rgba(255, 152, 0, 0.25);
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 11px;
             color: #ffcc80;
-            margin: 12px 0;
+            margin: 8px 0;
 
             mat-icon {
-                font-size: 16px;
-                width: 16px;
-                height: 16px;
+                font-size: 14px;
+                width: 14px;
+                height: 14px;
                 flex-shrink: 0;
                 margin-top: 1px;
                 color: #ffa726;
@@ -561,21 +1003,24 @@
 
         .form-actions {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             justify-content: flex-end;
-            margin-top: 20px;
-            padding-top: 16px;
+            margin-top: 12px;
+            padding-top: 10px;
             border-top: 1px solid #2a2a2a;
-        }
 
-        mat-form-field {
-            width: 100%;
+            button {
+                font-size: 12px;
+                height: 32px;
+                line-height: 32px;
+            }
         }
     }
 
     // ─── Paginator ─────────────────────────────────────────────────────────────
     .users-paginator {
-        margin-top: 8px;
+        margin-top: 0;
+        padding: 4px 8px 8px;
         background: transparent;
         color: #aaa;
     }
@@ -583,6 +1028,10 @@
 
 // ─── Menu item danger color ─────────────────────────────────────────────────
 ::ng-deep .delete-menu-item span {
+    color: #ef5350;
+}
+
+::ng-deep .suspend-menu-item span {
     color: #ef5350;
 }
 

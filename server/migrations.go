@@ -1887,6 +1887,15 @@ func migrateUserForcePasswordReset(db *Database) error {
 	return nil
 }
 
+// migrateUserSuspended adds suspended column to users table
+func migrateUserSuspended(db *Database) error {
+	query := `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "suspended" boolean NOT NULL DEFAULT false`
+	if _, err := db.Sql.Exec(query); err != nil {
+		log.Printf("migration note: %v", err)
+	}
+	return nil
+}
+
 // migrateUserGroupIds adds the userGroupIds column (JSON array of all groups a
 // user belongs to) and backfills existing single-group users to [userGroupId].
 func migrateUserGroupIds(db *Database) error {

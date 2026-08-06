@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, EventEmitter, HostBinding, Input, OnDestroy, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, HostBinding, Input, OnDestroy, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Subject, Subscription, firstValueFrom } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
@@ -63,6 +63,8 @@ interface StatsData {
     selector: 'rdio-scanner-alerts',
     styleUrls: ['./alerts.component.scss'],
     templateUrl: './alerts.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     /** Compact “recent alerts” rail for the Current tab (no tabs / transcript UI). */

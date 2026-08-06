@@ -1,235 +1,288 @@
 <!--
- * *****************************************************************************
- * Copyright (C) 2025 Thinline Dynamic Solutions
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * ****************************************************************************
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
 -->
 <div class="config-layout">
 
-    <!-- Prevent Chrome/Edge from showing "save password" prompts on admin fields -->
-    <input type="text" autocomplete="username" aria-hidden="true" tabindex="-1" style="display:none">
-    <input type="password" autocomplete="current-password" aria-hidden="true" tabindex="-1" style="display:none">
+  <!-- Prevent Chrome/Edge from showing "save password" prompts on admin fields -->
+  <input type="text" autocomplete="username" aria-hidden="true" tabindex="-1" style="display:none">
+  <input type="password" autocomplete="current-password" aria-hidden="true" tabindex="-1" style="display:none">
 
-    <!-- ── Left Sidebar Navigation ──────────────────────────── -->
-    <nav class="config-sidebar">
-        <div class="sidebar-section-label">Configuration Sections</div>
+  <!-- ── Left Sidebar Navigation ──────────────────────────── -->
+  <nav class="config-sidebar">
+    <div class="sidebar-section-label">Configuration Sections</div>
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'user-groups'"
-                (click)="setSection('user-groups')">
-            <mat-icon>group_work</mat-icon>
-            <span>User Groups</span>
-        </button>
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'user-groups'"
+      (click)="setSection('user-groups')">
+      <mat-icon>group_work</mat-icon>
+      <span>User Groups</span>
+    </button>
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'users'"
-                (click)="setSection('users')">
-            <mat-icon>people</mat-icon>
-            <span>Users</span>
-        </button>
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'users'"
+      (click)="setSection('users')">
+      <mat-icon>people</mat-icon>
+      <span>Users</span>
+    </button>
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'apikeys'"
-                (click)="setSection('apikeys')">
-            <mat-icon>vpn_key</mat-icon>
-            <span>API Keys</span>
-            <mat-icon *ngIf="form?.dirty && form?.get('apikeys')?.invalid" class="error-dot" color="warn">error</mat-icon>
-        </button>
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'apikeys'"
+      (click)="setSection('apikeys')">
+      <mat-icon>vpn_key</mat-icon>
+      <span>API Keys</span>
+      @if (form?.dirty && form?.get('apikeys')?.invalid) {
+        <mat-icon class="error-dot" color="warn">error</mat-icon>
+      }
+    </button>
 
-        <button type="button" class="sidebar-item" *ngIf="!docker"
-                [class.active]="activeSection === 'dirwatch'"
-                (click)="setSection('dirwatch')">
-            <mat-icon>folder</mat-icon>
-            <span>Dirwatch</span>
-            <mat-icon *ngIf="form?.dirty && form?.get('dirwatch')?.invalid" class="error-dot" color="warn">error</mat-icon>
-        </button>
+    @if (!docker) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'dirwatch'"
+        (click)="setSection('dirwatch')">
+        <mat-icon>folder</mat-icon>
+        <span>Dirwatch</span>
+        @if (form?.dirty && form?.get('dirwatch')?.invalid) {
+          <mat-icon class="error-dot" color="warn">error</mat-icon>
+        }
+      </button>
+    }
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'downstreams'"
-                (click)="setSection('downstreams')">
-            <mat-icon>share</mat-icon>
-            <span>Downstreams</span>
-            <mat-icon *ngIf="form?.dirty && form?.get('downstreams')?.invalid" class="error-dot" color="warn">error</mat-icon>
-        </button>
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'downstreams'"
+      (click)="setSection('downstreams')">
+      <mat-icon>share</mat-icon>
+      <span>Downstreams</span>
+      @if (form?.dirty && form?.get('downstreams')?.invalid) {
+        <mat-icon class="error-dot" color="warn">error</mat-icon>
+      }
+    </button>
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'groups'"
-                (click)="setSection('groups')">
-            <mat-icon>workspaces</mat-icon>
-            <span>Groups</span>
-            <mat-icon *ngIf="form?.dirty && form?.get('groups')?.invalid" class="error-dot" color="warn">error</mat-icon>
-        </button>
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'groups-tags'"
+      (click)="setSection('groups-tags')">
+      <mat-icon>workspaces</mat-icon>
+      <span>Groups &amp; Tags</span>
+      @if (form?.dirty && (form?.get('groups')?.invalid || form?.get('tags')?.invalid)) {
+        <mat-icon class="error-dot" color="warn">error</mat-icon>
+      }
+    </button>
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'options'"
-                (click)="setSection('options')">
-            <mat-icon>tune</mat-icon>
-            <span>Options</span>
-            <mat-icon *ngIf="form?.dirty && form?.get('options')?.invalid" class="error-dot" color="warn">error</mat-icon>
-        </button>
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'options'"
+      (click)="setSection('options')">
+      <mat-icon>tune</mat-icon>
+      <span>Options and Settings</span>
+      @if (form?.dirty && form?.get('options')?.invalid) {
+        <mat-icon class="error-dot" color="warn">error</mat-icon>
+      }
+    </button>
 
-        <!-- ── Systems expandable nav group ── -->
-        <div class="sidebar-nav-group">
-            <button type="button" class="sidebar-item sidebar-group-toggle"
-                    [class.active]="activeSection === 'systems' || activeSection === 'system-detail'"
-                    (click)="toggleSystemsSection()">
-                <mat-icon>podcasts</mat-icon>
-                <span>Systems</span>
-                <div class="group-toggle-right">
-                    <mat-icon *ngIf="form?.dirty && form?.get('systems')?.invalid" class="error-dot" color="warn">error</mat-icon>
-                    <mat-icon class="expand-chevron" [class.open]="systemsNavExpanded">expand_more</mat-icon>
-                </div>
-            </button>
-
-            <div class="sidebar-sub-nav" [class.visible]="systemsNavExpanded">
-                <!-- Add System -->
-                <button type="button" class="sidebar-sub-item add-system-btn" (click)="addNewSystem()">
-                    <mat-icon>add_circle_outline</mat-icon>
-                    <span>Add System</span>
-                </button>
-
-                <!-- Individual systems -->
-                <button type="button" class="sidebar-sub-item"
-                        *ngFor="let sys of systemsList"
-                        [class.active]="activeSection === 'system-detail' && activeSystemForm === sys"
-                        (click)="selectSystem(sys)">
-                    <mat-icon class="system-icon" [class.has-error]="form?.dirty && sys.invalid">
-                        {{ (form?.dirty && sys.invalid) ? 'error' : 'radio' }}
-                    </mat-icon>
-                    <span>{{ sys.value.label?.trim() || ('Sys ' + sys.value.systemRef) || 'New System' }}</span>
-                </button>
-
-                <div *ngIf="!systemsList?.length" class="sidebar-sub-empty">
-                    No systems configured
-                </div>
-            </div>
+    <!-- ── Systems expandable nav group ── -->
+    <div class="sidebar-nav-group">
+      <button type="button" class="sidebar-item sidebar-group-toggle"
+        [class.active]="activeSection === 'systems' || activeSection === 'system-detail'"
+        (click)="toggleSystemsSection()">
+        <mat-icon>podcasts</mat-icon>
+        <span>Systems</span>
+        <div class="group-toggle-right">
+          @if (form?.dirty && form?.get('systems')?.invalid) {
+            <mat-icon class="error-dot" color="warn">error</mat-icon>
+          }
+          <mat-icon class="expand-chevron" [class.open]="systemsNavExpanded">expand_more</mat-icon>
         </div>
+      </button>
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'tags'"
-                (click)="setSection('tags')">
-            <mat-icon>sell</mat-icon>
-            <span>Tags</span>
-            <mat-icon *ngIf="form?.dirty && form?.get('tags')?.invalid" class="error-dot" color="warn">error</mat-icon>
+      <div class="sidebar-sub-nav" [class.visible]="systemsNavExpanded">
+        <!-- Add System -->
+        <button type="button" class="sidebar-sub-item add-system-btn" (click)="addNewSystem()">
+          <mat-icon>add_circle_outline</mat-icon>
+          <span>Add System</span>
         </button>
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'keyword-lists'"
-                (click)="setSection('keyword-lists')">
-            <mat-icon>format_list_bulleted</mat-icon>
-            <span>Keyword Lists</span>
-        </button>
+        <!-- Individual systems -->
+        @for (sys of systemsList; track sys) {
+          <button type="button" class="sidebar-sub-item"
+            [class.active]="activeSection === 'system-detail' && activeSystemForm === sys"
+            (click)="selectSystem(sys)">
+            <mat-icon class="system-icon" [class.has-error]="form?.dirty && sys.invalid">
+              {{ (form?.dirty && sys.invalid) ? 'error' : 'radio' }}
+            </mat-icon>
+            <span>{{ sys.value.label?.trim() || ('Sys ' + sys.value.systemRef) || 'New System' }}</span>
+          </button>
+        }
 
-        <button type="button" class="sidebar-item"
-                [class.active]="activeSection === 'transcript-parser'"
-                (click)="setSection('transcript-parser')">
-            <mat-icon>record_voice_over</mat-icon>
-            <span>Transcript Parser</span>
-        </button>
-
-    </nav>
-
-    <!-- ── Right Content Area ────────────────────────────────── -->
-    <div class="config-content">
-
-        <!-- Loading state: shown until config is fetched and form is built -->
-        <div *ngIf="loading" class="config-loading">
-            <mat-spinner diameter="48"></mat-spinner>
-            <p>Loading configuration…</p>
-        </div>
-
-        <form *ngIf="!loading && form" autocomplete="off" [formGroup]="form" class="config-form-body">
-        <ng-container [ngSwitch]="activeSection">
-
-            <ng-container *ngSwitchCase="'user-groups'">
-                <rdio-scanner-admin-user-groups [form]="userGroups" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-user-groups>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'users'">
-                <rdio-scanner-admin-users
-                    [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value"
-                    [form]="users">
-                </rdio-scanner-admin-users>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'apikeys'">
-                <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-apikeys>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'dirwatch'">
-                <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-dirwatch>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'downstreams'">
-                <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-downstreams>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'groups'">
-                <rdio-scanner-admin-groups [form]="groups" [originalConfig]="originalConfig"></rdio-scanner-admin-groups>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'options'">
-                <rdio-scanner-admin-options [form]="options" [systemsForm]="systems"></rdio-scanner-admin-options>
-            </ng-container>
-
-            <!-- Systems overview (landing when none selected) -->
-            <ng-container *ngSwitchCase="'systems'">
-                <rdio-scanner-admin-systems
-                    [form]="systems"
-                    (systemSelected)="selectSystem($event)"
-                    (addSystem)="addNewSystem()">
-                </rdio-scanner-admin-systems>
-            </ng-container>
-
-            <!-- Individual system detail view -->
-            <ng-container *ngSwitchCase="'system-detail'">
-                <ng-container *ngIf="activeSystemForm">
-                    <rdio-scanner-admin-system
-                        [form]="activeSystemForm"
-                        [groups]="groupsValue"
-                        [tags]="tagsValue"
-                        [apikeys]="apikeysValue"
-                        [systemData]="getSystemData(activeSystemForm)"
-                        [saving]="savingSystem"
-                        [saveSuccess]="systemSaveSuccess"
-                        (remove)="removeCurrentSystem()"
-                        (save)="saveCurrentSystem()"
-                        (onTalkgroupsLoaded)="markSystemTalkgroupsLoaded(activeSystemForm)">
-                    </rdio-scanner-admin-system>
-                </ng-container>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'tags'">
-                <rdio-scanner-admin-tags [form]="tags" [originalConfig]="originalConfig"></rdio-scanner-admin-tags>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'keyword-lists'">
-                <rdio-scanner-admin-keyword-lists
-                    [initialLists]="originalConfig.keywordLists">
-                </rdio-scanner-admin-keyword-lists>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'transcript-parser'">
-                <rdio-scanner-admin-transcript-parser
-                    [initialConfig]="originalConfig.options?.transcriptParserConfig">
-                </rdio-scanner-admin-transcript-parser>
-            </ng-container>
-
-        </ng-container>
-        </form>
-
+        @if (!systemsList?.length) {
+          <div class="sidebar-sub-empty">
+            No systems configured
+          </div>
+        }
+      </div>
     </div>
+
+    <div class="sidebar-section-label sidebar-section-label--spaced">Operations</div>
+
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'logs'"
+      (click)="setSection('logs')">
+      <mat-icon>article</mat-icon>
+      <span>Logs</span>
+    </button>
+
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'system-health'"
+      (click)="setSection('system-health')">
+      <mat-icon>health_and_safety</mat-icon>
+      <span>System Health</span>
+    </button>
+
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'tools'"
+      (click)="setSection('tools')">
+      <mat-icon>build</mat-icon>
+      <span>Tools</span>
+    </button>
+
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'assistant'"
+      (click)="setSection('assistant')">
+      <mat-icon>smart_toy</mat-icon>
+      <span>Assistant</span>
+    </button>
+
+    @if (isCentrallyManaged) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'central-management'"
+        (click)="setSection('central-management')">
+        <mat-icon>hub</mat-icon>
+        <span>Central Management</span>
+      </button>
+    }
+
+  </nav>
+
+  <!-- ── Right Content Area ────────────────────────────────── -->
+  <div class="config-content" [class.config-content--flush]="activeSection === 'users'">
+
+    @if (activeSection === 'logs') {
+      <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
+    } @else if (activeSection === 'system-health') {
+      <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
+    } @else if (activeSection === 'tools') {
+      <rdio-scanner-admin-tools
+        (config)="onConfigFromTools($event)"
+        (configSaved)="onConfigSavedFromTools($event)">
+      </rdio-scanner-admin-tools>
+    } @else if (activeSection === 'assistant') {
+      <rdio-scanner-admin-assistant></rdio-scanner-admin-assistant>
+    } @else if (activeSection === 'central-management') {
+      <rdio-scanner-admin-central-management
+        [options]="options"
+        (leftCentralManagement)="onLeftCentralManagement()">
+      </rdio-scanner-admin-central-management>
+    } @else {
+      <!-- Loading state: shown until config is fetched and form is built -->
+      @if (loading) {
+        <div class="config-loading">
+          <mat-spinner diameter="48"></mat-spinner>
+          <p>Loading configuration…</p>
+        </div>
+      }
+
+      @if (!loading && form) {
+        <form autocomplete="off" [formGroup]="form" class="config-form-body">
+          @switch (activeSection) {
+            @case ('user-groups') {
+              <rdio-scanner-admin-user-groups [form]="userGroups" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-user-groups>
+            }
+            @case ('users') {
+              <rdio-scanner-admin-users
+                [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value"
+                [form]="users">
+              </rdio-scanner-admin-users>
+            }
+            @case ('apikeys') {
+              <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-apikeys>
+            }
+            @case ('dirwatch') {
+              <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-dirwatch>
+            }
+            @case ('downstreams') {
+              <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-downstreams>
+            }
+            @case ('groups-tags') {
+              <div class="groups-tags-page">
+                <nav class="groups-tags-subnav" aria-label="Groups and Tags">
+                  <button type="button" class="groups-tags-subchip"
+                    [class.active]="groupsTagsTab === 'groups'"
+                    (click)="setGroupsTagsTab('groups')">
+                    Groups
+                  </button>
+                  <button type="button" class="groups-tags-subchip"
+                    [class.active]="groupsTagsTab === 'tags'"
+                    (click)="setGroupsTagsTab('tags')">
+                    Tags
+                  </button>
+                </nav>
+                @if (groupsTagsTab === 'groups') {
+                  <rdio-scanner-admin-groups [form]="groups" [originalConfig]="originalConfig"></rdio-scanner-admin-groups>
+                }
+                @if (groupsTagsTab === 'tags') {
+                  <rdio-scanner-admin-tags [form]="tags" [originalConfig]="originalConfig"></rdio-scanner-admin-tags>
+                }
+              </div>
+            }
+            @case ('options') {
+              <rdio-scanner-admin-options
+                [form]="options"
+                [systemsForm]="systems"
+                [transcriptParserConfig]="originalConfig.options?.transcriptParserConfig"
+                [keywordLists]="originalConfig.keywordLists">
+              </rdio-scanner-admin-options>
+            }
+            <!-- Systems landing (pick from left panel) -->
+            @case ('systems') {
+              <rdio-scanner-admin-systems
+                [form]="systems"
+                (addSystem)="addNewSystem()">
+              </rdio-scanner-admin-systems>
+            }
+            <!-- Individual system detail view -->
+            @case ('system-detail') {
+              @if (activeSystemForm) {
+                <rdio-scanner-admin-system
+                  [form]="activeSystemForm"
+                  [groups]="groupsValue"
+                  [tags]="tagsValue"
+                  [apikeys]="apikeysValue"
+                  [systemData]="getSystemData(activeSystemForm)"
+                  [saving]="savingSystem"
+                  [saveSuccess]="systemSaveSuccess"
+                  (remove)="removeCurrentSystem()"
+                  (save)="saveCurrentSystem()"
+                  (onTalkgroupsLoaded)="markSystemTalkgroupsLoaded(activeSystemForm)">
+                </rdio-scanner-admin-system>
+              }
+            }
+          }
+        </form>
+      }
+    }
+
+  </div>
 
 </div>

@@ -84,6 +84,25 @@ export interface Alerts {
 export interface CopilotMessage {
     role: 'user' | 'assistant';
     content: string;
+    tools?: CopilotToolEvent[];
+}
+
+export interface CopilotToolEvent {
+    name: string;
+    summary?: string;
+    status: 'running' | 'done';
+}
+
+export interface CopilotStreamEvent {
+    type: 'status' | 'tool_start' | 'tool_end' | 'message' | 'done' | 'error';
+    message?: string;
+    tool?: string;
+    summary?: string;
+    role?: string;
+    content?: string;
+    toolsUsed?: string[];
+    error?: string;
+    needsConfirm?: boolean;
 }
 
 export interface CopilotChatResponse {
@@ -135,6 +154,7 @@ export interface User {
     systemNoAudioAlertSystems?: string;
     apiKeyNoAudioAlertApiKeys?: string;
     forcePasswordReset?: boolean;
+    suspended?: boolean;
     isGroupAdmin?: boolean;
     userGroupId?: number;
     userGroupIds?: number[];
@@ -361,6 +381,21 @@ export interface CallsQueryOptions {
     talkgroup?: number;
 }
 
+export interface FsBrowseEntry {
+    name: string;
+    path: string;
+    isDir: boolean;
+}
+
+export interface FsBrowseResponse {
+    path: string;
+    parent?: string;
+    baseDir?: string;
+    os?: string;
+    entries: FsBrowseEntry[];
+    error?: string;
+}
+
 export interface Options {
 	audioConversion?: 0 | 1 | 2 | 3;
 	autoPopulate?: boolean;
@@ -471,6 +506,7 @@ export interface Options {
     adminAllowedIPs?: string;
     configSyncEnabled?: boolean;
     configSyncPath?: string;
+    configSyncFileName?: string;
     turnstileEnabled?: boolean;
     turnstileSiteKey?: string;
     turnstileSecretKey?: string;
@@ -715,6 +751,7 @@ enum url {
     logs = 'logs',
     logsCategories = 'logs/categories',
     copilotChat = 'copilot/chat',
+    copilotChatStream = 'copilot/chat/stream',
     options = 'options',
     password = 'password',
     purge = 'purge',
@@ -1002,7 +1039,7 @@ export class RdioScannerAdminService implements OnDestroy {
         try {
             const res = await firstValueFrom(this.ngHttpClient.post<CopilotChatResponse>(
                 this.getUrl(url.copilotChat),
-                { messages },
+                { messages: messages.map(m => ({ role: m.role, content: m.content })) },
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
             return res;
@@ -1017,6 +1054,131 @@ export class RdioScannerAdminService implements OnDestroy {
             }
             throw error;
         }
+    }
+
+    /**
+     * Stream assistant progress via NDJSON. Calls onEvent for each line; resolves on done/error/abort.
+     */
+    async copilotChatStream(
+        messages: CopilotMessage[],
+        onEvent: (ev: CopilotStreamEvent) => void,
+        signal?: AbortSignal,
+    ): Promise<CopilotChatResponse> {
+        const headers = {
+            ...this.getFetchHeaders(),
+            'Content-Type': 'application/json',
+            Accept: 'application/x-ndjson',
+        };
+        const body = JSON.stringify({
+            messages: messages.map(m => ({ role: m.role, content: m.content })),
+        });
+
+        let response: Response;
+        try {
+            response = await fetch(this.getUrl(url.copilotChatStream), {
+                method: 'POST',
+                headers,
+                body,
+                signal,
+            });
+        } catch (error) {
+            if (signal?.aborted) {
+                throw new Error('Cancelled');
+            }
+            throw error instanceof Error ? error : new Error('Assistant request failed');
+        }
+
+        if (!response.ok) {
+            let msg = `Assistant request failed (${response.status})`;
+            try {
+                const errBody = await response.json();
+                if (errBody?.error) {
+                    msg = String(errBody.error);
+                }
+            } catch { /* ignore */ }
+            throw new Error(msg);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('Streaming unsupported by browser');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalContent = '';
+        let toolsUsed: string[] = [];
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                    continue;
+                }
+                let ev: CopilotStreamEvent;
+                try {
+                    ev = JSON.parse(trimmed) as CopilotStreamEvent;
+                } catch {
+                    continue;
+                }
+                onEvent(ev);
+                if (ev.type === 'message' && ev.content) {
+                    finalContent = ev.content;
+                }
+                if (ev.type === 'done') {
+                    if (ev.content) {
+                        finalContent = ev.content;
+                    }
+                    if (ev.toolsUsed?.length) {
+                        toolsUsed = ev.toolsUsed;
+                    }
+                    return {
+                        message: { role: 'assistant', content: finalContent },
+                        toolsUsed,
+                    };
+                }
+                if (ev.type === 'error') {
+                    throw new Error(ev.error || 'Assistant stream error');
+                }
+            }
+        }
+
+        if (buffer.trim()) {
+            try {
+                const ev = JSON.parse(buffer.trim()) as CopilotStreamEvent;
+                onEvent(ev);
+                if (ev.type === 'done') {
+                    return {
+                        message: { role: 'assistant', content: ev.content || finalContent },
+                        toolsUsed: ev.toolsUsed || toolsUsed,
+                    };
+                }
+                if (ev.type === 'error') {
+                    throw new Error(ev.error || 'Assistant stream error');
+                }
+            } catch (e) {
+                if (e instanceof Error && e.message !== 'Assistant stream error') {
+                    // ignore parse errors for trailing buffer
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        if (!finalContent) {
+            throw new Error('Assistant stream ended without a response');
+        }
+        return {
+            message: { role: 'assistant', content: finalContent },
+            toolsUsed,
+        };
     }
 
     async getTranscriptionFailures(): Promise<{ calls: any[], count: number }> {
@@ -1414,6 +1576,24 @@ export class RdioScannerAdminService implements OnDestroy {
             this.errorHandler(error);
 
             return undefined;
+        }
+    }
+
+    /** List directories on the ThinLine Radio server filesystem (not the admin browser's machine). */
+    async browseServerFs(path: string = ''): Promise<FsBrowseResponse> {
+        try {
+            // getUrl() already appends ?_t=… — use & for additional query params.
+            const base = this.getUrl('fs/browse');
+            const url = path
+                ? `${base}&path=${encodeURIComponent(path)}`
+                : base;
+            return await firstValueFrom(this.ngHttpClient.get<FsBrowseResponse>(
+                url,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error) {
+            this.errorHandler(error);
+            throw error;
         }
     }
 
@@ -1841,6 +2021,7 @@ export class RdioScannerAdminService implements OnDestroy {
             systemNoAudioAlertSystems: this.ngFormBuilder.control(user?.systemNoAudioAlertSystems || '[]'),
             apiKeyNoAudioAlertApiKeys: this.ngFormBuilder.control(user?.apiKeyNoAudioAlertApiKeys || '[]'),
             forcePasswordReset: this.ngFormBuilder.control(user?.forcePasswordReset),
+            suspended: this.ngFormBuilder.control(user?.suspended || false),
             isGroupAdmin: this.ngFormBuilder.control(user?.isGroupAdmin),
             userGroupId: this.ngFormBuilder.control(user?.userGroupId),
             userGroupIds: this.ngFormBuilder.control(user?.userGroupIds || (user?.userGroupId ? [user.userGroupId] : [])),
@@ -2049,6 +2230,7 @@ export class RdioScannerAdminService implements OnDestroy {
             downloadWindowMinutes: this.ngFormBuilder.control(options?.downloadWindowMinutes || 60, [Validators.min(1), Validators.max(60)]),
             configSyncEnabled: this.ngFormBuilder.control(options?.configSyncEnabled || false),
             configSyncPath: this.ngFormBuilder.control(options?.configSyncPath || ''),
+            configSyncFileName: this.ngFormBuilder.control(options?.configSyncFileName || 'ThinLineRadioV7-config.json'),
             turnstileEnabled: this.ngFormBuilder.control(options?.turnstileEnabled || false),
             turnstileSiteKey: this.ngFormBuilder.control(options?.turnstileSiteKey || ''),
             turnstileSecretKey: this.ngFormBuilder.control(options?.turnstileSecretKey || ''),
@@ -3117,6 +3299,15 @@ export class RdioScannerAdminService implements OnDestroy {
       console.error('Failed to update user:', error);
       throw error;
     }
+  }
+
+  async setUserSuspended(userId: number, suspended: boolean): Promise<any> {
+    const response = await firstValueFrom(this.ngHttpClient.post<any>(
+      this.getUrl(`/users/${userId}/suspend`),
+      { suspended },
+      { headers: this.getHeaders(), responseType: 'json' }
+    ));
+    return response;
   }
 
   async syncStripeCustomers(): Promise<any> {

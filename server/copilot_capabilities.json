@@ -1,21 +1,29 @@
 {
   "version": "26.06.12",
-  "summary": "The Admin Assistant mirrors the TLR admin UI via get_admin_config (read) and apply_admin_change (write). Always read capabilities or the relevant section before acting.",
+  "summary": "The Admin Assistant uses get_admin_config (reads), run_admin_action (allowlisted admin APIs), apply_admin_change (legacy writes), and db_query (guarded SQL). Prefer narrow reads; never request section=all.",
   "limitations": [
     "Cannot upload binary files: email logo, favicon (use Config → Branding UI)",
     "Cannot apply server binary updates (Tools → update apply UI only)",
     "Cannot perform admin login/logout on behalf of the user",
-    "Full config JSON import/export is not automated — use granular save_* actions or Tools UI for full import"
+    "section=all is gated — use summary or targeted sections",
+    "db_query blocks DDL/multi-statement; writes need confirmed=true and allowlisted tables",
+    "Secrets (API keys, passwords, tokens) are redacted from tool results"
   ],
+  "tools": {
+    "run_admin_action": "Allowlisted admin routes (mapping, call natures, unit aliases, transcript review, systems order, FS browse, bulk users). Use actionId=list.",
+    "db_query": "Guarded SELECT free; INSERT/UPDATE/DELETE need confirmed=true",
+    "get_admin_config": "Targeted config reads (summary preferred)",
+    "apply_admin_change": "Legacy write helpers with confirmed=true"
+  },
   "readSections": {
     "summary": "Server overview + lists of available sections and write actions",
     "capabilities": "This full catalog (workflows, payloads, limitations)",
     "tags": "Global tag definitions",
     "talkgroup_groups": "Talkgroup organizational groups (Config → Groups)",
-    "apikeys": "Ingest API keys",
+    "apikeys": "Ingest API keys (key material redacted)",
     "dirwatch": "Directory watch folders",
     "downstreams": "Downstream forwarding rules",
-    "options": "All server options (integrations, transcription, stripe, email, etc.)",
+    "options": "Server options with secrets redacted",
     "systems": "System list summary (id, label, talkgroup counts)",
     "system": "One full system — requires systemId",
     "talkgroup": "One talkgroup with toneSets schema — requires systemId + talkgroupId",
@@ -29,7 +37,7 @@
     "transcript_parser": "Transcript parser config",
     "relay_status": "Relay suspension / public listener block status",
     "hallucinations": "Pending transcription hallucination suggestions",
-    "all": "Full admin config export (large)"
+    "all": "Gated — returns summary only, not full config dump"
   },
   "readActions": {
     "radioreference_search": { "payload": { "query": "system name search" } },

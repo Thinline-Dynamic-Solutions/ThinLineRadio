@@ -1,28 +1,34 @@
 <div class="scanner-shell">
-    <!-- Email Verification (shown when there's a verification token) -->
-    <rdio-scanner-email-verification 
-        *ngIf="hasVerificationToken()">
+  <!-- Email Verification (shown when there's a verification token) -->
+  @if (hasVerificationToken()) {
+    <rdio-scanner-email-verification
+      >
     </rdio-scanner-email-verification>
+  }
 
-    <!-- Auth Screen (shown when authentication is required and user is not authenticated) -->
-    <rdio-scanner-auth-screen 
-        *ngIf="!hasVerificationToken() && authRequired && !userAuthenticated"
-        (authenticated)="onUserAuthenticated()">
+  <!-- Auth Screen (shown when authentication is required and user is not authenticated) -->
+  @if (!hasVerificationToken() && authRequired && !userAuthenticated) {
+    <rdio-scanner-auth-screen
+      (authenticated)="onUserAuthenticated()">
     </rdio-scanner-auth-screen>
+  }
 
-    <!-- Mobile web: no scanner UI — account, billing, app links only -->
+  <!-- Mobile web: no scanner UI — account, billing, app links only -->
+  @if (!hasVerificationToken() && (!authRequired || userAuthenticated) && isMobileRestrictedBrowser) {
     <rdio-scanner-mobile-web-hub
-        *ngIf="!hasVerificationToken() && (!authRequired || userAuthenticated) && isMobileRestrictedBrowser"
-        (signOut)="onSignOut()">
+      (signOut)="onSignOut()">
     </rdio-scanner-mobile-web-hub>
+  }
 
+  @if (!hasVerificationToken() && (!authRequired || userAuthenticated) && !isMobileRestrictedBrowser) {
     <div class="view-host"
-         *ngIf="!hasVerificationToken() && (!authRequired || userAuthenticated) && !isMobileRestrictedBrowser">
-        <rdio-scanner-chassis class="thinline-skin">
-            <rdio-scanner-console
-                (toggleFullscreen)="toggleFullscreen()"
-                (signOut)="onSignOut()">
-            </rdio-scanner-console>
-        </rdio-scanner-chassis>
+      >
+      <rdio-scanner-chassis class="thinline-skin">
+        <rdio-scanner-console
+          (toggleFullscreen)="toggleFullscreen()"
+          (signOut)="onSignOut()">
+        </rdio-scanner-console>
+      </rdio-scanner-chassis>
     </div>
+  }
 </div>

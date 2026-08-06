@@ -17,11 +17,13 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, ChangeDetectorRef, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatDialog } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
 import { RdioScannerAdminService, System } from '../../admin.service';
+import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
 
 interface PricingOption {
   priceId: string;
@@ -65,9 +67,11 @@ interface RegistrationCode {
 }
 
 @Component({
-  selector: 'rdio-scanner-admin-user-groups',
-  templateUrl: './user-groups.component.html',
-  styleUrls: ['./user-groups.component.scss']
+    selector: 'rdio-scanner-admin-user-groups',
+    templateUrl: './user-groups.component.html',
+    styleUrls: ['./user-groups.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   @Input() form?: FormArray;
@@ -80,11 +84,26 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   groupForm: FormGroup;
   showCreateForm = false;
   systems: System[] = [];
-  selectedSystemAccess: Array<{id: number, talkgroups: number[] | '*'}> = []; // Format with talkgroups
+  configGroups: any[] = [];
+  configTags: any[] = [];
+  /** Current system/talkgroup access for the create/edit form. Empty = all systems. */
+  selectedSystemAccess: Array<{id: number, talkgroups: number[] | '*'}> = [];
   systemDelayEntries: Array<{systemId: number, delay: number}> = [];
   talkgroupDelayEntries: Array<{systemId: number, talkgroupId: number, delay: number}> = [];
   availableUsers: any[] = [];
   groupAdminMode: 'none' | 'existing' | 'new' = 'none';
+
+  get systemAccessIsAll(): boolean {
+    return this.selectedSystemAccess.length === 0;
+  }
+
+  get systemAccessSummary(): string {
+    if (this.systemAccessIsAll) {
+      return 'All systems';
+    }
+    const n = this.selectedSystemAccess.length;
+    return n === 1 ? '1 system (custom)' : `${n} systems (custom)`;
+  }
 
   // Searchable user selector — create-group form
   userSearchQuery = '';
@@ -138,7 +157,8 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     private snackBar: MatSnackBar,
     private fb: FormBuilder,
     private adminService: RdioScannerAdminService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private matDialog: MatDialog,
   ) {
     this.groupForm = this.fb.group({
       id: [0],
@@ -375,17 +395,69 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   loadSystems(): void {
     if (this.rawSystems?.length) {
       this.applySystemsList(this.rawSystems);
-      return;
     }
 
     this.adminService.getConfig().then(config => {
-      this.applySystemsList(config.systems);
+      if (!this.rawSystems?.length) {
+        this.applySystemsList(config.systems);
+      }
+      this.configGroups = config.groups || [];
+      this.configTags = config.tags || [];
+      this.cdr.markForCheck();
     });
   }
 
   private applySystemsList(systems: System[] | undefined): void {
     this.systems = systems || [];
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
+  }
+
+  /** Open the same systems/talkgroups picker used by API keys and downstreams. */
+  selectGroupSystems(): void {
+    try {
+      const groupsArray = this.fb.array(
+        this.configGroups.map((group: any) => this.adminService.newGroupForm(group))
+      );
+      const tagsArray = this.fb.array(
+        this.configTags.map((tag: any) => this.adminService.newTagForm(tag))
+      );
+      const systemsArray = this.fb.array(
+        this.systems.map((system: any) => this.adminService.newSystemForm(system, true, true))
+      );
+
+      const currentAccess = this.systemAccessIsAll ? '*' : this.selectedSystemAccess;
+      const rootForm = this.fb.group({
+        groups: groupsArray,
+        tags: tagsArray,
+        systems: systemsArray,
+        access: this.fb.group({
+          systems: [currentAccess],
+        }),
+      });
+      const accessForm = rootForm.get('access') as FormGroup;
+
+      const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, {
+        ...SYSTEMS_SELECT_DIALOG_OPTIONS,
+        data: { access: accessForm, rawSystems: this.systems },
+      });
+
+      matDialogRef.afterClosed().subscribe((data) => {
+        if (data === null || data === undefined) {
+          return;
+        }
+        if (data === '*') {
+          this.selectedSystemAccess = [];
+        } else if (Array.isArray(data)) {
+          this.selectedSystemAccess = data;
+        } else {
+          this.selectedSystemAccess = [];
+        }
+        this.cdr.markForCheck();
+      });
+    } catch (error) {
+      console.error('Error opening system selection:', error);
+      this.snackBar.open('Error opening system selection: ' + error, 'Close', { duration: 5000 });
+    }
   }
 
   async loadGroups(forceReload: boolean = false): Promise<void> {
@@ -483,139 +555,6 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     }
     // Trigger change detection to update the talkgroups list
     this.cdr.detectChanges();
-  }
-
-  /** Systems available for a given access row (excludes systems picked in other rows). */
-  getSystemsForAccessRow(index: number): System[] {
-    const currentId = this.selectedSystemAccess[index]?.id ?? 0;
-    const taken = new Set(
-      this.selectedSystemAccess
-        .map((access, i) => (i === index ? 0 : access.id))
-        .filter(id => id > 0)
-    );
-
-    return this.systems.filter(system =>
-      system.systemRef != null &&
-      system.systemRef > 0 &&
-      (!taken.has(system.systemRef) || system.systemRef === currentId)
-    );
-  }
-
-  addSystemAccess(): void {
-    if (this.systems.length === 0) {
-      this.snackBar.open('No systems are configured yet. Add systems under Config → Systems first.', 'Close', { duration: 4000 });
-      return;
-    }
-
-    if (this.selectedSystemAccess.some(access => !access.id || access.id === 0)) {
-      this.snackBar.open('Select a system for the existing row before adding another.', 'Close', { duration: 3000 });
-      return;
-    }
-
-    const assignedRefs = new Set(
-      this.selectedSystemAccess.map(access => access.id).filter(id => id > 0)
-    );
-    const hasUnassignedSystem = this.systems.some(
-      system => system.systemRef != null && system.systemRef > 0 && !assignedRefs.has(system.systemRef)
-    );
-
-    if (!hasUnassignedSystem) {
-      this.snackBar.open('All configured systems are already assigned to this group.', 'Close', { duration: 3000 });
-      return;
-    }
-
-    this.selectedSystemAccess.push({
-      id: 0,
-      talkgroups: '*'
-    });
-    this.cdr.detectChanges();
-  }
-
-  removeSystemAccess(index: number): void {
-    const entry = this.selectedSystemAccess[index];
-    const system = this.systems.find(s => s.systemRef === entry?.id);
-    const label = system?.label || (entry?.id ? `system ${entry.id}` : 'this system access');
-    if (!confirm(`Are you sure you want to remove access to ${label}?`)) {
-      return;
-    }
-    this.selectedSystemAccess.splice(index, 1);
-  }
-
-  onSystemSelected(index: number, systemRef: number): void {
-    // Reset talkgroup selection to '*' (all talkgroups) when system changes
-    if (this.selectedSystemAccess[index]) {
-      this.selectedSystemAccess[index].talkgroups = '*';
-    }
-    // Trigger change detection to update the talkgroups list
-    this.cdr.detectChanges();
-  }
-
-  getTalkgroupsForSystemAccess(systemRef: number): any[] {
-    const system = this.systems.find(s => s.systemRef === systemRef);
-    return system?.talkgroups || [];
-  }
-
-  toggleTalkgroupInSystem(systemIndex: number, talkgroupId: number, event?: any): void {
-    const access = this.selectedSystemAccess[systemIndex];
-    if (!access) return;
-
-    // If event is provided (from checkbox), use the checked state
-    const shouldSelect = event ? event.checked : !this.isTalkgroupSelected(systemIndex, talkgroupId);
-
-    if (access.talkgroups === '*') {
-      if (!shouldSelect) {
-        // Switch from all to specific list, excluding this talkgroup
-        const system = this.systems.find(s => s.systemRef === access.id);
-        if (system && system.talkgroups) {
-          access.talkgroups = system.talkgroups
-            .map(tg => tg.talkgroupRef)
-            .filter((id): id is number => id !== null && id !== undefined && id !== talkgroupId);
-        } else {
-          access.talkgroups = [];
-        }
-      }
-      // If shouldSelect is true and it's already '*', do nothing
-    } else if (Array.isArray(access.talkgroups)) {
-      const index = access.talkgroups.indexOf(talkgroupId);
-      if (shouldSelect && index < 0) {
-        access.talkgroups.push(talkgroupId);
-      } else if (!shouldSelect && index >= 0) {
-        access.talkgroups.splice(index, 1);
-      }
-    }
-  }
-
-  isTalkgroupSelected(systemIndex: number, talkgroupId: number): boolean {
-    const access = this.selectedSystemAccess[systemIndex];
-    if (!access) return false;
-    if (access.talkgroups === '*') return true;
-    if (Array.isArray(access.talkgroups)) {
-      return access.talkgroups.includes(talkgroupId);
-    }
-    return false;
-  }
-
-  selectAllTalkgroups(systemIndex: number): void {
-    const access = this.selectedSystemAccess[systemIndex];
-    if (!access) return;
-    access.talkgroups = '*';
-  }
-
-  unselectAllTalkgroups(systemIndex: number): void {
-    const access = this.selectedSystemAccess[systemIndex];
-    if (!access) return;
-    access.talkgroups = [];
-  }
-
-  hasTalkgroupsSelected(access: {id: number, talkgroups: number[] | '*'}): boolean {
-    return access.talkgroups === '*' || (Array.isArray(access.talkgroups) && access.talkgroups.length > 0);
-  }
-
-  getTalkgroupCount(access: {id: number, talkgroups: number[] | '*'}): number {
-    if (access.talkgroups === '*') {
-      return 0; // Will show "All talkgroups" instead
-    }
-    return Array.isArray(access.talkgroups) ? access.talkgroups.length : 0;
   }
 
   getTalkgroupsForSystem(systemRef: number): any[] {
@@ -764,12 +703,6 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     }
 
     if (this.groupForm.invalid) {
-      return;
-    }
-
-    const pendingSystemRows = this.selectedSystemAccess.filter(access => !access.id || access.id === 0);
-    if (pendingSystemRows.length > 0) {
-      this.snackBar.open('Select a system for each system access row, or remove empty rows.', 'Close', { duration: 4000 });
       return;
     }
 

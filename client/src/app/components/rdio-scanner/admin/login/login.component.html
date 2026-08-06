@@ -1,75 +1,82 @@
 <!--
- * *****************************************************************************
- * Copyright (C) 2025 Thinline Dynamic Solutions
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * ****************************************************************************
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
 -->
 <!-- Blocked State -->
-<div *ngIf="isBlocked" class="blocked-state">
+@if (isBlocked) {
+  <div class="blocked-state">
     <div class="blocked-icon-wrap">
-        <mat-icon>lock</mat-icon>
+      <mat-icon>lock</mat-icon>
     </div>
     <h2>Access Temporarily Blocked</h2>
     <p>Too many failed login attempts. Your IP address has been temporarily blocked for security.</p>
     <div class="countdown-timer">{{ getCountdownDisplay() }}</div>
     <p class="wait-text">Time remaining before access is restored</p>
-</div>
+  </div>
+}
 
 <!-- Login Form -->
-<div *ngIf="!isBlocked" class="login-form">
+@if (!isBlocked) {
+  <div class="login-form">
     <div class="login-icon-wrap">
-        <mat-icon>admin_panel_settings</mat-icon>
+      <mat-icon>admin_panel_settings</mat-icon>
     </div>
     <h2 class="login-title">Admin Login</h2>
-
     <!-- SSO section: always shown when a TLR user is logged in -->
     <div class="sso-section">
-        <p class="login-sub">
-            If you are logged in to TLR as a <strong>System Admin</strong>, click below to access
-            the admin panel without a separate password.
-        </p>
-        <button mat-raised-button color="primary" class="login-btn sso-btn"
-                [disabled]="ssoLoading"
-                (click)="ssoLogin()">
-            <mat-icon>manage_accounts</mat-icon>
-            {{ ssoLoading ? 'Signing in…' : 'Sign in with TLR Account' }}
-        </button>
-        <p *ngIf="ssoMessage" class="sso-error">{{ ssoMessage }}</p>
+      <p class="login-sub">
+        If you are logged in to TLR as a <strong>System Admin</strong>, click below to access
+        the admin panel without a separate password.
+      </p>
+      <button mat-raised-button color="primary" class="login-btn sso-btn"
+        [disabled]="ssoLoading"
+        (click)="ssoLogin()">
+        <mat-icon>manage_accounts</mat-icon>
+        {{ ssoLoading ? 'Signing in…' : 'Sign in with TLR Account' }}
+      </button>
+      @if (ssoMessage) {
+        <p class="sso-error">{{ ssoMessage }}</p>
+      }
     </div>
-
     <!-- Password form: hidden when password login is disabled server-side -->
-    <form [formGroup]="form" (ngSubmit)="login()" *ngIf="!adminPasswordLoginDisabled" class="password-section">
+    @if (!adminPasswordLoginDisabled) {
+      <form [formGroup]="form" (ngSubmit)="login()" class="password-section">
         <div class="divider-row">
-            <span class="divider-line"></span>
-            <span class="divider-text">or use admin password</span>
-            <span class="divider-line"></span>
+          <span class="divider-line"></span>
+          <span class="divider-text">or use admin password</span>
+          <span class="divider-line"></span>
         </div>
         <mat-form-field appearance="outline" class="pw-field">
-            <mat-label>Admin Password</mat-label>
-            <input matInput formControlName="password" type="password" required autocomplete="current-password">
-            <mat-icon matSuffix>lock</mat-icon>
-            <mat-error>{{ message || 'Password is required' }}</mat-error>
+          <mat-label>Admin Password</mat-label>
+          <input matInput formControlName="password" type="password" required autocomplete="current-password">
+          <mat-icon matSuffix>lock</mat-icon>
+          <mat-error>{{ message || 'Password is required' }}</mat-error>
         </mat-form-field>
         <button mat-stroked-button type="submit" class="login-btn" [disabled]="form.disabled || form.invalid">
-            <mat-icon>lock</mat-icon>
-            Sign in with Password
+          <mat-icon>lock</mat-icon>
+          Sign in with Password
         </button>
-    </form>
-
-    <p *ngIf="adminPasswordLoginDisabled" class="password-disabled-note">
+      </form>
+    }
+    @if (adminPasswordLoginDisabled) {
+      <p class="password-disabled-note">
         <mat-icon style="vertical-align:middle;font-size:16px;">info</mat-icon>
         Admin password login is disabled. Use your TLR system admin account above.
-    </p>
-</div>
+      </p>
+    }
+  </div>
+}

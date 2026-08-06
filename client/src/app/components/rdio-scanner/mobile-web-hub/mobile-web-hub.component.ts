@@ -9,7 +9,7 @@
  * ****************************************************************************
  */
 
-import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, OnDestroy, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
@@ -20,6 +20,8 @@ import { RdioScannerService } from '../rdio-scanner.service';
     selector: 'rdio-scanner-mobile-web-hub',
     templateUrl: './mobile-web-hub.component.html',
     styleUrls: ['./mobile-web-hub.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
     @Output() signOut = new EventEmitter<void>();
@@ -44,6 +46,7 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
     }[] | null = null;
     addingTier = false;
     selectedTierPrice: { [groupId: number]: string } = {};
+    selectedAvailableTierId: number | null = null;
     /** Price picks for unpaid memberships before Subscribe. */
     unpaidPriceSelection: { [groupId: number]: string } = {};
 
@@ -70,6 +73,10 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
         this.isAndroid = /Android/i.test(ua);
         this.isApple = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && (navigator as Navigator & { maxTouchPoints?: number }).maxTouchPoints! > 1);
 
+        const existing = this.rdioScannerService.getConfig?.();
+        if (existing) {
+            this.config = existing;
+        }
         this.eventSub = this.rdioScannerService.event.subscribe((event: any) => {
             if (event.config) {
                 this.config = event.config;
@@ -137,11 +144,50 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
                 this.unpaidPriceSelection[u.groupId] = u.pricingOptions[0].priceId;
             }
         }
-        for (const t of account?.availableTiers || []) {
+        const available = account?.availableTiers || [];
+        for (const t of available) {
             if (t.billingEnabled && t.pricingOptions?.length && !this.selectedTierPrice[t.groupId]) {
                 this.selectedTierPrice[t.groupId] = t.pricingOptions[0].priceId;
             }
         }
+        if (available.length && (this.selectedAvailableTierId == null
+            || !available.some((t: any) => t.groupId === this.selectedAvailableTierId))) {
+            this.selectedAvailableTierId = available[0].groupId;
+        }
+    }
+
+    selectAvailableTier(groupId: number): void {
+        this.selectedAvailableTierId = groupId;
+        const t = (this.accountInfo?.availableTiers || []).find((x: any) => x.groupId === groupId);
+        if (t?.billingEnabled && t.pricingOptions?.length && !this.selectedTierPrice[groupId]) {
+            this.selectedTierPrice[groupId] = t.pricingOptions[0].priceId;
+        }
+    }
+
+    setTierPrice(groupId: number, priceId: string): void {
+        this.selectedAvailableTierId = groupId;
+        this.selectedTierPrice[groupId] = priceId;
+    }
+
+    canAddSelectedTier(): boolean {
+        if (this.addingTier || this.selectedAvailableTierId == null) {
+            return false;
+        }
+        const t = (this.accountInfo?.availableTiers || []).find(
+            (x: any) => x.groupId === this.selectedAvailableTierId
+        );
+        if (!t) {
+            return false;
+        }
+        return !t.billingEnabled || !!this.selectedTierPrice[t.groupId];
+    }
+
+    addSelectedTier(): void {
+        if (!this.canAddSelectedTier() || this.selectedAvailableTierId == null) {
+            this.snackBar.open('Select one tier and a plan first', 'Close', { duration: 3000 });
+            return;
+        }
+        this.addTier(this.selectedAvailableTierId, this.selectedTierPrice[this.selectedAvailableTierId]);
     }
 
     openBillingPortal(): void {
@@ -260,6 +306,20 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
                     this.snackBar.open('Tier added to your subscription', 'Close', { duration: 3000 });
                     this.loadAccountInfo();
                 } else if (res.needsCheckout && priceId) {
+                    if (!this.config) {
+                        const existing = this.rdioScannerService.getConfig?.();
+                        if (existing) {
+                            this.config = existing;
+                        }
+                    }
+                    if (!this.config?.options?.stripePublishableKey) {
+                        this.snackBar.open(
+                            'Billing is still loading. Wait a moment and try again.',
+                            'Close',
+                            { duration: 5000 }
+                        );
+                        return;
+                    }
                     this.userEmail = this.accountInfo?.email || res.email || '';
                     const tier = (this.accountInfo?.availableTiers || []).find((t: any) => t.groupId === groupId);
                     const opt = (tier?.pricingOptions || []).find((o: any) => o.priceId === priceId);

@@ -18,17 +18,19 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input, QueryList, ViewChildren } from '@angular/core';
+import { Component, Input, QueryList, ViewChildren, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormArray, FormGroup } from '@angular/forms';
 import { MatExpansionPanel } from '@angular/material/expansion';
 import { RdioScannerAdminService } from '../../admin.service';
-import { RdioScannerAdminSystemsSelectComponent } from '../systems/select/select.component';
+import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
 
 @Component({
     selector: 'rdio-scanner-admin-downstreams',
     templateUrl: './downstreams.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminDownstreamsComponent {
     @Input() form: FormArray | undefined;
@@ -89,6 +91,7 @@ export class RdioScannerAdminDownstreamsComponent {
 
     select(access: FormGroup): void {
         const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, {
+            ...SYSTEMS_SELECT_DIALOG_OPTIONS,
             data: { access, rawSystems: this.rawSystems },
         });
 

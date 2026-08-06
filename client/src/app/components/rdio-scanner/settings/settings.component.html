@@ -1,699 +1,944 @@
 <div class="settings-container">
-    <div class="settings-content">
-        <div class="section livefeed-section">
-            <h3>Live Feed Settings</h3>
-            <p class="section-description">
-                Configure how much prior audio you want to hear when enabling live feed. System and talkgroup delays are always respected and cannot be overridden.
-            </p>
-            
-            <div class="backlog-setting">
-                <mat-form-field appearance="outline" class="backlog-field">
-                    <mat-label>Backlog (minutes)</mat-label>
-                    <input 
-                        matInput 
-                        type="number" 
-                        [(ngModel)]="livefeedBacklogMinutes"
-                        (ngModelChange)="onBacklogChange()"
-                        min="0" 
-                        placeholder="0">
-                </mat-form-field>
-                <p class="backlog-hint" *ngIf="livefeedBacklogMinutes === 0">
-                    No backlog - you'll only hear new calls going forward (live audio only).
-                </p>
-                <p class="backlog-hint" *ngIf="livefeedBacklogMinutes > 0">
-                    You'll hear calls from the last {{ livefeedBacklogMinutes }} minute(s) when enabling live feed. System and talkgroup delays are always respected - if you have delays configured, the backlog is measured from the start of your delay period.
-                </p>
+  <div class="settings-header">
+    <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" role="tab" class="settings-tab"
+        [class.active]="settingsTab === 'audio'"
+        [attr.aria-selected]="settingsTab === 'audio'"
+        (click)="setSettingsTab('audio')">
+        Audio
+      </button>
+      <button type="button" role="tab" class="settings-tab"
+        [class.active]="settingsTab === 'appearance'"
+        [attr.aria-selected]="settingsTab === 'appearance'"
+        (click)="setSettingsTab('appearance')">
+        Appearance
+      </button>
+      <button type="button" role="tab" class="settings-tab"
+        [class.active]="settingsTab === 'account'"
+        [attr.aria-selected]="settingsTab === 'account'"
+        (click)="setSettingsTab('account')">
+        Account
+      </button>
+    </div>
+  </div>
+
+  <div class="settings-content">
+    @if (settingsTab === 'audio') {
+    <div class="settings-panel">
+      <div class="settings-tabs settings-tabs--sub" role="tablist" aria-label="Audio settings">
+        <button type="button" role="tab" class="settings-tab"
+          [class.active]="audioSection === 'livefeed'"
+          [attr.aria-selected]="audioSection === 'livefeed'"
+          (click)="setAudioSection('livefeed')">
+          Live Feed
+        </button>
+        <button type="button" role="tab" class="settings-tab"
+          [class.active]="audioSection === 'alerts'"
+          [attr.aria-selected]="audioSection === 'alerts'"
+          (click)="setAudioSection('alerts')">
+          Alerts
+        </button>
+      </div>
+
+      @if (audioSection === 'livefeed') {
+    <div class="section livefeed-section">
+      <h3>Live Feed Settings</h3>
+      <p class="section-description">
+        Configure how much prior audio you want to hear when enabling live feed. System and talkgroup delays are always respected and cannot be overridden.
+      </p>
+
+      <div class="backlog-setting">
+        <mat-form-field appearance="outline" class="backlog-field">
+          <mat-label>Backlog (minutes)</mat-label>
+          <input
+            matInput
+            type="number"
+            [(ngModel)]="livefeedBacklogMinutes"
+            (ngModelChange)="onBacklogChange()"
+            min="0"
+            placeholder="0">
+        </mat-form-field>
+        @if (livefeedBacklogMinutes === 0) {
+          <p class="backlog-hint">
+            No backlog - you'll only hear new calls going forward (live audio only).
+          </p>
+        }
+        @if (livefeedBacklogMinutes > 0) {
+          <p class="backlog-hint">
+            You'll hear calls from the last {{ livefeedBacklogMinutes }} minute(s) when enabling live feed. System and talkgroup delays are always respected - if you have delays configured, the backlog is measured from the start of your delay period.
+          </p>
+        }
+      </div>
+
+      <div class="auto-livefeed-setting">
+        <div class="setting-header">
+          <mat-slide-toggle
+            [(ngModel)]="autoLivefeed"
+            (ngModelChange)="onAutoLivefeedChange()"
+            color="primary">
+            Auto Live Feed
+          </mat-slide-toggle>
+        </div>
+        <p class="setting-hint">
+          Automatically start live feed when the app opens.
+        </p>
+        @if (!isPWA) {
+          <p class="pwa-disclaimer">
+            <mat-icon class="info-icon">info</mat-icon>
+            <span>This feature only works when the app is installed as a Progressive Web App (PWA). To install, use your browser's "Add to Home Screen" or "Install App" option.</span>
+          </p>
+        }
+        @if (isPWA) {
+          <p class="pwa-disclaimer active">
+            <mat-icon class="info-icon">check_circle</mat-icon>
+            <span>App is installed as PWA - Auto Live Feed is available!</span>
+          </p>
+        }
+      </div>
+    </div>
+      }
+
+      @if (audioSection === 'alerts') {
+    <div class="section alert-sound-setting">
+      <h3>Alert Notification Sound</h3>
+      <p class="section-description">
+        Choose a default sound to play when new scanner alerts arrive.
+      </p>
+
+        <div class="sound-controls">
+          <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
+            <mat-label>Alert Sound</mat-label>
+            <mat-select
+              panelClass="tlr-settings-select-panel"
+              [(ngModel)]="alertSound"
+              (selectionChange)="onAlertSoundChange()">
+              @for (sound of availableAlertSounds; track sound) {
+                <mat-option [value]="sound.name">
+                  {{ sound.displayName }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Plays in your browser when new scanner alerts arrive</mat-hint>
+          </mat-form-field>
+          <div class="sound-actions">
+            <button type="button" mat-stroked-button class="sound-action-btn"
+              (click)="previewAlertSound(alertSound)">
+              <mat-icon>volume_up</mat-icon>
+              Test Sound
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section alert-sound-setting weather-alert-setting">
+        <h3>Severe Weather Alert Sound</h3>
+        <p class="section-description">
+          Play a sound when new severe or extreme weather warnings appear in the header ticker for your ZIP code.
+        </p>
+
+        <div class="setting-header">
+          <mat-slide-toggle
+            [(ngModel)]="weatherAlertSoundEnabled"
+            (ngModelChange)="onWeatherAlertSoundChange()"
+            color="primary">
+            Enable severe weather alert sound
+          </mat-slide-toggle>
+        </div>
+
+        <div class="setting-header setting-header--with-action">
+          <mat-slide-toggle
+            [(ngModel)]="weatherAlertTtsEnabled"
+            (ngModelChange)="onWeatherAlertTtsChange()"
+            [disabled]="!ttsSupported"
+            color="primary">
+            Read severe weather alerts aloud (text-to-speech)
+          </mat-slide-toggle>
+          @if (ttsSupported) {
+            <button type="button" mat-stroked-button class="sound-action-btn"
+              [disabled]="!weatherAlertTtsEnabled"
+              (click)="previewWeatherAlertTts()">
+              <mat-icon>record_voice_over</mat-icon>
+              Test Voice
+            </button>
+          }
+        </div>
+        @if (!ttsSupported) {
+          <p class="setting-hint">
+            Text-to-speech isn't supported in this browser.
+          </p>
+        }
+
+        <div class="sound-controls">
+          <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
+            <mat-label>Weather Alert Sound</mat-label>
+            <mat-select
+              panelClass="tlr-settings-select-panel"
+              [(ngModel)]="weatherAlertSound"
+              (selectionChange)="onWeatherAlertSoundChange()">
+              @for (sound of availableAlertSounds; track sound) {
+                <mat-option [value]="sound.name">
+                  {{ sound.displayName }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Uses the same sounds as scanner alerts</mat-hint>
+          </mat-form-field>
+          <div class="sound-actions">
+            <button type="button" mat-stroked-button class="sound-action-btn"
+              (click)="previewAlertSound(weatherAlertSound)">
+              <mat-icon>volume_up</mat-icon>
+              Test Sound
+            </button>
+            <button type="button" mat-stroked-button class="sound-action-btn sound-action-btn--primary"
+              (click)="testWeatherAlertTicker()">
+              <mat-icon>campaign</mat-icon>
+              Test Ticker
+            </button>
+          </div>
+        </div>
+        <p class="setting-hint">
+          Test Ticker scrolls a sample warning in the header for about 25 seconds. Enable the toggle above to also play the selected sound during the test.
+        </p>
+      </div>
+
+      <!-- Per-channel alert sounds -->
+      <div class="section per-channel-sounds-setting">
+        <h3>Per-Channel Alert Sounds</h3>
+        <p class="section-description">
+          Override the alert sound for individual channels. Leave a channel on "Default" to use the sound above.
+        </p>
+
+        @if (loadingChannelSounds) {
+          <div class="channel-sounds-loading">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>Loading channels…</span>
+          </div>
+        }
+
+        @if (!loadingChannelSounds) {
+          @if (getSystemsWithActivePrefs().length === 0) {
+            <div class="channel-sounds-empty">
+              No channels with alerts enabled. Enable alerts on a channel in Alert Preferences first.
             </div>
-
-            <div class="auto-livefeed-setting">
-                <div class="setting-header">
-                    <mat-slide-toggle 
-                        [(ngModel)]="autoLivefeed"
-                        (ngModelChange)="onAutoLivefeedChange()"
-                        color="primary">
-                        Auto Live Feed
-                    </mat-slide-toggle>
-                </div>
-                <p class="setting-hint">
-                    Automatically start live feed when the app opens.
-                </p>
-                <p class="pwa-disclaimer" *ngIf="!isPWA">
-                    <mat-icon class="info-icon">info</mat-icon>
-                    <span>This feature only works when the app is installed as a Progressive Web App (PWA). To install, use your browser's "Add to Home Screen" or "Install App" option.</span>
-                </p>
-                <p class="pwa-disclaimer active" *ngIf="isPWA">
-                    <mat-icon class="info-icon">check_circle</mat-icon>
-                    <span>App is installed as PWA - Auto Live Feed is available!</span>
-                </p>
-            </div>
-
-            <div class="alert-sound-setting">
-                <h4>Alert Notification Sound</h4>
-                <p class="setting-description">
-                    Choose a default sound to play when new scanner alerts arrive.
-                </p>
-
-                <div class="sound-controls">
-                    <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
-                        <mat-label>Alert Sound</mat-label>
-                        <mat-select
-                            panelClass="tlr-settings-select-panel"
-                            [(ngModel)]="alertSound"
-                            (selectionChange)="onAlertSoundChange()">
-                            <mat-option *ngFor="let sound of availableAlertSounds" [value]="sound.name">
-                                {{ sound.displayName }}
-                            </mat-option>
-                        </mat-select>
-                        <mat-hint>Plays in your browser when new scanner alerts arrive</mat-hint>
-                    </mat-form-field>
-                    <div class="sound-actions">
-                        <button type="button" mat-stroked-button class="sound-action-btn"
-                                (click)="previewAlertSound(alertSound)">
-                            <mat-icon>volume_up</mat-icon>
-                            Test Sound
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="alert-sound-setting weather-alert-setting">
-                <h4>Severe Weather Alert Sound</h4>
-                <p class="setting-description">
-                    Play a sound when new severe or extreme weather warnings appear in the header ticker for your ZIP code.
-                </p>
-
-                <div class="setting-header">
-                    <mat-slide-toggle
-                        [(ngModel)]="weatherAlertSoundEnabled"
-                        (ngModelChange)="onWeatherAlertSoundChange()"
-                        color="primary">
-                        Enable severe weather alert sound
-                    </mat-slide-toggle>
-                </div>
-
-                <div class="setting-header">
-                    <mat-slide-toggle
-                        [(ngModel)]="weatherAlertTtsEnabled"
-                        (ngModelChange)="onWeatherAlertTtsChange()"
-                        [disabled]="!ttsSupported"
-                        color="primary">
-                        Read severe weather alerts aloud (text-to-speech)
-                    </mat-slide-toggle>
-                </div>
-                <p class="setting-hint" *ngIf="!ttsSupported">
-                    Text-to-speech isn't supported in this browser.
-                </p>
-                <div class="sound-actions" *ngIf="ttsSupported">
-                    <button type="button" mat-stroked-button class="sound-action-btn"
-                            [disabled]="!weatherAlertTtsEnabled"
-                            (click)="previewWeatherAlertTts()">
-                        <mat-icon>record_voice_over</mat-icon>
-                        Test Voice
-                    </button>
-                </div>
-
-                <div class="sound-controls">
-                    <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
-                        <mat-label>Weather Alert Sound</mat-label>
-                        <mat-select
-                            panelClass="tlr-settings-select-panel"
-                            [(ngModel)]="weatherAlertSound"
-                            (selectionChange)="onWeatherAlertSoundChange()">
-                            <mat-option *ngFor="let sound of availableAlertSounds" [value]="sound.name">
-                                {{ sound.displayName }}
-                            </mat-option>
-                        </mat-select>
-                        <mat-hint>Uses the same sounds as scanner alerts</mat-hint>
-                    </mat-form-field>
-                    <div class="sound-actions">
-                        <button type="button" mat-stroked-button class="sound-action-btn"
-                                (click)="previewAlertSound(weatherAlertSound)">
-                            <mat-icon>volume_up</mat-icon>
-                            Test Sound
-                        </button>
-                        <button type="button" mat-stroked-button class="sound-action-btn sound-action-btn--primary"
-                                (click)="testWeatherAlertTicker()">
-                            <mat-icon>campaign</mat-icon>
-                            Test Ticker
-                        </button>
-                    </div>
-                </div>
-                <p class="setting-hint">
-                    Test Ticker scrolls a sample warning in the header for about 25 seconds. Enable the toggle above to also play the selected sound during the test.
-                </p>
-            </div>
-
-            <!-- Per-channel alert sounds -->
-            <div class="per-channel-sounds-setting">
-                <h4>Per-Channel Alert Sounds</h4>
-                <p class="setting-description">
-                    Override the alert sound for individual channels. Leave a channel on "Default" to use the sound above.
-                </p>
-
-                <div *ngIf="loadingChannelSounds" class="channel-sounds-loading">
-                    <mat-spinner diameter="20"></mat-spinner>
-                    <span>Loading channels…</span>
-                </div>
-
-                <ng-container *ngIf="!loadingChannelSounds">
-                    <div *ngIf="getSystemsWithActivePrefs().length === 0" class="channel-sounds-empty">
-                        No channels with alerts enabled. Enable alerts on a channel in Alert Preferences first.
-                    </div>
-
-                    <!-- System card (collapsed by default) -->
-                    <div *ngFor="let system of getSystemsWithActivePrefs()" class="cs-system-card">
-                        <div class="cs-system-header" (click)="toggleSystem(system.id)">
-                            <mat-icon class="cs-system-icon">radio</mat-icon>
-                            <span class="cs-system-name">{{ system.label }}</span>
-                            <span class="cs-count-badge">{{ getChannelPrefsForSystem(system.id).length }}</span>
-                            <mat-icon class="cs-chevron">{{ isSystemExpanded(system.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                        </div>
-
-                        <div *ngIf="isSystemExpanded(system.id)" class="cs-system-body">
-                            <!-- Tag group (collapsed by default) -->
-                            <div *ngFor="let tag of getTagsForSystem(system.id)" class="cs-tag-card">
-                                <div class="cs-tag-header" (click)="toggleTag(system.id + ':' + tag)">
-                                    <mat-icon class="cs-tag-icon">label</mat-icon>
-                                    <span class="cs-tag-name">{{ tag }}</span>
-                                    <span class="cs-count-badge cs-count-sm">{{ getChannelPrefsForSystemAndTag(system.id, tag).length }}</span>
-                                    <mat-icon class="cs-chevron cs-chevron-sm">{{ isTagExpanded(system.id + ':' + tag) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                                </div>
-
-                                <div *ngIf="isTagExpanded(system.id + ':' + tag)" class="cs-channels">
-                                    <div *ngFor="let pref of getChannelPrefsForSystemAndTag(system.id, tag)" class="cs-channel-row">
-                                        <span class="cs-channel-name">
-                                            {{ getTalkgroupLabelForPref(system, pref) }}
-                                        </span>
-                                        <div class="cs-channel-controls">
-                                            <mat-form-field appearance="outline" class="cs-sound-field">
-                                                <mat-select
-                                                    [value]="getChannelSoundName(pref)"
-                                                    [disabled]="isChannelSoundSaving(pref)"
-                                                    (selectionChange)="setChannelSound(pref, $event.value)">
-                                                    <mat-option value="none">Default</mat-option>
-                                                    <mat-option *ngFor="let sound of availableAlertSounds | slice:1" [value]="sound.name">
-                                                        {{ sound.displayName }}
-                                                    </mat-option>
-                                                </mat-select>
-                                            </mat-form-field>
-                                            <mat-spinner *ngIf="isChannelSoundSaving(pref)" diameter="14" class="cs-saving-spinner"></mat-spinner>
-                                        </div>
-
-                                        <!-- Per-tone-set sounds -->
-                                        <div *ngIf="getToneSetsForPref(pref).length > 0" class="cs-tone-sets">
-                                            <div *ngFor="let ts of getToneSetsForPref(pref)" class="cs-tone-row">
-                                                <mat-icon class="cs-ts-icon">music_note</mat-icon>
-                                                <span class="cs-ts-name">{{ ts.label || ts.id }}</span>
-                                                <mat-form-field appearance="outline" class="cs-sound-field">
-                                                    <mat-select
-                                                        [value]="getToneSetSoundName(pref, ts.id)"
-                                                        [disabled]="isChannelSoundSaving(pref)"
-                                                        (selectionChange)="setToneSetSound(pref, ts.id, $event.value)">
-                                                        <mat-option value="none">Default</mat-option>
-                                                        <mat-option *ngFor="let sound of availableAlertSounds | slice:1" [value]="sound.name">
-                                                            {{ sound.displayName }}
-                                                        </mat-option>
-                                                    </mat-select>
-                                                </mat-form-field>
-                                            </div>
-                                        </div>
+          }
+          <!-- System card (collapsed by default) -->
+          @for (system of getSystemsWithActivePrefs(); track system) {
+            <div class="cs-system-card">
+              <div class="cs-system-header" (click)="toggleSystem(system.id)">
+                <mat-icon class="cs-system-icon">radio</mat-icon>
+                <span class="cs-system-name">{{ system.label }}</span>
+                <span class="cs-count-badge">{{ getChannelPrefsForSystem(system.id).length }}</span>
+                <mat-icon class="cs-chevron">{{ isSystemExpanded(system.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </div>
+              @if (isSystemExpanded(system.id)) {
+                <div class="cs-system-body">
+                  <!-- Tag group (collapsed by default) -->
+                  @for (tag of getTagsForSystem(system.id); track tag) {
+                    <div class="cs-tag-card">
+                      <div class="cs-tag-header" (click)="toggleTag(system.id + ':' + tag)">
+                        <mat-icon class="cs-tag-icon">label</mat-icon>
+                        <span class="cs-tag-name">{{ tag }}</span>
+                        <span class="cs-count-badge cs-count-sm">{{ getChannelPrefsForSystemAndTag(system.id, tag).length }}</span>
+                        <mat-icon class="cs-chevron cs-chevron-sm">{{ isTagExpanded(system.id + ':' + tag) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      </div>
+                      @if (isTagExpanded(system.id + ':' + tag)) {
+                        <div class="cs-channels">
+                          @for (pref of getChannelPrefsForSystemAndTag(system.id, tag); track pref) {
+                            <div class="cs-channel-row">
+                              <span class="cs-channel-name">
+                                {{ getTalkgroupLabelForPref(system, pref) }}
+                              </span>
+                              <div class="cs-channel-controls">
+                                <mat-form-field appearance="outline" class="cs-sound-field">
+                                  <mat-select
+                                    [value]="getChannelSoundName(pref)"
+                                    [disabled]="isChannelSoundSaving(pref)"
+                                    (selectionChange)="setChannelSound(pref, $event.value)">
+                                    <mat-option value="none">Default</mat-option>
+                                    @for (sound of availableAlertSounds | slice:1; track sound) {
+                                      <mat-option [value]="sound.name">
+                                        {{ sound.displayName }}
+                                      </mat-option>
+                                    }
+                                  </mat-select>
+                                </mat-form-field>
+                                @if (isChannelSoundSaving(pref)) {
+                                  <mat-spinner diameter="14" class="cs-saving-spinner"></mat-spinner>
+                                }
+                              </div>
+                              <!-- Per-tone-set sounds -->
+                              @if (getToneSetsForPref(pref).length > 0) {
+                                <div class="cs-tone-sets">
+                                  @for (ts of getToneSetsForPref(pref); track ts) {
+                                    <div class="cs-tone-row">
+                                      <mat-icon class="cs-ts-icon">music_note</mat-icon>
+                                      <span class="cs-ts-name">{{ ts.label || ts.id }}</span>
+                                      <mat-form-field appearance="outline" class="cs-sound-field">
+                                        <mat-select
+                                          [value]="getToneSetSoundName(pref, ts.id)"
+                                          [disabled]="isChannelSoundSaving(pref)"
+                                          (selectionChange)="setToneSetSound(pref, ts.id, $event.value)">
+                                          <mat-option value="none">Default</mat-option>
+                                          @for (sound of availableAlertSounds | slice:1; track sound) {
+                                            <mat-option [value]="sound.name">
+                                              {{ sound.displayName }}
+                                            </mat-option>
+                                          }
+                                        </mat-select>
+                                      </mat-form-field>
                                     </div>
+                                  }
                                 </div>
+                              }
                             </div>
+                          }
                         </div>
+                      }
                     </div>
-                </ng-container>
-            </div>
-        </div>
-
-        <div class="section display-section">
-            <h3>Display Settings</h3>
-            <p class="section-description">
-                Customize the appearance of the app.
-            </p>
-            
-            <div class="font-setting">
-                <h4>App Font</h4>
-                <p class="setting-description">
-                    Choose a font for the entire app interface.
-                </p>
-                
-                <div class="font-selector">
-                    <mat-form-field appearance="outline" class="font-field">
-                        <mat-label>Font</mat-label>
-                        <mat-select 
-                            [(ngModel)]="appFont"
-                            (selectionChange)="onFontChange()">
-                            <mat-select-trigger>
-                                {{ getFontDisplayName(appFont) }}
-                            </mat-select-trigger>
-                            <mat-option *ngFor="let font of availableFonts" [value]="font.name">
-                                <span [style.font-family]="font.value">{{ font.displayName }}</span>
-                            </mat-option>
-                        </mat-select>
-                        <mat-hint>Changes apply to the scanner interface only (not the admin console)</mat-hint>
-                    </mat-form-field>
+                  }
                 </div>
+              }
             </div>
-        </div>
+          }
+        }
+      </div>
+      }
+    </div>
+    }
 
-        <div class="section tag-colors-section">
-            <h3>Tag Colors</h3>
-            <p class="section-description">
-                Customize colors for tags. Tags are automatically populated from the scanner configuration.
-            </p>
-            
-            <div *ngIf="availableTags.length === 0" class="empty-state">
-                <mat-icon>palette</mat-icon>
-                <p>No tags available yet. Tags will appear here once the scanner configuration is loaded.</p>
-            </div>
-            
-            <div *ngIf="availableTags.length > 0" class="tag-colors-header">
-                <button 
-                    mat-button 
-                    class="expand-toggle-button"
-                    (click)="toggleTagsExpanded()">
-                    <mat-icon>{{ tagsExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
-                    <span>{{ tagsExpanded ? 'Collapse' : 'Expand' }} All Tags ({{ availableTags.length }})</span>
+    @if (settingsTab === 'appearance') {
+    <div class="settings-panel">
+    <div class="section display-section">
+      <h3>Display Settings</h3>
+      <p class="section-description">
+        Customize the appearance of the app.
+      </p>
+
+      <div class="font-setting">
+        <h4>App Font</h4>
+        <p class="setting-description">
+          Choose a font for the entire app interface.
+        </p>
+
+        <div class="font-selector">
+          <mat-form-field appearance="outline" class="font-field">
+            <mat-label>Font</mat-label>
+            <mat-select
+              [(ngModel)]="appFont"
+              (selectionChange)="onFontChange()">
+              <mat-select-trigger>
+                {{ getFontDisplayName(appFont) }}
+              </mat-select-trigger>
+              @for (font of availableFonts; track font) {
+                <mat-option [value]="font.name">
+                  <span [style.font-family]="font.value">{{ font.displayName }}</span>
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Changes apply to the scanner interface only (not the admin console)</mat-hint>
+          </mat-form-field>
+        </div>
+      </div>
+    </div>
+
+    <div class="section tag-colors-section">
+      <h3>Tag Colors</h3>
+      <p class="section-description">
+        Customize colors for tags. Tags are automatically populated from the scanner configuration.
+      </p>
+
+      @if (availableTags.length === 0) {
+        <div class="empty-state">
+          <mat-icon>palette</mat-icon>
+          <p>No tags available yet. Tags will appear here once the scanner configuration is loaded.</p>
+        </div>
+      }
+
+      @if (availableTags.length > 0) {
+        <div class="tag-colors-header">
+          <button
+            mat-button
+            class="expand-toggle-button"
+            (click)="toggleTagsExpanded()">
+            <mat-icon>{{ tagsExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
+            <span>{{ tagsExpanded ? 'Collapse' : 'Expand' }} All Tags ({{ availableTags.length }})</span>
+          </button>
+        </div>
+      }
+
+      @if (availableTags.length > 0) {
+        <div class="tag-colors-list" [class.collapsed]="!tagsExpanded">
+          @for (tag of availableTags; track tag) {
+            <div class="tag-color-item">
+              <div class="tag-info">
+                <span class="tag-name">{{ tag }}</span>
+                <button
+                  mat-icon-button
+                  class="reset-button"
+                  (click)="resetTagColor(tag)"
+                  matTooltip="Reset to default color">
+                  <mat-icon>refresh</mat-icon>
                 </button>
-            </div>
-            
-            <div *ngIf="availableTags.length > 0" class="tag-colors-list" [class.collapsed]="!tagsExpanded">
-                <div *ngFor="let tag of availableTags" class="tag-color-item">
-                    <div class="tag-info">
-                        <span class="tag-name">{{ tag }}</span>
-                        <button 
-                            mat-icon-button 
-                            class="reset-button"
-                            (click)="resetTagColor(tag)"
-                            matTooltip="Reset to default color">
-                            <mat-icon>refresh</mat-icon>
-                        </button>
-                    </div>
-                    <div class="color-input-container">
-                        <mat-form-field appearance="outline" class="color-select-field">
-                            <mat-label class="color-label">Color</mat-label>
-                            <mat-select 
-                                [value]="getSelectedColorValue(tag)"
-                                (selectionChange)="setTagColor(tag, $event.value)"
-                                [id]="getColorFieldId(tag)">
-                                <mat-select-trigger>
-                                    <div class="selected-color-display">
-                                        <span class="color-swatch-circle" [style.background-color]="getSelectedColorValue(tag)"></span>
-                                        <span class="selected-color-name">{{ getSelectedColorName(tag) }}</span>
-                                    </div>
-                                </mat-select-trigger>
-                                <mat-option *ngFor="let color of availableColors" [value]="color.value">
-                                    <div class="color-option">
-                                        <span class="color-swatch-circle" [style.background-color]="color.value"></span>
-                                        <span>{{ color.name }}</span>
-                                    </div>
-                                </mat-option>
-                            </mat-select>
-                        </mat-form-field>
-                    </div>
-                </div>
-            </div>
-            
-            <div *ngIf="availableTags.length > 0" class="actions">
-                <button 
-                    mat-button 
-                    class="reset-all-button"
-                    (click)="resetAllColors()">
-                    <mat-icon>restore</mat-icon>
-                    Reset All Colors
-                </button>
-            </div>
-        </div>
-        
-        <div class="section account-section">
-            <h3>Account Information</h3>
-            <p class="section-description">
-                Manage your account details and security settings.
-            </p>
-
-            <div *ngIf="loadingAccount" class="loading-state">
-                <mat-spinner diameter="24"></mat-spinner>
-                <span>Loading account information...</span>
-            </div>
-
-            <div *ngIf="!loadingAccount && accountInfo" class="account-info">
-                <div class="info-row">
-                    <span class="info-label">Email:</span>
-                    <span class="info-value">{{ accountInfo.email }}</span>
-                </div>
-                <div class="info-row" *ngIf="accountInfo.firstName || accountInfo.lastName">
-                    <span class="info-label">Name:</span>
-                    <span class="info-value">{{ accountInfo.firstName }} {{ accountInfo.lastName }}</span>
-                </div>
-                <div class="info-row" *ngIf="accountInfo.userGroupName && !accountInfo.memberships?.length">
-                    <span class="info-label">Group:</span>
-                    <span class="info-value">
-                        {{ accountInfo.userGroupName }}
-                        <span *ngIf="accountInfo.isGroupAdmin" class="group-admin-badge">(Admin)</span>
-                    </span>
-                </div>
-                <div class="info-row" *ngIf="accountInfo.createdAt && accountInfo.createdAt > 0">
-                    <span class="info-label">Member Since:</span>
-                    <span class="info-value">{{ accountInfo.createdAt * 1000 | date:'mediumDate' }}</span>
-                </div>
-                <div class="info-row" *ngIf="accountInfo.lastLogin && accountInfo.lastLogin > 0">
-                    <span class="info-label">Last Login:</span>
-                    <span class="info-value">{{ accountInfo.lastLogin * 1000 | date:'medium' }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="section tiers-section" *ngIf="accountInfo?.memberships?.length || accountInfo?.availableTiers?.length">
-            <h3>Your Tiers</h3>
-            <p class="section-description">
-                Public registration tiers you can join. Add or remove tiers to change which systems you can access — paid changes are billed automatically.
-            </p>
-
-            <div class="tier-list" *ngIf="accountInfo.memberships?.length">
-                <div class="tier-row" *ngFor="let m of accountInfo.memberships">
-                    <div class="tier-main">
-                        <span class="tier-name">{{ m.name }}</span>
-                        <span class="tier-badge tier-badge--primary" *ngIf="m.isPrimary">Primary</span>
-                        <span class="tier-badge tier-badge--paid" *ngIf="m.paid">Paid</span>
-                        <span class="tier-badge tier-badge--warn" *ngIf="m.billingEnabled && !m.paid">Unpaid</span>
-                        <span class="tier-badge" *ngIf="!m.billingEnabled">Free</span>
-                    </div>
-                    <button mat-button color="warn"
-                            *ngIf="m.selfBillable && !(m.isPrimary && accountInfo.memberships.length <= 1)"
-                            (click)="removeTier(m.groupId)">
-                        <mat-icon>remove_circle_outline</mat-icon>
-                        Remove
-                    </button>
-                </div>
-            </div>
-
-            <div class="add-tier" *ngIf="accountInfo.availableTiers?.length">
-                <h4>Available tiers</h4>
-                <p class="section-description">Other public tiers you can add to your account.</p>
-                <div class="tier-row tier-row--available" *ngFor="let t of accountInfo.availableTiers">
-                    <div class="tier-main">
-                        <span class="tier-name">{{ t.name }}</span>
-                        <span class="tier-desc" *ngIf="t.description">{{ t.description }}</span>
-                        <div class="tier-price-chips" *ngIf="t.billingEnabled && t.pricingOptions?.length">
-                            <span class="tier-price-chip" *ngFor="let o of t.pricingOptions">
-                                {{ o.label }} — {{ o.amount }}
-                            </span>
+              </div>
+              <div class="color-input-container">
+                <mat-form-field appearance="outline" class="color-select-field">
+                  <mat-label class="color-label">Color</mat-label>
+                  <mat-select
+                    [value]="getSelectedColorValue(tag)"
+                    (selectionChange)="setTagColor(tag, $event.value)"
+                    [id]="getColorFieldId(tag)">
+                    <mat-select-trigger>
+                      <div class="selected-color-display">
+                        <span class="color-swatch-circle" [style.background-color]="getSelectedColorValue(tag)"></span>
+                        <span class="selected-color-name">{{ getSelectedColorName(tag) }}</span>
+                      </div>
+                    </mat-select-trigger>
+                    @for (color of availableColors; track color) {
+                      <mat-option [value]="color.value">
+                        <div class="color-option">
+                          <span class="color-swatch-circle" [style.background-color]="color.value"></span>
+                          <span>{{ color.name }}</span>
                         </div>
-                        <span class="tier-badge" *ngIf="!t.billingEnabled">Free</span>
-                    </div>
-                    <div class="add-tier-controls">
-                        <select *ngIf="t.billingEnabled && t.pricingOptions?.length > 1"
-                                [(ngModel)]="selectedTierPrice[t.groupId]">
-                            <option *ngFor="let o of t.pricingOptions" [ngValue]="o.priceId">{{ o.label }} — {{ o.amount }}</option>
-                        </select>
-                        <button mat-raised-button color="primary"
-                                [disabled]="addingTier || (t.billingEnabled && !selectedTierPrice[t.groupId])"
-                                (click)="addTier(t.groupId, selectedTierPrice[t.groupId])">
-                            <mat-icon>add</mat-icon>
-                            Add
-                        </button>
-                    </div>
-                </div>
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </div>
             </div>
+          }
         </div>
+      }
 
-        <div class="section email-section">
-            <h3>Change Email</h3>
-            <p class="section-description">
-                To change your email address, you must first verify your current email. After changing your email, you'll need to verify the new email address to complete the change.
-            </p>
-
-            <!-- Step 1: Request and verify current email -->
-            <div *ngIf="!emailChangeVerified" class="verification-step">
-                <h4>Step 1: Verify Your Current Email</h4>
-                <p class="step-description">
-                    We'll send a verification code to your current email address: <strong>{{ accountInfo?.email }}</strong>
-                </p>
-
-                <div class="verification-actions">
-                    <button 
-                        mat-raised-button 
-                        color="primary"
-                        (click)="requestEmailChangeVerification()"
-                        [disabled]="requestingVerification">
-                        <mat-spinner *ngIf="requestingVerification" diameter="20" class="inline-spinner"></mat-spinner>
-                        <span *ngIf="!requestingVerification">Send Verification Code</span>
-                        <span *ngIf="requestingVerification">Sending...</span>
-                    </button>
-                </div>
-
-                <form [formGroup]="emailVerificationForm" (ngSubmit)="verifyEmailChangeCode()" class="account-form" *ngIf="verificationCodeSent || emailVerificationForm.value.code">
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Verification Code</mat-label>
-                        <input matInput type="text" formControlName="code" placeholder="000000" maxlength="6" required>
-                        <mat-hint>Enter the 6-digit code sent to your email</mat-hint>
-                        <mat-error *ngIf="emailVerificationForm.get('code')?.hasError('required')">
-                            Verification code is required
-                        </mat-error>
-                        <mat-error *ngIf="emailVerificationForm.get('code')?.hasError('pattern')">
-                            Please enter a valid 6-digit code
-                        </mat-error>
-                    </mat-form-field>
-
-                    <div class="form-actions">
-                        <button 
-                            mat-raised-button 
-                            color="primary" 
-                            type="submit"
-                            [disabled]="emailVerificationForm.invalid || verifyingCode">
-                            <mat-spinner *ngIf="verifyingCode" diameter="20" class="inline-spinner"></mat-spinner>
-                            <span *ngIf="!verifyingCode">Verify Code</span>
-                            <span *ngIf="verifyingCode">Verifying...</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Step 2: Change email (only shown after verification) -->
-            <div *ngIf="emailChangeVerified" class="email-change-step">
-                <div class="verification-success">
-                    <mat-icon>check_circle</mat-icon>
-                    <span>Current email verified. You can now change your email address.</span>
-                </div>
-
-                <h4>Step 2: Enter New Email Address</h4>
-                <form [formGroup]="emailForm" (ngSubmit)="updateEmail()" class="account-form">
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>New Email</mat-label>
-                        <input matInput type="email" formControlName="newEmail" required>
-                        <mat-error *ngIf="emailForm.get('newEmail')?.hasError('required')">
-                            Email is required
-                        </mat-error>
-                        <mat-error *ngIf="emailForm.get('newEmail')?.hasError('email')">
-                            Please enter a valid email address
-                        </mat-error>
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Current Password</mat-label>
-                        <input matInput type="password" formControlName="password" required>
-                        <mat-error *ngIf="emailForm.get('password')?.hasError('required')">
-                            Password is required
-                        </mat-error>
-                    </mat-form-field>
-
-                    <div class="form-actions">
-                        <button 
-                            mat-button
-                            type="button"
-                            (click)="emailChangeVerified = false; emailVerificationForm.reset(); emailForm.reset()">
-                            Cancel
-                        </button>
-                        <button 
-                            mat-raised-button 
-                            color="primary" 
-                            type="submit"
-                            [disabled]="emailForm.invalid || updatingEmail">
-                            <mat-spinner *ngIf="updatingEmail" diameter="20" class="inline-spinner"></mat-spinner>
-                            <span *ngIf="!updatingEmail">Change Email</span>
-                            <span *ngIf="updatingEmail">Changing...</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
+      @if (availableTags.length > 0) {
+        <div class="actions">
+          <button
+            mat-button
+            class="reset-all-button"
+            (click)="resetAllColors()">
+            <mat-icon>restore</mat-icon>
+            Reset All Colors
+          </button>
         </div>
-
-        <div class="section password-section">
-            <h3>Change Password</h3>
-            <p class="section-description">
-                To change your password, you must first verify your email address. This adds an extra layer of security to protect your account.
-            </p>
-
-            <!-- Step 1: Request and verify email -->
-            <div *ngIf="!passwordChangeVerified" class="verification-step">
-                <h4>Step 1: Verify Your Email</h4>
-                <p class="step-description">
-                    We'll send a verification code to your email address: <strong>{{ accountInfo?.email }}</strong>
-                </p>
-
-                <div class="verification-actions">
-                    <button 
-                        mat-raised-button 
-                        color="primary"
-                        (click)="requestPasswordChangeVerification()"
-                        [disabled]="requestingPasswordVerification">
-                        <mat-spinner *ngIf="requestingPasswordVerification" diameter="20" class="inline-spinner"></mat-spinner>
-                        <span *ngIf="!requestingPasswordVerification">Send Verification Code</span>
-                        <span *ngIf="requestingPasswordVerification">Sending...</span>
-                    </button>
-                </div>
-
-                <form [formGroup]="passwordVerificationForm" (ngSubmit)="verifyPasswordChangeCode()" class="account-form" *ngIf="passwordVerificationCodeSent || passwordVerificationForm.value.code">
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Verification Code</mat-label>
-                        <input matInput type="text" formControlName="code" placeholder="000000" maxlength="6" required>
-                        <mat-hint>Enter the 6-digit code sent to your email</mat-hint>
-                        <mat-error *ngIf="passwordVerificationForm.get('code')?.hasError('required')">
-                            Verification code is required
-                        </mat-error>
-                        <mat-error *ngIf="passwordVerificationForm.get('code')?.hasError('pattern')">
-                            Please enter a valid 6-digit code
-                        </mat-error>
-                    </mat-form-field>
-
-                    <div class="form-actions">
-                        <button 
-                            mat-raised-button 
-                            color="primary" 
-                            type="submit"
-                            [disabled]="passwordVerificationForm.invalid || verifyingPasswordCode">
-                            <mat-spinner *ngIf="verifyingPasswordCode" diameter="20" class="inline-spinner"></mat-spinner>
-                            <span *ngIf="!verifyingPasswordCode">Verify Code</span>
-                            <span *ngIf="verifyingPasswordCode">Verifying...</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Step 2: Change password (only shown after verification) -->
-            <div *ngIf="passwordChangeVerified" class="password-change-step">
-                <div class="verification-success">
-                    <mat-icon>check_circle</mat-icon>
-                    <span>Email verified. You can now change your password.</span>
-                </div>
-
-                <h4>Step 2: Enter New Password</h4>
-                <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()" class="account-form">
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Current Password</mat-label>
-                        <input matInput type="password" formControlName="currentPassword" required>
-                        <mat-error *ngIf="passwordForm.get('currentPassword')?.hasError('required')">
-                            Current password is required
-                        </mat-error>
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>New Password</mat-label>
-                        <input matInput type="password" formControlName="newPassword" required>
-                        <mat-error *ngIf="passwordForm.get('newPassword')?.hasError('required')">
-                            New password is required
-                        </mat-error>
-                        <mat-error *ngIf="passwordForm.get('newPassword')?.hasError('minlength')">
-                            Password must be at least 6 characters
-                        </mat-error>
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Confirm New Password</mat-label>
-                        <input matInput type="password" formControlName="confirmPassword" required>
-                        <mat-error *ngIf="passwordForm.get('confirmPassword')?.hasError('required')">
-                            Please confirm your new password
-                        </mat-error>
-                        <mat-error *ngIf="passwordForm.hasError('passwordMismatch')">
-                            Passwords do not match
-                        </mat-error>
-                    </mat-form-field>
-
-                    <div class="form-actions">
-                        <button 
-                            mat-button
-                            type="button"
-                            (click)="passwordChangeVerified = false; passwordVerificationForm.reset(); passwordForm.reset()">
-                            Cancel
-                        </button>
-                        <button 
-                            mat-raised-button 
-                            color="primary" 
-                            type="submit"
-                            [disabled]="passwordForm.invalid || updatingPassword">
-                            <mat-spinner *ngIf="updatingPassword" diameter="20" class="inline-spinner"></mat-spinner>
-                            <span *ngIf="!updatingPassword">Change Password</span>
-                            <span *ngIf="updatingPassword">Changing...</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div class="section billing-section" *ngIf="accountInfo?.billingRequired || accountInfo?.hasBilling">
-            <h3>Billing</h3>
-            <p class="section-description">
-                Manage your payment methods and subscription.
-            </p>
-
-            <div class="billing-info">
-                <div class="info-row">
-                    <span class="info-label">Subscription Status:</span>
-                    <span class="info-value" [class.status-active]="accountInfo.subscriptionStatus === 'active'">
-                        {{ getSubscriptionStatusDisplay() }}
-                    </span>
-                </div>
-            </div>
-
-            <div class="billing-actions">
-                <button 
-                    *ngIf="(accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId"
-                    mat-raised-button 
-                    color="primary"
-                    (click)="openBillingPortal()">
-                    <mat-icon>payment</mat-icon>
-                    Manage Payment or Cancel
-                </button>
-                <button 
-                    *ngIf="(accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId"
-                    mat-raised-button 
-                    color="accent"
-                    (click)="openChangeSubscription()">
-                    <mat-icon>swap_horiz</mat-icon>
-                    Change Plan
-                </button>
-                <button 
-                    *ngIf="(!accountInfo.stripeSubscriptionId || (accountInfo.subscriptionStatus !== 'active' && accountInfo.subscriptionStatus !== 'trialing')) && accountInfo.billingRequired && !isGroupAdminManaged()"
-                    mat-raised-button 
-                    color="primary"
-                    (click)="openCheckout()">
-                    <mat-icon>add_card</mat-icon>
-                    Subscribe
-                </button>
-                <div *ngIf="isGroupAdminManaged()" class="admin-managed-message">
-                    <p>Billing is managed by your group administrator. Please contact them if you need assistance.</p>
-                </div>
-            </div>
-        </div>
+      }
     </div>
-    
-    <!-- Stripe Checkout Modal -->
-    <div class="checkout-overlay" *ngIf="showCheckout">
-        <div class="checkout-backdrop" (click)="onCheckoutCancel()"></div>
-        <div class="checkout-modal">
-            <rdio-scanner-stripe-checkout
-                *ngIf="config"
-                [config]="config"
-                [email]="userEmail"
-                [isChangingPlan]="showChangeSubscription"
-                [currentPriceId]="currentPriceId"
-                [checkoutItems]="checkoutItems"
-                (checkoutSuccess)="onCheckoutSuccess($event)"
-                (checkoutError)="onCheckoutError($event)"
-                (checkoutCancel)="onCheckoutCancel()">
-            </rdio-scanner-stripe-checkout>
-        </div>
     </div>
+    }
+
+    @if (settingsTab === 'account') {
+    <div class="settings-panel">
+    <div class="section account-section">
+      <h3>Account Information</h3>
+      <p class="section-description">
+        @if (cmMode) {
+          Your listener account is managed on AlertPage.
+        } @else {
+          Manage your account details and security settings.
+        }
+      </p>
+
+      @if (loadingAccount) {
+        <div class="loading-state">
+          <mat-spinner diameter="24"></mat-spinner>
+          <span>Loading account information...</span>
+        </div>
+      }
+
+      @if (!loadingAccount && accountInfo) {
+        <div class="account-info">
+          <div class="info-row">
+            <span class="info-label">Email:</span>
+            <span class="info-value">{{ accountInfo.email }}</span>
+          </div>
+          @if (accountInfo.firstName || accountInfo.lastName) {
+            <div class="info-row">
+              <span class="info-label">Name:</span>
+              <span class="info-value">{{ accountInfo.firstName }} {{ accountInfo.lastName }}</span>
+            </div>
+          }
+          @if (!cmMode && accountInfo.userGroupName && !accountInfo.memberships?.length) {
+            <div class="info-row">
+              <span class="info-label">Group:</span>
+              <span class="info-value">
+                {{ accountInfo.userGroupName }}
+                @if (accountInfo.isGroupAdmin) {
+                  <span class="group-admin-badge">(Admin)</span>
+                }
+              </span>
+            </div>
+          }
+          @if (accountInfo.createdAt && accountInfo.createdAt > 0) {
+            <div class="info-row">
+              <span class="info-label">Member Since:</span>
+              <span class="info-value">{{ accountInfo.createdAt * 1000 | date:'mediumDate' }}</span>
+            </div>
+          }
+          @if (accountInfo.lastLogin && accountInfo.lastLogin > 0) {
+            <div class="info-row">
+              <span class="info-label">Last Login:</span>
+              <span class="info-value">{{ accountInfo.lastLogin * 1000 | date:'medium' }}</span>
+            </div>
+          }
+        </div>
+      }
+
+      @if (cmMode) {
+        <div class="cm-manage-account">
+          <p class="section-description">
+            Change email, password, subscription, and billing on AlertPage.
+          </p>
+          <button mat-raised-button color="primary" type="button"
+            (click)="openCMManageAccount()"
+            [disabled]="openingCMAccount">
+            @if (openingCMAccount) {
+              <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+            } @else {
+              <mat-icon>open_in_new</mat-icon>
+            }
+            {{ openingCMAccount ? 'Opening…' : 'Manage account on AlertPage' }}
+          </button>
+        </div>
+      }
+    </div>
+
+    @if (!cmMode && (accountInfo?.memberships?.length || accountInfo?.availableTiers?.length)) {
+      <div class="section tiers-section">
+        <h3>Your Tiers</h3>
+        <p class="section-description">
+          Your current access is listed below. To subscribe, choose one available paid tier and a plan.
+        </p>
+        @if (accountInfo.memberships?.length) {
+          <div class="tier-list">
+            @for (m of accountInfo.memberships; track m.groupId) {
+              <div class="tier-row">
+                <div class="tier-main">
+                  <span class="tier-name">{{ m.name }}</span>
+                  @if (m.isPrimary) {
+                    <span class="tier-badge tier-badge--primary">Current</span>
+                  }
+                  @if (m.paid) {
+                    <span class="tier-badge tier-badge--paid">Paid</span>
+                  }
+                  @if (m.billingEnabled && !m.paid) {
+                    <span class="tier-badge tier-badge--warn">Unpaid</span>
+                  }
+                  @if (!m.billingEnabled) {
+                    <span class="tier-badge">Free</span>
+                  }
+                </div>
+                @if (m.selfBillable && !(m.isPrimary && accountInfo.memberships.length <= 1)) {
+                  <button mat-button color="warn"
+                    (click)="removeTier(m.groupId)">
+                    <mat-icon>remove_circle_outline</mat-icon>
+                    Remove
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+        @if (accountInfo.availableTiers?.length) {
+          <div class="add-tier">
+            <h4>Choose a plan</h4>
+            <p class="section-description">Select one tier, then pick Yearly or Monthly, then Subscribe.</p>
+            @for (t of accountInfo.availableTiers; track t.groupId) {
+              <div class="tier-row tier-row--available"
+                   [class.tier-row--selected]="selectedAvailableTierId === t.groupId"
+                   (click)="selectAvailableTier(t.groupId)">
+                <div class="tier-main">
+                  <label class="tier-radio">
+                    <input type="radio" name="availableTier"
+                           [checked]="selectedAvailableTierId === t.groupId"
+                           (change)="selectAvailableTier(t.groupId)"
+                           (click)="$event.stopPropagation()">
+                    <span class="tier-name">{{ t.name }}</span>
+                  </label>
+                  @if (t.description) {
+                    <span class="tier-desc">{{ t.description }}</span>
+                  }
+                  @if (selectedAvailableTierId === t.groupId && t.billingEnabled && t.pricingOptions?.length) {
+                    <div class="tier-price-chips">
+                      @for (o of t.pricingOptions; track o.priceId) {
+                        <button type="button"
+                          class="tier-price-chip"
+                          [class.tier-price-chip--selected]="selectedTierPrice[t.groupId] === o.priceId"
+                          (click)="setTierPrice(t.groupId, o.priceId); $event.stopPropagation()">
+                          {{ o.label }} — {{ o.amount }}
+                        </button>
+                      }
+                    </div>
+                  }
+                  @if (!t.billingEnabled) {
+                    <span class="tier-badge">Free</span>
+                  }
+                </div>
+              </div>
+            }
+            <div class="add-tier-actions">
+              <button mat-raised-button color="primary"
+                type="button"
+                [disabled]="!canAddSelectedTier()"
+                (click)="addSelectedTier()">
+                <mat-icon>add_card</mat-icon>
+                Subscribe
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    @if (!cmMode) {
+    <div class="section email-section">
+      <h3>Change Email</h3>
+      <p class="section-description">
+        To change your email address, you must first verify your current email. After changing your email, you'll need to verify the new email address to complete the change.
+      </p>
+
+      <!-- Step 1: Request and verify current email -->
+      @if (!emailChangeVerified) {
+        <div class="verification-step">
+          <h4>Step 1: Verify Your Current Email</h4>
+          <p class="step-description">
+            We'll send a verification code to your current email address: <strong>{{ accountInfo?.email }}</strong>
+          </p>
+          <div class="verification-actions">
+            <button
+              mat-raised-button
+              color="primary"
+              (click)="requestEmailChangeVerification()"
+              [disabled]="requestingVerification">
+              @if (requestingVerification) {
+                <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+              }
+              @if (!requestingVerification) {
+                <span>Send Verification Code</span>
+              }
+              @if (requestingVerification) {
+                <span>Sending...</span>
+              }
+            </button>
+          </div>
+          @if (verificationCodeSent || emailVerificationForm.value.code) {
+            <form [formGroup]="emailVerificationForm" (ngSubmit)="verifyEmailChangeCode()" class="account-form">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Verification Code</mat-label>
+                <input matInput type="text" formControlName="code" placeholder="000000" maxlength="6" required>
+                <mat-hint>Enter the 6-digit code sent to your email</mat-hint>
+                @if (emailVerificationForm.get('code')?.hasError('required')) {
+                  <mat-error>
+                    Verification code is required
+                  </mat-error>
+                }
+                @if (emailVerificationForm.get('code')?.hasError('pattern')) {
+                  <mat-error>
+                    Please enter a valid 6-digit code
+                  </mat-error>
+                }
+              </mat-form-field>
+              <div class="form-actions">
+                <button
+                  mat-raised-button
+                  color="primary"
+                  type="submit"
+                  [disabled]="emailVerificationForm.invalid || verifyingCode">
+                  @if (verifyingCode) {
+                    <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+                  }
+                  @if (!verifyingCode) {
+                    <span>Verify Code</span>
+                  }
+                  @if (verifyingCode) {
+                    <span>Verifying...</span>
+                  }
+                </button>
+              </div>
+            </form>
+          }
+        </div>
+      }
+
+      <!-- Step 2: Change email (only shown after verification) -->
+      @if (emailChangeVerified) {
+        <div class="email-change-step">
+          <div class="verification-success">
+            <mat-icon>check_circle</mat-icon>
+            <span>Current email verified. You can now change your email address.</span>
+          </div>
+          <h4>Step 2: Enter New Email Address</h4>
+          <form [formGroup]="emailForm" (ngSubmit)="updateEmail()" class="account-form">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>New Email</mat-label>
+              <input matInput type="email" formControlName="newEmail" required>
+              @if (emailForm.get('newEmail')?.hasError('required')) {
+                <mat-error>
+                  Email is required
+                </mat-error>
+              }
+              @if (emailForm.get('newEmail')?.hasError('email')) {
+                <mat-error>
+                  Please enter a valid email address
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Current Password</mat-label>
+              <input matInput type="password" formControlName="password" required>
+              @if (emailForm.get('password')?.hasError('required')) {
+                <mat-error>
+                  Password is required
+                </mat-error>
+              }
+            </mat-form-field>
+            <div class="form-actions">
+              <button
+                mat-button
+                type="button"
+                (click)="emailChangeVerified = false; emailVerificationForm.reset(); emailForm.reset()">
+                Cancel
+              </button>
+              <button
+                mat-raised-button
+                color="primary"
+                type="submit"
+                [disabled]="emailForm.invalid || updatingEmail">
+                @if (updatingEmail) {
+                  <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+                }
+                @if (!updatingEmail) {
+                  <span>Change Email</span>
+                }
+                @if (updatingEmail) {
+                  <span>Changing...</span>
+                }
+              </button>
+            </div>
+          </form>
+        </div>
+      }
+    </div>
+
+    <div class="section password-section">
+      <h3>Change Password</h3>
+      <p class="section-description">
+        To change your password, you must first verify your email address. This adds an extra layer of security to protect your account.
+      </p>
+
+      <!-- Step 1: Request and verify email -->
+      @if (!passwordChangeVerified) {
+        <div class="verification-step">
+          <h4>Step 1: Verify Your Email</h4>
+          <p class="step-description">
+            We'll send a verification code to your email address: <strong>{{ accountInfo?.email }}</strong>
+          </p>
+          <div class="verification-actions">
+            <button
+              mat-raised-button
+              color="primary"
+              (click)="requestPasswordChangeVerification()"
+              [disabled]="requestingPasswordVerification">
+              @if (requestingPasswordVerification) {
+                <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+              }
+              @if (!requestingPasswordVerification) {
+                <span>Send Verification Code</span>
+              }
+              @if (requestingPasswordVerification) {
+                <span>Sending...</span>
+              }
+            </button>
+          </div>
+          @if (passwordVerificationCodeSent || passwordVerificationForm.value.code) {
+            <form [formGroup]="passwordVerificationForm" (ngSubmit)="verifyPasswordChangeCode()" class="account-form">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Verification Code</mat-label>
+                <input matInput type="text" formControlName="code" placeholder="000000" maxlength="6" required>
+                <mat-hint>Enter the 6-digit code sent to your email</mat-hint>
+                @if (passwordVerificationForm.get('code')?.hasError('required')) {
+                  <mat-error>
+                    Verification code is required
+                  </mat-error>
+                }
+                @if (passwordVerificationForm.get('code')?.hasError('pattern')) {
+                  <mat-error>
+                    Please enter a valid 6-digit code
+                  </mat-error>
+                }
+              </mat-form-field>
+              <div class="form-actions">
+                <button
+                  mat-raised-button
+                  color="primary"
+                  type="submit"
+                  [disabled]="passwordVerificationForm.invalid || verifyingPasswordCode">
+                  @if (verifyingPasswordCode) {
+                    <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+                  }
+                  @if (!verifyingPasswordCode) {
+                    <span>Verify Code</span>
+                  }
+                  @if (verifyingPasswordCode) {
+                    <span>Verifying...</span>
+                  }
+                </button>
+              </div>
+            </form>
+          }
+        </div>
+      }
+
+      <!-- Step 2: Change password (only shown after verification) -->
+      @if (passwordChangeVerified) {
+        <div class="password-change-step">
+          <div class="verification-success">
+            <mat-icon>check_circle</mat-icon>
+            <span>Email verified. You can now change your password.</span>
+          </div>
+          <h4>Step 2: Enter New Password</h4>
+          <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()" class="account-form">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Current Password</mat-label>
+              <input matInput type="password" formControlName="currentPassword" required>
+              @if (passwordForm.get('currentPassword')?.hasError('required')) {
+                <mat-error>
+                  Current password is required
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>New Password</mat-label>
+              <input matInput type="password" formControlName="newPassword" required>
+              @if (passwordForm.get('newPassword')?.hasError('required')) {
+                <mat-error>
+                  New password is required
+                </mat-error>
+              }
+              @if (passwordForm.get('newPassword')?.hasError('minlength')) {
+                <mat-error>
+                  Password must be at least 6 characters
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Confirm New Password</mat-label>
+              <input matInput type="password" formControlName="confirmPassword" required>
+              @if (passwordForm.get('confirmPassword')?.hasError('required')) {
+                <mat-error>
+                  Please confirm your new password
+                </mat-error>
+              }
+              @if (passwordForm.hasError('passwordMismatch')) {
+                <mat-error>
+                  Passwords do not match
+                </mat-error>
+              }
+            </mat-form-field>
+            <div class="form-actions">
+              <button
+                mat-button
+                type="button"
+                (click)="passwordChangeVerified = false; passwordVerificationForm.reset(); passwordForm.reset()">
+                Cancel
+              </button>
+              <button
+                mat-raised-button
+                color="primary"
+                type="submit"
+                [disabled]="passwordForm.invalid || updatingPassword">
+                @if (updatingPassword) {
+                  <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+                }
+                @if (!updatingPassword) {
+                  <span>Change Password</span>
+                }
+                @if (updatingPassword) {
+                  <span>Changing...</span>
+                }
+              </button>
+            </div>
+          </form>
+        </div>
+      }
+    </div>
+
+    @if (accountInfo?.billingRequired || accountInfo?.hasBilling) {
+      <div class="section billing-section">
+        <h3>Billing</h3>
+        <p class="section-description">
+          Manage your payment methods and subscription.
+        </p>
+        <div class="billing-info">
+          <div class="info-row">
+            <span class="info-label">Subscription Status:</span>
+            <span class="info-value" [class.status-active]="accountInfo.subscriptionStatus === 'active'">
+              {{ getSubscriptionStatusDisplay() }}
+            </span>
+          </div>
+        </div>
+        <div class="billing-actions">
+          @if ((accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId) {
+            <button
+              mat-raised-button
+              color="primary"
+              (click)="openBillingPortal()">
+              <mat-icon>payment</mat-icon>
+              Manage Payment or Cancel
+            </button>
+          }
+          @if ((accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId) {
+            <button
+              mat-raised-button
+              color="accent"
+              (click)="openChangeSubscription()">
+              <mat-icon>swap_horiz</mat-icon>
+              Change Plan
+            </button>
+          }
+          @if ((!accountInfo.stripeSubscriptionId || (accountInfo.subscriptionStatus !== 'active' && accountInfo.subscriptionStatus !== 'trialing')) && accountInfo.billingRequired && !isGroupAdminManaged()) {
+            <button
+              mat-raised-button
+              color="primary"
+              (click)="openCheckout()">
+              <mat-icon>add_card</mat-icon>
+              Subscribe
+            </button>
+          }
+          @if (isGroupAdminManaged()) {
+            <div class="admin-managed-message">
+              <p>Billing is managed by your group administrator. Please contact them if you need assistance.</p>
+            </div>
+          }
+        </div>
+      </div>
+    }
+    }
+    </div>
+    }
+  </div>
+
+  <!-- Stripe Checkout Modal -->
+  @if (showCheckout) {
+    <div class="checkout-overlay">
+      <div class="checkout-backdrop" (click)="onCheckoutCancel()"></div>
+      <div class="checkout-modal">
+        @if (config) {
+          <rdio-scanner-stripe-checkout
+            [config]="config"
+            [email]="userEmail"
+            [isChangingPlan]="showChangeSubscription"
+            [currentPriceId]="currentPriceId"
+            [checkoutItems]="checkoutItems"
+            (checkoutSuccess)="onCheckoutSuccess($event)"
+            (checkoutError)="onCheckoutError($event)"
+            (checkoutCancel)="onCheckoutCancel()">
+          </rdio-scanner-stripe-checkout>
+        } @else {
+          <div class="checkout-missing-config">
+            <p>Billing config is still loading. Close this and try Subscribe again in a moment.</p>
+            <button mat-raised-button color="primary" type="button" (click)="onCheckoutCancel()">Close</button>
+          </div>
+        }
+      </div>
+    </div>
+  }
 </div>
 

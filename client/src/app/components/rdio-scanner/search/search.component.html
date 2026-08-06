@@ -1,280 +1,318 @@
 <div class="rdio-search-shell">
-    <mat-card class="rdio-filters">
-        <div class="filters-panel-head">
-            <span class="filters-panel-title">Search filters</span>
-            <span class="filters-panel-hint">Set sort, date, and scopes — results scroll below and load as you go.</span>
+  <mat-card class="rdio-filters">
+    <div class="filters-panel-head">
+      <span class="filters-panel-title">Search filters</span>
+      <span class="filters-panel-hint">Set sort, date, and scopes — results scroll below and load as you go.</span>
+    </div>
+    <form autocomplete="off" [formGroup]="form">
+      <div class="filter-row filter-row--single">
+        <button type="button" class="compact-button" (click)="toggleSort()"
+          [matTooltip]="form.value.sort === -1 ? 'Newest first' : 'Oldest first'">
+          <mat-icon>{{ form.value.sort === -1 ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+          <span>{{ form.value.sort === -1 ? 'Newest' : 'Oldest' }}</span>
+        </button>
+
+        <div class="date-button-wrapper">
+          <button type="button" class="compact-button" (click)="openDatePicker()"
+            [matTooltip]="selectedDate ? ((selectedDate | date:'fullDate') || '') : 'Pick a date'">
+            <mat-icon>calendar_today</mat-icon>
+            <span>{{ selectedDate ? (selectedDate | date:'MM/dd/yy') : 'Date' }}</span>
+          </button>
+          @if (selectedDate) {
+            <button type="button" class="clear-date-btn" (click)="clearDate(); $event.stopPropagation()" mat-icon-button>
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+          <input matInput [matDatepicker]="datePicker" [value]="selectedDate" (dateChange)="onDateSelected($event)" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+          <mat-datepicker #datePicker panelClass="tlr-lcd-datepicker"></mat-datepicker>
         </div>
-        <form autocomplete="off" [formGroup]="form">
-            <div class="filter-row filter-row--single">
-                <button type="button" class="compact-button" (click)="toggleSort()"
-                        [matTooltip]="form.value.sort === -1 ? 'Newest first' : 'Oldest first'">
-                    <mat-icon>{{ form.value.sort === -1 ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-                    <span>{{ form.value.sort === -1 ? 'Newest' : 'Oldest' }}</span>
-                </button>
 
-                <div class="date-button-wrapper">
-                    <button type="button" class="compact-button" (click)="openDatePicker()"
-                            [matTooltip]="selectedDate ? ((selectedDate | date:'fullDate') || '') : 'Pick a date'">
-                        <mat-icon>calendar_today</mat-icon>
-                        <span>{{ selectedDate ? (selectedDate | date:'MM/dd/yy') : 'Date' }}</span>
-                    </button>
-                    <button *ngIf="selectedDate" type="button" class="clear-date-btn" (click)="clearDate(); $event.stopPropagation()" mat-icon-button>
-                        <mat-icon>close</mat-icon>
-                    </button>
-                    <input matInput [matDatepicker]="datePicker" [value]="selectedDate" (dateChange)="onDateSelected($event)" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
-                    <mat-datepicker #datePicker panelClass="tlr-lcd-datepicker"></mat-datepicker>
-                </div>
-
-                <button type="button" class="compact-button" [matMenuTriggerFor]="timeMenu"
-                        [disabled]="!selectedDate"
-                        [matTooltip]="selectedDate ? 'Filter to a time of day on the selected date' : 'Pick a date first'">
-                    <mat-icon>schedule</mat-icon>
-                    <span>{{ selectedTime ? selectedTime : 'Time' }}</span>
+        <button type="button" class="compact-button" [matMenuTriggerFor]="timeMenu"
+          [disabled]="!selectedDate"
+          [matTooltip]="selectedDate ? 'Filter to a time of day on the selected date' : 'Pick a date first'">
+          <mat-icon>schedule</mat-icon>
+          <span>{{ selectedTime ? selectedTime : 'Time' }}</span>
+        </button>
+        <mat-menu #timeMenu="matMenu" class="tlr-lcd-menu tlr-time-menu">
+          <div class="tlr-time-picker" (click)="$event.stopPropagation()">
+            <div class="tlr-time-display">{{ getTimeDisplay() }}</div>
+            <div class="tlr-time-cols">
+              <div class="tlr-time-col">
+                <button type="button" class="tlr-time-step" (click)="bumpHour(1); $event.stopPropagation()" aria-label="Hour up">
+                  <mat-icon>keyboard_arrow_up</mat-icon>
                 </button>
-                <mat-menu #timeMenu="matMenu" class="tlr-lcd-menu tlr-time-menu">
-                    <div class="tlr-time-picker" (click)="$event.stopPropagation()">
-                        <div class="tlr-time-display">{{ getTimeDisplay() }}</div>
-                        <div class="tlr-time-cols">
-                            <div class="tlr-time-col">
-                                <button type="button" class="tlr-time-step" (click)="bumpHour(1); $event.stopPropagation()" aria-label="Hour up">
-                                    <mat-icon>keyboard_arrow_up</mat-icon>
-                                </button>
-                                <div class="tlr-time-value">{{ pad2(getHour()) }}</div>
-                                <button type="button" class="tlr-time-step" (click)="bumpHour(-1); $event.stopPropagation()" aria-label="Hour down">
-                                    <mat-icon>keyboard_arrow_down</mat-icon>
-                                </button>
-                                <div class="tlr-time-label">HR</div>
-                            </div>
-                            <div class="tlr-time-sep">:</div>
-                            <div class="tlr-time-col">
-                                <button type="button" class="tlr-time-step" (click)="bumpMinute(1); $event.stopPropagation()" aria-label="Minute up">
-                                    <mat-icon>keyboard_arrow_up</mat-icon>
-                                </button>
-                                <div class="tlr-time-value">{{ pad2(getMinute()) }}</div>
-                                <button type="button" class="tlr-time-step" (click)="bumpMinute(-1); $event.stopPropagation()" aria-label="Minute down">
-                                    <mat-icon>keyboard_arrow_down</mat-icon>
-                                </button>
-                                <div class="tlr-time-label">MIN</div>
-                            </div>
-                        </div>
-                        <div class="tlr-time-actions">
-                            <button type="button" class="tlr-time-action" (click)="clearTime(); $event.stopPropagation()">Clear</button>
-                            <button type="button" class="tlr-time-action tlr-time-action--primary" (click)="setTimeNow(); $event.stopPropagation()">Now</button>
-                        </div>
-                    </div>
-                </mat-menu>
-
-                <button type="button" class="compact-button" [matMenuTriggerFor]="systemMenu"
-                        [matTooltip]="getSelectedSystemLabel()">
-                    <mat-icon>router</mat-icon>
-                    <span>{{ getSelectedSystemLabel() }}</span>
+                <div class="tlr-time-value">{{ pad2(getHour()) }}</div>
+                <button type="button" class="tlr-time-step" (click)="bumpHour(-1); $event.stopPropagation()" aria-label="Hour down">
+                  <mat-icon>keyboard_arrow_down</mat-icon>
                 </button>
-                <mat-menu #systemMenu="matMenu" class="tlr-lcd-menu">
-                    <button mat-menu-item (click)="setSystem(-1)">
-                        <span>All Systems</span>
-                    </button>
-                    <button *ngFor="let system of optionsSystem; index as i" mat-menu-item (click)="setSystem(i)">
-                        <span>{{ system }}</span>
-                    </button>
-                </mat-menu>
-
-                <button type="button" class="compact-button" [matMenuTriggerFor]="talkgroupMenu" [disabled]="form.value.system < 0"
-                        [matTooltip]="getSelectedTalkgroupLabel()">
-                    <mat-icon>group</mat-icon>
-                    <span>{{ getSelectedTalkgroupLabel() }}</span>
+                <div class="tlr-time-label">HR</div>
+              </div>
+              <div class="tlr-time-sep">:</div>
+              <div class="tlr-time-col">
+                <button type="button" class="tlr-time-step" (click)="bumpMinute(1); $event.stopPropagation()" aria-label="Minute up">
+                  <mat-icon>keyboard_arrow_up</mat-icon>
                 </button>
-                <mat-menu #talkgroupMenu="matMenu" class="tlr-lcd-menu">
-                    <button mat-menu-item (click)="setTalkgroup(-1)">
-                        <span>All Talkgroups</span>
-                    </button>
-                    <button *ngFor="let talkgroup of optionsTalkgroup; index as i" mat-menu-item (click)="setTalkgroup(i)">
-                        <span>{{ talkgroup }}</span>
-                    </button>
-                </mat-menu>
-
-                <button type="button" class="compact-button" [matMenuTriggerFor]="groupMenu"
-                        [matTooltip]="getSelectedGroupLabel()">
-                    <mat-icon>category</mat-icon>
-                    <span>{{ getSelectedGroupLabel() }}</span>
+                <div class="tlr-time-value">{{ pad2(getMinute()) }}</div>
+                <button type="button" class="tlr-time-step" (click)="bumpMinute(-1); $event.stopPropagation()" aria-label="Minute down">
+                  <mat-icon>keyboard_arrow_down</mat-icon>
                 </button>
-                <mat-menu #groupMenu="matMenu" class="tlr-lcd-menu">
-                    <button mat-menu-item (click)="setGroup(-1)">
-                        <span>All Groups</span>
-                    </button>
-                    <button *ngFor="let group of optionsGroup; index as i" mat-menu-item (click)="setGroup(i)">
-                        <span>{{ group }}</span>
-                    </button>
-                </mat-menu>
-
-                <button type="button" class="compact-button" [matMenuTriggerFor]="tagMenu"
-                        [matTooltip]="getSelectedTagLabel()">
-                    <mat-icon>local_offer</mat-icon>
-                    <span>{{ getSelectedTagLabel() }}</span>
-                </button>
-                <mat-menu #tagMenu="matMenu" class="tlr-lcd-menu">
-                    <button mat-menu-item (click)="setTag(-1)">
-                        <span>All Tags</span>
-                    </button>
-                    <button *ngFor="let tag of optionsTag; index as i" mat-menu-item (click)="setTag(i)">
-                        <span>{{ tag }}</span>
-                    </button>
-                </mat-menu>
-
-                <button type="button" class="compact-button" [matMenuTriggerFor]="favoriteMenu"
-                        [matTooltip]="getSelectedFavoriteLabel()">
-                    <mat-icon>star</mat-icon>
-                    <span>{{ getSelectedFavoriteLabel() }}</span>
-                </button>
-                <mat-menu #favoriteMenu="matMenu" class="tlr-lcd-menu">
-                    <button mat-menu-item (click)="setFavorite(-1)">
-                        <span>All Calls</span>
-                    </button>
-                    <button *ngFor="let favorite of optionsFavorites; index as i" mat-menu-item (click)="setFavorite(i)">
-                        <span>{{ favorite.label }}</span>
-                    </button>
-                    <div *ngIf="optionsFavorites.length === 0" class="no-favorites-message">
-                        <span style="padding: 8px 16px; color: rgba(255, 255, 255, 0.5); font-style: italic;">No favorites saved</span>
-                    </div>
-                </mat-menu>
-
-                <button type="button" class="compact-button reset-button" [disabled]="resultsPending" (click)="resetForm()"
-                        matTooltip="Clear all filters">
-                    <mat-icon>refresh</mat-icon>
-                    <span>Reset</span>
-                </button>
+                <div class="tlr-time-label">MIN</div>
+              </div>
             </div>
-        </form>
-    </mat-card>
-
-    <mat-card class="rdio-list">
-        <!-- Loading Overlay -->
-        <div class="loading-overlay" *ngIf="showInitialSearchOverlay">
-            <div class="loading-content">
-                <mat-spinner [diameter]="40"></mat-spinner>
-                <span>Loading calls...</span>
+            <div class="tlr-time-actions">
+              <button type="button" class="tlr-time-action" (click)="clearTime(); $event.stopPropagation()">Clear</button>
+              <button type="button" class="tlr-time-action tlr-time-action--primary" (click)="setTimeNow(); $event.stopPropagation()">Now</button>
             </div>
-        </div>
+          </div>
+        </mat-menu>
 
-        <div class="results-panel-head">
-            <span class="results-panel-title">Results</span>
-            <span class="results-panel-count" *ngIf="loadedResultCount > 0">
-                {{ loadedResultCount }}{{ hasMoreResults ? '+' : '' }} loaded
-            </span>
-        </div>
+        <button type="button" class="compact-button" [matMenuTriggerFor]="systemMenu"
+          [matTooltip]="getSelectedSystemLabel()">
+          <mat-icon>router</mat-icon>
+          <span>{{ getSelectedSystemLabel() }}</span>
+        </button>
+        <mat-menu #systemMenu="matMenu" class="tlr-lcd-menu">
+          <button mat-menu-item (click)="setSystem(-1)">
+            <span>All Systems</span>
+          </button>
+          @for (system of optionsSystem; track system; let i = $index) {
+            <button mat-menu-item (click)="setSystem(i)">
+              <span>{{ system }}</span>
+            </button>
+          }
+        </mat-menu>
 
-        <div class="archive-toolbar">
-            <div class="archive-download-wrap" matTooltip="Download mode — tap rows to save audio">
-                <mat-slide-toggle #downloadMode class="archive-download-toggle" color="primary" labelPosition="before">
-                    <mat-icon>save_alt</mat-icon>
-                </mat-slide-toggle>
+        <button type="button" class="compact-button" [matMenuTriggerFor]="talkgroupMenu" [disabled]="form.value.system < 0"
+          [matTooltip]="getSelectedTalkgroupLabel()">
+          <mat-icon>group</mat-icon>
+          <span>{{ getSelectedTalkgroupLabel() }}</span>
+        </button>
+        <mat-menu #talkgroupMenu="matMenu" class="tlr-lcd-menu">
+          <button mat-menu-item (click)="setTalkgroup(-1)">
+            <span>All Talkgroups</span>
+          </button>
+          @for (talkgroup of optionsTalkgroup; track talkgroup; let i = $index) {
+            <button mat-menu-item (click)="setTalkgroup(i)">
+              <span>{{ talkgroup }}</span>
+            </button>
+          }
+        </mat-menu>
+
+        <button type="button" class="compact-button" [matMenuTriggerFor]="groupMenu"
+          [matTooltip]="getSelectedGroupLabel()">
+          <mat-icon>category</mat-icon>
+          <span>{{ getSelectedGroupLabel() }}</span>
+        </button>
+        <mat-menu #groupMenu="matMenu" class="tlr-lcd-menu">
+          <button mat-menu-item (click)="setGroup(-1)">
+            <span>All Groups</span>
+          </button>
+          @for (group of optionsGroup; track group; let i = $index) {
+            <button mat-menu-item (click)="setGroup(i)">
+              <span>{{ group }}</span>
+            </button>
+          }
+        </mat-menu>
+
+        <button type="button" class="compact-button" [matMenuTriggerFor]="tagMenu"
+          [matTooltip]="getSelectedTagLabel()">
+          <mat-icon>local_offer</mat-icon>
+          <span>{{ getSelectedTagLabel() }}</span>
+        </button>
+        <mat-menu #tagMenu="matMenu" class="tlr-lcd-menu">
+          <button mat-menu-item (click)="setTag(-1)">
+            <span>All Tags</span>
+          </button>
+          @for (tag of optionsTag; track tag; let i = $index) {
+            <button mat-menu-item (click)="setTag(i)">
+              <span>{{ tag }}</span>
+            </button>
+          }
+        </mat-menu>
+
+        <button type="button" class="compact-button" [matMenuTriggerFor]="favoriteMenu"
+          [matTooltip]="getSelectedFavoriteLabel()">
+          <mat-icon>star</mat-icon>
+          <span>{{ getSelectedFavoriteLabel() }}</span>
+        </button>
+        <mat-menu #favoriteMenu="matMenu" class="tlr-lcd-menu">
+          <button mat-menu-item (click)="setFavorite(-1)">
+            <span>All Calls</span>
+          </button>
+          @for (favorite of optionsFavorites; track favorite; let i = $index) {
+            <button mat-menu-item (click)="setFavorite(i)">
+              <span>{{ favorite.label }}</span>
+            </button>
+          }
+          @if (optionsFavorites.length === 0) {
+            <div class="no-favorites-message">
+              <span style="padding: 8px 16px; color: rgba(255, 255, 255, 0.5); font-style: italic;">No favorites saved</span>
             </div>
-        </div>
+          }
+        </mat-menu>
 
-        <div class="archive-scroll-frame">
-        <div class="archive-table-scroll" #archiveScroll (scroll)="onArchiveScroll($event)">
+        <button type="button" class="compact-button reset-button" [disabled]="resultsPending" (click)="resetForm()"
+          matTooltip="Clear all filters">
+          <mat-icon>refresh</mat-icon>
+          <span>Reset</span>
+        </button>
+      </div>
+    </form>
+  </mat-card>
+
+  <mat-card class="rdio-list">
+    <!-- Loading Overlay -->
+    @if (showInitialSearchOverlay) {
+      <div class="loading-overlay">
+        <div class="loading-content">
+          <mat-spinner [diameter]="40"></mat-spinner>
+          <span>Loading calls...</span>
+        </div>
+      </div>
+    }
+
+    <div class="results-panel-head">
+      <span class="results-panel-title">Results</span>
+      @if (loadedResultCount > 0) {
+        <span class="results-panel-count">
+          {{ loadedResultCount }}{{ hasMoreResults ? '+' : '' }} loaded
+        </span>
+      }
+    </div>
+
+    <div class="archive-scroll-frame">
+      <div class="archive-table-scroll" #archiveScroll (scroll)="onArchiveScroll($event)">
         <mat-table class="archive-results-table" [dataSource]="results">
-            <ng-container matColumnDef="control">
-                <mat-header-cell *matHeaderCellDef></mat-header-cell>
-                <mat-cell *matCellDef="let row">
-                    <button *ngIf="downloadMode.checked && row" mat-icon-button (click)="download(+row.id)">
-                        <mat-icon>save_alt</mat-icon>
+          <ng-container matColumnDef="control">
+            <mat-header-cell *matHeaderCellDef></mat-header-cell>
+            <mat-cell *matCellDef="let row" class="archive-control-cell">
+              @if (row) {
+                <div class="archive-row-actions">
+                  @if (!paused && row?.id != call?.id && row?.id != callPending) {
+                    <button type="button" mat-icon-button matTooltip="Play"
+                      (click)="play(+row.id); $event.stopPropagation()">
+                      <mat-icon>play_arrow</mat-icon>
                     </button>
-                    <button *ngIf="row && !downloadMode.checked && !paused && row?.id != call?.id && row?.id != callPending"
-                        mat-icon-button (click)="play(+row.id)">
-                        <mat-icon>play_arrow</mat-icon>
+                  } @else if (row?.id == callPending) {
+                    <button type="button" mat-icon-button disabled>
+                      <mat-icon class="spin">cached</mat-icon>
                     </button>
-                    <button *ngIf="row && !downloadMode.checked && row?.id == callPending" mat-icon-button>
-                        <mat-icon class="spin">cached</mat-icon>
+                  } @else if (row?.id == call?.id) {
+                    <button type="button" mat-icon-button matTooltip="Stop"
+                      (click)="stop(); $event.stopPropagation()">
+                      <mat-icon>stop</mat-icon>
                     </button>
-                    <button *ngIf="row && !downloadMode.checked && row?.id == call?.id" mat-icon-button (click)="stop()">
-                        <mat-icon>stop</mat-icon>
-                    </button>
-                </mat-cell>
-            </ng-container>
-            <ng-container matColumnDef="date">
-                <mat-header-cell *matHeaderCellDef>
-                    <span>Date</span>
-                </mat-header-cell>
-                <mat-cell *matCellDef="let row">
-                    <span>{{ row?.dateTime | date:'MM/dd' }}</span>
-                </mat-cell>
-            </ng-container>
-            <ng-container matColumnDef="time">
-                <mat-header-cell *matHeaderCellDef [ngClass]="{'time12h': time12h}">
-                    <span>Time</span>
-                </mat-header-cell>
-                <mat-cell *matCellDef="let row" [ngClass]="{'time12h': time12h}">
-                    <span>{{ row?.dateTime | date: time12h ? 'h:mm a' : 'HH:mm' }}</span>
-                </mat-cell>
-            </ng-container>
-            <ng-container matColumnDef="system">
-                <mat-header-cell *matHeaderCellDef>
-                    <span>System</span>
-                </mat-header-cell>
-                <mat-cell *matCellDef="let row">
-                    <span>{{ row?.systemData?.label || row?.system }}</span>
-                </mat-cell>
-            </ng-container>
-            <ng-container matColumnDef="alpha">
-                <mat-header-cell *matHeaderCellDef>
-                    <span>Talkgroup</span>
-                </mat-header-cell>
-                <mat-cell *matCellDef="let row">
-                    <span>{{ row?.talkgroupData?.label || row?.talkgroup }}</span>
-                </mat-cell>
-            </ng-container>
-            <ng-container matColumnDef="tgid">
-                <mat-header-cell *matHeaderCellDef>
-                    <span>TGID</span>
-                </mat-header-cell>
-                <mat-cell *matCellDef="let row">
-                    <span>{{ displayTgidForCall(row) }}</span>
-                </mat-cell>
-            </ng-container>
-            <ng-container matColumnDef="source">
-                <mat-header-cell *matHeaderCellDef>
-                    <span>Source</span>
-                </mat-header-cell>
-                <mat-cell *matCellDef="let row" class="archive-source-cell"
-                    [matTooltip]="displayUnitForCall(row)"
-                    [matTooltipDisabled]="!row || displayUnitForCall(row) === '—'">
-                    <span>{{ row ? displayUnitForCall(row) : '' }}</span>
-                </mat-cell>
-            </ng-container>
-            <ng-container matColumnDef="name">
-                <mat-header-cell *matHeaderCellDef>
-                    <span>Name</span>
-                </mat-header-cell>
-                <mat-cell *matCellDef="let row">
-                    <span>{{ row?.talkgroupData?.name }}</span>
-                </mat-cell>
-            </ng-container>
-            <mat-header-row *matHeaderRowDef="archiveTableColumns; sticky: true">
-            </mat-header-row>
-            <mat-row *matRowDef="let row; columns: archiveTableColumns"
-                [class.archive-row-playing]="call?.id === row?.id"
-                [style.background-color]="getTransmissionHistoryBackgroundColor(row)">
-            </mat-row>
+                  } @else {
+                    <span class="archive-action-spacer" aria-hidden="true"></span>
+                  }
+                  <button type="button" mat-icon-button matTooltip="Download"
+                    (click)="download(+row.id); $event.stopPropagation()">
+                    <mat-icon>save_alt</mat-icon>
+                  </button>
+                </div>
+              }
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="date">
+            <mat-header-cell *matHeaderCellDef>
+              <span>Date</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <span>{{ $safeNavigationMigration(row?.dateTime) | date:'MM/dd' }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="time">
+            <mat-header-cell *matHeaderCellDef [ngClass]="{'time12h': time12h}">
+              <span>Time</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row" [ngClass]="{'time12h': time12h}">
+              <span>{{ $safeNavigationMigration(row?.dateTime) | date: time12h ? 'h:mm a' : 'HH:mm' }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="callid">
+            <mat-header-cell *matHeaderCellDef>
+              <span>Call ID</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <span>{{ row?.id ?? '—' }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="system">
+            <mat-header-cell *matHeaderCellDef>
+              <span>System</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <span>{{ row?.systemData?.label || row?.system }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="alpha">
+            <mat-header-cell *matHeaderCellDef>
+              <span>Talkgroup</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <span>{{ row?.talkgroupData?.label || row?.talkgroup }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="tgid">
+            <mat-header-cell *matHeaderCellDef>
+              <span>TGID</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <span>{{ displayTgidForCall(row) }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="source">
+            <mat-header-cell *matHeaderCellDef>
+              <span>Source</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row" class="archive-source-cell"
+              [matTooltip]="displayUnitForCall(row)"
+              [matTooltipDisabled]="!row || displayUnitForCall(row) === '—'">
+              <span>{{ row ? displayUnitForCall(row) : '' }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="name">
+            <mat-header-cell *matHeaderCellDef>
+              <span>Name</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <span>{{ row?.talkgroupData?.name }}</span>
+            </mat-cell>
+          </ng-container>
+          <mat-header-row *matHeaderRowDef="archiveTableColumns; sticky: true">
+          </mat-header-row>
+          <mat-row *matRowDef="let row; columns: archiveTableColumns"
+            [class.archive-row-playing]="call?.id === row?.id"
+            [style.background-color]="getTransmissionHistoryBackgroundColor(row)">
+          </mat-row>
         </mat-table>
 
-        <div #loadMoreSentinel class="load-more-sentinel"
-            *ngIf="hasMoreResults && loadedResultCount > 0 && !showInitialSearchOverlay"></div>
+        @if (hasMoreResults && loadedResultCount > 0 && !showInitialSearchOverlay) {
+          <div #loadMoreSentinel class="load-more-sentinel"
+          ></div>
+        }
 
-        <div class="load-more-row" *ngIf="showLoadMoreIndicator">
+        @if (showLoadMoreIndicator) {
+          <div class="load-more-row">
             <mat-spinner diameter="22"></mat-spinner>
             <span>Loading more…</span>
-        </div>
+          </div>
+        }
 
-        <div class="load-more-row load-more-row--hint" *ngIf="!showLoadMoreIndicator && hasMoreResults && loadedResultCount > 0">
+        @if (!showLoadMoreIndicator && hasMoreResults && loadedResultCount > 0) {
+          <div class="load-more-row load-more-row--hint">
             <span>Scroll for more</span>
-        </div>
+          </div>
+        }
 
-        <div class="empty-results" *ngIf="!showInitialSearchOverlay && !resultsPending && loadedResultCount === 0">
+        @if (!showInitialSearchOverlay && !resultsPending && loadedResultCount === 0) {
+          <div class="empty-results">
             <span>No transmissions match these filters.</span>
-        </div>
-        </div>
-        </div>
-        <mat-progress-bar color="primary" [mode]="showInitialSearchOverlay ? 'query' : 'determinate'">
-        </mat-progress-bar>
-    </mat-card>
+          </div>
+        }
+      </div>
+    </div>
+    <mat-progress-bar color="primary" [mode]="showInitialSearchOverlay ? 'query' : 'determinate'">
+    </mat-progress-bar>
+  </mat-card>
 </div>

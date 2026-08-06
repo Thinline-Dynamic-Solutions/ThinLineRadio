@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 export interface SystemVisibilityItem {
@@ -30,6 +30,8 @@ export interface SystemVisibilityItem {
     selector: 'rdio-scanner-systems-visibility-dialog',
     templateUrl: './systems-visibility-dialog.component.html',
     styleUrls: ['./systems-visibility-dialog.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class SystemsVisibilityDialogComponent {
     systems: SystemVisibilityItem[];

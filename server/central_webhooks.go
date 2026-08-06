@@ -75,18 +75,41 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Check if user already exists
+	userID, created, err := api.applyCentralUserGrant(req)
+	if err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	status := "updated"
+	message := "User access updated successfully"
+	httpStatus := http.StatusOK
+	if created {
+		status = "created"
+		message = "User access granted successfully"
+		httpStatus = http.StatusCreated
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatus)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  status,
+		"user_id": userID,
+		"message": message,
+	})
+}
+
+// applyCentralUserGrant creates or updates a local listener user from a CM grant payload.
+func (api *Api) applyCentralUserGrant(req CentralUserGrantRequest) (userID uint64, created bool, err error) {
 	existingUser := api.Controller.Users.GetUserByEmail(req.Email)
 	if existingUser != nil {
-		// Update existing user
 		existingUser.Pin = req.PIN
-		existingUser.PinExpiresAt = 0 // No expiration for centrally managed users
+		existingUser.PinExpiresAt = 0
 		existingUser.FirstName = req.FirstName
 		existingUser.LastName = req.LastName
-		existingUser.Verified = true // Central users are pre-verified
+		existingUser.Verified = true
 		existingUser.ConnectionLimit = req.ConnectionLimit
 
-		// Update systems access
 		if req.Systems == "*" {
 			existingUser.Systems = "*"
 		} else if systemIDs, ok := req.Systems.([]interface{}); ok {
@@ -94,7 +117,6 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 			existingUser.Systems = string(systemsJSON)
 		}
 
-		// Update talkgroups access
 		if req.Talkgroups != nil {
 			if req.Talkgroups == "*" {
 				existingUser.Talkgroups = "*"
@@ -104,15 +126,12 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 			}
 		}
 
-		// Update user group (move to the single central-managed group).
 		if req.GroupID != nil {
 			existingUser.SetGroupIds([]uint64{*req.GroupID})
 		}
 
-		// Update in-memory map first.
 		api.Controller.Users.Update(existingUser)
 
-		// Write directly to the DB for this specific user — targeted and reliable.
 		_, dbErr := api.Controller.Database.Sql.Exec(
 			`UPDATE "users" SET "pin"=$1, "pinExpiresAt"=$2, "connectionLimit"=$3, "firstName"=$4, "lastName"=$5, "systems"=$6, "talkgroups"=$7, "userGroupId"=$8, "verified"=$9, "userGroupIds"=$10 WHERE "userId"=$11`,
 			existingUser.Pin,
@@ -132,37 +151,27 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 		}
 
 		log.Printf("Central Management: Updated user %s (PIN: %s, ConnectionLimit: %d)", req.Email, req.PIN, req.ConnectionLimit)
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":  "updated",
-			"user_id": existingUser.Id,
-			"message": "User access updated successfully",
-		})
-		return
+		return existingUser.Id, false, nil
 	}
 
-	// Create new user
-	user := NewUser(req.Email, "") // No password for centrally managed users
+	user := NewUser(req.Email, "")
 	user.FirstName = req.FirstName
 	user.LastName = req.LastName
 	user.Pin = req.PIN
-	user.PinExpiresAt = 0 // No expiration
+	user.PinExpiresAt = 0
 	user.Verified = true
 	user.ConnectionLimit = req.ConnectionLimit
 	user.CreatedAt = time.Now().Format(time.RFC3339)
 
-	// Set systems access
 	if req.Systems == "*" {
 		user.Systems = "*"
 	} else if systemIDs, ok := req.Systems.([]interface{}); ok {
 		systemsJSON, _ := json.Marshal(systemIDs)
 		user.Systems = string(systemsJSON)
 	} else {
-		user.Systems = "*" // Default to all systems
+		user.Systems = "*"
 	}
 
-	// Set talkgroups access
 	if req.Talkgroups != nil {
 		if req.Talkgroups == "*" {
 			user.Talkgroups = "*"
@@ -170,32 +179,22 @@ func (api *Api) CentralWebhookUserGrantHandler(w http.ResponseWriter, r *http.Re
 			talkgroupsJSON, _ := json.Marshal(talkgroupIDs)
 			user.Talkgroups = string(talkgroupsJSON)
 		} else {
-			user.Talkgroups = "*" // Default to all talkgroups
+			user.Talkgroups = "*"
 		}
 	} else {
-		user.Talkgroups = "*" // Default to all talkgroups
+		user.Talkgroups = "*"
 	}
 
-	// Set user group
 	if req.GroupID != nil {
 		user.SetGroupIds([]uint64{*req.GroupID})
 	}
 
-	// Add user to database
 	if err := api.Controller.Users.SaveNewUser(user, api.Controller.Database); err != nil {
-		api.exitWithError(w, http.StatusInternalServerError, "Failed to save user")
-		return
+		return 0, false, fmt.Errorf("failed to save user")
 	}
 
 	log.Printf("Central Management: Created user %s (PIN: %s)", req.Email, req.PIN)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":  "created",
-		"user_id": user.Id,
-		"message": "User access granted successfully",
-	})
+	return user.Id, true, nil
 }
 
 // CentralWebhookUserRevokeHandler handles user access revocations from central management system

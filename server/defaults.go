@@ -115,6 +115,7 @@ type DefaultOptions struct {
 	adminLocalhostOnly          bool
 	configSyncEnabled           bool
 	configSyncPath              string
+	configSyncFileName          string
 	reconnectionEnabled         bool
 	reconnectionGracePeriod     uint
 	reconnectionMaxBufferSize   uint
@@ -245,6 +246,7 @@ var defaults = Defaults{
 		adminLocalhostOnly: false, // Default to false for backwards compatibility
 		configSyncEnabled:  false,
 		configSyncPath:     "",
+		configSyncFileName: "ThinLineRadioV7-config.json",
 		reconnectionEnabled: true,       // Enable by default
 		reconnectionGracePeriod: 60,     // 60 seconds
 		reconnectionMaxBufferSize: 100,  // 100 calls max

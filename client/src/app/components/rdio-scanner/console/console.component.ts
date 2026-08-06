@@ -12,16 +12,17 @@
  */
 
 import {
-    ChangeDetectorRef,
-    Component,
-    EventEmitter,
-    Input,
-    OnChanges,
-    OnDestroy,
-    OnInit,
-    Output,
-    SimpleChanges,
-    ViewChild,
+  ChangeDetectorRef,
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  SimpleChanges,
+  ViewChild,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MatInput } from '@angular/material/input';
@@ -66,6 +67,8 @@ type TransmissionsPanelMode = 'recent' | 'search';
     selector: 'rdio-scanner-console',
     templateUrl: './console.component.html',
     styleUrls: ['./console.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit {
 
@@ -267,6 +270,15 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         return this.config?.options?.transcriptionEnabled || false;
     }
 
+    get isIncidentMappingEnabled(): boolean {
+        return !!this.config?.options?.incidentMappingEnabled;
+    }
+
+    /** Map tab requires transcription UI plus the server-wide incident mapping switch. */
+    get showIncidentMapTab(): boolean {
+        return this.isTranscriptionEnabled && this.isIncidentMappingEnabled;
+    }
+
     get isUserAuthenticated(): boolean {
         return !!this.rdioScannerService.readPin();
     }
@@ -275,17 +287,24 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         return this.rdioScannerService.isSystemAdmin();
     }
 
-    /** Settings is always the last tab; its index shifts when transcription tabs hide. */
+    /**
+     * Settings is always the last tab. With transcription on: tabs 0–4 are fixed
+     * (Transmissions…Stats), Map is optional at 5, Settings follows.
+     * With transcription off: Transmissions, Channels, Settings.
+     */
     get settingsBoardTabIndex(): number {
-        return this.isTranscriptionEnabled ? TAB.Settings : TAB.Map + 1;
+        if (!this.isTranscriptionEnabled) {
+            return TAB.Channels + 1;
+        }
+        return this.showIncidentMapTab ? TAB.Settings : TAB.Map;
     }
 
     get mapBoardTabIndex(): number {
-        return this.isTranscriptionEnabled ? TAB.Map : TAB.Channels + 1;
+        return this.showIncidentMapTab ? TAB.Map : -1;
     }
 
     get mapTabActive(): boolean {
-        return this.isTranscriptionEnabled && this.boardTabIndex === this.mapBoardTabIndex;
+        return this.showIncidentMapTab && this.boardTabIndex === this.mapBoardTabIndex;
     }
 
     get showScanningAnimation(): boolean {
@@ -593,11 +612,13 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         if (refreshArchiveSearch && index === TAB.Transmissions && this.transmissionsPanelMode === 'search') {
             setTimeout(() => this.archiveSearch?.searchCalls(), 0);
         }
-        if (index === this.mapBoardTabIndex && this.isTranscriptionEnabled) {
+        if (this.showIncidentMapTab && index === this.mapBoardTabIndex) {
+            // Wait for alerts rail to collapse so Leaflet measures the wider pane.
             setTimeout(() => {
                 this.cdr.detectChanges();
                 this.incidentMapBridge.getMap()?.invalidateMapSize();
-            }, 50);
+            }, 80);
+            setTimeout(() => this.incidentMapBridge.getMap()?.invalidateMapSize(), 250);
         }
         this.syncPageScrollMode();
     }
@@ -712,6 +733,21 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         if (call.tagData?.led) return this.tagColorService.getTagColor(call.tagData.led);
         if (call.talkgroupData?.tag) return this.tagColorService.getTagColor(call.talkgroupData.tag);
         return 'transparent';
+    }
+
+    /** Tag label for the mobile-style now-playing grid. */
+    nowPlayingTagLabel(call: RdioScannerCall | undefined): string {
+        if (!call) return '—';
+        const raw = call.talkgroupData?.tag || call.tagData?.label || call.tagData?.led;
+        if (raw == null || String(raw).trim() === '') return '—';
+        return this.tagColorService.resolveTagLabel(raw);
+    }
+
+    /** CSS color for talkgroup card border/glow; falls back to primary neon. */
+    nowPlayingTagColor(call: RdioScannerCall | undefined): string {
+        const col = this.getTransmissionHistoryTagColor(call);
+        if (!col || col === 'transparent') return 'var(--tlr-primary, #39ff14)';
+        return col;
     }
 
     getTransmissionHistoryBackgroundColor(call: RdioScannerCall | undefined): string {
@@ -1119,6 +1155,15 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
             }
             this.timeFormat = this.config?.time12hFormat ? 'h:mm a' : 'HH:mm';
             this.userRegistrationEnabled = this.config?.options?.userRegistrationEnabled ?? false;
+
+            // When transcription / mapping toggles hide tabs, leave those indices.
+            if (!this.isTranscriptionEnabled && this.boardTabIndex >= TAB.Alerts) {
+                this.boardTabIndex = this.settingsBoardTabIndex;
+            } else if (!this.showIncidentMapTab && this.boardTabIndex === TAB.Map) {
+                this.boardTabIndex = this.settingsBoardTabIndex;
+            }
+            this.cdr.markForCheck();
+            this.cdr.detectChanges();
 
             if (!this.userRegistrationEnabled) {
                 const password = this.authForm.get('password')?.value;

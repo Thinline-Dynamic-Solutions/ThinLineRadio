@@ -3,6 +3,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -88,6 +89,69 @@ func resolveIncidentMappingConfig(system *System, talkgroup *Talkgroup) Incident
 
 func toneSetHasGeo(ts *ToneSet) bool {
 	return ts != nil && strings.TrimSpace(ts.GeoCity) != "" && ts.GeoLat != 0 && ts.GeoRadiusMiles > 0
+}
+
+func incidentMappingConfigLooksSetup(cfg IncidentMappingConfig) bool {
+	if !cfg.Enabled {
+		return false
+	}
+	return cfg.GeoLat != 0 || cfg.GeoLon != 0 || strings.TrimSpace(cfg.GeoCity) != ""
+}
+
+// detectIncidentMappingAlreadySetup reports whether any system, talkgroup, or
+// tone set already has incident-mapping geo configured. Used once to default
+// the server-wide master switch on for existing installs (new installs stay off).
+func detectIncidentMappingAlreadySetup(db *Database) bool {
+	if db == nil || db.Sql == nil {
+		return false
+	}
+	scanConfigs := func(query string) bool {
+		rows, err := db.Sql.Query(query)
+		if err != nil {
+			return false
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var raw sql.NullString
+			if err := rows.Scan(&raw); err != nil {
+				continue
+			}
+			if !raw.Valid || strings.TrimSpace(raw.String) == "" || raw.String == "{}" {
+				continue
+			}
+			if incidentMappingConfigLooksSetup(parseIncidentMappingConfig(raw.String)) {
+				return true
+			}
+		}
+		return false
+	}
+	if scanConfigs(`SELECT COALESCE("incidentMappingConfig", '') FROM "systems"`) {
+		return true
+	}
+	if scanConfigs(`SELECT COALESCE("incidentMappingConfig", '') FROM "talkgroups"`) {
+		return true
+	}
+	rows, err := db.Sql.Query(`SELECT COALESCE("toneSets", '[]') FROM "talkgroups"`)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil || strings.TrimSpace(raw) == "" || raw == "[]" {
+			continue
+		}
+		sets, err := ParseToneSets(raw)
+		if err != nil {
+			continue
+		}
+		for i := range sets {
+			if toneSetHasGeo(&sets[i]) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func talkgroupHasToneSets(tg *Talkgroup) bool {
@@ -483,6 +547,12 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 		return
 	}
 	if call.System == nil || call.Talkgroup == nil {
+		return
+	}
+	q.controller.Options.mutex.Lock()
+	mappingEnabled := q.controller.Options.MappingIntegration.IncidentMappingEnabled
+	q.controller.Options.mutex.Unlock()
+	if !mappingEnabled {
 		return
 	}
 	if !q.controller.isVoiceForToneAlerts(transcript) {

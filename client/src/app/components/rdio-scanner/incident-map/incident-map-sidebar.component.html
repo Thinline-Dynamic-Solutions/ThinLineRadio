@@ -1,54 +1,72 @@
-<aside class="incident-map-sidebar"
-       *ngIf="map$ | async as m">
+@if (map$ | async; as m) {
+  <aside class="incident-map-sidebar"
+    >
     <span class="sidebar-sync" aria-hidden="true">{{ m.sidebarTick }}</span>
     <div class="sidebar-header">
-        <div class="sidebar-header-text">
-            <h3>Incidents</h3>
-            <span class="sidebar-range">{{ m.timeRangeLabel }}</span>
+      <div class="sidebar-header-text">
+        <h3>Incidents</h3>
+        <span class="sidebar-range">{{ m.timeRangeLabel }}</span>
+      </div>
+      @if (!m.loading) {
+        <span class="sidebar-count">
+          @if (m.hasActiveFilters) {
+            {{ m.filteredIncidents.length }}@if (m.filteredIncidentRawCount > m.filteredIncidents.length) {
+            ({{ m.filteredIncidentRawCount }} calls)
+            } / {{ m.incidents.length }}
+          } @else {
+            {{ m.filteredIncidents.length }}@if (m.filteredIncidentRawCount > m.filteredIncidents.length) {
+            ({{ m.filteredIncidentRawCount }} calls)
+          }
+        }
+      </span>
+    }
+    @if (m.loading) {
+      <mat-spinner diameter="20"></mat-spinner>
+    }
+  </div>
+  <div class="sidebar-list">
+    @if (!m.loading && m.incidents.length === 0) {
+      <div class="sidebar-empty">
+        <mat-icon>map</mat-icon>
+        <span>No geocoded incidents yet.</span>
+      </div>
+    }
+    @if (!m.loading && m.incidents.length > 0 && m.filteredIncidents.length === 0) {
+      <div class="sidebar-empty">
+        <mat-icon>filter_alt_off</mat-icon>
+        <span>No incidents match your filters.</span>
+      </div>
+    }
+    @for (incident of m.filteredIncidents; track incident.callId) {
+      <button type="button"
+        class="incident-list-item"
+        [attr.data-incident-call-id]="incident.callId"
+        [class.selected]="m.selectedIncident?.callId === incident.callId"
+        [class.focusing]="m.focusingCallId === incident.callId"
+        [style.background]="m.incidentListBackground(incident)"
+        [style.box-shadow]="m.selectedIncident?.callId === incident.callId ? m.incidentListSelectedShadow(incident) : 'none'"
+        (click)="m.selectIncident(incident)">
+        <div class="incident-list-nature"
+          [style.background]="m.getIncidentTagColor(incident)"
+          [style.color]="m.incidentNatureTextColor(incident)">
+          {{ m.incidentNatureLabel(incident) }}
         </div>
-        <span class="sidebar-count" *ngIf="!m.loading">
-            <ng-container *ngIf="m.hasActiveFilters; else totalCount">
-                {{ m.filteredIncidents.length }}<ng-container *ngIf="m.filteredIncidentRawCount > m.filteredIncidents.length"> ({{ m.filteredIncidentRawCount }} calls)</ng-container> / {{ m.incidents.length }}
-            </ng-container>
-            <ng-template #totalCount>
-                {{ m.filteredIncidents.length }}<ng-container *ngIf="m.filteredIncidentRawCount > m.filteredIncidents.length"> ({{ m.filteredIncidentRawCount }} calls)</ng-container>
-            </ng-template>
-        </span>
-        <mat-spinner *ngIf="m.loading" diameter="20"></mat-spinner>
-    </div>
-
-    <div class="sidebar-list">
-        <div *ngIf="!m.loading && m.incidents.length === 0" class="sidebar-empty">
-            No geocoded incidents yet.
+        <div class="incident-list-title">{{ m.incidentAddress(incident) }}</div>
+        <div class="incident-list-channel">{{ m.incidentChannel(incident) }}</div>
+        <div class="incident-list-meta">
+          @if (incident.tagLabel) {
+            <span class="incident-list-tag">{{ incident.tagLabel }}</span>
+          }
+          @if (incident.tagLabel) {
+            <span> · </span>
+          }
+          <span>{{ m.formatTimestamp(incident.timestamp) }}</span>
         </div>
-        <div *ngIf="!m.loading && m.incidents.length > 0 && m.filteredIncidents.length === 0" class="sidebar-empty">
-            No incidents match your filters.
-        </div>
-
         <button type="button"
-                class="incident-list-item"
-                *ngFor="let incident of m.filteredIncidents; trackBy: m.trackIncidentCallId"
-                [attr.data-incident-call-id]="incident.callId"
-                [class.selected]="m.selectedIncident?.callId === incident.callId"
-                [class.focusing]="m.focusingCallId === incident.callId"
-                [style.background]="m.incidentListBackground(incident)"
-                [style.box-shadow]="m.selectedIncident?.callId === incident.callId ? m.incidentListSelectedShadow(incident) : 'none'"
-                (click)="m.selectIncident(incident)">
-            <div class="incident-list-nature"
-                 [style.background]="m.getIncidentTagColor(incident)"
-                 [style.color]="m.incidentNatureTextColor(incident)">
-                {{ m.incidentNatureLabel(incident) }}
-            </div>
-            <div class="incident-list-title">{{ m.incidentAddress(incident) }}</div>
-            <div class="incident-list-channel">{{ m.incidentChannel(incident) }}</div>
-            <div class="incident-list-meta">
-                <span *ngIf="incident.tagLabel" class="incident-list-tag">{{ incident.tagLabel }}</span>
-                <span *ngIf="incident.tagLabel"> · </span>
-                <span>{{ m.formatTimestamp(incident.timestamp) }}</span>
-            </div>
-            <button type="button"
-                    class="btn-play-audio"
-                    (click)="m.playIncident(incident); $event.stopPropagation()">Play Audio</button>
-        </button>
-    </div>
+          class="btn-play-audio"
+        (click)="m.playIncident(incident); $event.stopPropagation()">Play Audio</button>
+      </button>
+    }
+  </div>
 </aside>
+}

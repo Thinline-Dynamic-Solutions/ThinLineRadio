@@ -1,18 +1,23 @@
 <h1 mat-dialog-title>{{ data.list.label }}</h1>
 
 <div mat-dialog-content>
-    <p *ngIf="data.list.description" class="list-description">{{ data.list.description }}</p>
-    <p class="list-count">{{ keywords.length }} keyword{{ keywords.length === 1 ? '' : 's' }}</p>
+  @if (data.list.description) {
+    <p class="list-description">{{ data.list.description }}</p>
+  }
+  <p class="list-count">{{ keywords.length }} keyword{{ keywords.length === 1 ? '' : 's' }}</p>
 
-    <div *ngIf="keywords.length > 0; else emptyList" class="keyword-chips">
-        <span *ngFor="let keyword of keywords" class="keyword-chip">{{ keyword }}</span>
+  @if (keywords.length > 0) {
+    <div class="keyword-chips">
+      @for (keyword of keywords; track keyword) {
+        <span class="keyword-chip">{{ keyword }}</span>
+      }
     </div>
+  } @else {
+    <p class="empty-message">No keywords in this list.</p>
+  }
 
-    <ng-template #emptyList>
-        <p class="empty-message">No keywords in this list.</p>
-    </ng-template>
 </div>
 
 <div mat-dialog-actions align="end">
-    <button mat-button class="tlr-dialog-btn tlr-dialog-btn--primary" mat-dialog-close>Close</button>
+  <button mat-button class="tlr-dialog-btn tlr-dialog-btn--primary" mat-dialog-close>Close</button>
 </div>

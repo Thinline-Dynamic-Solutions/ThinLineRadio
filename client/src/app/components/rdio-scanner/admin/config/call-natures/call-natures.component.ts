@@ -17,8 +17,9 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { PageEvent } from '@angular/material/paginator';
 import { Subscription } from 'rxjs';
 import {
     CallNature,
@@ -31,6 +32,8 @@ import {
     selector: 'rdio-scanner-admin-call-natures',
     templateUrl: './call-natures.component.html',
     styleUrls: ['./call-natures.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     callNatures: CallNature[] = [];
@@ -40,6 +43,9 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     editingForm: FormGroup | null = null;
     editingPhrases: string[] = [];
     newPhraseText = '';
+
+    readonly pageSize = 10;
+    pageIndex = 0;
 
     learnEnabled = false;
     learnStatus: CallNaturePhraseLearnStatus | null = null;
@@ -78,12 +84,35 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
         });
     }
 
+    get pagedNatures(): CallNature[] {
+        const start = this.pageIndex * this.pageSize;
+        return this.filteredNatures.slice(start, start + this.pageSize);
+    }
+
     get readySuggestions(): CallNaturePhraseSuggestion[] {
         return this.suggestions.filter((s) => s.ready);
     }
 
     get emergingSuggestions(): CallNaturePhraseSuggestion[] {
         return this.suggestions.filter((s) => !s.ready);
+    }
+
+    onSearch(value: string): void {
+        this.searchFilter = value ?? '';
+        this.pageIndex = 0;
+        this.cdr.markForCheck();
+    }
+
+    onPage(event: PageEvent): void {
+        this.pageIndex = event.pageIndex;
+        this.cdr.markForCheck();
+    }
+
+    private clampPage(): void {
+        const maxPage = Math.max(0, Math.ceil(this.filteredNatures.length / this.pageSize) - 1);
+        if (this.pageIndex > maxPage) {
+            this.pageIndex = maxPage;
+        }
     }
 
     private normalizeNature(nature: CallNature): CallNature {
@@ -106,6 +135,7 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
         const natures = await this.adminService.getCallNatures();
         if (natures !== undefined) {
             this.callNatures = natures.map((n) => this.normalizeNature(n));
+            this.clampPage();
         }
         this.loading = false;
         this.cdr.markForCheck();
@@ -253,6 +283,8 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     }
 
     addNew(): void {
+        this.pageIndex = 0;
+        this.searchFilter = '';
         this.callNatures.unshift({
             label: '',
             phrases: [],
@@ -261,6 +293,7 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             expireMinutes: 0,
         });
         this.startEdit(0);
+        this.cdr.markForCheck();
     }
 
     formatExpire(minutes: number | undefined): string {

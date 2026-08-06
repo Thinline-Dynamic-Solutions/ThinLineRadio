@@ -25,6 +25,13 @@ type MappingIntegration struct {
 	// removed, and the direct Census API fallback was removed too (redundant
 	// with the TIGER data already imported into the Thinline Geocoding API).
 	MappingEngine string `json:"mappingEngine"`
+	// IncidentMappingEnabled is the server-wide master switch. When false,
+	// ProcessCall is a no-op and clients hide the Map tab.
+	IncidentMappingEnabled bool `json:"incidentMappingEnabled"`
+	// IncidentMappingEnabledConfigured is set when incidentMappingEnabled was
+	// present in saved options (or after first-boot migration). Unset configs
+	// default off unless systems/talkgroups/tone sets already have geo setup.
+	IncidentMappingEnabledConfigured bool `json:"-"`
 	// CallNatureOpenAIClassify enables OpenAI to pick a call-nature category when
 	// configured phrase matching finds nothing.
 	CallNatureOpenAIClassify bool `json:"callNatureOpenAIClassify"`

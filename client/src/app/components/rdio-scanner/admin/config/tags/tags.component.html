@@ -1,139 +1,265 @@
 <!--
- * *****************************************************************************
- * Copyright (C) 2025 Thinline Dynamic Solutions
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * ****************************************************************************
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
 -->
 <div class="admin-section-bar">
-    <p class="admin-section-hint">Tags are assigned to talkgroups and used to filter calls on the main screen.</p>
-    <div class="admin-section-actions">
-        <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
-            <mat-icon>save</mat-icon>
-            {{ saving ? 'Saving…' : 'Save' }}
-        </button>
-        <button type="button" mat-stroked-button (click)="add()">
-            <mat-icon>add</mat-icon>
-            New Tag
-        </button>
-        <button type="button" mat-stroked-button (click)="cleanupUnused()"
-                [disabled]="!form || form.length === 0"
-                matTooltip="Remove tags not assigned to any talkgroup">
-            <mat-icon>auto_delete</mat-icon>
-            Cleanup Unused
-        </button>
-    </div>
+  <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput
+      [ngModel]="searchQuery"
+      (ngModelChange)="onSearch($event)"
+      [ngModelOptions]="{standalone: true}"
+      placeholder="Search tags"
+      autocomplete="off">
+    @if (searchQuery) {
+      <button mat-icon-button matSuffix type="button" (click)="onSearch('')" aria-label="Clear search">
+        <mat-icon>close</mat-icon>
+      </button>
+    }
+  </mat-form-field>
+  <div class="admin-section-actions">
+    <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
+      <mat-icon>save</mat-icon>
+      {{ saving ? 'Saving…' : 'Save' }}
+    </button>
+    <button type="button" mat-stroked-button (click)="add()">
+      <mat-icon>add</mat-icon>
+      New Tag
+    </button>
+    <button type="button" mat-stroked-button (click)="cleanupUnused()"
+      [disabled]="!form || form.length === 0"
+      matTooltip="Remove tags not assigned to any talkgroup">
+      <mat-icon>auto_delete</mat-icon>
+      Cleanup Unused
+    </button>
+  </div>
 </div>
 
-<!-- Empty state -->
-<div *ngIf="!tags?.length" class="empty-state">
+@if (!tags?.length) {
+  <div class="empty-state">
     <mat-icon>label_off</mat-icon>
     <p class="mat-body">No tags defined</p>
     <p class="mat-caption">Tags are required — every talkgroup must be assigned one.</p>
     <button type="button" mat-raised-button color="primary" (click)="add()">
-        <mat-icon>add</mat-icon>
-        Add First Tag
+      <mat-icon>add</mat-icon>
+      Add First Tag
     </button>
-</div>
+  </div>
+}
 
-<!-- Tags Table -->
-<div class="table-wrapper" *ngIf="tags?.length">
-    <mat-table
-        [dataSource]="tags"
+@if (tags?.length && !filteredTags.length) {
+  <div class="empty-state">
+    <mat-icon>search_off</mat-icon>
+    <p class="mat-body">No tags match “{{ searchQuery }}”</p>
+  </div>
+}
+
+@if (filteredTags.length) {
+  <div class="dual-tables" [class.single-column]="!showDualColumns">
+    <div class="table-wrapper">
+      <mat-table
+        [dataSource]="leftTags"
         cdkDropList
-        [cdkDropListData]="tags"
+        id="tags-left"
+        [cdkDropListData]="leftTags"
+        [cdkDropListConnectedTo]="showDualColumns ? ['tags-right'] : []"
         (cdkDropListDropped)="drop($event)"
         class="tags-table">
-
-        <!-- Drag Column -->
         <ng-container matColumnDef="drag">
-            <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
-            <td mat-cell *matCellDef="let tag" class="drag-col">
-                <mat-icon cdkDragHandle class="drag-handle">drag_indicator</mat-icon>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+          <td mat-cell *matCellDef="let tag" class="drag-col">
+            <mat-icon cdkDragHandle class="drag-handle"
+              [class.drag-disabled]="!!searchQuery.trim()">drag_indicator</mat-icon>
+          </td>
         </ng-container>
-
-        <!-- Color Column -->
         <ng-container matColumnDef="color">
-            <th mat-header-cell *matHeaderCellDef class="color-col">Color</th>
-            <td mat-cell *matCellDef="let tag; let i = index" class="color-col">
-                <div class="cell-content" [formGroup]="tag">
-                    <mat-form-field appearance="outline" class="color-field" subscriptSizing="dynamic">
-                        <mat-select formControlName="color" (selectionChange)="onColorChange()">
-                            <mat-select-trigger>
-                                <span class="color-swatch"
-                                      [style.background-color]="tag.value.color || '#ffffff'"
-                                      [class.swatch-bordered]="!tag.value.color || tag.value.color === '#ffffff'">
-                                </span>
-                                <span class="color-label">{{ getColorLabel(tag.value.color) }}</span>
-                            </mat-select-trigger>
-                            <mat-option *ngFor="let opt of colorOptions" [value]="opt.value">
-                                <span class="color-swatch"
-                                      [style.background-color]="opt.hex"
-                                      [class.swatch-bordered]="opt.value === '' || opt.value === '#ffffff'">
-                                </span>
-                                {{ opt.label }}
-                            </mat-option>
-                        </mat-select>
-                    </mat-form-field>
-                </div>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="color-col">Color</th>
+          <td mat-cell *matCellDef="let tag" class="color-col">
+            <div class="cell-content" [formGroup]="tag">
+              <mat-form-field appearance="outline" class="color-field" subscriptSizing="dynamic">
+                <mat-select formControlName="color" (selectionChange)="onColorChange()">
+                  <mat-select-trigger>
+                    <span class="color-swatch"
+                      [style.background-color]="tag.value.color || '#ffffff'"
+                      [class.swatch-bordered]="!tag.value.color || tag.value.color === '#ffffff'">
+                    </span>
+                    <span class="color-label">{{ getColorLabel(tag.value.color) }}</span>
+                  </mat-select-trigger>
+                  @for (opt of colorOptions; track opt) {
+                    <mat-option [value]="opt.value">
+                      <span class="color-swatch"
+                        [style.background-color]="opt.hex"
+                        [class.swatch-bordered]="opt.value === '' || opt.value === '#ffffff'">
+                      </span>
+                      {{ opt.label }}
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+          </td>
         </ng-container>
-
-        <!-- Label Column -->
         <ng-container matColumnDef="label">
-            <th mat-header-cell *matHeaderCellDef>Label</th>
-            <td mat-cell *matCellDef="let tag" (mousedown)="$event.stopPropagation()">
-                <div class="cell-content" [formGroup]="tag">
-                    <mat-form-field appearance="outline" class="label-field" subscriptSizing="dynamic">
-                        <input matInput formControlName="label"
-                               [placeholder]="tag.get('label')?.invalid && tag.get('label')?.touched ? '⚠ Required' : 'Tag label'" autocomplete="off">
-                    </mat-form-field>
-                    <mat-icon *ngIf="tag.get('label')?.invalid && tag.get('label')?.touched"
-                              color="warn" class="row-error"
-                              matTooltip="Label is required">error</mat-icon>
-                </div>
-            </td>
+          <th mat-header-cell *matHeaderCellDef>Label</th>
+          <td mat-cell *matCellDef="let tag" (mousedown)="$event.stopPropagation()">
+            <div class="cell-content" [formGroup]="tag">
+              <mat-form-field appearance="outline" class="label-field" subscriptSizing="dynamic">
+                <input matInput formControlName="label"
+                  [placeholder]="tag.get('label')?.invalid && tag.get('label')?.touched ? '⚠ Required' : 'Tag label'" autocomplete="off">
+              </mat-form-field>
+              @if (tag.get('label')?.invalid && tag.get('label')?.touched) {
+                <mat-icon color="warn" class="row-error" matTooltip="Label is required">error</mat-icon>
+              }
+            </div>
+          </td>
         </ng-container>
-
-        <!-- Usage Column -->
         <ng-container matColumnDef="usage">
-            <th mat-header-cell *matHeaderCellDef class="usage-col">Usage</th>
-            <td mat-cell *matCellDef="let tag" class="usage-col">
-                <mat-chip *ngIf="isTagUnused(tag.value.id)" class="chip-unused"
-                          matTooltip="No talkgroups are assigned this tag">Unused</mat-chip>
-                <mat-chip *ngIf="!isTagUnused(tag.value.id)" class="chip-inuse">In Use</mat-chip>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="usage-col">Usage</th>
+          <td mat-cell *matCellDef="let tag" class="usage-col">
+            @if (isTagUnused(tag.value.id)) {
+              <mat-chip class="chip-unused"
+                matTooltip="No talkgroups are assigned this tag">Un Used</mat-chip>
+            }
+            @if (!isTagUnused(tag.value.id)) {
+              <mat-chip class="chip-inuse">Used</mat-chip>
+            }
+          </td>
         </ng-container>
-
-        <!-- Delete Column -->
         <ng-container matColumnDef="delete">
-            <th mat-header-cell *matHeaderCellDef class="delete-col"></th>
-            <td mat-cell *matCellDef="let tag; let i = index" class="delete-col">
-                <button mat-icon-button color="warn"
-                        (click)="remove(i)"
-                        matTooltip="Delete tag">
-                    <mat-icon>delete</mat-icon>
-                </button>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="delete-col"></th>
+          <td mat-cell *matCellDef="let tag" class="delete-col">
+            <button mat-icon-button color="warn"
+              (click)="remove(tag)"
+              matTooltip="Delete tag">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </td>
         </ng-container>
-
         <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
         <tr mat-row *matRowDef="let row; columns: displayedColumns;"
-            class="tag-row"
-            cdkDrag [cdkDragData]="row">
+          class="tag-row"
+          cdkDrag
+          [cdkDragDisabled]="!!searchQuery.trim()"
+          [cdkDragData]="row">
         </tr>
+      </mat-table>
+    </div>
 
-    </mat-table>
-</div>
+    @if (showDualColumns) {
+      <div class="table-wrapper">
+        <mat-table
+          [dataSource]="rightTags"
+          cdkDropList
+          id="tags-right"
+          [cdkDropListData]="rightTags"
+          [cdkDropListConnectedTo]="['tags-left']"
+          (cdkDropListDropped)="drop($event)"
+          class="tags-table">
+          <ng-container matColumnDef="drag">
+            <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+            <td mat-cell *matCellDef="let tag" class="drag-col">
+              <mat-icon cdkDragHandle class="drag-handle"
+                [class.drag-disabled]="!!searchQuery.trim()">drag_indicator</mat-icon>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="color">
+            <th mat-header-cell *matHeaderCellDef class="color-col">Color</th>
+            <td mat-cell *matCellDef="let tag" class="color-col">
+              <div class="cell-content" [formGroup]="tag">
+                <mat-form-field appearance="outline" class="color-field" subscriptSizing="dynamic">
+                  <mat-select formControlName="color" (selectionChange)="onColorChange()">
+                    <mat-select-trigger>
+                      <span class="color-swatch"
+                        [style.background-color]="tag.value.color || '#ffffff'"
+                        [class.swatch-bordered]="!tag.value.color || tag.value.color === '#ffffff'">
+                      </span>
+                      <span class="color-label">{{ getColorLabel(tag.value.color) }}</span>
+                    </mat-select-trigger>
+                    @for (opt of colorOptions; track opt) {
+                      <mat-option [value]="opt.value">
+                        <span class="color-swatch"
+                          [style.background-color]="opt.hex"
+                          [class.swatch-bordered]="opt.value === '' || opt.value === '#ffffff'">
+                        </span>
+                        {{ opt.label }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </div>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="label">
+            <th mat-header-cell *matHeaderCellDef>Label</th>
+            <td mat-cell *matCellDef="let tag" (mousedown)="$event.stopPropagation()">
+              <div class="cell-content" [formGroup]="tag">
+                <mat-form-field appearance="outline" class="label-field" subscriptSizing="dynamic">
+                  <input matInput formControlName="label"
+                    [placeholder]="tag.get('label')?.invalid && tag.get('label')?.touched ? '⚠ Required' : 'Tag label'" autocomplete="off">
+                </mat-form-field>
+                @if (tag.get('label')?.invalid && tag.get('label')?.touched) {
+                  <mat-icon color="warn" class="row-error" matTooltip="Label is required">error</mat-icon>
+                }
+              </div>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="usage">
+            <th mat-header-cell *matHeaderCellDef class="usage-col">Usage</th>
+            <td mat-cell *matCellDef="let tag" class="usage-col">
+              @if (isTagUnused(tag.value.id)) {
+                <mat-chip class="chip-unused"
+                  matTooltip="No talkgroups are assigned this tag">Un Used</mat-chip>
+              }
+              @if (!isTagUnused(tag.value.id)) {
+                <mat-chip class="chip-inuse">Used</mat-chip>
+              }
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="delete">
+            <th mat-header-cell *matHeaderCellDef class="delete-col"></th>
+            <td mat-cell *matCellDef="let tag" class="delete-col">
+              <button mat-icon-button color="warn"
+                (click)="remove(tag)"
+                matTooltip="Delete tag">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+            class="tag-row"
+            cdkDrag
+            [cdkDragDisabled]="!!searchQuery.trim()"
+            [cdkDragData]="row">
+          </tr>
+        </mat-table>
+      </div>
+    }
+  </div>
+
+  @if (filteredTags.length > pageSize) {
+    <mat-paginator
+      class="tags-paginator"
+      [length]="filteredTags.length"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [hidePageSize]="true"
+      [showFirstLastButtons]="true"
+      (page)="onPage($event)">
+    </mat-paginator>
+  }
+}

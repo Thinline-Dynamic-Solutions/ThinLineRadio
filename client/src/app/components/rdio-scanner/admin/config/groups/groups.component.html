@@ -1,117 +1,225 @@
 <!--
- * *****************************************************************************
- * Copyright (C) 2025 Thinline Dynamic Solutions
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * ****************************************************************************
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
 -->
-<div class="row top admin-section-bar">
-    <p class="admin-section-hint">All talkgroups must belong to a group — used to toggle active talkgroups on the main screen.</p>
-    <div class="admin-section-actions top-actions">
-        <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
-            <mat-icon>save</mat-icon>
-            {{ saving ? 'Saving…' : 'Save' }}
-        </button>
-        <button type="button" mat-raised-button color="primary" (click)="add()">
-            <mat-icon>add</mat-icon>
-            New Group
-        </button>
-        <button type="button" mat-stroked-button (click)="cleanupUnused()" matTooltip="Remove groups not assigned to any talkgroup">
-            <mat-icon>cleaning_services</mat-icon>
-            Cleanup Unused
-        </button>
-    </div>
+<div class="admin-section-bar">
+  <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput
+      [ngModel]="searchQuery"
+      (ngModelChange)="onSearch($event)"
+      [ngModelOptions]="{standalone: true}"
+      placeholder="Search groups"
+      autocomplete="off">
+    @if (searchQuery) {
+      <button mat-icon-button matSuffix type="button" (click)="onSearch('')" aria-label="Clear search">
+        <mat-icon>close</mat-icon>
+      </button>
+    }
+  </mat-form-field>
+  <div class="admin-section-actions">
+    <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
+      <mat-icon>save</mat-icon>
+      {{ saving ? 'Saving…' : 'Save' }}
+    </button>
+    <button type="button" mat-stroked-button (click)="add()">
+      <mat-icon>add</mat-icon>
+      New Group
+    </button>
+    <button type="button" mat-stroked-button (click)="cleanupUnused()"
+      [disabled]="!form || form.length === 0"
+      matTooltip="Remove groups not assigned to any talkgroup">
+      <mat-icon>auto_delete</mat-icon>
+      Cleanup Unused
+    </button>
+  </div>
 </div>
 
-<!-- Empty State -->
-<div *ngIf="!groups?.length" class="empty-state">
+@if (!groups?.length) {
+  <div class="empty-state">
     <mat-icon>folder_off</mat-icon>
     <p class="mat-body">No groups defined</p>
     <p class="mat-caption">Groups are used to organize talkgroups for filtering on the main screen.</p>
-</div>
+    <button type="button" mat-raised-button color="primary" (click)="add()">
+      <mat-icon>add</mat-icon>
+      Add First Group
+    </button>
+  </div>
+}
 
-<!-- Groups Table -->
-<div class="table-wrapper" *ngIf="groups?.length">
-    <mat-table [dataSource]="groups"
-               cdkDropList
-               [cdkDropListData]="groups"
-               (cdkDropListDropped)="drop($event)"
-               class="groups-table">
+@if (groups?.length && !filteredGroups.length) {
+  <div class="empty-state">
+    <mat-icon>search_off</mat-icon>
+    <p class="mat-body">No groups match “{{ searchQuery }}”</p>
+  </div>
+}
 
-        <!-- Drag Handle Column -->
+@if (filteredGroups.length) {
+  <div class="dual-tables" [class.single-column]="!showDualColumns">
+    <div class="table-wrapper">
+      <mat-table [dataSource]="leftGroups"
+        cdkDropList
+        id="groups-left"
+        [cdkDropListData]="leftGroups"
+        [cdkDropListConnectedTo]="showDualColumns ? ['groups-right'] : []"
+        (cdkDropListDropped)="drop($event)"
+        class="groups-table">
         <ng-container matColumnDef="drag">
-            <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
-            <td mat-cell *matCellDef="let group" class="drag-col">
-                <mat-icon cdkDragHandle class="drag-handle" matTooltip="Drag to reorder">drag_indicator</mat-icon>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+          <td mat-cell *matCellDef="let group" class="drag-col">
+            <mat-icon cdkDragHandle class="drag-handle"
+              [class.drag-disabled]="!!searchQuery.trim()"
+              matTooltip="Drag to reorder">drag_indicator</mat-icon>
+          </td>
         </ng-container>
-
-        <!-- Label Column -->
         <ng-container matColumnDef="label">
-            <th mat-header-cell *matHeaderCellDef>Group Label</th>
-            <td mat-cell *matCellDef="let group" (mousedown)="$event.stopPropagation()">
-                <ng-container [formGroup]="group">
-                    <mat-form-field appearance="outline" class="label-field">
-                        <input matInput formControlName="label" placeholder="e.g. Fire, Law, EMS" autocomplete="off">
-                        <mat-error *ngIf="group.get('label')?.hasError('required')">Label is required</mat-error>
-                    </mat-form-field>
-                </ng-container>
-            </td>
+          <th mat-header-cell *matHeaderCellDef>Label</th>
+          <td mat-cell *matCellDef="let group" (mousedown)="$event.stopPropagation()">
+            <div class="cell-content" [formGroup]="group">
+              <mat-form-field appearance="outline" class="label-field" subscriptSizing="dynamic">
+                <input matInput formControlName="label"
+                  [placeholder]="group.get('label')?.invalid && group.get('label')?.touched ? '⚠ Required' : 'Group label'"
+                  autocomplete="off">
+              </mat-form-field>
+              @if (group.get('label')?.invalid && group.get('label')?.touched) {
+                <mat-icon color="warn" class="row-error" matTooltip="Label is required">error</mat-icon>
+              }
+            </div>
+          </td>
         </ng-container>
-
-        <!-- Usage / Status Column -->
         <ng-container matColumnDef="usage">
-            <th mat-header-cell *matHeaderCellDef>Usage</th>
-            <td mat-cell *matCellDef="let group">
-                <span *ngIf="isGroupUnused(group.value.id)" class="unused-badge"
-                      matTooltip="No talkgroups are assigned to this group">
-                    <mat-icon>warning</mat-icon>
-                    Unused
-                </span>
-                <span *ngIf="!isGroupUnused(group.value.id)" class="used-badge">
-                    <mat-icon>check_circle</mat-icon>
-                    In use
-                </span>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="usage-col">Usage</th>
+          <td mat-cell *matCellDef="let group" class="usage-col">
+            @if (isGroupUnused(group.value.id)) {
+              <mat-chip class="chip-unused"
+                matTooltip="No talkgroups are assigned to this group">Un Used</mat-chip>
+            }
+            @if (!isGroupUnused(group.value.id)) {
+              <mat-chip class="chip-inuse">Used</mat-chip>
+            }
+          </td>
         </ng-container>
-
-        <!-- ID Column -->
         <ng-container matColumnDef="id">
-            <th mat-header-cell *matHeaderCellDef>ID</th>
-            <td mat-cell *matCellDef="let group">
-                <code class="id-code">{{ group.value.id || '—' }}</code>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="id-col">ID</th>
+          <td mat-cell *matCellDef="let group" class="id-col">
+            <code class="id-code">{{ group.value.id || '—' }}</code>
+          </td>
         </ng-container>
-
-        <!-- Actions Column -->
         <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
-            <td mat-cell *matCellDef="let group; let i = index" class="actions-col">
-                <button mat-icon-button color="warn" type="button"
-                        (click)="remove(i)"
-                        matTooltip="Delete group">
-                    <mat-icon>delete</mat-icon>
-                </button>
-            </td>
+          <th mat-header-cell *matHeaderCellDef class="delete-col"></th>
+          <td mat-cell *matCellDef="let group" class="delete-col">
+            <button mat-icon-button color="warn" type="button"
+              (click)="remove(group)"
+              matTooltip="Delete group">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </td>
         </ng-container>
-
         <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
         <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+          class="group-row"
+          cdkDrag
+          [cdkDragDisabled]="!!searchQuery.trim()"
+          [cdkDragData]="row">
+        </tr>
+      </mat-table>
+    </div>
+
+    @if (showDualColumns) {
+      <div class="table-wrapper">
+        <mat-table [dataSource]="rightGroups"
+          cdkDropList
+          id="groups-right"
+          [cdkDropListData]="rightGroups"
+          [cdkDropListConnectedTo]="['groups-left']"
+          (cdkDropListDropped)="drop($event)"
+          class="groups-table">
+          <ng-container matColumnDef="drag">
+            <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+            <td mat-cell *matCellDef="let group" class="drag-col">
+              <mat-icon cdkDragHandle class="drag-handle"
+                [class.drag-disabled]="!!searchQuery.trim()"
+                matTooltip="Drag to reorder">drag_indicator</mat-icon>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="label">
+            <th mat-header-cell *matHeaderCellDef>Label</th>
+            <td mat-cell *matCellDef="let group" (mousedown)="$event.stopPropagation()">
+              <div class="cell-content" [formGroup]="group">
+                <mat-form-field appearance="outline" class="label-field" subscriptSizing="dynamic">
+                  <input matInput formControlName="label"
+                    [placeholder]="group.get('label')?.invalid && group.get('label')?.touched ? '⚠ Required' : 'Group label'"
+                    autocomplete="off">
+                </mat-form-field>
+                @if (group.get('label')?.invalid && group.get('label')?.touched) {
+                  <mat-icon color="warn" class="row-error" matTooltip="Label is required">error</mat-icon>
+                }
+              </div>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="usage">
+            <th mat-header-cell *matHeaderCellDef class="usage-col">Usage</th>
+            <td mat-cell *matCellDef="let group" class="usage-col">
+              @if (isGroupUnused(group.value.id)) {
+                <mat-chip class="chip-unused"
+                  matTooltip="No talkgroups are assigned to this group">Un Used</mat-chip>
+              }
+              @if (!isGroupUnused(group.value.id)) {
+                <mat-chip class="chip-inuse">Used</mat-chip>
+              }
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef class="id-col">ID</th>
+            <td mat-cell *matCellDef="let group" class="id-col">
+              <code class="id-code">{{ group.value.id || '—' }}</code>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef class="delete-col"></th>
+            <td mat-cell *matCellDef="let group" class="delete-col">
+              <button mat-icon-button color="warn" type="button"
+                (click)="remove(group)"
+                matTooltip="Delete group">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"
             class="group-row"
             cdkDrag
+            [cdkDragDisabled]="!!searchQuery.trim()"
             [cdkDragData]="row">
-        </tr>
+          </tr>
+        </mat-table>
+      </div>
+    }
+  </div>
 
-    </mat-table>
-</div>
+  @if (filteredGroups.length > pageSize) {
+    <mat-paginator
+      class="groups-paginator"
+      [length]="filteredGroups.length"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [hidePageSize]="true"
+      [showFirstLastButtons]="true"
+      (page)="onPage($event)">
+    </mat-paginator>
+  }
+}

@@ -47,13 +47,64 @@
     gap: 10px;
     align-items: end;
 
-    &--time {
-        grid-template-columns: auto minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(0, 1fr);
+    &--primary {
+        grid-template-columns:
+            auto
+            minmax(110px, 0.9fr)
+            minmax(110px, 0.9fr)
+            minmax(140px, 1.4fr)
+            auto
+            auto;
     }
 
-    &--filters {
-        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 2fr) minmax(96px, 0.7fr) auto auto;
+    &--dates {
+        grid-template-columns: minmax(140px, 0.6fr) minmax(140px, 0.6fr) minmax(0, 1fr);
     }
+
+    &--more {
+        grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1fr);
+        padding-top: 4px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        margin-top: 2px;
+    }
+}
+
+.toolbar-group--time {
+    min-width: 0;
+
+    .toolbar-time-presets {
+        flex-wrap: nowrap;
+    }
+}
+
+.toolbar-group--actions .toolbar-reset-btn {
+    height: 32px;
+    white-space: nowrap;
+}
+
+.toolbar-more-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    white-space: nowrap;
+    min-width: 0;
+    padding: 0 12px;
+
+    mat-icon {
+        width: 16px;
+        height: 16px;
+        font-size: 16px;
+        line-height: 1;
+    }
+}
+
+.toolbar-more-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--tlr-accent, #7ec8e8);
+    box-shadow: 0 0 6px rgba(126, 200, 232, 0.6);
 }
 
 .toolbar-weather-toggles {
@@ -103,18 +154,14 @@
     cursor: pointer;
 
     &.active {
-        color: #39ff14;
-        border-color: rgba(57, 255, 20, 0.55);
-        background: rgba(57, 255, 20, 0.12);
+        color: #7ec8e8;
+        border-color: rgba(126, 200, 232, 0.55);
+        background: rgba(126, 200, 232, 0.12);
     }
 
     &:hover:not(.active) {
         border-color: rgba(255, 255, 255, 0.35);
     }
-}
-
-.toolbar-group--time {
-    min-width: 0;
 }
 
 .toolbar-group--dates {
@@ -176,8 +223,8 @@
     appearance: none;
 
     &:focus {
-        border-color: #39ff14;
-        box-shadow: 0 0 0 1px rgba(57, 255, 20, 0.35);
+        border-color: #7ec8e8;
+        box-shadow: 0 0 0 1px rgba(126, 200, 232, 0.35);
     }
 
     &:disabled {
@@ -262,14 +309,14 @@ select.toolbar-control {
     font-weight: 700;
     letter-spacing: 0.03em;
     white-space: nowrap;
-    color: #39ff14;
-    background: rgba(57, 255, 20, 0.08);
-    border: 1px solid rgba(57, 255, 20, 0.35);
+    color: #7ec8e8;
+    background: rgba(126, 200, 232, 0.08);
+    border: 1px solid rgba(126, 200, 232, 0.35);
     border-radius: 4px;
     cursor: pointer;
 
     &:hover {
-        background: rgba(57, 255, 20, 0.16);
+        background: rgba(126, 200, 232, 0.16);
     }
 }
 
@@ -718,12 +765,52 @@ select.toolbar-control {
     cursor: pointer;
     border: 0;
     border-radius: 4px;
-    background: #00c853;
-    color: #fff;
+    background: rgba(126, 200, 232, 0.85);
+    color: #0a1218;
     font-weight: 600;
     font-size: 12px;
 
     &:hover {
-        background: #00e676;
+        background: #7ec8e8;
+    }
+}
+
+:host-context(.thinline-skin) {
+    .incident-map-toolbar {
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid var(--tlr-bezel-border, rgba(255, 255, 255, 0.1));
+        border-radius: 10px;
+        box-shadow: none;
+    }
+
+    .toolbar-label {
+        color: var(--tlr-text-secondary, rgba(255, 255, 255, 0.55));
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .toolbar-control {
+        background: rgba(0, 0, 0, 0.35);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: var(--tlr-text, rgba(255, 255, 255, 0.92));
+
+        &:focus {
+            border-color: rgba(126, 200, 232, 0.55);
+            outline: none;
+        }
+    }
+
+    .toolbar-preset-btn.active {
+        color: var(--tlr-primary, #7ec8e8);
+        border-color: rgba(126, 200, 232, 0.55);
+        background: rgba(126, 200, 232, 0.12);
+    }
+
+    .incident-map-layout__sidebar {
+        border-color: var(--tlr-bezel-border, rgba(255, 255, 255, 0.1));
+        background: rgba(0, 0, 0, 0.28);
+        border-radius: 10px;
     }
 }

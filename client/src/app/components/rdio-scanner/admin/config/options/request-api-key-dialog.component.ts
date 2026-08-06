@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, Inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -31,8 +31,8 @@ interface SelectedStateData {
 }
 
 @Component({
-  selector: 'rdio-scanner-request-api-key-dialog',
-  template: `
+    selector: 'rdio-scanner-request-api-key-dialog',
+    template: `
     <h2 mat-dialog-title>{{ isUpdateMode ? 'Update' : 'Request' }} Push Notification API Key</h2>
     <mat-dialog-content>
       <p style="font-size: 13px; color: #666; line-height: 1.45; margin: 0 0 16px 0;">
@@ -41,270 +41,321 @@ interface SelectedStateData {
         Plain http:// with a LAN IP or hostname often cannot complete this step.
       </p>
       <!-- Domain Verification Step -->
-      <div *ngIf="requiresDomainVerification && !apiKeyReceived">
-        <div style="text-align: center; padding: 20px;">
-          <mat-icon style="font-size: 48px; width: 48px; height: 48px; color: #2196F3; margin-bottom: 16px;">mail</mat-icon>
-          <h3>Domain Verification Required</h3>
-          <p style="margin: 16px 0;">A verification code has been sent to <strong>{{ verificationEmail }}</strong></p>
-          <p style="color: #666; font-size: 14px; margin-bottom: 24px;">
-            This domain already has a server registered. Please enter the verification code sent to the domain owner's email address.
-          </p>
-          
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Verification Code</mat-label>
-            <input matInput [formControl]="verificationCodeControl" placeholder="Enter 6-digit code" maxlength="6" style="text-align: center; font-size: 24px; letter-spacing: 8px;">
-            <mat-hint>Enter the code sent to {{ verificationEmail }}</mat-hint>
-          </mat-form-field>
-          
-          <div *ngIf="verificationError" class="error-message" style="margin-top: 16px;">
-            {{ verificationError }}
-          </div>
-          
-          <div style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
-            <button mat-button (click)="onCancel()">Cancel</button>
-            <button mat-raised-button color="primary" (click)="onVerifyDomain()" [disabled]="!verificationCodeControl.value || verificationCodeControl.value.length !== 6 || verifying">
-              <span *ngIf="!verifying">Verify</span>
-              <span *ngIf="verifying">Verifying...</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Contact email verification (after request or after domain owner approval) -->
-      <div *ngIf="requiresEmailVerification && !apiKeyReceived">
-        <div style="text-align: center; padding: 20px;">
-          <mat-icon style="font-size: 48px; width: 48px; height: 48px; color: #2196F3; margin-bottom: 16px;">verified_user</mat-icon>
-          <h3>Verify your email</h3>
-          <p style="margin: 16px 0;">A verification code has been sent to <strong>{{ verificationEmail }}</strong></p>
-          <p style="color: #666; font-size: 14px; margin-bottom: 24px;">
-            Enter the code from your email to complete registration. Your API key will be issued after verification.
-          </p>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Verification Code</mat-label>
-            <input matInput [formControl]="verificationCodeControl" placeholder="Enter 6-digit code" maxlength="6" style="text-align: center; font-size: 24px; letter-spacing: 8px;">
-            <mat-hint>Enter the code sent to {{ verificationEmail }}</mat-hint>
-          </mat-form-field>
-
-          <div *ngIf="verificationError" class="error-message" style="margin-top: 16px;">
-            {{ verificationError }}
-          </div>
-
-          <div style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
-            <button mat-button (click)="onCancel()">Cancel</button>
-            <button mat-raised-button color="primary" (click)="onVerifyRegistrationEmail()" [disabled]="!verificationCodeControl.value || verificationCodeControl.value.length !== 6 || verifying">
-              <span *ngIf="!verifying">Verify</span>
-              <span *ngIf="verifying">Verifying...</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- API Key Request Form -->
-      <div *ngIf="!requiresDomainVerification && !requiresEmailVerification && !apiKeyReceived">
-        <form [formGroup]="apiKeyForm">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Server Name *</mat-label>
-            <input matInput formControlName="serverName" required>
-            <mat-error *ngIf="apiKeyForm.get('serverName')?.hasError('required')">
-              Server name is required
-            </mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Thinline Radio Server URL *</mat-label>
-            <input matInput formControlName="serverURL" placeholder="https://test.thinlineds.com" required>
-            <mat-hint>Your Thinline Radio server address</mat-hint>
-            <mat-error *ngIf="apiKeyForm.get('serverURL')?.hasError('required')">
-              Server URL is required
-            </mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Contact Email *</mat-label>
-            <input matInput type="email" formControlName="contactEmail" required>
-            <mat-error *ngIf="apiKeyForm.get('contactEmail')?.hasError('required')">
-              Contact email is required
-            </mat-error>
-            <mat-error *ngIf="apiKeyForm.get('contactEmail')?.hasError('email')">
-              Please enter a valid email address
-            </mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Country *</mat-label>
-            <mat-select formControlName="country" (selectionChange)="onCountryChange()" [disabled]="countries.length === 0">
-              <mat-option value="">-- Select Country --</mat-option>
-              <mat-option *ngFor="let country of countries" [value]="country.iso2">
-                {{ country.name }}
-              </mat-option>
-            </mat-select>
-            <mat-hint *ngIf="countries.length === 0">
-              Location data requires relay server URL to be configured
-            </mat-hint>
-            <mat-error *ngIf="apiKeyForm.get('country')?.hasError('required')">
-              Country is required
-            </mat-error>
-          </mat-form-field>
-
-          <!-- Multi-State Selector for US -->
-          <div *ngIf="availableStates.length > 0 && apiKeyForm.get('country')?.value === 'US'">
-            <div style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px;">
-              <mat-form-field appearance="outline" style="flex: 1; margin-bottom: 0;">
-                <mat-label>State/Province *</mat-label>
-                <mat-select [(value)]="stateSelector">
-                  <mat-option value="">-- Select State/Province --</mat-option>
-                  <mat-option *ngFor="let state of availableStates" [value]="state.iso2">
-                    {{ state.name }}
-                  </mat-option>
-                </mat-select>
-              </mat-form-field>
-              <button mat-raised-button color="primary" (click)="addState()" [disabled]="!stateSelector" type="button" style="margin-top: 8px;">
-                Add State
+      @if (requiresDomainVerification && !apiKeyReceived) {
+        <div>
+          <div style="text-align: center; padding: 20px;">
+            <mat-icon style="font-size: 48px; width: 48px; height: 48px; color: #2196F3; margin-bottom: 16px;">mail</mat-icon>
+            <h3>Domain Verification Required</h3>
+            <p style="margin: 16px 0;">A verification code has been sent to <strong>{{ verificationEmail }}</strong></p>
+            <p style="color: #666; font-size: 14px; margin-bottom: 24px;">
+              This domain already has a server registered. Please enter the verification code sent to the domain owner's email address.
+            </p>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Verification Code</mat-label>
+              <input matInput [formControl]="verificationCodeControl" placeholder="Enter 6-digit code" maxlength="6" style="text-align: center; font-size: 24px; letter-spacing: 8px;">
+              <mat-hint>Enter the code sent to {{ verificationEmail }}</mat-hint>
+            </mat-form-field>
+            @if (verificationError) {
+              <div class="error-message" style="margin-top: 16px;">
+                {{ verificationError }}
+              </div>
+            }
+            <div style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
+              <button mat-button (click)="onCancel()">Cancel</button>
+              <button mat-raised-button color="primary" (click)="onVerifyDomain()" [disabled]="!verificationCodeControl.value || verificationCodeControl.value.length !== 6 || verifying">
+                @if (!verifying) {
+                  <span>Verify</span>
+                }
+                @if (verifying) {
+                  <span>Verifying...</span>
+                }
               </button>
             </div>
-            <p style="color: #666; font-size: 13px; margin-top: -8px; margin-bottom: 16px;">
-              Select states and choose counties for each
+          </div>
+        </div>
+      }
+    
+      <!-- Contact email verification (after request or after domain owner approval) -->
+      @if (requiresEmailVerification && !apiKeyReceived) {
+        <div>
+          <div style="text-align: center; padding: 20px;">
+            <mat-icon style="font-size: 48px; width: 48px; height: 48px; color: #2196F3; margin-bottom: 16px;">verified_user</mat-icon>
+            <h3>Verify your email</h3>
+            <p style="margin: 16px 0;">A verification code has been sent to <strong>{{ verificationEmail }}</strong></p>
+            <p style="color: #666; font-size: 14px; margin-bottom: 24px;">
+              Enter the code from your email to complete registration. Your API key will be issued after verification.
             </p>
-
-            <!-- Selected States with Counties -->
-            <div *ngFor="let stateData of selectedStates; let i = index" 
-                 style="background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="margin: 0; color: #2196F3; font-size: 16px;">{{ stateData.stateName }}</h4>
-                <button mat-icon-button color="warn" (click)="removeState(i)" type="button">
-                  <mat-icon>close</mat-icon>
-                </button>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Verification Code</mat-label>
+              <input matInput [formControl]="verificationCodeControl" placeholder="Enter 6-digit code" maxlength="6" style="text-align: center; font-size: 24px; letter-spacing: 8px;">
+              <mat-hint>Enter the code sent to {{ verificationEmail }}</mat-hint>
+            </mat-form-field>
+            @if (verificationError) {
+              <div class="error-message" style="margin-top: 16px;">
+                {{ verificationError }}
               </div>
-              
-              <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 0;">
-                <mat-label>Counties *</mat-label>
-                <mat-select [(value)]="stateData.selectedCounties" multiple>
-                  <mat-option *ngFor="let county of stateData.counties" [value]="county.name">
-                    {{ county.name }}
-                  </mat-option>
-                </mat-select>
-                <mat-hint>Select all counties your scanner covers in {{ stateData.stateName }}</mat-hint>
-                <mat-error *ngIf="stateData.selectedCounties.length === 0">
-                  At least one county is required
+            }
+            <div style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
+              <button mat-button (click)="onCancel()">Cancel</button>
+              <button mat-raised-button color="primary" (click)="onVerifyRegistrationEmail()" [disabled]="!verificationCodeControl.value || verificationCodeControl.value.length !== 6 || verifying">
+                @if (!verifying) {
+                  <span>Verify</span>
+                }
+                @if (verifying) {
+                  <span>Verifying...</span>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+    
+      <!-- API Key Request Form -->
+      @if (!requiresDomainVerification && !requiresEmailVerification && !apiKeyReceived) {
+        <div>
+          <form [formGroup]="apiKeyForm">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Server Name *</mat-label>
+              <input matInput formControlName="serverName" required>
+              @if (apiKeyForm.get('serverName')?.hasError('required')) {
+                <mat-error>
+                  Server name is required
                 </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Thinline Radio Server URL *</mat-label>
+              <input matInput formControlName="serverURL" placeholder="https://test.thinlineds.com" required>
+              <mat-hint>Your Thinline Radio server address</mat-hint>
+              @if (apiKeyForm.get('serverURL')?.hasError('required')) {
+                <mat-error>
+                  Server URL is required
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Contact Email *</mat-label>
+              <input matInput type="email" formControlName="contactEmail" required>
+              @if (apiKeyForm.get('contactEmail')?.hasError('required')) {
+                <mat-error>
+                  Contact email is required
+                </mat-error>
+              }
+              @if (apiKeyForm.get('contactEmail')?.hasError('email')) {
+                <mat-error>
+                  Please enter a valid email address
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Country *</mat-label>
+              <mat-select formControlName="country" (selectionChange)="onCountryChange()" [disabled]="countries.length === 0">
+                <mat-option value="">-- Select Country --</mat-option>
+                @for (country of countries; track country) {
+                  <mat-option [value]="country.iso2">
+                    {{ country.name }}
+                  </mat-option>
+                }
+              </mat-select>
+              @if (countries.length === 0) {
+                <mat-hint>
+                  Location data requires relay server URL to be configured
+                </mat-hint>
+              }
+              @if (apiKeyForm.get('country')?.hasError('required')) {
+                <mat-error>
+                  Country is required
+                </mat-error>
+              }
+            </mat-form-field>
+            <!-- Multi-State Selector for US -->
+            @if (availableStates.length > 0 && apiKeyForm.get('country')?.value === 'US') {
+              <div>
+                <div style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px;">
+                  <mat-form-field appearance="outline" style="flex: 1; margin-bottom: 0;">
+                    <mat-label>State/Province *</mat-label>
+                    <mat-select [(value)]="stateSelector">
+                      <mat-option value="">-- Select State/Province --</mat-option>
+                      @for (state of availableStates; track state) {
+                        <mat-option [value]="state.iso2">
+                          {{ state.name }}
+                        </mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <button mat-raised-button color="primary" (click)="addState()" [disabled]="!stateSelector" type="button" style="margin-top: 8px;">
+                    Add State
+                  </button>
+                </div>
+                <p style="color: #666; font-size: 13px; margin-top: -8px; margin-bottom: 16px;">
+                  Select states and choose counties for each
+                </p>
+                <!-- Selected States with Counties -->
+                @for (stateData of selectedStates; track stateData; let i = $index) {
+                  <div
+                    style="background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                      <h4 style="margin: 0; color: #2196F3; font-size: 16px;">{{ stateData.stateName }}</h4>
+                      <button mat-icon-button color="warn" (click)="removeState(i)" type="button">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </div>
+                    <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 0;">
+                      <mat-label>Counties *</mat-label>
+                      <mat-select [(value)]="stateData.selectedCounties" multiple>
+                        @for (county of stateData.counties; track county) {
+                          <mat-option [value]="county.name">
+                            {{ county.name }}
+                          </mat-option>
+                        }
+                      </mat-select>
+                      <mat-hint>Select all counties your scanner covers in {{ stateData.stateName }}</mat-hint>
+                      @if (stateData.selectedCounties.length === 0) {
+                        <mat-error>
+                          At least one county is required
+                        </mat-error>
+                      }
+                    </mat-form-field>
+                  </div>
+                }
+                @if (selectedStates.length === 0) {
+                  <div style="color: #f44336; font-size: 14px; margin-top: -8px; margin-bottom: 16px;">
+                    Please add at least one state and select counties
+                  </div>
+                }
+              </div>
+            }
+            <!-- Single State Selector for non-US -->
+            @if (availableStates.length > 0 && apiKeyForm.get('country')?.value !== 'US') {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>State/Province *</mat-label>
+                <mat-select formControlName="state" (selectionChange)="onStateChange()">
+                  <mat-option value="">-- Select State/Province --</mat-option>
+                  @for (state of availableStates; track state) {
+                    <mat-option [value]="state.iso2">
+                      {{ state.name }}
+                    </mat-option>
+                  }
+                </mat-select>
+                @if (apiKeyForm.get('state')?.hasError('required')) {
+                  <mat-error>
+                    State/Province is required
+                  </mat-error>
+                }
               </mat-form-field>
-            </div>
-
-            <div *ngIf="selectedStates.length === 0" style="color: #f44336; font-size: 14px; margin-top: -8px; margin-bottom: 16px;">
-              Please add at least one state and select counties
-            </div>
-          </div>
-
-          <!-- Single State Selector for non-US -->
-          <mat-form-field appearance="outline" class="full-width" *ngIf="availableStates.length > 0 && apiKeyForm.get('country')?.value !== 'US'">
-            <mat-label>State/Province *</mat-label>
-            <mat-select formControlName="state" (selectionChange)="onStateChange()">
-              <mat-option value="">-- Select State/Province --</mat-option>
-              <mat-option *ngFor="let state of availableStates" [value]="state.iso2">
-                {{ state.name }}
-              </mat-option>
-            </mat-select>
-            <mat-error *ngIf="apiKeyForm.get('state')?.hasError('required')">
-              State/Province is required
-            </mat-error>
-          </mat-form-field>
-
-          <!-- Show city ONLY if counties are NOT available -->
-          <mat-form-field appearance="outline" class="full-width" *ngIf="availableCounties.length === 0 && availableCities.length > 0">
-            <mat-label>Cities *</mat-label>
-            <mat-select formControlName="city" multiple>
-              <mat-option *ngFor="let city of availableCities" [value]="city.name">
-                {{ city.name }}
-              </mat-option>
-            </mat-select>
-            <mat-hint>Select all cities your scanner covers</mat-hint>
-            <mat-error *ngIf="apiKeyForm.get('city')?.hasError('required')">
-              At least one city is required
-            </mat-error>
-          </mat-form-field>
-          
-          <!-- Manual city input if no counties and no cities available -->
-          <mat-form-field appearance="outline" class="full-width" *ngIf="availableCounties.length === 0 && availableCities.length === 0 && apiKeyForm.get('state')?.value">
-            <mat-label>Cities *</mat-label>
-            <input matInput formControlName="city" placeholder="Enter city names (comma-separated)" (blur)="onManualCityInput()">
-            <mat-hint>Enter all cities your scanner covers, separated by commas</mat-hint>
-            <mat-error *ngIf="apiKeyForm.get('city')?.hasError('required')">
-              At least one city is required
-            </mat-error>
-          </mat-form-field>
-
-          <mat-checkbox formControlName="isPrivate" class="full-width">
-            This is a private server
-          </mat-checkbox>
-          <p class="private-server-hint" *ngIf="apiKeyForm.get('isPrivate')?.value">
-            <mat-icon>info</mat-icon>
-            Your private server will not be shown in the mobile app's public server list.
-          </p>
-
-          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
-            <p style="margin-bottom: 12px; font-weight: 500;">Transcribed Alerts</p>
-            <mat-radio-group formControlName="offersTranscribedAlerts" class="full-width">
-              <mat-radio-button [value]="true" style="display: block; margin-bottom: 8px;">
-                This server will offer transcribed alerts
-              </mat-radio-button>
-              <mat-radio-button [value]="false" style="display: block;">
-                This server will not offer transcribed alerts
-              </mat-radio-button>
-            </mat-radio-group>
-          </div>
-
-          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
-            <mat-checkbox formControlName="notifyOnOffline" class="full-width">
-              Notify me via email when this server goes offline
+            }
+            <!-- Show city ONLY if counties are NOT available -->
+            @if (availableCounties.length === 0 && availableCities.length > 0) {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Cities *</mat-label>
+                <mat-select formControlName="city" multiple>
+                  @for (city of availableCities; track city) {
+                    <mat-option [value]="city.name">
+                      {{ city.name }}
+                    </mat-option>
+                  }
+                </mat-select>
+                <mat-hint>Select all cities your scanner covers</mat-hint>
+                @if (apiKeyForm.get('city')?.hasError('required')) {
+                  <mat-error>
+                    At least one city is required
+                  </mat-error>
+                }
+              </mat-form-field>
+            }
+            <!-- Manual city input if no counties and no cities available -->
+            @if (availableCounties.length === 0 && availableCities.length === 0 && apiKeyForm.get('state')?.value) {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Cities *</mat-label>
+                <input matInput formControlName="city" placeholder="Enter city names (comma-separated)" (blur)="onManualCityInput()">
+                <mat-hint>Enter all cities your scanner covers, separated by commas</mat-hint>
+                @if (apiKeyForm.get('city')?.hasError('required')) {
+                  <mat-error>
+                    At least one city is required
+                  </mat-error>
+                }
+              </mat-form-field>
+            }
+            <mat-checkbox formControlName="isPrivate" class="full-width">
+              This is a private server
             </mat-checkbox>
-            <p class="private-server-hint" *ngIf="apiKeyForm.get('notifyOnOffline')?.value">
-              <mat-icon>info</mat-icon>
-              You will receive up to 5 email notifications if your server goes offline. Notifications will stop once your server comes back online.
+            @if (apiKeyForm.get('isPrivate')?.value) {
+              <p class="private-server-hint">
+                <mat-icon>info</mat-icon>
+                Your private server will not be shown in the mobile app's public server list.
+              </p>
+            }
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+              <p style="margin-bottom: 12px; font-weight: 500;">Transcribed Alerts</p>
+              <mat-radio-group formControlName="offersTranscribedAlerts" class="full-width">
+                <mat-radio-button [value]="true" style="display: block; margin-bottom: 8px;">
+                  This server will offer transcribed alerts
+                </mat-radio-button>
+                <mat-radio-button [value]="false" style="display: block;">
+                  This server will not offer transcribed alerts
+                </mat-radio-button>
+              </mat-radio-group>
+            </div>
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+              <mat-checkbox formControlName="notifyOnOffline" class="full-width">
+                Notify me via email when this server goes offline
+              </mat-checkbox>
+              @if (apiKeyForm.get('notifyOnOffline')?.value) {
+                <p class="private-server-hint">
+                  <mat-icon>info</mat-icon>
+                  You will receive up to 5 email notifications if your server goes offline. Notifications will stop once your server comes back online.
+                </p>
+              }
+            </div>
+            @if (errorMessage) {
+              <div class="error-message">
+                {{ errorMessage }}
+              </div>
+            }
+            @if (loading) {
+              <div class="loading">
+                Requesting API key...
+              </div>
+            }
+          </form>
+        </div>
+      }
+    
+      @if (apiKeyReceived) {
+        <div class="api-key-result">
+          <div class="success-message">
+            <mat-icon color="primary">check_circle</mat-icon>
+            API Key Created Successfully
+          </div>
+          <p style="margin: 20px 0; color: #666; line-height: 1.6;">
+            Your API key has been generated and is ready to use. For security and to prevent cross-input between servers, API keys are not displayed after creation. Each server must have its own unique API key to ensure proper isolation and security.
+          </p>
+          <div class="info" style="background-color: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0; color: #0c5460; font-size: 14px;">
+              <mat-icon style="vertical-align: middle; margin-right: 8px; font-size: 20px; width: 20px; height: 20px;">info</mat-icon>
+              <strong>Need to retrieve your API key?</strong> Use the recovery feature in the admin panel with your server URL and email address to retrieve it securely.
             </p>
           </div>
-
-          <div *ngIf="errorMessage" class="error-message">
-            {{ errorMessage }}
-          </div>
-
-          <div *ngIf="loading" class="loading">
-            Requesting API key...
-          </div>
-        </form>
-      </div>
-
-      <div *ngIf="apiKeyReceived" class="api-key-result">
-        <div class="success-message">
-          <mat-icon color="primary">check_circle</mat-icon>
-          API Key Created Successfully
-        </div>
-        <p style="margin: 20px 0; color: #666; line-height: 1.6;">
-          Your API key has been generated and is ready to use. For security and to prevent cross-input between servers, API keys are not displayed after creation. Each server must have its own unique API key to ensure proper isolation and security.
-        </p>
-        <div class="info" style="background-color: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px;">
-          <p style="margin: 0; color: #0c5460; font-size: 14px;">
-            <mat-icon style="vertical-align: middle; margin-right: 8px; font-size: 20px; width: 20px; height: 20px;">info</mat-icon>
-            <strong>Need to retrieve your API key?</strong> Use the recovery feature in the admin panel with your server URL and email address to retrieve it securely.
+          <p style="margin-top: 20px; color: #666; font-size: 13px; text-align: center;">
+            This dialog will close automatically...
           </p>
         </div>
-        <p style="margin-top: 20px; color: #666; font-size: 13px; text-align: center;">
-          This dialog will close automatically...
-        </p>
-      </div>
+      }
     </mat-dialog-content>
     <mat-dialog-actions>
       <button mat-button (click)="onCancel()">{{ apiKeyReceived ? 'Close' : 'Cancel' }}</button>
-      <button *ngIf="!apiKeyReceived && !requiresDomainVerification && !requiresEmailVerification" 
-              mat-raised-button 
-              color="primary" 
-              [disabled]="apiKeyForm.invalid || loading" 
-              (click)="onRequest()">
-        {{ isUpdateMode ? 'Update' : 'Request' }} API Key
-      </button>
+      @if (!apiKeyReceived && !requiresDomainVerification && !requiresEmailVerification) {
+        <button
+          mat-raised-button
+          color="primary"
+          [disabled]="apiKeyForm.invalid || loading"
+          (click)="onRequest()">
+          {{ isUpdateMode ? 'Update' : 'Request' }} API Key
+        </button>
+      }
     </mat-dialog-actions>
-  `,
-  styles: [`
+    `,
+    styles: [`
     .full-width {
       width: 100%;
       margin-bottom: 16px;
@@ -420,7 +471,9 @@ interface SelectedStateData {
       height: 18px;
       color: #2196F3;
     }
-  `]
+  `],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RequestAPIKeyDialogComponent implements OnInit {
   apiKeyForm: FormGroup;

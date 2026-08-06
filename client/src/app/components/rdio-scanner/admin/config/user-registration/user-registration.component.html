@@ -1,291 +1,314 @@
-<div class="user-registration-config" *ngIf="userRegistrationForm">
-
-  <!-- Central Management message (replaces settings when CM is active) -->
-  <div *ngIf="isCentrallyManaged" class="cm-managed-message">
-    <mat-icon class="cm-overlay-icon">hub</mat-icon>
-    <h3 class="cm-overlay-title">Managed by Central Management</h3>
-    <p class="cm-overlay-message">
-      This server's users are managed through Central Management.<br>
-      User registration settings are controlled centrally and cannot be modified here.
-    </p>
-
-    <!-- Leave Central Management section -->
-    <div class="leave-cm-section" *ngIf="!showLeaveCMForm">
-      <button mat-stroked-button class="leave-cm-btn" (click)="openLeaveCMForm()">
-        <mat-icon>link_off</mat-icon>
-        Leave Central Management
-      </button>
-    </div>
-
-    <div class="leave-cm-form" *ngIf="showLeaveCMForm">
-      <p class="leave-cm-instructions">
-        To unlink this server, ask a Central Management admin to generate a removal code from the server's
-        actions menu in the CM panel. Enter that code below.
-      </p>
-      <mat-form-field appearance="outline" class="leave-cm-input">
-        <mat-label>Removal Code</mat-label>
-        <input matInput [(ngModel)]="leaveCMCode" [ngModelOptions]="{standalone: true}"
-               placeholder="e.g. X4K9M2" maxlength="8" style="text-transform: uppercase; letter-spacing: 4px; font-size: 20px;" autocomplete="off">
-      </mat-form-field>
-      <div class="leave-cm-error" *ngIf="leaveCMError">{{ leaveCMError }}</div>
-      <div class="leave-cm-actions">
-        <button mat-button (click)="cancelLeaveCM()">Cancel</button>
-        <button mat-raised-button color="warn" (click)="leaveCentralManagement()"
-                [disabled]="!leaveCMCode || leavingCM">
-          <mat-icon *ngIf="!leavingCM">link_off</mat-icon>
-          <mat-spinner *ngIf="leavingCM" diameter="18" style="display:inline-block;"></mat-spinner>
-          {{ leavingCM ? 'Unlinking…' : 'Confirm &amp; Leave' }}
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <div *ngIf="!isCentrallyManaged">
-  <form [formGroup]="userRegistrationForm" (ngModelChange)="syncToParentForm()" autocomplete="off">
-    <div class="config-section">
-      <h3>User Registration Settings</h3>
-        <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Registration Mode</mat-label>
-        <mat-select formControlName="registrationMode">
-          <mat-option value="invite">Invite Only (Requires registration or invitation code)</mat-option>
-          <mat-option value="public" [disabled]="!hasPublicRegistrationGroup">Public Registration (Anyone can sign up)</mat-option>
-        </mat-select>
-        <mat-hint *ngIf="!hasPublicRegistrationGroup" style="color: #f44336;">
-          Public Registration requires a Public Registration Group. Create one in the Groups section first.
-        </mat-hint>
-        <mat-hint *ngIf="hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'invite'">
-          Users must have a registration code or invitation to create an account
-        </mat-hint>
-        <mat-hint *ngIf="hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'public'">
-          Anyone can create an account without a code (optional codes still work)
-        </mat-hint>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Enable Stripe Paywall</mat-label>
-        <mat-select formControlName="stripePaywallEnabled">
-          <mat-option [value]="true">Enabled</mat-option>
-          <mat-option [value]="false">Disabled</mat-option>
-        </mat-select>
-      </mat-form-field>
-  </div>
-
-  <div class="config-section">
-    <h3>Email Service Settings</h3>
-    
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Enable Email Service</mat-label>
-        <mat-select formControlName="emailServiceEnabled">
-          <mat-option [value]="true">Enabled</mat-option>
-          <mat-option [value]="false">Disabled</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width" *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value">
-        <mat-label>Email Provider</mat-label>
-        <mat-select formControlName="emailProvider">
-          <mat-option value="sendgrid">SendGrid</mat-option>
-          <mat-option value="mailgun">Mailgun</mat-option>
-          <mat-option value="smtp">SMTP</mat-option>
-        </mat-select>
-        <mat-hint>Choose your email delivery service</mat-hint>
-      </mat-form-field>
-
-      <!-- SendGrid Configuration -->
-      <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'sendgrid'">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>SendGrid API Key</mat-label>
-          <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailSendGridApiKey" placeholder="SG.xxxxxxxxxxxxx">
-          <mat-hint>Get your API key from <a href="https://app.sendgrid.com/settings/api_keys" target="_blank">SendGrid Dashboard</a></mat-hint>
-        </mat-form-field>
-      </div>
-
-      <!-- Mailgun Configuration -->
-      <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'mailgun'">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Mailgun API Key</mat-label>
-          <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailMailgunApiKey" placeholder="key-xxxxxxxxxxxxx">
-          <mat-hint>Get your API key from <a href="https://app.mailgun.com/app/account/security/api_keys" target="_blank">Mailgun Dashboard</a></mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Mailgun Domain</mat-label>
-          <input matInput type="text" formControlName="emailMailgunDomain" placeholder="mg.yourdomain.com" autocomplete="off">
-          <mat-hint>Your verified sending domain in Mailgun</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Mailgun API Base URL</mat-label>
-          <mat-select formControlName="emailMailgunApiBase">
-            <mat-option value="https://api.mailgun.net">US Region (https://api.mailgun.net)</mat-option>
-            <mat-option value="https://api.eu.mailgun.net">EU Region (https://api.eu.mailgun.net)</mat-option>
-          </mat-select>
-          <mat-hint>Select based on your Mailgun account region</mat-hint>
-        </mat-form-field>
-      </div>
-
-      <!-- SMTP Configuration -->
-      <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'smtp'">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>SMTP Host</mat-label>
-          <input matInput type="text" formControlName="emailSmtpHost" placeholder="smtp.example.com" autocomplete="off">
-          <mat-hint>SMTP server hostname or IP address</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>SMTP Port</mat-label>
-          <input matInput type="number" formControlName="emailSmtpPort" placeholder="587" autocomplete="off">
-          <mat-hint>Common ports: 25 (unencrypted), 465 (SSL/TLS), 587 (STARTTLS)</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>SMTP Username</mat-label>
-          <input matInput type="text" formControlName="emailSmtpUsername" placeholder="user@example.com" autocomplete="off">
-          <mat-hint>Leave empty if authentication is not required</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>SMTP Password</mat-label>
-          <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailSmtpPassword" placeholder="">
-          <mat-hint>Leave empty if authentication is not required</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Use TLS/SSL</mat-label>
-          <mat-select formControlName="emailSmtpUseTLS">
-            <mat-option [value]="true">Enabled (Recommended)</mat-option>
-            <mat-option [value]="false">Disabled</mat-option>
-          </mat-select>
-          <mat-hint>Enable for secure connections (port 465 or 587)</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Skip Certificate Verification</mat-label>
-          <mat-select formControlName="emailSmtpSkipVerify">
-            <mat-option [value]="false">No (Recommended)</mat-option>
-            <mat-option [value]="true">Yes (For self-signed certificates only)</mat-option>
-          </mat-select>
-          <mat-hint>Only enable if using self-signed certificates</mat-hint>
-        </mat-form-field>
-      </div>
-
-      <!-- Common Email Settings -->
-      <mat-form-field appearance="outline" class="full-width" *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value">
-        <mat-label>From Email Address</mat-label>
-        <input matInput type="email" formControlName="emailSmtpFromEmail" placeholder="noreply@example.com" autocomplete="off">
-        <mat-hint>The email address emails will be sent from</mat-hint>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width" *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value">
-        <mat-label>From Name</mat-label>
-        <input matInput type="text" formControlName="emailSmtpFromName" placeholder="ThinLine Radio" autocomplete="off">
-        <mat-hint>The display name for sent emails</mat-hint>
-      </mat-form-field>
-
-      <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value" style="margin: 20px 0;">
-        <label style="display: block; margin-bottom: 10px; font-size: 14px; color: rgba(255,255,255,0.6);">
-          Email Logo (Optional)
-        </label>
-        <div style="display: flex; align-items: center; gap: 15px;">
-          <input type="file" #logoInput accept="image/png,image/jpeg,image/jpg,image/svg+xml" 
-                 (change)="onLogoSelected($event)" style="display: none;">
-          <button mat-raised-button type="button" (click)="logoInput.click()">
-            <mat-icon>upload</mat-icon>
-            Upload Logo
-          </button>
-          <button mat-raised-button type="button" color="warn" *ngIf="hasLogo()" (click)="removeLogo()">
-            <mat-icon>delete</mat-icon>
-            Remove
-          </button>
-          <div *ngIf="hasLogo()" style="max-width: 225px; max-height: 120px; border: 1px solid #444; padding: 5px; border-radius: 4px; background: #1e1e1e;">
-            <img [src]="getLogoPreview()" [style]="getLogoStyle()" (error)="onImageError()" (load)="onImageLoad()">
-          </div>
-        </div>
-        <div *ngIf="hasLogo()" style="margin-top: 12px;">
-          <mat-form-field appearance="outline" style="width: 200px;">
-            <mat-label>Border Radius</mat-label>
-            <input matInput type="text" formControlName="emailLogoBorderRadius" placeholder="0px" autocomplete="off">
-            <mat-hint>e.g., 0px, 8px, 50%</mat-hint>
-          </mat-form-field>
-        </div>
-        <div style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.6);">
-          Recommended: PNG or JPG. Will be embedded in verification emails.
-        </div>
-      </div>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Base URL</mat-label>
-        <input matInput type="text" formControlName="baseUrl" placeholder="https://yourdomain.com" autocomplete="off">
-        <mat-hint>Base URL for email verification links (must be HTTPS in production)</mat-hint>
-      </mat-form-field>
-
-      <div *ngIf="userRegistrationForm.get('emailServiceEnabled')?.value" style="margin-top: 20px; padding: 20px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px;">
-        <h4 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 500; color: #e0e0e0;">Test Email Configuration</h4>
-        <p style="margin: 0 0 15px 0; font-size: 14px; color: #aaa;">
-          Send a test email to verify your SMTP settings are configured correctly.
+@if (userRegistrationForm) {
+  <div class="user-registration-config">
+    <!-- Central Management message (replaces settings when CM is active) -->
+    @if (isCentrallyManaged) {
+      <div class="cm-managed-message">
+        <mat-icon class="cm-overlay-icon">hub</mat-icon>
+        <h3 class="cm-overlay-title">Managed by Central Management</h3>
+        <p class="cm-overlay-message">
+          This server's users are managed through Central Management.<br>
+          User registration settings are controlled centrally and cannot be modified here.
         </p>
-        <div style="display: flex; gap: 10px; align-items: flex-start;">
-          <mat-form-field appearance="outline" style="flex: 1;">
-            <mat-label>Recipient Email</mat-label>
-            <input matInput type="email" [value]="testEmailAddress" (input)="testEmailAddress = $any($event.target).value" placeholder="test@example.com" autocomplete="off">
-            <mat-hint>Email address to send the test email to</mat-hint>
-          </mat-form-field>
-          <button mat-raised-button color="primary" (click)="sendTestEmail()" [disabled]="sendingTestEmail || !testEmailAddress">
-            <mat-icon *ngIf="!sendingTestEmail">send</mat-icon>
-            <mat-icon *ngIf="sendingTestEmail" class="spinning">hourglass_empty</mat-icon>
-            <span style="margin-left: 8px;">{{ sendingTestEmail ? 'Sending...' : 'Send Test Email' }}</span>
-          </button>
-        </div>
-        <div *ngIf="testEmailError" style="margin-top: 15px; padding: 12px; background-color: rgba(244,67,54,0.1); border: 1px solid #c62828; border-radius: 4px; color: #ef9a9a;">
-          <strong>Error:</strong> {{ testEmailError }}
-        </div>
-        <div *ngIf="testEmailSuccess" style="margin-top: 15px; padding: 12px; background-color: rgba(76,175,80,0.1); border: 1px solid #2e7d32; border-radius: 4px; color: #a5d6a7;">
-          <strong>Success:</strong> {{ testEmailSuccess }}
-        </div>
+        <!-- Leave Central Management section -->
+        @if (!showLeaveCMForm) {
+          <div class="leave-cm-section">
+            <button mat-stroked-button class="leave-cm-btn" (click)="openLeaveCMForm()">
+              <mat-icon>link_off</mat-icon>
+              Leave Central Management
+            </button>
+          </div>
+        }
+        @if (showLeaveCMForm) {
+          <div class="leave-cm-form">
+            <p class="leave-cm-instructions">
+              To unlink this server, ask a Central Management admin to generate a removal code from the server's
+              actions menu in the CM panel. Enter that code below.
+            </p>
+            <mat-form-field appearance="outline" class="leave-cm-input">
+              <mat-label>Removal Code</mat-label>
+              <input matInput [(ngModel)]="leaveCMCode" [ngModelOptions]="{standalone: true}"
+                placeholder="e.g. X4K9M2" maxlength="8" style="text-transform: uppercase; letter-spacing: 4px; font-size: 20px;" autocomplete="off">
+            </mat-form-field>
+            @if (leaveCMError) {
+              <div class="leave-cm-error">{{ leaveCMError }}</div>
+            }
+            <div class="leave-cm-actions">
+              <button mat-button (click)="cancelLeaveCM()">Cancel</button>
+              <button mat-raised-button color="warn" (click)="leaveCentralManagement()"
+                [disabled]="!leaveCMCode || leavingCM">
+                @if (!leavingCM) {
+                  <mat-icon>link_off</mat-icon>
+                }
+                @if (leavingCM) {
+                  <mat-spinner diameter="18" style="display:inline-block;"></mat-spinner>
+                }
+                {{ leavingCM ? 'Unlinking…' : 'Confirm &amp; Leave' }}
+              </button>
+            </div>
+          </div>
+        }
       </div>
-  </div>
-
-  <div class="config-section">
-    <h3>Stripe Settings</h3>
-    
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Stripe Publishable Key</mat-label>
-        <input matInput type="text" formControlName="stripePublishableKey" placeholder="pk_test_..." autocomplete="off">
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Stripe Secret Key</mat-label>
-        <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="stripeSecretKey" placeholder="sk_test_...">
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Stripe Webhook Secret</mat-label>
-        <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="stripeWebhookSecret" placeholder="whsec_...">
-        <mat-hint>This is the "Signing secret" from Stripe Dashboard → Developers → Webhooks → Your endpoint → Signing secret (starts with whsec_)</mat-hint>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Grace Period (Days)</mat-label>
-        <input matInput type="number" formControlName="stripeGracePeriodDays" placeholder="0" min="0" autocomplete="off">
-        <mat-hint>Number of extra days to allow access after a payment fails (only applies to users who have had at least one successful payment). Users get a 2-day buffer by default after their first successful payment.</mat-hint>
-      </mat-form-field>
-
-      <div class="mat-caption" style="margin-top: -16px; margin-bottom: 16px; padding: 8px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 4px; color: #ccc;">
-        <strong>Webhook Configuration:</strong><br>
-        <strong>Endpoint URL:</strong> <code>https://yoururl.com/api/stripe/webhook</code> or <code>https://your.url.com/api/stripe/webhook</code><br>
-        <em>Configure your Stripe webhook endpoint to the URL above (replace with your actual domain). This should be the same public URL you use for your scanner. <strong>Do not include www. in the URL.</strong></em><br><br>
-        <strong>Events to select in Stripe Dashboard:</strong>
-        <ul style="margin: 8px 0; padding-left: 20px;">
-          <li>checkout.session.completed</li>
-          <li>customer.subscription.created</li>
-          <li>customer.subscription.updated</li>
-          <li>customer.subscription.deleted</li>
-          <li>invoice.payment_succeeded</li>
-          <li>invoice.payment_failed</li>
-        </ul>
-        <strong>Steps:</strong> Go to Stripe Dashboard → Developers → Webhooks → Add endpoint → Enter the URL above (with your actual domain) → Select the events listed → Click on your endpoint → Find "Signing secret" → Copy it (starts with whsec_) → Paste it in the field above
+    }
+    @if (!isCentrallyManaged) {
+      <div>
+        <form [formGroup]="userRegistrationForm" (ngModelChange)="syncToParentForm()" autocomplete="off">
+          <div class="config-section">
+            <h3>User Registration Settings</h3>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Registration Mode</mat-label>
+              <mat-select formControlName="registrationMode">
+                <mat-option value="invite">Invite Only (Requires registration or invitation code)</mat-option>
+                <mat-option value="public" [disabled]="!hasPublicRegistrationGroup">Public Registration (Anyone can sign up)</mat-option>
+              </mat-select>
+              @if (!hasPublicRegistrationGroup) {
+                <mat-hint style="color: #f44336;">
+                  Public Registration requires a Public Registration Group. Create one in the Groups section first.
+                </mat-hint>
+              }
+              @if (hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'invite') {
+                <mat-hint>
+                  Users must have a registration code or invitation to create an account
+                </mat-hint>
+              }
+              @if (hasPublicRegistrationGroup && userRegistrationForm.get('registrationMode')?.value === 'public') {
+                <mat-hint>
+                  Anyone can create an account without a code (optional codes still work)
+                </mat-hint>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Enable Stripe Paywall</mat-label>
+              <mat-select formControlName="stripePaywallEnabled">
+                <mat-option [value]="true">Enabled</mat-option>
+                <mat-option [value]="false">Disabled</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="config-section">
+            <h3>Email Service Settings</h3>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Enable Email Service</mat-label>
+              <mat-select formControlName="emailServiceEnabled">
+                <mat-option [value]="true">Enabled</mat-option>
+                <mat-option [value]="false">Disabled</mat-option>
+              </mat-select>
+            </mat-form-field>
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value) {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Email Provider</mat-label>
+                <mat-select formControlName="emailProvider">
+                  <mat-option value="sendgrid">SendGrid</mat-option>
+                  <mat-option value="mailgun">Mailgun</mat-option>
+                  <mat-option value="smtp">SMTP</mat-option>
+                </mat-select>
+                <mat-hint>Choose your email delivery service</mat-hint>
+              </mat-form-field>
+            }
+            <!-- SendGrid Configuration -->
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'sendgrid') {
+              <div>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>SendGrid API Key</mat-label>
+                  <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailSendGridApiKey" placeholder="SG.xxxxxxxxxxxxx">
+                  <mat-hint>Get your API key from <a href="https://app.sendgrid.com/settings/api_keys" target="_blank">SendGrid Dashboard</a></mat-hint>
+                </mat-form-field>
+              </div>
+            }
+            <!-- Mailgun Configuration -->
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'mailgun') {
+              <div>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Mailgun API Key</mat-label>
+                  <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailMailgunApiKey" placeholder="key-xxxxxxxxxxxxx">
+                  <mat-hint>Get your API key from <a href="https://app.mailgun.com/app/account/security/api_keys" target="_blank">Mailgun Dashboard</a></mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Mailgun Domain</mat-label>
+                  <input matInput type="text" formControlName="emailMailgunDomain" placeholder="mg.yourdomain.com" autocomplete="off">
+                  <mat-hint>Your verified sending domain in Mailgun</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Mailgun API Base URL</mat-label>
+                  <mat-select formControlName="emailMailgunApiBase">
+                    <mat-option value="https://api.mailgun.net">US Region (https://api.mailgun.net)</mat-option>
+                    <mat-option value="https://api.eu.mailgun.net">EU Region (https://api.eu.mailgun.net)</mat-option>
+                  </mat-select>
+                  <mat-hint>Select based on your Mailgun account region</mat-hint>
+                </mat-form-field>
+              </div>
+            }
+            <!-- SMTP Configuration -->
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value && userRegistrationForm.get('emailProvider')?.value === 'smtp') {
+              <div>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>SMTP Host</mat-label>
+                  <input matInput type="text" formControlName="emailSmtpHost" placeholder="smtp.example.com" autocomplete="off">
+                  <mat-hint>SMTP server hostname or IP address</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>SMTP Port</mat-label>
+                  <input matInput type="number" formControlName="emailSmtpPort" placeholder="587" autocomplete="off">
+                  <mat-hint>Common ports: 25 (unencrypted), 465 (SSL/TLS), 587 (STARTTLS)</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>SMTP Username</mat-label>
+                  <input matInput type="text" formControlName="emailSmtpUsername" placeholder="user@example.com" autocomplete="off">
+                  <mat-hint>Leave empty if authentication is not required</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>SMTP Password</mat-label>
+                  <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="emailSmtpPassword" placeholder="">
+                  <mat-hint>Leave empty if authentication is not required</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Use TLS/SSL</mat-label>
+                  <mat-select formControlName="emailSmtpUseTLS">
+                    <mat-option [value]="true">Enabled (Recommended)</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <mat-hint>Enable for secure connections (port 465 or 587)</mat-hint>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Skip Certificate Verification</mat-label>
+                  <mat-select formControlName="emailSmtpSkipVerify">
+                    <mat-option [value]="false">No (Recommended)</mat-option>
+                    <mat-option [value]="true">Yes (For self-signed certificates only)</mat-option>
+                  </mat-select>
+                  <mat-hint>Only enable if using self-signed certificates</mat-hint>
+                </mat-form-field>
+              </div>
+            }
+            <!-- Common Email Settings -->
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value) {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>From Email Address</mat-label>
+                <input matInput type="email" formControlName="emailSmtpFromEmail" placeholder="noreply@example.com" autocomplete="off">
+                <mat-hint>The email address emails will be sent from</mat-hint>
+              </mat-form-field>
+            }
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value) {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>From Name</mat-label>
+                <input matInput type="text" formControlName="emailSmtpFromName" placeholder="ThinLine Radio" autocomplete="off">
+                <mat-hint>The display name for sent emails</mat-hint>
+              </mat-form-field>
+            }
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value) {
+              <div style="margin: 20px 0;">
+                <label style="display: block; margin-bottom: 10px; font-size: 14px; color: rgba(255,255,255,0.6);">
+                  Email Logo (Optional)
+                </label>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                  <input type="file" #logoInput accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                    (change)="onLogoSelected($event)" style="display: none;">
+                  <button mat-raised-button type="button" (click)="logoInput.click()">
+                    <mat-icon>upload</mat-icon>
+                    Upload Logo
+                  </button>
+                  @if (hasLogo()) {
+                    <button mat-raised-button type="button" color="warn" (click)="removeLogo()">
+                      <mat-icon>delete</mat-icon>
+                      Remove
+                    </button>
+                  }
+                  @if (hasLogo()) {
+                    <div style="max-width: 225px; max-height: 120px; border: 1px solid #444; padding: 5px; border-radius: 4px; background: #1e1e1e;">
+                      <img [src]="getLogoPreview()" [style]="getLogoStyle()" (error)="onImageError()" (load)="onImageLoad()">
+                    </div>
+                  }
+                </div>
+                @if (hasLogo()) {
+                  <div style="margin-top: 12px;">
+                    <mat-form-field appearance="outline" style="width: 200px;">
+                      <mat-label>Border Radius</mat-label>
+                      <input matInput type="text" formControlName="emailLogoBorderRadius" placeholder="0px" autocomplete="off">
+                      <mat-hint>e.g., 0px, 8px, 50%</mat-hint>
+                    </mat-form-field>
+                  </div>
+                }
+                <div style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.6);">
+                  Recommended: PNG or JPG. Will be embedded in verification emails.
+                </div>
+              </div>
+            }
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Base URL</mat-label>
+              <input matInput type="text" formControlName="baseUrl" placeholder="https://yourdomain.com" autocomplete="off">
+              <mat-hint>Base URL for email verification links (must be HTTPS in production)</mat-hint>
+            </mat-form-field>
+            @if (userRegistrationForm.get('emailServiceEnabled')?.value) {
+              <div style="margin-top: 20px; padding: 20px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px;">
+                <h4 style="margin: 0 0 15px 0; font-size: 16px; font-weight: 500; color: #e0e0e0;">Test Email Configuration</h4>
+                <p style="margin: 0 0 15px 0; font-size: 14px; color: #aaa;">
+                  Send a test email to verify your SMTP settings are configured correctly.
+                </p>
+                <div style="display: flex; gap: 10px; align-items: flex-start;">
+                  <mat-form-field appearance="outline" style="flex: 1;">
+                    <mat-label>Recipient Email</mat-label>
+                    <input matInput type="email" [value]="testEmailAddress" (input)="testEmailAddress = $any($event.target).value" placeholder="test@example.com" autocomplete="off">
+                    <mat-hint>Email address to send the test email to</mat-hint>
+                  </mat-form-field>
+                  <button mat-raised-button color="primary" (click)="sendTestEmail()" [disabled]="sendingTestEmail || !testEmailAddress">
+                    @if (!sendingTestEmail) {
+                      <mat-icon>send</mat-icon>
+                    }
+                    @if (sendingTestEmail) {
+                      <mat-icon class="spinning">hourglass_empty</mat-icon>
+                    }
+                    <span style="margin-left: 8px;">{{ sendingTestEmail ? 'Sending...' : 'Send Test Email' }}</span>
+                  </button>
+                </div>
+                @if (testEmailError) {
+                  <div style="margin-top: 15px; padding: 12px; background-color: rgba(244,67,54,0.1); border: 1px solid #c62828; border-radius: 4px; color: #ef9a9a;">
+                    <strong>Error:</strong> {{ testEmailError }}
+                  </div>
+                }
+                @if (testEmailSuccess) {
+                  <div style="margin-top: 15px; padding: 12px; background-color: rgba(76,175,80,0.1); border: 1px solid #2e7d32; border-radius: 4px; color: #a5d6a7;">
+                    <strong>Success:</strong> {{ testEmailSuccess }}
+                  </div>
+                }
+              </div>
+            }
+          </div>
+          <div class="config-section">
+            <h3>Stripe Settings</h3>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Stripe Publishable Key</mat-label>
+              <input matInput type="text" formControlName="stripePublishableKey" placeholder="pk_test_..." autocomplete="off">
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Stripe Secret Key</mat-label>
+              <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="stripeSecretKey" placeholder="sk_test_...">
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Stripe Webhook Secret</mat-label>
+              <input matInput type="text" class="masked-pw" autocomplete="new-password" formControlName="stripeWebhookSecret" placeholder="whsec_...">
+              <mat-hint>This is the "Signing secret" from Stripe Dashboard → Developers → Webhooks → Your endpoint → Signing secret (starts with whsec_)</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Grace Period (Days)</mat-label>
+              <input matInput type="number" formControlName="stripeGracePeriodDays" placeholder="0" min="0" autocomplete="off">
+              <mat-hint>Number of extra days to allow access after a payment fails (only applies to users who have had at least one successful payment). Users get a 2-day buffer by default after their first successful payment.</mat-hint>
+            </mat-form-field>
+            <div class="mat-caption" style="margin-top: -16px; margin-bottom: 16px; padding: 8px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 4px; color: #ccc;">
+              <strong>Webhook Configuration:</strong><br>
+              <strong>Endpoint URL:</strong> <code>https://yoururl.com/api/stripe/webhook</code> or <code>https://your.url.com/api/stripe/webhook</code><br>
+              <em>Configure your Stripe webhook endpoint to the URL above (replace with your actual domain). This should be the same public URL you use for your scanner. <strong>Do not include www. in the URL.</strong></em><br><br>
+              <strong>Events to select in Stripe Dashboard:</strong>
+              <ul style="margin: 8px 0; padding-left: 20px;">
+                <li>checkout.session.completed</li>
+                <li>customer.subscription.created</li>
+                <li>customer.subscription.updated</li>
+                <li>customer.subscription.deleted</li>
+                <li>invoice.payment_succeeded</li>
+                <li>invoice.payment_failed</li>
+              </ul>
+              <strong>Steps:</strong> Go to Stripe Dashboard → Developers → Webhooks → Add endpoint → Enter the URL above (with your actual domain) → Select the events listed → Click on your endpoint → Find "Signing secret" → Copy it (starts with whsec_) → Paste it in the field above
+            </div>
+          </div>
+        </form>
       </div>
+      }<!-- end cm-blurred wrapper -->
     </div>
-  </form>
-  </div><!-- end cm-blurred wrapper -->
-</div>
+  }

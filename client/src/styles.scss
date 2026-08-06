@@ -11,19 +11,21 @@
 @import "./styles/thinline-tokens";
 @import "./styles/thinline-app-font";
 @import "./styles/thinline-material";
+@import "./styles/thinline-states";
 
-@include mat.core();
+@include mat.elevation-classes();
+@include mat.app-background();
 
 $rdio-scanner-font-family: var(--tlr-font-primary, Roboto, "Helvetica Neue", sans-serif);
 
-$rdio-scanner-primary: mat.define-palette(mat.$grey-palette, 800, 50);
-$rdio-scanner-accent: mat.define-palette(mat.$green-palette);
-$rdio-scanner-warn: mat.define-palette(mat.$red-palette);
-$rdio-scanner-typography: mat.define-typography-config(
+$rdio-scanner-primary: mat.m2-define-palette(mat.$m2-grey-palette, 800, 50);
+$rdio-scanner-accent: mat.m2-define-palette(mat.$m2-green-palette);
+$rdio-scanner-warn: mat.m2-define-palette(mat.$m2-red-palette);
+$rdio-scanner-typography: mat.m2-define-typography-config(
 	$font-family: $rdio-scanner-font-family,
 );
 
-$rdio-scanner-theme: mat.define-light-theme(
+$rdio-scanner-theme: mat.m2-define-light-theme(
 	(
 		color: (
 			primary: $rdio-scanner-primary,
@@ -40,9 +42,9 @@ $rdio-scanner-theme: mat.define-light-theme(
 // The global theme above is light (needed for the main scanner UI).
 // We define a separate dark theme and scope it to .admin-dark-theme so that
 // all Material components inside the admin panel render correctly on dark bg.
-$admin-primary: mat.define-palette(mat.$red-palette, 700, 300, 900);
-$admin-accent:  mat.define-palette(mat.$grey-palette, 400, 200, 700);
-$admin-dark-theme: mat.define-dark-theme((
+$admin-primary: mat.m2-define-palette(mat.$m2-red-palette, 700, 300, 900);
+$admin-accent:  mat.m2-define-palette(mat.$m2-grey-palette, 400, 200, 700);
+$admin-dark-theme: mat.m2-define-dark-theme((
   color: (
     primary: $admin-primary,
     accent:  $admin-accent,
@@ -327,6 +329,34 @@ $admin-dark-theme: mat.define-dark-theme((
     background: #1a1a1a;
   }
 
+  // Outline form fields (dialogs sit outside .admin-dark-theme)
+  .mat-mdc-form-field {
+    .mdc-floating-label,
+    .mat-mdc-floating-label {
+      color: #aaa !important;
+    }
+    .mdc-text-field__input,
+    input,
+    textarea {
+      color: #fff !important;
+      caret-color: #fff;
+    }
+    .mdc-notched-outline__leading,
+    .mdc-notched-outline__notch,
+    .mdc-notched-outline__trailing {
+      border-color: #444 !important;
+    }
+    &:hover .mdc-notched-outline__leading,
+    &:hover .mdc-notched-outline__notch,
+    &:hover .mdc-notched-outline__trailing {
+      border-color: #888 !important;
+    }
+    .mat-mdc-form-field-hint,
+    .mat-mdc-form-field-subscript-wrapper {
+      color: #888 !important;
+    }
+  }
+
   .mat-mdc-checkbox label,
   .mat-mdc-checkbox .mdc-label {
     color: #e0e0e0 !important;
@@ -334,6 +364,31 @@ $admin-dark-theme: mat.define-dark-theme((
 
   .mat-mdc-checkbox .mdc-checkbox__background {
     border-color: #666 !important;
+  }
+
+  // Systems/talkgroups select uses its own red/green checkbox colors
+  &.systems-select-dialog .mat-mdc-checkbox .mdc-checkbox__background,
+  &.systems-select-dialog rdio-scanner-admin-systems-selection .mat-mdc-checkbox .mdc-checkbox__background {
+    border-color: #8b1a1a !important;
+    background-color: rgba(139, 26, 26, 0.45) !important;
+  }
+
+  &.systems-select-dialog .mat-mdc-checkbox.mat-mdc-checkbox-checked .mdc-checkbox__background,
+  &.systems-select-dialog rdio-scanner-admin-systems-selection .mat-mdc-checkbox.mat-mdc-checkbox-checked .mdc-checkbox__background {
+    border-color: #1b5e20 !important;
+    background-color: #1b5e20 !important;
+  }
+
+  &.systems-select-dialog .mat-mdc-button:not([color]),
+  &.systems-select-dialog .mat-mdc-outlined-button:not([color]) {
+    color: #f5f5f5 !important;
+    border-color: rgba(255, 255, 255, 0.45) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  &.systems-select-dialog .mat-mdc-raised-button.mat-primary:not(:disabled) {
+    background: #1b5e20 !important;
+    color: #e8f5e9 !important;
   }
 
   .mat-mdc-progress-spinner circle {

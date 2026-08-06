@@ -1,10 +1,87 @@
+.systems-select-dialog {
+  .mat-mdc-dialog-surface {
+    display: flex !important;
+    flex-direction: column;
+    height: 100% !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+}
+
 rdio-scanner-admin-systems-selection {
-  > div {
-    min-width: 600px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: #e0e0e0;
+
+  .systems-select-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
-  .flex {
-    flex: 1;
+  .mat-mdc-dialog-title {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  .systems-select-hint {
+    font-size: 12px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.35;
+  }
+
+  .systems-select-content,
+  .mat-mdc-dialog-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    margin: 0;
+    max-height: none !important;
+  }
+
+  .section-label {
+    margin: 16px 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #888;
+  }
+
+  .systems-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .systems-heading-actions {
+    display: flex;
+    gap: 8px;
+
+    button {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1;
+      height: 32px;
+      min-height: 32px;
+      padding: 0 12px;
+      color: #f5f5f5 !important;
+      border-color: rgba(255, 255, 255, 0.4) !important;
+      background: rgba(255, 255, 255, 0.1) !important;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.16) !important;
+        border-color: rgba(255, 255, 255, 0.55) !important;
+      }
+    }
   }
 
   .flex-row {
@@ -19,24 +96,110 @@ rdio-scanner-admin-systems-selection {
         box-sizing: border-box;
         overflow: hidden;
         padding: 0 0.125rem;
-
-        &:last-child {
-          margin-right: auto;
-        }
       }
     }
   }
 
-  .indent {
-    margin-left: 24px;
+  .system-row {
+    align-items: center;
+
+    .mat-mdc-icon-button {
+      color: #e0e0e0 !important;
+    }
   }
 
-  .margin {
-    margin-bottom: 1rem;
+  .system-block {
+    margin-bottom: 6px;
+  }
+
+  .indent {
+    margin: 4px 0 10px 40px;
+  }
+
+  .tg-count {
+    color: #777;
+    font-size: 0.85em;
+    margin-left: 8px;
+  }
+
+  .empty-hint {
+    color: #666;
+    font-size: 12px;
+    padding: 4px 0;
+  }
+
+  // Beat .admin-dialog-panel checkbox overrides (selected=dark green, unselected=dark red)
+  .mat-mdc-checkbox {
+    --mdc-checkbox-unselected-icon-color: #8b1a1a;
+    --mdc-checkbox-unselected-hover-icon-color: #c62828;
+    --mdc-checkbox-unselected-focus-icon-color: #c62828;
+    --mdc-checkbox-unselected-pressed-icon-color: #6d1414;
+    --mdc-checkbox-selected-icon-color: #1b5e20;
+    --mdc-checkbox-selected-hover-icon-color: #2e7d32;
+    --mdc-checkbox-selected-focus-icon-color: #2e7d32;
+    --mdc-checkbox-selected-pressed-icon-color: #145218;
+    --mdc-checkbox-selected-checkmark-color: #e8f5e9;
+    --mdc-checkbox-selected-focus-state-layer-color: #1b5e20;
+    --mdc-checkbox-unselected-focus-state-layer-color: #8b1a1a;
+    --mdc-checkbox-disabled-unselected-icon-color: #4a2020;
+    --mdc-checkbox-disabled-selected-icon-color: #244a28;
+  }
+
+  .mat-mdc-checkbox .mdc-checkbox__background {
+    border-color: #8b1a1a !important;
+    background-color: rgba(139, 26, 26, 0.45) !important;
+  }
+
+  .mat-mdc-checkbox.mat-mdc-checkbox-checked .mdc-checkbox__background,
+  .mat-mdc-checkbox.mdc-checkbox--selected .mdc-checkbox__background {
+    border-color: #1b5e20 !important;
+    background-color: #1b5e20 !important;
+  }
+
+  .mat-mdc-checkbox.mat-mdc-checkbox-indeterminate .mdc-checkbox__background {
+    border-color: #f9a825 !important;
+    background-color: #f9a825 !important;
+  }
+
+  .mdc-label,
+  .mat-mdc-checkbox label {
+    color: #e0e0e0 !important;
   }
 
   .mat-mdc-dialog-actions {
+    flex: 0 0 auto;
     justify-content: space-between;
+    margin: 0;
+    gap: 12px;
+
+    button {
+      font-weight: 600;
+      min-width: 96px;
+    }
+
+    .mat-mdc-outlined-button,
+    .mat-mdc-button,
+    button[mat-stroked-button] {
+      color: #f5f5f5 !important;
+      border-color: rgba(255, 255, 255, 0.45) !important;
+      background: rgba(255, 255, 255, 0.1) !important;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.16) !important;
+      }
+    }
+
+    .mat-mdc-unelevated-button.mat-primary,
+    .mat-mdc-raised-button.mat-primary,
+    button[mat-raised-button][color="primary"] {
+      background: #1b5e20 !important;
+      color: #e8f5e9 !important;
+      border: 1px solid #2e7d32 !important;
+
+      &:hover {
+        background: #2e7d32 !important;
+      }
+    }
   }
 
   @media (max-width: 719px) {

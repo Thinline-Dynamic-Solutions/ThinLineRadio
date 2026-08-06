@@ -3,9 +3,15 @@
     <div class="header">
       <mat-icon class="hero-icon">mark_email_read</mat-icon>
       <h1>Almost there</h1>
-      <p class="subtitle" *ngIf="fromCheckout">Your subscription is processing. You will receive a confirmation email from our payment provider.</p>
-      <p class="subtitle" *ngIf="!fromCheckout && !skippedBilling">Your email is verified.</p>
-      <p class="subtitle" *ngIf="skippedBilling">You can subscribe later from account settings after you sign in.</p>
+      @if (fromCheckout) {
+        <p class="subtitle">Your subscription is processing. You will receive a confirmation email from our payment provider.</p>
+      }
+      @if (!fromCheckout && !skippedBilling) {
+        <p class="subtitle">Your email is verified.</p>
+      }
+      @if (skippedBilling) {
+        <p class="subtitle">You can subscribe later from account settings after you sign in.</p>
+      }
     </div>
 
     <div class="section">
@@ -13,25 +19,27 @@
       <ol class="steps">
         <li>Install the <strong>{{ branding }}</strong> app on your device.</li>
         <li>Open the app and accept the initial terms when prompted.</li>
-        <li>Check your email <span *ngIf="email" class="mono">({{ email }})</span> for a <strong>one-time sign-in link</strong>.</li>
-        <li>Tap the link to add this scanner to the app, then enter your password when asked.</li>
-      </ol>
-    </div>
+        <li>Check your email @if (email) {
+          <span class="mono">({{ email }})</span>
+          } for a <strong>one-time sign-in link</strong>.</li>
+          <li>Tap the link to add this scanner to the app, then enter your password when asked.</li>
+        </ol>
+      </div>
 
-    <div class="section stores">
-      <h2>Get the app</h2>
-      <div class="store-buttons">
-        <a mat-raised-button color="primary" [href]="playStoreUrl" target="_blank" rel="noopener noreferrer">
-          Google Play
-        </a>
-        <a mat-raised-button color="primary" [href]="appStoreUrl" target="_blank" rel="noopener noreferrer">
-          App Store
-        </a>
+      <div class="section stores">
+        <h2>Get the app</h2>
+        <div class="store-buttons">
+          <a mat-raised-button color="primary" [href]="playStoreUrl" target="_blank" rel="noopener noreferrer">
+            Google Play
+          </a>
+          <a mat-raised-button color="primary" [href]="appStoreUrl" target="_blank" rel="noopener noreferrer">
+            App Store
+          </a>
+        </div>
+      </div>
+
+      <div class="footer-actions">
+        <a mat-stroked-button routerLink="/">Sign in on the web</a>
       </div>
     </div>
-
-    <div class="footer-actions">
-      <a mat-stroked-button routerLink="/">Sign in on the web</a>
-    </div>
   </div>
-</div>

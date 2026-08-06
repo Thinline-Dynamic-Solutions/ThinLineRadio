@@ -1224,6 +1224,11 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.IsSuspended() {
+		api.exitWithError(w, http.StatusForbidden, "Your account has been suspended. Contact support for assistance.")
+		return
+	}
+
 	// Login successful - reset failed attempts
 	api.Controller.LoginAttemptTracker.RecordSuccess(clientIP)
 
@@ -1431,6 +1436,11 @@ func (api *Api) UserForcePasswordResetHandler(w http.ResponseWriter, r *http.Req
 	user := api.Controller.Users.GetUserByEmail(request.Email)
 	if user == nil || !user.VerifyPassword(request.CurrentPassword) {
 		api.exitWithError(w, http.StatusUnauthorized, "Invalid credentials")
+		return
+	}
+
+	if user.IsSuspended() {
+		api.exitWithError(w, http.StatusForbidden, "Your account has been suspended. Contact support for assistance.")
 		return
 	}
 
@@ -9462,9 +9472,25 @@ func (api *Api) RegistrationSettingsHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	cmEnabled := api.Controller.Options.CentralManagementEnabled &&
+		strings.TrimSpace(api.Controller.Options.CentralManagementURL) != ""
 	response := map[string]interface{}{
-		"publicRegistrationEnabled": api.Controller.Options.PublicRegistrationEnabled,
-		"emailVerificationRequired": api.Controller.Options.EmailVerificationRequired,
+		"publicRegistrationEnabled":  api.Controller.Options.PublicRegistrationEnabled,
+		"emailVerificationRequired":  api.Controller.Options.EmailVerificationRequired,
+		"centralManagementEnabled":   cmEnabled,
+		"centralManagementPortalUrl": "",
+	}
+	if cmEnabled {
+		response["centralManagementPortalUrl"] = strings.TrimRight(strings.TrimSpace(api.Controller.Options.CentralManagementURL), "/")
+		response["centralManagementServerName"] = strings.TrimSpace(api.Controller.Options.CentralManagementServerName)
+		if branding := strings.TrimSpace(api.Controller.Options.Branding); branding != "" {
+			response["scannerName"] = branding
+		} else if name, ok := response["centralManagementServerName"].(string); ok && name != "" {
+			response["scannerName"] = name
+		}
+		// CM-managed scanners always allow AlertPage signup on the auth screen.
+		response["publicRegistrationEnabled"] = true
+		response["emailVerificationRequired"] = false
 	}
 
 	w.Header().Set("Content-Type", "application/json")

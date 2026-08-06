@@ -71,18 +71,19 @@ func (api *Api) MappingConfigHandler(w http.ResponseWriter, r *http.Request) {
 		api.Controller.Options.mutex.Unlock()
 		json.NewEncoder(w).Encode(cfg)
 	case http.MethodPut:
-		var cfg MappingIntegration
-		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		var raw map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 			api.exitWithError(w, http.StatusBadRequest, "invalid json")
 			return
 		}
 		api.Controller.Options.mutex.Lock()
-		api.Controller.Options.MappingIntegration = cfg
+		applyMappingIntegrationFromMap(&api.Controller.Options.MappingIntegration, raw)
 		api.Controller.Options.mutex.Unlock()
 		if err := api.Controller.Options.Write(api.Controller.Database); err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		go api.Controller.EmitConfig()
 		w.WriteHeader(http.StatusOK)
 	default:
 		api.exitWithError(w, http.StatusMethodNotAllowed, "method not allowed")

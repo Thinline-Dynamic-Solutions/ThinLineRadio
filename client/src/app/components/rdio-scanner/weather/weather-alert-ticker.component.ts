@@ -23,6 +23,7 @@ const TEST_ALERT_DURATION_MS = 25_000;
     templateUrl: './weather-alert-ticker.component.html',
     styleUrls: ['./weather-alert-ticker.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerWeatherAlertTickerComponent implements OnInit, OnDestroy {
     alerts: NwsSevereAlert[] = [];

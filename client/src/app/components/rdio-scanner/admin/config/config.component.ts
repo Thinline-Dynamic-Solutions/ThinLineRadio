@@ -25,6 +25,8 @@ import { AdminEvent, RdioScannerAdminService, Config, Group, Tag } from '../admi
 import { RdioScannerAdminUsersComponent } from './users/users.component';
 import { RdioScannerAdminUserGroupsComponent } from './user-groups/user-groups.component';
 import { RdioScannerAdminOptionsComponent } from './options/options.component';
+import { RdioScannerAdminLogsComponent } from '../logs/logs.component';
+import { RdioScannerAdminToolsComponent } from '../tools/tools.component';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -33,6 +35,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-admin-config',
     styleUrls: ['./config.component.scss'],
     templateUrl: './config.component.html',
+    standalone: false
 })
 export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
     /** When true the sidebar save/reset buttons are hidden (header bar owns them). */
@@ -42,6 +45,9 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
 
     /** Currently active section in the sidebar nav */
     activeSection = 'user-groups';
+
+    /** Sub-tab on the combined Groups & Tags page */
+    groupsTagsTab: 'groups' | 'tags' = 'groups';
 
     form: FormGroup | undefined;
 
@@ -121,6 +127,11 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         return (this.form?.get('options') as FormGroup) || new FormGroup({});
     }
 
+    get isCentrallyManaged(): boolean {
+        const v = this.options?.get('centralManagementEnabled')?.value;
+        return v === true || v === 'true' || v === 1;
+    }
+
     get systems(): FormArray {
         return (this.form?.get('systems') as FormArray) || new FormArray([]);
     }
@@ -156,6 +167,8 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
     @ViewChild(RdioScannerAdminUsersComponent) private usersComponent: RdioScannerAdminUsersComponent | undefined;
     @ViewChild(RdioScannerAdminUserGroupsComponent) private userGroupsComponent: RdioScannerAdminUserGroupsComponent | undefined;
     @ViewChild(RdioScannerAdminOptionsComponent) private optionsComponent: RdioScannerAdminOptionsComponent | undefined;
+    @ViewChild('logsComponent') private logsComponent: RdioScannerAdminLogsComponent | undefined;
+    @ViewChild(RdioScannerAdminToolsComponent) private toolsComponent: RdioScannerAdminToolsComponent | undefined;
 
     /** Navigate to a specific options panel (called by the global search bar). */
     navigateToOption(panelName: string): void {
@@ -249,13 +262,73 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             this.systemsNavExpanded = false;
             this.activeSystemForm = null;
         }
+        // Legacy Groups / Tags nav ids → combined page
+        if (section === 'groups' || section === 'tags') {
+            this.groupsTagsTab = section;
+            section = 'groups-tags';
+        }
+        // Legacy Keyword Lists sidebar → Options sub-tab
+        let openKeywordLists = false;
+        if (section === 'keyword-lists') {
+            openKeywordLists = true;
+            section = 'options';
+        }
+        // Central Management section only exists while paired
+        if (section === 'central-management' && !this.isCentrallyManaged) {
+            section = 'system-health';
+        }
         this.activeSection = section;
+        this.ngChangeDetectorRef.markForCheck();
+        if (openKeywordLists) {
+            setTimeout(() => this.optionsComponent?.setActivePanel('keywordLists'));
+        }
+        if (section === 'logs') {
+            setTimeout(() => this.logsComponent?.reload());
+        }
+    }
+
+    onLeftCentralManagement(): void {
+        if (this.activeSection === 'central-management') {
+            this.setSection('system-health');
+        }
         this.ngChangeDetectorRef.markForCheck();
     }
 
-    /** Toggle the systems sub-nav and navigate to the systems overview */
+    setGroupsTagsTab(tab: 'groups' | 'tags'): void {
+        this.groupsTagsTab = tab;
+        this.ngChangeDetectorRef.markForCheck();
+    }
+
+    /** Open Tools and select a specific tool chip (search / deep-link). */
+    selectTool(toolId: string): void {
+        this.activeSection = 'tools';
+        this.systemsNavExpanded = false;
+        this.activeSystemForm = null;
+        this.ngChangeDetectorRef.markForCheck();
+        setTimeout(() => this.toolsComponent?.setSection(toolId));
+    }
+
+    onConfigFromTools(config: Config & { __isImport?: boolean }): void {
+        const isImport = config.__isImport === true;
+        const { __isImport, ...cleanConfig } = config;
+        this.reset(cleanConfig, { dirty: true, isImport });
+        this.setSection('systems');
+    }
+
+    onConfigSavedFromTools(config: Config): void {
+        this.reset(config, { dirty: false, isImport: false });
+        this.setSection('systems');
+    }
+
+    /** Toggle the systems sub-nav; open first system when available */
     toggleSystemsSection(): void {
         this.systemsNavExpanded = !this.systemsNavExpanded;
+        if (this.systemsList.length > 0) {
+            const stillSelected = this.activeSystemForm
+                && this.systems.controls.includes(this.activeSystemForm);
+            this.selectSystem(stillSelected ? this.activeSystemForm! : this.systemsList[0]);
+            return;
+        }
         this.activeSystemForm = null;
         this.activeSection = 'systems';
         this.ngChangeDetectorRef.markForCheck();
@@ -478,6 +551,10 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
 
         if (idx !== -1) {
             this.systems.removeAt(idx);
+        }
+        if (this.systemsList.length > 0) {
+            this.selectSystem(this.systemsList[Math.min(idx, this.systemsList.length - 1)]);
+            return;
         }
         this.activeSystemForm = null;
         this.activeSection = 'systems';

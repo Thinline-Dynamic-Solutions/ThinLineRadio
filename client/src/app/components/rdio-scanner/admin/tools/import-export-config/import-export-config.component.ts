@@ -17,8 +17,8 @@
  * ****************************************************************************
  */
 
-import { DOCUMENT } from '@angular/common';
-import { Component, EventEmitter, Inject, Output } from '@angular/core';
+
+import { Component, EventEmitter, Inject, Output, DOCUMENT, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Config, RdioScannerAdminService } from '../../admin.service';
@@ -36,6 +36,8 @@ const ADMIN_IMPORT_DIALOG = {
     selector: 'rdio-scanner-admin-import-export-config',
     styleUrls: ['./import-export-config.component.scss'],
     templateUrl: './import-export-config.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminImportExportConfigComponent {
     @Output() config = new EventEmitter<Config & { __isImport?: boolean }>();

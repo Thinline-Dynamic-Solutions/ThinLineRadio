@@ -17,14 +17,16 @@
  * ****************************************************************************
  */
 
-import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { FormGroup, FormBuilder, FormControl } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 @Component({
-  selector: 'rdio-scanner-admin-user-registration',
-  templateUrl: './user-registration.component.html',
-  styleUrls: ['./user-registration.component.scss']
+    selector: 'rdio-scanner-admin-user-registration',
+    templateUrl: './user-registration.component.html',
+    styleUrls: ['./user-registration.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminUserRegistrationComponent implements OnInit, OnChanges {
   @Input() form!: FormGroup;

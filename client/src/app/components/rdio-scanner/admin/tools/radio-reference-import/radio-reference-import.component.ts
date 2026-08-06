@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { RdioScannerAdminService } from '../../admin.service';
 
 export interface Config {
@@ -71,6 +71,8 @@ export interface RadioReferenceSite {
     selector: 'rdio-scanner-admin-radio-reference-import',
     styleUrls: ['./radio-reference-import.component.scss'],
     templateUrl: './radio-reference-import.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     @Output() config = new EventEmitter<Config>();

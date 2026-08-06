@@ -1,37 +1,53 @@
 <h2 mat-dialog-title>
-    <ng-container [ngSwitch]="phase">
-        <span *ngSwitchCase="'loading'">Importing Configuration</span>
-        <span *ngSwitchCase="'results'">{{ allOk ? 'Import Complete' : 'Import Finished with Issues' }}</span>
-        <span *ngSwitchCase="'error'">Import Failed</span>
-    </ng-container>
+  @switch (phase) {
+    @case ('loading') {
+      <span>Importing Configuration</span>
+    }
+    @case ('results') {
+      <span>{{ allOk ? 'Import Complete' : 'Import Finished with Issues' }}</span>
+    }
+    @case ('error') {
+      <span>Import Failed</span>
+    }
+  }
 </h2>
 
 <mat-dialog-content>
-    <div *ngIf="phase === 'loading'" class="loading-state">
-        <mat-spinner diameter="48"></mat-spinner>
-        <p class="status-message">{{ statusMessage }}</p>
-        <p class="hint">Large configs can take several minutes. Please keep this window open.</p>
+  @if (phase === 'loading') {
+    <div class="loading-state">
+      <mat-spinner diameter="48"></mat-spinner>
+      <p class="status-message">{{ statusMessage }}</p>
+      <p class="hint">Large configs can take several minutes. Please keep this window open.</p>
     </div>
+  }
 
-    <div *ngIf="phase === 'results'" class="results-state">
-        <p class="summary-message" [class.ok]="allOk" [class.warn]="!allOk">{{ summaryMessage }}</p>
-        <ul class="summary-list">
-            <li *ngFor="let item of summary" [class.ok]="item.ok" [class.fail]="!item.ok">
-                <mat-icon>{{ item.ok ? 'check_circle' : 'error' }}</mat-icon>
-                <div class="item-body">
-                    <span class="item-label">{{ item.label }}</span>
-                    <span class="item-count">{{ item.imported | number }} / {{ item.expected | number }}</span>
-                </div>
-            </li>
-        </ul>
+  @if (phase === 'results') {
+    <div class="results-state">
+      <p class="summary-message" [class.ok]="allOk" [class.warn]="!allOk">{{ summaryMessage }}</p>
+      <ul class="summary-list">
+        @for (item of summary; track item) {
+          <li [class.ok]="item.ok" [class.fail]="!item.ok">
+            <mat-icon>{{ item.ok ? 'check_circle' : 'error' }}</mat-icon>
+            <div class="item-body">
+              <span class="item-label">{{ item.label }}</span>
+              <span class="item-count">{{ item.imported | number }} / {{ item.expected | number }}</span>
+            </div>
+          </li>
+        }
+      </ul>
     </div>
+  }
 
-    <div *ngIf="phase === 'error'" class="error-state">
-        <mat-icon color="warn">error</mat-icon>
-        <p>{{ errorMessage }}</p>
+  @if (phase === 'error') {
+    <div class="error-state">
+      <mat-icon color="warn">error</mat-icon>
+      <p>{{ errorMessage }}</p>
     </div>
+  }
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    <button mat-raised-button color="primary" *ngIf="phase !== 'loading'" (click)="close()">Close</button>
+  @if (phase !== 'loading') {
+    <button mat-raised-button color="primary" (click)="close()">Close</button>
+  }
 </mat-dialog-actions>

@@ -19,8 +19,9 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormArray, FormGroup } from '@angular/forms';
+import { PageEvent } from '@angular/material/paginator';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
 
@@ -28,6 +29,8 @@ import { RdioScannerAdminService } from '../../admin.service';
     selector: 'rdio-scanner-admin-groups',
     templateUrl: './groups.component.html',
     styleUrls: ['./groups.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class RdioScannerAdminGroupsComponent {
     @Input() form: FormArray | undefined;
@@ -35,17 +38,73 @@ export class RdioScannerAdminGroupsComponent {
 
     displayedColumns: string[] = ['drag', 'label', 'usage', 'id', 'actions'];
 
+    /** Rows per column; page shows left+right (= 20). */
+    readonly columnSize = 10;
+    readonly pageSize = 20;
+    pageIndex = 0;
+    searchQuery = '';
+
     saving = false;
 
     get groups(): FormGroup[] {
-        return this.form?.controls
-            .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
+        return (this.form?.controls as FormGroup[] | undefined)
+            ?.slice()
+            .sort((a, b) => (a.value.order || 0) - (b.value.order || 0)) ?? [];
+    }
+
+    get filteredGroups(): FormGroup[] {
+        const q = this.searchQuery.trim().toLowerCase();
+        if (!q) {
+            return this.groups;
+        }
+        return this.groups.filter((group) => {
+            const label = String(group.value.label || '').toLowerCase();
+            const id = String(group.value.id ?? '');
+            return label.includes(q) || id.includes(q);
+        });
+    }
+
+    get leftGroups(): FormGroup[] {
+        const start = this.pageIndex * this.pageSize;
+        return this.filteredGroups.slice(start, start + this.columnSize);
+    }
+
+    get rightGroups(): FormGroup[] {
+        const start = this.pageIndex * this.pageSize + this.columnSize;
+        return this.filteredGroups.slice(start, start + this.columnSize);
+    }
+
+    get showDualColumns(): boolean {
+        return this.rightGroups.length > 0;
     }
 
     constructor(
         private adminService: RdioScannerAdminService,
         private snackBar: MatSnackBar,
+        private cdr: ChangeDetectorRef,
     ) { }
+
+    onSearch(value: string): void {
+        this.searchQuery = value ?? '';
+        this.pageIndex = 0;
+        this.cdr.markForCheck();
+    }
+
+    onPage(event: PageEvent): void {
+        this.pageIndex = event.pageIndex;
+        this.cdr.markForCheck();
+    }
+
+    private clampPage(): void {
+        const maxPage = Math.max(0, Math.ceil(this.filteredGroups.length / this.pageSize) - 1);
+        if (this.pageIndex > maxPage) {
+            this.pageIndex = maxPage;
+        }
+    }
+
+    private columnOffset(listId: string): number {
+        return listId.endsWith('-right') ? this.columnSize : 0;
+    }
 
     isGroupUnused(groupId: number): boolean {
         if (!this.originalConfig || !this.originalConfig.systems) return false;
@@ -73,27 +132,46 @@ export class RdioScannerAdminGroupsComponent {
         this.form?.insert(0, group);
 
         this.form?.markAsDirty();
+        this.pageIndex = 0;
+        this.cdr.markForCheck();
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
-        if (event.previousIndex !== event.currentIndex) {
-            moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
-
-            event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
-
-            this.form?.markAsDirty();
-            this.saveAll(false);
+        if (this.searchQuery.trim()) {
+            return;
         }
+        const all = this.groups;
+        const pageStart = this.pageIndex * this.pageSize;
+        const from = pageStart
+            + this.columnOffset(event.previousContainer.id)
+            + event.previousIndex;
+        const to = pageStart
+            + this.columnOffset(event.container.id)
+            + event.currentIndex;
+        if (from === to || from < 0 || to < 0 || from >= all.length) {
+            return;
+        }
+        const clampedTo = Math.min(to, all.length - 1);
+        moveItemInArray(all, from, clampedTo);
+        all.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
+
+        this.form?.markAsDirty();
+        this.saveAll(false);
     }
 
-    remove(index: number): void {
-        const label = (this.form?.at(index)?.get('label')?.value || '').toString().trim() || 'this group';
+    remove(group: FormGroup): void {
+        const index = this.form?.controls.indexOf(group) ?? -1;
+        if (index < 0) {
+            return;
+        }
+        const label = (group.get('label')?.value || '').toString().trim() || 'this group';
         if (!confirm(`Are you sure you want to delete group "${label}"?`)) {
             return;
         }
         this.form?.removeAt(index);
 
         this.form?.markAsDirty();
+        this.clampPage();
         this.saveAll(false);
     }
 
@@ -160,6 +238,7 @@ export class RdioScannerAdminGroupsComponent {
         }
 
         this.form.markAsDirty();
+        this.clampPage();
         this.saveAll(false);
     }
 }

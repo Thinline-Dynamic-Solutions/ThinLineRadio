@@ -11,18 +11,16 @@
           (focus)="isSearchFocused = true"
           (blur)="isSearchFocused = false"
           class="search-input">
-        <button *ngIf="searchQuery" mat-icon-button class="clear-button" (click)="clearSearch()">
-          <mat-icon>clear</mat-icon>
-        </button>
+        @if (searchQuery) {
+          <button mat-icon-button class="clear-button" (click)="clearSearch()">
+            <mat-icon>clear</mat-icon>
+          </button>
+        }
       </div>
 
       <div class="channels-nav-segment" role="tablist">
         <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'all'" (click)="setNavMode('all')">
           Channels
-        </button>
-        <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'favorites'" (click)="setNavMode('favorites')">
-          <mat-icon class="segment-star">star</mat-icon>
-          Favorites
         </button>
         <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'scanLists'" (click)="setNavMode('scanLists')">
           <mat-icon class="segment-icon">playlist_play</mat-icon>
@@ -34,346 +32,460 @@
     <div class="toolbar-secondary controls-row">
       <span class="controls-stats">
         <span class="stat-enabled"
-              [class.all]="isAllEnabled()"
-              [class.partial]="isPartiallyEnabled() && !isAllEnabled()"
-              [class.none]="!isPartiallyEnabled()">{{ getEnabledCount() }}</span>
+          [class.all]="isAllEnabled()"
+          [class.partial]="isPartiallyEnabled() && !isAllEnabled()"
+        [class.none]="!isPartiallyEnabled()">{{ getEnabledCount() }}</span>
         <span class="stat-sep"> / {{ getTotalCount() }}</span>
         <span class="stat-label"> enabled</span>
       </span>
       <div class="controls-actions">
         <button type="button"
-                class="scan-list-btn"
-                [class.active]="isAllEnabled()"
-                [class.partial]="isPartiallyEnabled() && !isAllEnabled()"
-                [class.inactive]="!isPartiallyEnabled()"
-                [title]="isAllEnabled() ? 'Disable all talkgroups' : 'Enable all talkgroups'"
-                (click)="toggleAllTalkgroups()">
+          class="scan-list-btn"
+          [class.active]="isAllEnabled()"
+          [class.partial]="isPartiallyEnabled() && !isAllEnabled()"
+          [class.inactive]="!isPartiallyEnabled()"
+          [title]="isAllEnabled() ? 'Disable all talkgroups' : 'Enable all talkgroups'"
+          (click)="toggleAllTalkgroups()">
           {{ isAllEnabled() ? 'Disable All' : 'Enable All' }}
         </button>
         <button type="button"
-                class="scan-list-btn"
-                title="Show or hide systems"
-                (click)="showSystemsModal()">
+          class="scan-list-btn"
+          title="Show or hide systems"
+          (click)="showSystemsModal()">
           Systems
         </button>
-        <button *ngIf="getFavoriteItems().length > 0"
-                type="button"
-                class="scan-list-btn fav"
-                [title]="areAllFavoritesEnabled() ? 'Disable all favorites' : 'Enable all favorites'"
-                (click)="toggleFavoritesBulk($event)">
-          {{ areAllFavoritesEnabled() ? 'Disable Favs' : 'Enable Favs' }}
-        </button>
+        @if (getFavoriteItems().length > 0) {
+          <button
+            type="button"
+            class="scan-list-btn fav"
+            [title]="areAllFavoritesEnabled() ? 'Disable all favorites' : 'Enable all favorites'"
+            (click)="toggleFavoritesBulk($event)">
+            {{ areAllFavoritesEnabled() ? 'Disable Favs' : 'Enable Favs' }}
+          </button>
+        }
       </div>
     </div>
   </div>
 
-  <!-- Scan Lists Panel -->
-  <div *ngIf="navMode === 'scanLists'" class="scan-lists-panel">
-    <div class="scan-lists-header">
-      <span class="scan-lists-title">Scan Lists</span>
-      <button type="button" class="scan-list-btn" (click)="createScanList()">New List</button>
-    </div>
-
-    <div *ngIf="scanLists.length === 0" class="scan-lists-empty">
-      <mat-icon>playlist_add</mat-icon>
-      <p>No scan lists yet</p>
-      <small>Create a list to group channels for quick access</small>
-    </div>
-
-    <div class="scan-lists-body" cdkDropList (cdkDropListDropped)="onScanListDrop($event)">
-      <div *ngFor="let list of scanLists"
-           class="scan-list-card"
-           [class.expanded]="isScanListExpanded(list.id)"
-           cdkDrag
-           [cdkDragDisabled]="list.isFavoritesSource"
-           cdkDragLockAxis="y">
-        <!-- Drag placeholder shown at drop target while dragging -->
-        <div *cdkDragPlaceholder class="scan-list-drag-placeholder"></div>
-
-        <!-- Card header -->
-        <div class="scan-list-card-header" (click)="toggleScanListExpanded(list.id)">
-          <div *ngIf="!list.isFavoritesSource" class="drag-handle" cdkDragHandle (click)="$event.stopPropagation()">
-            <mat-icon>drag_indicator</mat-icon>
-          </div>
-          <div class="scan-list-icon" [class.fav]="list.isFavoritesSource">
-            <mat-icon>{{ list.isFavoritesSource ? 'star' : 'playlist_play' }}</mat-icon>
-          </div>
-          <span class="scan-list-name">{{ list.name }}</span>
-          <span class="scan-list-count" [class.all-on]="getScanListLiveState(list) === 'all'"
-                                        [class.some-on]="getScanListLiveState(list) === 'some'">
-            {{ getScanListEnabledCount(list) }} / {{ list.channels.length }}
-          </span>
-          <div class="scan-list-actions" (click)="$event.stopPropagation()">
-            <button *ngIf="list.channels.length > 0"
-                    type="button"
-                    class="scan-list-btn bulk-toggle"
-                    [class.all-on]="getScanListLiveState(list) === 'all'"
-                    [class.some-on]="getScanListLiveState(list) === 'some'"
-                    [title]="getScanListLiveState(list) === 'all' ? 'All enabled — click to disable list' : getScanListLiveState(list) === 'some' ? 'Some enabled — click to toggle list' : 'None enabled — click to enable list'"
-                    matTooltip="Turns every channel in this list on or off. Channels outside the list are unaffected, so this combines with manual selections from the Channels tab."
-                    (click)="bulkToggleScanList(list, $event)">
-              {{ getScanListBulkLabel(list) }}
-            </button>
-            <button type="button"
-                    class="scan-list-btn"
-                    title="Edit channels in this list"
-                    (click)="editScanListChannels(list, $event)">
-              Channels
-            </button>
-            <button *ngIf="!list.isFavoritesSource"
-                    type="button"
-                    class="scan-list-btn"
-                    title="Rename this scan list"
-                    (click)="renameScanList(list)">
-              Rename
-            </button>
-            <button *ngIf="!list.isFavoritesSource"
-                    type="button"
-                    class="scan-list-btn danger"
-                    title="Delete this scan list"
-                    (click)="deleteScanList(list)">
-              Delete
-            </button>
-          </div>
-          <mat-icon class="expand-icon">{{ isScanListExpanded(list.id) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+  <!-- Scan Lists — same master/detail split as Channels (Favorites pinned at top) -->
+  @if (navMode === 'scanLists') {
+    <div class="channels-split scan-lists-split">
+      <aside class="channels-sidebar scan-lists-sidebar">
+        <div class="sidebar-head">
+          <span class="sidebar-head-label">Scan Lists</span>
+          <button type="button" class="scan-list-btn" (click)="createScanList()">New</button>
         </div>
-
-        <!-- Channels grouped by system then tag -->
-        <div *ngIf="isScanListExpanded(list.id)" class="scan-list-body">
-          <div *ngIf="list.channels.length === 0" class="scan-list-channels-empty">No channels in this list</div>
-          <div *ngFor="let sysGroup of getScanListSystems(list)" class="scan-list-system-group">
-            <div class="scan-list-system-header" (click)="toggleScanListSystem(list.id, sysGroup.systemId)">
-              <mat-icon class="expand-sm">{{ isScanListSystemExpanded(list.id, sysGroup.systemId) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
-              <mat-icon style="font-size:14px;width:14px;height:14px;color:#00e676">radio</mat-icon>
-              <span class="sys-label">{{ sysGroup.systemLabel }}</span>
-              <span class="sys-count">{{ sysGroup.channels.length }}</span>
+        <nav class="sidebar-list">
+          @if (getFavoritesScanList(); as favList) {
+            <div
+              class="sidebar-system-row scan-list-rail-row"
+              role="button"
+              tabindex="0"
+              [class.active]="detailScanListId === favList.id"
+              [class.status-all]="getScanListLiveState(favList) === 'all'"
+              [class.status-some]="getScanListLiveState(favList) === 'some'"
+              [class.status-none]="getScanListLiveState(favList) === 'none'"
+              [title]="favList.name"
+              (click)="selectDetailScanList(favList.id)"
+              (keydown.enter)="selectDetailScanList(favList.id)"
+              (keydown.space)="$event.preventDefault(); selectDetailScanList(favList.id)">
+              <span class="sidebar-row-icon fav">
+                <mat-icon>star</mat-icon>
+              </span>
+              <span class="sidebar-row-body">
+                <span class="sidebar-row-label">{{ favList.name }}</span>
+                <span class="sidebar-row-meta">
+                  <span class="enabled-count">{{ getScanListEnabledCount(favList) }}</span>
+                  <span class="total-count">/ {{ favList.channels.length }}</span>
+                </span>
+              </span>
             </div>
-            <div *ngIf="isScanListSystemExpanded(list.id, sysGroup.systemId)" class="scan-list-channels">
-              <div *ngFor="let tagGroup of getScanListTags(sysGroup.channels)" class="scan-list-tag-group">
-                <div class="scan-list-tag-header" [style.color]="getTagColor(tagGroup.tag)" (click)="toggleScanListTag(list.id, sysGroup.systemId, tagGroup.tag)">
-                  <mat-icon class="expand-sm">{{ isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
-                  <mat-icon style="font-size:13px;width:13px;height:13px;color:inherit">label</mat-icon>
-                  <span>{{ tagGroup.tag || 'Untagged' }}</span>
-                  <span class="tag-count-sm">{{ tagGroup.channels.length }}</span>
-                </div>
-                <div *ngIf="isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag)" class="talkgroup-list">
-                  <div *ngFor="let ch of tagGroup.channels"
-                       class="talkgroup-row"
-                       [class.enabled]="isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId)"
-                       (click)="toggleScanListRowEnabled(ch, $event)">
-                    <mat-icon class="row-radio-icon">
-                      {{ isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId) ? 'radio_button_checked' : 'radio_button_unchecked' }}
-                    </mat-icon>
-                    <div class="row-text">
-                      <span class="row-label">{{ ch.talkgroupLabel }}</span>
-                      <span *ngIf="ch.talkgroupName" class="row-name">{{ ch.talkgroupName }}</span>
-                    </div>
-                    <span class="row-id">{{ ch.talkgroupId }}</span>
-                    <button class="icon-action sm error" title="Remove from list" (click)="removeScanListChannel(list, ch, $event)">
-                      <mat-icon>remove_circle_outline</mat-icon>
-                    </button>
-                  </div>
-                </div>
+          }
+          <div class="scan-lists-user-drop" cdkDropList (cdkDropListDropped)="onScanListDrop($event)">
+            @for (list of getUserScanLists(); track list.id) {
+              <div
+                class="sidebar-system-row scan-list-rail-row"
+                role="button"
+                tabindex="0"
+                [class.active]="detailScanListId === list.id"
+                [class.status-all]="getScanListLiveState(list) === 'all'"
+                [class.status-some]="getScanListLiveState(list) === 'some'"
+                [class.status-none]="getScanListLiveState(list) === 'none'"
+                cdkDrag
+                cdkDragLockAxis="y"
+                [title]="list.name"
+                (click)="selectDetailScanList(list.id)"
+                (keydown.enter)="selectDetailScanList(list.id)"
+                (keydown.space)="$event.preventDefault(); selectDetailScanList(list.id)">
+                <div *cdkDragPlaceholder class="scan-list-drag-placeholder scan-list-drag-placeholder--rail"></div>
+                <span class="drag-handle" cdkDragHandle (click)="$event.stopPropagation()">
+                  <mat-icon>drag_indicator</mat-icon>
+                </span>
+                <span class="sidebar-row-icon">
+                  <mat-icon>playlist_play</mat-icon>
+                </span>
+                <span class="sidebar-row-body">
+                  <span class="sidebar-row-label">{{ list.name }}</span>
+                  <span class="sidebar-row-meta">
+                    <span class="enabled-count">{{ getScanListEnabledCount(list) }}</span>
+                    <span class="total-count">/ {{ list.channels.length }}</span>
+                  </span>
+                </span>
+              </div>
+            }
+          </div>
+          @if (getUserScanLists().length === 0) {
+            <div class="sidebar-empty scan-lists-user-empty">
+              <mat-icon>playlist_add</mat-icon>
+              <span>Create a list to group channels for quick access</span>
+            </div>
+          }
+        </nav>
+      </aside>
+
+      <main class="channels-detail scan-lists-detail">
+        @if (getDetailScanList(); as list) {
+          <div class="channels-detail-header system-card-header scan-list-detail-header">
+            <div class="system-icon" [class.fav]="list.isFavoritesSource">
+              <mat-icon>{{ list.isFavoritesSource ? 'star' : 'playlist_play' }}</mat-icon>
+            </div>
+            <div class="system-info">
+              <div class="system-label">{{ list.name }}</div>
+              <div class="system-stats">
+                <span class="enabled-count"
+                  [class.some-on]="getScanListLiveState(list) === 'some'"
+                  [class.all-on]="getScanListLiveState(list) === 'all'">
+                  {{ getScanListEnabledCount(list) }}
+                </span>
+                <span class="total-count">/ {{ list.channels.length }} {{ list.isFavoritesSource ? 'favorited' : 'in list' }}</span>
               </div>
             </div>
+            <div class="system-toggle scan-list-actions">
+              @if (list.channels.length > 0) {
+                <button
+                  type="button"
+                  class="scan-list-btn bulk-toggle"
+                  [class.all-on]="getScanListLiveState(list) === 'all'"
+                  [class.some-on]="getScanListLiveState(list) === 'some'"
+                  [title]="getScanListLiveState(list) === 'all' ? 'All enabled — click to disable list' : getScanListLiveState(list) === 'some' ? 'Some enabled — click to toggle list' : 'None enabled — click to enable list'"
+                  matTooltip="Turns every channel in this list on or off. Channels outside the list are unaffected, so this combines with manual selections from the Channels tab."
+                  (click)="bulkToggleScanList(list, $event)">
+                  {{ getScanListBulkLabel(list) }}
+                </button>
+              }
+              @if (!list.isFavoritesSource) {
+                <button type="button"
+                  class="scan-list-btn"
+                  title="Edit channels in this list"
+                  (click)="editScanListChannels(list, $event)">
+                  Edit
+                </button>
+                <button type="button" class="scan-list-btn" title="Rename this scan list" (click)="renameScanList(list, $event)">
+                  Rename
+                </button>
+                <button type="button" class="scan-list-btn danger" title="Delete this scan list" (click)="deleteScanList(list, $event)">
+                  Delete
+                </button>
+              }
+            </div>
           </div>
-        </div>
-      </div>
+          <div class="channels-detail-body scan-list-body">
+            @if (list.channels.length === 0) {
+              <div class="scan-list-channels-empty">
+                @if (list.isFavoritesSource) {
+                  Star talkgroups on the Channels tab to build your Favorites list
+                } @else {
+                  No channels in this list
+                }
+              </div>
+            }
+            @for (sysGroup of getScanListSystems(list); track sysGroup.systemId) {
+              <div class="scan-list-system-group">
+                <div class="scan-list-system-header" (click)="toggleScanListSystem(list.id, sysGroup.systemId)">
+                  <mat-icon class="expand-sm">{{ isScanListSystemExpanded(list.id, sysGroup.systemId) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                  <mat-icon style="font-size:14px;width:14px;height:14px;color:var(--tlr-primary)">radio</mat-icon>
+                  <span class="sys-label">{{ sysGroup.systemLabel }}</span>
+                  <span class="sys-count">{{ sysGroup.channels.length }}</span>
+                </div>
+                @if (isScanListSystemExpanded(list.id, sysGroup.systemId)) {
+                  <div class="scan-list-channels">
+                    @for (tagGroup of getScanListTags(sysGroup.channels); track tagGroup.tag) {
+                      <div class="scan-list-tag-group" [style.--tag-accent]="getTagColor(tagGroup.tag)">
+                        <button type="button"
+                          class="scan-list-tag-header"
+                          (click)="toggleScanListTag(list.id, sysGroup.systemId, tagGroup.tag)">
+                          <mat-icon class="expand-sm">{{ isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                          <mat-icon class="tag-icon-sm">label</mat-icon>
+                          <span class="tag-label-sm">{{ tagGroup.tag || 'Untagged' }}</span>
+                          <span class="tag-count-sm">{{ tagGroup.channels.length }}</span>
+                        </button>
+                        @if (isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag)) {
+                          <div class="talkgroup-list">
+                            @for (ch of tagGroup.channels; track trackScanListChannel($index, ch)) {
+                              <div
+                                class="talkgroup-row"
+                                [class.enabled]="isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId)"
+                                (click)="toggleScanListRowEnabled(ch, $event)">
+                                <mat-icon class="row-radio-icon">
+                                  {{ isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                                </mat-icon>
+                                <div class="row-text">
+                                  <span class="row-label">{{ ch.talkgroupLabel }}</span>
+                                  @if (ch.talkgroupName) {
+                                    <span class="row-name">{{ ch.talkgroupName }}</span>
+                                  }
+                                </div>
+                                <span class="row-id">{{ ch.talkgroupId }}</span>
+                                <button class="icon-action sm error" title="Remove from list" (click)="removeScanListChannel(list, ch, $event)">
+                                  <mat-icon>remove_circle_outline</mat-icon>
+                                </button>
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+        @if (!getDetailScanList()) {
+          <div class="channels-detail-empty">
+            <mat-icon>playlist_play</mat-icon>
+            <span>Select a scan list</span>
+          </div>
+        }
+      </main>
     </div>
-  </div>
+  }
 
-  <div *ngIf="navMode !== 'scanLists' && (!systems || systems.length === 0)" class="channels-full-empty">
-    <mat-icon class="empty-icon">filter_alt_off</mat-icon>
-    <h3>No systems configured</h3>
-    <p>No talkgroups are available</p>
-  </div>
+  @if (navMode !== 'scanLists' && (!systems || systems.length === 0)) {
+    <div class="channels-full-empty">
+      <mat-icon class="empty-icon">filter_alt_off</mat-icon>
+      <h3>No systems configured</h3>
+      <p>No talkgroups are available</p>
+    </div>
+  }
 
   <!-- Search results — flat list across all systems -->
-  <div *ngIf="navMode !== 'scanLists' && systems && systems.length > 0 && isSearchActive()"
-       class="channels-search-results">
-    <div class="search-results-header">
-      <span class="search-results-count">{{ getSearchResults().length }} match{{ getSearchResults().length === 1 ? '' : 'es' }}</span>
-      <button type="button" class="scan-list-btn" (click)="clearSearch()">Clear search</button>
-    </div>
-    <div *ngIf="getSearchResults().length === 0" class="channels-detail-empty">
-      <mat-icon>search_off</mat-icon>
-      <span>No channels match your search</span>
-    </div>
-    <div *ngIf="getSearchResults().length > 0" class="search-results-body talkgroup-list">
-      <div *ngFor="let hit of getSearchResults(); trackBy: trackBySearchResult"
-           class="talkgroup-row search-hit-row"
-           [class.enabled]="isTalkgroupEnabled(hit.system.id, hit.talkgroup.id)"
-           (click)="toggleTalkgroup(hit.system.id, hit.talkgroup.id, $event)">
-        <mat-icon class="row-radio-icon">
-          {{ isTalkgroupEnabled(hit.system.id, hit.talkgroup.id) ? 'radio_button_checked' : 'radio_button_unchecked' }}
-        </mat-icon>
-        <div class="row-text">
-          <span class="row-label">{{ hit.talkgroup.label }}</span>
-          <span *ngIf="hit.talkgroup.name" class="row-name">{{ hit.talkgroup.name }}</span>
-          <button type="button"
+  @if (navMode !== 'scanLists' && systems && systems.length > 0 && isSearchActive()) {
+    <div
+      class="channels-search-results">
+      <div class="search-results-header">
+        <span class="search-results-count">{{ getSearchResults().length }} match{{ getSearchResults().length === 1 ? '' : 'es' }}</span>
+        <button type="button" class="scan-list-btn" (click)="clearSearch()">Clear search</button>
+      </div>
+      @if (getSearchResults().length === 0) {
+        <div class="channels-detail-empty">
+          <mat-icon>search_off</mat-icon>
+          <span>No channels match your search</span>
+        </div>
+      }
+      @if (getSearchResults().length > 0) {
+        <div class="search-results-body talkgroup-list">
+          @for (hit of getSearchResults(); track trackBySearchResult($index, hit)) {
+            <div
+              class="talkgroup-row search-hit-row"
+              [class.enabled]="isTalkgroupEnabled(hit.system.id, hit.talkgroup.id)"
+              (click)="toggleTalkgroup(hit.system.id, hit.talkgroup.id, $event)">
+              <mat-icon class="row-radio-icon">
+                {{ isTalkgroupEnabled(hit.system.id, hit.talkgroup.id) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+              </mat-icon>
+              <div class="row-text">
+                <span class="row-label">{{ hit.talkgroup.label }}</span>
+                @if (hit.talkgroup.name) {
+                  <span class="row-name">{{ hit.talkgroup.name }}</span>
+                }
+                <button type="button"
                   class="search-hit-context"
                   [title]="'Browse ' + hit.system.label"
                   (click)="openSystemFromSearch(hit.system.id, $event)">
-            {{ hit.system.label }} · {{ hit.tag }}
-          </button>
-        </div>
-        <span class="row-id">{{ hit.talkgroup.id }}</span>
-        <button type="button"
+                  {{ hit.system.label }} · {{ hit.tag }}
+                </button>
+              </div>
+              <span class="row-id">{{ hit.talkgroup.id }}</span>
+              <button type="button"
                 class="favorite-toggle chip-favorite"
                 [class.is-favorited]="isFavorite(hit.system.id, hit.talkgroup.id)"
                 [attr.aria-label]="(isFavorite(hit.system.id, hit.talkgroup.id) ? 'Unfavorite ' : 'Favorite ') + hit.talkgroup.label"
                 [title]="isFavorite(hit.system.id, hit.talkgroup.id) ? 'Unfavorite' : 'Favorite'"
                 (click)="toggleFavoriteTalkgroup(hit.system.id, hit.talkgroup.id, $event)">
-          <mat-icon>{{ isFavorite(hit.system.id, hit.talkgroup.id) ? 'star' : 'star_border' }}</mat-icon>
-        </button>
-      </div>
+                <mat-icon>{{ isFavorite(hit.system.id, hit.talkgroup.id) ? 'star' : 'star_border' }}</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+      }
     </div>
-  </div>
+  }
 
-  <div *ngIf="navMode !== 'scanLists' && systems && systems.length > 0 && !isSearchActive()" class="channels-split">
-    <aside class="channels-sidebar"
-           [class.is-empty]="navMode === 'favorites' && getSystemsForBrowseRail().length === 0">
-      <div class="sidebar-head">Systems</div>
-      <div *ngIf="navMode === 'favorites' && getSystemsForBrowseRail().length === 0" class="sidebar-empty">
-        <mat-icon>star_border</mat-icon>
-        <span>Star a system, tag, or talkgroup to list it here</span>
-      </div>
-      <nav class="sidebar-list">
-        <button type="button"
-                *ngFor="let system of getSystemsForBrowseRail()"
-                class="sidebar-system-row"
-                [class.active]="detailSystemId === system.id"
-                [class.status-all]="isAllEnabledInSystem(system)"
-                [class.status-some]="isSomeEnabledInSystem(system)"
-                [class.status-none]="!isSomeEnabledInSystem(system) && !isAllEnabledInSystem(system)"
-                [title]="system.label"
-                (click)="selectDetailSystem(system.id)">
-          <span class="sidebar-row-icon">
-            <mat-icon>radio</mat-icon>
-          </span>
-          <span class="sidebar-row-body">
-            <span class="sidebar-row-label">{{ system.label }}</span>
-            <span class="sidebar-row-meta">
-              <span class="enabled-count">{{ getEnabledCountInSystem(system) }}</span>
-              <span class="total-count">/ {{ getSystemViewTotalCount(system) }}</span>
-            </span>
-          </span>
-          <mat-icon *ngIf="isSystemFavorite(system.id) || getFavoriteTalkgroupsCount(system) > 0"
-                    class="sidebar-row-star">star</mat-icon>
-        </button>
-      </nav>
-    </aside>
-
-    <main class="channels-detail">
-      <ng-container *ngIf="getDetailSystem() as ds">
-        <div class="channels-detail-header system-card-header">
-          <div class="system-icon">
-            <mat-icon>radio</mat-icon>
-          </div>
-          <div class="system-info">
-            <div class="system-label">{{ ds.label }}</div>
-            <div class="system-stats">
-              <span class="enabled-count">{{ getEnabledCountInSystem(ds) }}</span>
-              <span class="total-count">/ {{ getSystemViewTotalCount(ds) }} in view</span>
+  @if (navMode !== 'scanLists' && systems && systems.length > 0 && !isSearchActive()) {
+    <div class="channels-split">
+      <aside class="channels-sidebar"
+        [class.is-collapsed]="systemsRailCollapsed">
+        <div class="sidebar-head">
+          <span class="sidebar-head-label">Systems</span>
+          <button type="button"
+            class="sidebar-collapse-btn"
+            [attr.aria-expanded]="!systemsRailCollapsed"
+            [attr.aria-label]="systemsRailCollapsed ? 'Expand systems list' : 'Collapse systems list'"
+            [title]="systemsRailCollapsed ? 'Expand systems' : 'Collapse systems'"
+            (click)="toggleSystemsRail()">
+            <mat-icon>{{ systemsRailCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+          </button>
+        </div>
+        <nav class="sidebar-list">
+          @for (system of getSystemsForBrowseRail(); track system.id) {
+            <button type="button"
+              class="sidebar-system-row"
+              [class.active]="detailSystemId === system.id"
+              [class.status-all]="isAllEnabledInSystem(system)"
+              [class.status-some]="isSomeEnabledInSystem(system)"
+              [class.status-none]="!isSomeEnabledInSystem(system) && !isAllEnabledInSystem(system)"
+              [title]="system.label"
+              (click)="selectDetailSystem(system.id)">
+              <span class="sidebar-row-icon">
+                <mat-icon>radio</mat-icon>
+              </span>
+              <span class="sidebar-row-body">
+                <span class="sidebar-row-label">{{ system.label }}</span>
+                <span class="sidebar-row-meta">
+                  <span class="enabled-count">{{ getEnabledCountInSystem(system) }}</span>
+                  <span class="total-count">/ {{ getSystemViewTotalCount(system) }}</span>
+                </span>
+              </span>
+              @if (isSystemFavorite(system.id) || getFavoriteTalkgroupsCount(system) > 0) {
+                <mat-icon
+                class="sidebar-row-star">star</mat-icon>
+              }
+            </button>
+          }
+        </nav>
+      </aside>
+      <main class="channels-detail">
+        @if (getDetailSystem(); as ds) {
+          <div class="channels-detail-header system-card-header">
+            <div class="system-icon">
+              <mat-icon>radio</mat-icon>
+            </div>
+            <div class="system-info">
+              <div class="system-label">{{ ds.label }}</div>
+              <div class="system-stats">
+                <span class="enabled-count">{{ getEnabledCountInSystem(ds) }}</span>
+                <span class="total-count">/ {{ getSystemViewTotalCount(ds) }} in view</span>
+              </div>
+            </div>
+            <div class="system-toggle">
+              <button type="button"
+                class="toggle-badge"
+                [class.all]="isAllEnabledInSystem(ds)"
+                [class.some]="isSomeEnabledInSystem(ds)"
+                [title]="isAllEnabledInSystem(ds) ? 'All enabled — click to disable' : isSomeEnabledInSystem(ds) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
+                (click)="toggleSystemTalkgroups(ds, $event)">
+                {{ isAllEnabledInSystem(ds) ? 'All' : isSomeEnabledInSystem(ds) ? 'Some' : 'None' }}
+              </button>
+            </div>
+            <div class="system-actions">
+              <button type="button"
+                class="favorite-toggle"
+                [class.is-favorited]="isSystemFavorite(ds.id)"
+                [attr.aria-label]="(isSystemFavorite(ds.id) ? 'Unfavorite ' : 'Favorite ') + ds.label"
+                [title]="isSystemFavorite(ds.id) ? 'Unfavorite system' : 'Favorite system'"
+                (click)="toggleFavoriteSystem(ds.id, $event)">
+                <mat-icon>{{ isSystemFavorite(ds.id) ? 'star' : 'star_border' }}</mat-icon>
+              </button>
             </div>
           </div>
-          <div class="system-toggle">
-            <button type="button"
-                    class="toggle-badge"
-                    [class.all]="isAllEnabledInSystem(ds)"
-                    [class.some]="isSomeEnabledInSystem(ds)"
-                    [title]="isAllEnabledInSystem(ds) ? 'All enabled — click to disable' : isSomeEnabledInSystem(ds) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
-                    (click)="toggleSystemTalkgroups(ds, $event)">
-              {{ isAllEnabledInSystem(ds) ? 'All' : isSomeEnabledInSystem(ds) ? 'Some' : 'None' }}
-            </button>
-          </div>
-          <div class="system-actions">
-            <button type="button"
-                    class="favorite-toggle"
-                    [class.is-favorited]="isSystemFavorite(ds.id)"
-                    [attr.aria-label]="(isSystemFavorite(ds.id) ? 'Unfavorite ' : 'Favorite ') + ds.label"
-                    [title]="isSystemFavorite(ds.id) ? 'Unfavorite system' : 'Favorite system'"
-                    (click)="toggleFavoriteSystem(ds.id, $event)">
-              <mat-icon>{{ isSystemFavorite(ds.id) ? 'star' : 'star_border' }}</mat-icon>
-            </button>
-          </div>
-        </div>
-
-        <div class="channels-detail-body" *ngIf="getTalkgroupsInSystemView(ds).length > 0">
-          <div *ngFor="let tagGroup of (navMode === 'favorites' ? getFavoriteTagGroupsForSystem(ds) : groupTalkgroupsByTag(ds))" class="tag-group">
-            <div class="tag-header"
-                 (click)="toggleTag(ds.id, tagGroup.tag, $event)"
-                 (contextmenu)="$event.preventDefault()">
-              <div class="tag-icon" [style.color]="getTagColor(tagGroup.tag)">
-                <mat-icon>{{ getTagIcon(tagGroup.tag) }}</mat-icon>
-              </div>
-              <div class="tag-label" [style.color]="getTagColor(tagGroup.tag)">{{ tagGroup.tag || 'Untagged' }}</div>
-              <div class="tag-count">{{ tagGroup.talkgroups.length }}</div>
-              <div class="tag-status">
-                <mat-icon [class]="getTagStatusClass(ds.id, tagGroup.tag, tagGroup.talkgroups)">{{ getTagStatusIcon(ds.id, tagGroup.tag, tagGroup.talkgroups) }}</mat-icon>
-              </div>
-              <div class="tag-toggle">
-                <button type="button"
+          @if (getTalkgroupsInSystemView(ds).length > 0) {
+            <div class="channels-detail-body">
+              @for (tagGroup of detailTagGroups; track tagGroup.tag) {
+                <div class="tag-group">
+                  <div class="tag-header"
+                    [style.--tag-accent]="getTagColor(tagGroup.tag)"
+                    (click)="toggleTag(ds.id, tagGroup.tag, $event)"
+                    (contextmenu)="$event.preventDefault()">
+                    <div class="tag-icon">
+                      <mat-icon>{{ getTagIcon(tagGroup.tag) }}</mat-icon>
+                    </div>
+                    <div class="tag-label">{{ tagGroup.tag || 'Untagged' }}</div>
+                    <div class="tag-count">{{ tagGroup.talkgroups.length }}</div>
+                    <div class="tag-status">
+                      <mat-icon [class]="getTagStatusClass(ds.id, tagGroup.tag, tagGroup.talkgroups)">{{ getTagStatusIcon(ds.id, tagGroup.tag, tagGroup.talkgroups) }}</mat-icon>
+                    </div>
+                    <div class="tag-toggle">
+                      <button type="button"
                         class="toggle-badge"
                         [class.all]="isAllEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups)"
                         [class.some]="isSomeEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups)"
                         [title]="isAllEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'All enabled — click to disable' : isSomeEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'Some enabled — click to toggle' : 'None enabled — click to enable all'"
                         (click)="toggleTagTalkgroups(ds.id, tagGroup.tag, tagGroup.talkgroups, $event)">
-                  {{ isAllEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'All' : isSomeEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'Some' : 'None' }}
-                </button>
-              </div>
-              <div class="tag-actions">
-                <button class="mini-button" (click)="setTagTalkgroupsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, true, $event)">Enable</button>
-                <button class="mini-button" (click)="setTagTalkgroupsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, false, $event)">Disable</button>
-                <button type="button"
+                        {{ isAllEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'All' : isSomeEnabledInTag(ds.id, tagGroup.tag, tagGroup.talkgroups) ? 'Some' : 'None' }}
+                      </button>
+                    </div>
+                    <div class="tag-actions">
+                      <button class="mini-button" (click)="setTagTalkgroupsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, true, $event)">Enable</button>
+                      <button class="mini-button" (click)="setTagTalkgroupsStatus(ds.id, tagGroup.tag, tagGroup.talkgroups, false, $event)">Disable</button>
+                      <button type="button"
                         class="favorite-toggle"
                         [class.is-favorited]="isTagFavorite(ds.id, tagGroup.tag)"
                         [attr.aria-label]="(isTagFavorite(ds.id, tagGroup.tag) ? 'Unfavorite ' : 'Favorite ') + (tagGroup.tag || 'Untagged')"
                         [title]="isTagFavorite(ds.id, tagGroup.tag) ? 'Unfavorite tag' : 'Favorite tag'"
                         (click)="toggleFavoriteTag(ds.id, tagGroup.tag, $event)">
-                  <mat-icon>{{ isTagFavorite(ds.id, tagGroup.tag) ? 'star' : 'star_border' }}</mat-icon>
-                </button>
-              </div>
-              <mat-icon class="expand-icon">{{ isTagExpanded(ds.id, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
-            </div>
-
-            <div *ngIf="isTagExpanded(ds.id, tagGroup.tag)" class="tag-content">
-              <div class="talkgroup-list">
-                <div *ngFor="let talkgroup of tagGroup.talkgroups"
-                     class="talkgroup-row"
-                     [class.enabled]="isTalkgroupEnabled(ds.id, talkgroup.id)"
-                     (click)="toggleTalkgroup(ds.id, talkgroup.id, $event)">
-                  <mat-icon class="row-radio-icon">
-                    {{ isTalkgroupEnabled(ds.id, talkgroup.id) ? 'radio_button_checked' : 'radio_button_unchecked' }}
-                  </mat-icon>
-                  <div class="row-text">
-                    <span class="row-label">{{ talkgroup.label }}</span>
-                    <span *ngIf="talkgroup.name" class="row-name">{{ talkgroup.name }}</span>
+                        <mat-icon>{{ isTagFavorite(ds.id, tagGroup.tag) ? 'star' : 'star_border' }}</mat-icon>
+                      </button>
+                    </div>
+                    <mat-icon class="expand-icon">{{ isTagExpanded(ds.id, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
                   </div>
-                  <span class="row-id">{{ talkgroup.id }}</span>
-                  <button type="button"
-                          class="favorite-toggle chip-favorite"
-                          [class.is-favorited]="isFavorite(ds.id, talkgroup.id)"
-                          [attr.aria-label]="(isFavorite(ds.id, talkgroup.id) ? 'Unfavorite ' : 'Favorite ') + talkgroup.label"
-                          [title]="isFavorite(ds.id, talkgroup.id) ? 'Unfavorite' : 'Favorite'"
-                          (click)="toggleFavoriteTalkgroup(ds.id, talkgroup.id, $event)">
-                    <mat-icon>{{ isFavorite(ds.id, talkgroup.id) ? 'star' : 'star_border' }}</mat-icon>
-                  </button>
+                  @if (isTagExpanded(ds.id, tagGroup.tag)) {
+                    <div class="tag-content">
+                      <div class="talkgroup-list">
+                        @for (talkgroup of tagGroup.talkgroups; track talkgroup.id) {
+                          <div
+                            class="talkgroup-row"
+                            [class.enabled]="isTalkgroupEnabled(ds.id, talkgroup.id)"
+                            (click)="toggleTalkgroup(ds.id, talkgroup.id, $event)">
+                            <mat-icon class="row-radio-icon">
+                              {{ isTalkgroupEnabled(ds.id, talkgroup.id) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                            </mat-icon>
+                            <div class="row-text">
+                              <span class="row-label">{{ talkgroup.label }}</span>
+                              @if (talkgroup.name) {
+                                <span class="row-name">{{ talkgroup.name }}</span>
+                              }
+                            </div>
+                            <span class="row-id">{{ talkgroup.id }}</span>
+                            <button type="button"
+                              class="favorite-toggle chip-favorite"
+                              [class.is-favorited]="isFavorite(ds.id, talkgroup.id)"
+                              [attr.aria-label]="(isFavorite(ds.id, talkgroup.id) ? 'Unfavorite ' : 'Favorite ') + talkgroup.label"
+                              [title]="isFavorite(ds.id, talkgroup.id) ? 'Unfavorite' : 'Favorite'"
+                              (click)="toggleFavoriteTalkgroup(ds.id, talkgroup.id, $event)">
+                              <mat-icon>{{ isFavorite(ds.id, talkgroup.id) ? 'star' : 'star_border' }}</mat-icon>
+                            </button>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
                 </div>
-              </div>
+              }
             </div>
+          }
+          @if (getTalkgroupsInSystemView(ds).length === 0) {
+            <div class="channels-detail-empty empty-message">
+              No talkgroups in this view
+            </div>
+          }
+        }
+        @if (!getDetailSystem()) {
+          <div class="channels-detail-empty">
+            <mat-icon>touch_app</mat-icon>
+            <span>Select a system</span>
           </div>
-        </div>
-
-        <div *ngIf="getTalkgroupsInSystemView(ds).length === 0" class="channels-detail-empty empty-message">
-          No talkgroups in this view
-        </div>
-      </ng-container>
-
-      <div *ngIf="!getDetailSystem()" class="channels-detail-empty">
-        <mat-icon>touch_app</mat-icon>
-        <span>Select a system</span>
-      </div>
-    </main>
-  </div>
+        }
+      </main>
+    </div>
+  }
 </div>

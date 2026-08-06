@@ -1,176 +1,217 @@
 <div class="incident-map-panel" (focusin)="preventFocusScroll($event)">
-    <div *ngIf="loadError" class="incident-map-error">
-        <mat-icon color="warn">error</mat-icon>
-        <span>{{ loadError }}</span>
+  @if (loadError) {
+    <div class="incident-map-error">
+      <mat-icon color="warn">error</mat-icon>
+      <span>{{ loadError }}</span>
+    </div>
+  }
+
+  <div class="incident-map-toolbar">
+    <div class="toolbar-row toolbar-row--primary">
+      <div class="toolbar-group toolbar-group--time">
+        <span class="toolbar-label">Time</span>
+        <div class="toolbar-time-presets">
+          @for (opt of timePresetOptions; track opt) {
+            <button type="button"
+              class="toolbar-preset-btn"
+              [class.active]="isTimePresetActive(opt.id)"
+              (click)="onTimePresetChange(opt.id)">
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="toolbar-group">
+        <span class="toolbar-label">System</span>
+        <select class="toolbar-control"
+          [ngModel]="filterSystemId === null ? '' : filterSystemId"
+          (ngModelChange)="onSystemFilterChange($event)">
+          <option [ngValue]="''">All systems</option>
+          @for (opt of systemFilterOptions; track opt) {
+            <option [ngValue]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="toolbar-group">
+        <span class="toolbar-label">Talkgroup</span>
+        <select class="toolbar-control"
+          [ngModel]="filterTalkgroupId === null ? '' : filterTalkgroupId"
+          [disabled]="talkgroupFilterOptions.length === 0"
+          (ngModelChange)="onTalkgroupFilterChange($event)">
+          <option [ngValue]="''">All talkgroups</option>
+          @for (opt of talkgroupFilterOptions; track opt) {
+            <option [ngValue]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="toolbar-group toolbar-group--search">
+        <span class="toolbar-label">Search</span>
+        <div class="toolbar-search-wrap">
+          <mat-icon class="toolbar-search-icon">search</mat-icon>
+          <input class="toolbar-control toolbar-control--search"
+            type="search"
+            placeholder="Nature, address…"
+            [value]="searchQuery"
+            (input)="onSearchChange($any($event.target).value)">
+          @if (searchQuery) {
+            <button
+              type="button"
+              class="toolbar-clear-btn"
+              aria-label="Clear search"
+              (click)="clearSearch()">
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="toolbar-group toolbar-group--tray-toggle">
+        <span class="toolbar-label">More</span>
+        <button type="button"
+          class="toolbar-preset-btn toolbar-more-btn"
+          [class.active]="moreFiltersOpen || moreFiltersActive"
+          [attr.aria-expanded]="moreFiltersOpen"
+          (click)="toggleMoreFilters()">
+          <mat-icon>{{ moreFiltersOpen ? 'expand_less' : 'tune' }}</mat-icon>
+          Map &amp; weather
+          @if (moreFiltersActive && !moreFiltersOpen) {
+            <span class="toolbar-more-dot" aria-hidden="true"></span>
+          }
+        </button>
+      </div>
+
+      @if (hasActiveFilters) {
+        <div class="toolbar-group toolbar-group--actions">
+          <button type="button"
+            class="toolbar-reset-btn"
+            (click)="clearAllFilters()">
+            Clear
+          </button>
+        </div>
+      }
     </div>
 
-    <div class="incident-map-toolbar">
-        <div class="toolbar-row toolbar-row--time">
-            <div class="toolbar-group toolbar-group--time">
-                <span class="toolbar-label">Time range</span>
-                <div class="toolbar-time-presets">
-                    <button type="button"
-                            *ngFor="let opt of timePresetOptions"
-                            class="toolbar-preset-btn"
-                            [class.active]="isTimePresetActive(opt.id)"
-                            (click)="onTimePresetChange(opt.id)">
-                        {{ opt.label }}
-                    </button>
-                </div>
-            </div>
-
-            <div class="toolbar-group toolbar-group--dates" *ngIf="showCustomDateInputs()">
-                <span class="toolbar-label">Start</span>
-                <input class="toolbar-control toolbar-control--date"
-                       type="date"
-                       [max]="customEndDate || maxDateInput"
-                       [ngModel]="customStartDate"
-                       (ngModelChange)="onCustomStartDateChange($event)">
-            </div>
-
-            <div class="toolbar-group toolbar-group--dates" *ngIf="showCustomDateInputs()">
-                <span class="toolbar-label">End</span>
-                <input class="toolbar-control toolbar-control--date"
-                       type="date"
-                       [min]="customStartDate"
-                       [max]="maxDateInput"
-                       [ngModel]="customEndDate"
-                       (ngModelChange)="onCustomEndDateChange($event)">
-            </div>
-
+    @if (showCustomDateInputs()) {
+      <div class="toolbar-row toolbar-row--dates">
+        <div class="toolbar-group toolbar-group--dates">
+          <span class="toolbar-label">Start</span>
+          <input class="toolbar-control toolbar-control--date"
+            type="date"
+            [max]="customEndDate || maxDateInput"
+            [ngModel]="customStartDate"
+            (ngModelChange)="onCustomStartDateChange($event)">
         </div>
-
-        <div class="toolbar-row toolbar-row--filters">
-        <div class="toolbar-group">
-            <span class="toolbar-label">System</span>
-            <select class="toolbar-control"
-                    [ngModel]="filterSystemId === null ? '' : filterSystemId"
-                    (ngModelChange)="onSystemFilterChange($event)">
-                <option [ngValue]="''">All systems</option>
-                <option *ngFor="let opt of systemFilterOptions" [ngValue]="opt.id">{{ opt.label }}</option>
-            </select>
+        <div class="toolbar-group toolbar-group--dates">
+          <span class="toolbar-label">End</span>
+          <input class="toolbar-control toolbar-control--date"
+            type="date"
+            [min]="customStartDate"
+            [max]="maxDateInput"
+            [ngModel]="customEndDate"
+            (ngModelChange)="onCustomEndDateChange($event)">
         </div>
+      </div>
+    }
 
-        <div class="toolbar-group">
-            <span class="toolbar-label">Talkgroup</span>
-            <select class="toolbar-control"
-                    [ngModel]="filterTalkgroupId === null ? '' : filterTalkgroupId"
-                    [disabled]="talkgroupFilterOptions.length === 0"
-                    (ngModelChange)="onTalkgroupFilterChange($event)">
-                <option [ngValue]="''">All talkgroups</option>
-                <option *ngFor="let opt of talkgroupFilterOptions" [ngValue]="opt.id">{{ opt.label }}</option>
-            </select>
-        </div>
-
-        <div class="toolbar-group toolbar-group--search">
-            <span class="toolbar-label">Search</span>
-            <div class="toolbar-search-wrap">
-                <mat-icon class="toolbar-search-icon">search</mat-icon>
-                <input class="toolbar-control toolbar-control--search"
-                       type="search"
-                       placeholder="Nature, address…"
-                       [value]="searchQuery"
-                       (input)="onSearchChange($any($event.target).value)">
-                <button *ngIf="searchQuery"
-                        type="button"
-                        class="toolbar-clear-btn"
-                        aria-label="Clear search"
-                        (click)="clearSearch()">
-                    <mat-icon>close</mat-icon>
-                </button>
-            </div>
-        </div>
-
+    @if (moreFiltersOpen) {
+      <div class="toolbar-row toolbar-row--more" role="region" aria-label="Map style and weather">
         <div class="toolbar-group toolbar-group--map">
-            <span class="toolbar-label">Map style</span>
-            <select class="toolbar-control"
-                    [ngModel]="mapStyle"
-                    (ngModelChange)="onMapStyleChange($event)">
-                <option *ngFor="let opt of mapStyleOptions" [value]="opt.id">{{ opt.label }}</option>
-            </select>
+          <span class="toolbar-label">Map style</span>
+          <select class="toolbar-control"
+            [ngModel]="mapStyle"
+            (ngModelChange)="onMapStyleChange($event)">
+            @for (opt of mapStyleOptions; track opt) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
         </div>
 
         <div class="toolbar-group toolbar-group--weather">
-            <span class="toolbar-label">Weather</span>
-            <div class="toolbar-weather-toggles">
-                <button type="button"
-                        class="toolbar-preset-btn"
-                        [class.active]="weatherLayers.radar"
-                        (click)="onWeatherLayerToggle('radar')">
-                    Radar
-                </button>
-                <button type="button"
-                        class="toolbar-preset-btn toolbar-preset-btn--icon"
-                        *ngIf="weatherLayers.radar"
-                        [class.active]="radarPlaying"
-                        (click)="toggleRadarPlayback()"
-                        [matTooltip]="radarPlaying ? 'Pause radar loop' : 'Play radar loop'">
-                    <mat-icon>{{ radarPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
-                </button>
-                <span class="toolbar-radar-time" *ngIf="weatherLayers.radar && radarFrameLabel">
-                    {{ radarFrameLabel }}
-                </span>
-                <button type="button"
-                        class="toolbar-preset-btn"
-                        [class.active]="weatherLayers.alerts"
-                        (click)="onWeatherLayerToggle('alerts')">
-                    Alerts
-                </button>
-            </div>
-        </div>
-
-        <div class="toolbar-group toolbar-group--actions" *ngIf="hasActiveFilters">
+          <span class="toolbar-label">Weather</span>
+          <div class="toolbar-weather-toggles">
             <button type="button"
-                    class="toolbar-reset-btn"
-                    (click)="clearAllFilters()">
-                Clear filters
+              class="toolbar-preset-btn"
+              [class.active]="weatherLayers.radar"
+              (click)="onWeatherLayerToggle('radar')">
+              Radar
             </button>
+            @if (weatherLayers.radar) {
+              <button type="button"
+                class="toolbar-preset-btn toolbar-preset-btn--icon"
+                [class.active]="radarPlaying"
+                (click)="toggleRadarPlayback()"
+                [matTooltip]="radarPlaying ? 'Pause radar loop' : 'Play radar loop'">
+                <mat-icon>{{ radarPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+              </button>
+            }
+            @if (weatherLayers.radar && radarFrameLabel) {
+              <span class="toolbar-radar-time">
+                {{ radarFrameLabel }}
+              </span>
+            }
+            <button type="button"
+              class="toolbar-preset-btn"
+              [class.active]="weatherLayers.alerts"
+              (click)="onWeatherLayerToggle('alerts')">
+              Alerts
+            </button>
+          </div>
         </div>
+      </div>
+    }
+  </div>
+
+  <div class="incident-map-layout">
+    <rdio-scanner-incident-map-sidebar class="incident-map-layout__sidebar">
+    </rdio-scanner-incident-map-sidebar>
+
+    <div id="tlr-incident-map-canvas" class="incident-map-canvas"></div>
+
+    @if (pinEdit) {
+      <div class="pin-edit-panel">
+        <div class="pin-edit-title">
+          <mat-icon>edit_location_alt</mat-icon>
+          Correct Pin
         </div>
-    </div>
-
-    <div class="incident-map-layout">
-        <rdio-scanner-incident-map-sidebar class="incident-map-layout__sidebar">
-        </rdio-scanner-incident-map-sidebar>
-
-        <div id="tlr-incident-map-canvas" class="incident-map-canvas"></div>
-
-        <div class="pin-edit-panel" *ngIf="pinEdit">
-            <div class="pin-edit-title">
-                <mat-icon>edit_location_alt</mat-icon>
-                Correct Pin
-            </div>
-            <label class="pin-edit-field">
-                <span>Address</span>
-                <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.address" autocomplete="off">
-            </label>
-            <label class="pin-edit-field">
-                <span>Nature</span>
-                <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.nature" autocomplete="off">
-            </label>
-            <div class="pin-edit-coords">
-                <span class="pin-edit-coords__value" *ngIf="pinEdit.lat !== 0 || pinEdit.lon !== 0">
-                    {{ pinEdit.lat.toFixed(5) }}, {{ pinEdit.lon.toFixed(5) }}
-                </span>
-                <span class="pin-edit-coords__value" *ngIf="pinEdit.lat === 0 && pinEdit.lon === 0">
-                    Not placed
-                </span>
-                <button type="button"
-                        class="toolbar-preset-btn"
-                        [class.active]="movePinArmed"
-                        (click)="toggleMovePin()">
-                    {{ movePinArmed ? 'Click the map…' : 'Move on map' }}
-                </button>
-            </div>
-            <div class="pin-edit-actions">
-                <button type="button" class="toolbar-preset-btn" (click)="cancelPinEdit()">Cancel</button>
-                <button type="button"
-                        class="toolbar-preset-btn pin-edit-save"
-                        [disabled]="pinEditSaving"
-                        (click)="savePinEdit()">
-                    {{ pinEditSaving ? 'Saving…' : 'Save' }}
-                </button>
-            </div>
+        <label class="pin-edit-field">
+          <span>Address</span>
+          <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.address" autocomplete="off">
+        </label>
+        <label class="pin-edit-field">
+          <span>Nature</span>
+          <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.nature" autocomplete="off">
+        </label>
+        <div class="pin-edit-coords">
+          @if (pinEdit.lat !== 0 || pinEdit.lon !== 0) {
+            <span class="pin-edit-coords__value">
+              {{ pinEdit.lat.toFixed(5) }}, {{ pinEdit.lon.toFixed(5) }}
+            </span>
+          }
+          @if (pinEdit.lat === 0 && pinEdit.lon === 0) {
+            <span class="pin-edit-coords__value">
+              Not placed
+            </span>
+          }
+          <button type="button"
+            class="toolbar-preset-btn"
+            [class.active]="movePinArmed"
+            (click)="toggleMovePin()">
+            {{ movePinArmed ? 'Click the map…' : 'Move on map' }}
+          </button>
         </div>
-    </div>
+        <div class="pin-edit-actions">
+          <button type="button" class="toolbar-preset-btn" (click)="cancelPinEdit()">Cancel</button>
+          <button type="button"
+            class="toolbar-preset-btn pin-edit-save"
+            [disabled]="pinEditSaving"
+            (click)="savePinEdit()">
+            {{ pinEditSaving ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+      </div>
+    }
+  </div>
 </div>
