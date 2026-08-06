@@ -32,53 +32,22 @@
         </mat-form-field>
         <div class="form-section">
           <h4>System Access</h4>
-          <p class="mat-caption">Select systems this group can access and optionally restrict to specific talkgroups. Leave empty to allow access to all systems.</p>
-          @for (access of selectedSystemAccess; track access; let i = $index) {
-            <div class="system-access-entry">
-              <mat-form-field appearance="outline" class="system-select">
-                <mat-label>System</mat-label>
-                <mat-select [(ngModel)]="access.id" [ngModelOptions]="{standalone: true}" (ngModelChange)="onSystemSelected(i, $event)">
-                  @for (system of getSystemsForAccessRow(i); track system) {
-                    <mat-option [value]="system.systemRef">
-                      {{ system.label || ('System ' + system.systemRef) }}
-                    </mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-              @if (access.id > 0) {
-                <div class="talkgroup-selection">
-                  <div class="talkgroup-controls">
-                    <button mat-button type="button"
-                      (click)="hasTalkgroupsSelected(access) ? unselectAllTalkgroups(i) : selectAllTalkgroups(i)">
-                      <mat-icon>{{ hasTalkgroupsSelected(access) ? 'deselect' : 'select_all' }}</mat-icon>
-                      {{ hasTalkgroupsSelected(access) ? 'Unselect All Talkgroups' : 'Select All Talkgroups' }}
-                    </button>
-                    <span class="talkgroup-status">
-                      {{ access.talkgroups === '*' ? 'All talkgroups' : getTalkgroupCount(access) + ' talkgroups selected' }}
-                    </span>
-                  </div>
-                  @if (getTalkgroupsForSystemAccess(access.id).length > 0) {
-                    <div class="talkgroups-list">
-                      @for (tg of getTalkgroupsForSystemAccess(access.id); track tg) {
-                        <mat-checkbox
-                          [checked]="isTalkgroupSelected(i, tg.talkgroupRef)"
-                          (change)="toggleTalkgroupInSystem(i, tg.talkgroupRef, $event)">
-                          {{ tg.label || ('Talkgroup ' + tg.talkgroupRef) }}
-                        </mat-checkbox>
-                      }
-                    </div>
-                  }
-                </div>
-              }
-              <button mat-icon-button type="button" (click)="removeSystemAccess(i)" color="warn">
-                <mat-icon>delete</mat-icon>
-              </button>
-            </div>
-          }
-          <button mat-button type="button" (click)="addSystemAccess()">
-            <mat-icon>add</mat-icon>
-            Add System
-          </button>
+          <p class="mat-caption">
+            Choose which systems and talkgroups this group can access.
+            Leave as <strong>All</strong> to allow every system.
+          </p>
+          <div class="system-access-picker">
+            <span class="access-badge"
+              [class.access-all]="systemAccessIsAll"
+              [class.access-custom]="!systemAccessIsAll">
+              {{ systemAccessIsAll ? 'All' : 'Custom' }}
+            </span>
+            <span class="system-access-summary">{{ systemAccessSummary }}</span>
+            <button type="button" mat-stroked-button color="primary" (click)="selectGroupSystems()">
+              <mat-icon>tune</mat-icon>
+              Choose Systems
+            </button>
+          </div>
         </div>
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Default Delay (minutes)</mat-label>

@@ -399,6 +399,7 @@ func main() {
 	http.HandleFunc("/api/admin/email-test", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.EmailTestHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/stripe-sync", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.StripeSyncHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/fs/browse", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.FsBrowseHandler)).ServeHTTP)
 
 	// Serve email logo file - register before root handler to ensure it's handled
 	http.HandleFunc("/email-logo", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -445,6 +446,7 @@ func main() {
 	http.HandleFunc("/api/admin/logs", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.LogsHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/logs/categories", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.LogsCategoriesHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/copilot/chat", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.CopilotChatHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/copilot/chat/stream", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.CopilotChatStreamHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/calls", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.CallsHandler)).ServeHTTP)
 
@@ -466,6 +468,8 @@ func main() {
 			// Check if it's a reset-password endpoint
 		} else if strings.HasSuffix(r.URL.Path, "/reset-password") && r.Method == http.MethodPost {
 			controller.Admin.UserResetPasswordHandler(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/suspend") && r.Method == http.MethodPost {
+			controller.Admin.UserSuspendHandler(w, r)
 		} else if r.Method == http.MethodDelete {
 			controller.Admin.UserDeleteHandler(w, r)
 		} else if r.Method == http.MethodPut {
@@ -512,6 +516,15 @@ func main() {
 	http.HandleFunc("/api/public-registration-info", corsMiddleware(wrapHandler(http.HandlerFunc(controller.Api.PublicRegistrationInfoHandler))).ServeHTTP)
 	http.HandleFunc("/api/public-registration-channels", corsMiddleware(wrapHandler(http.HandlerFunc(controller.Api.PublicRegistrationChannelsHandler))).ServeHTTP)
 	http.HandleFunc("/api/registration-settings", wrapHandler(http.HandlerFunc(controller.Api.RegistrationSettingsHandler)).ServeHTTP)
+
+	// Central Management auth proxy (scanner-origin AlertPage login/signup → PIN)
+	http.HandleFunc("/api/cm-auth/status", wrapHandler(http.HandlerFunc(controller.Api.CMAuthStatusHandler)).ServeHTTP)
+	http.HandleFunc("/api/cm-auth/login", wrapHandler(http.HandlerFunc(controller.Api.CMAuthLoginHandler)).ServeHTTP)
+	http.HandleFunc("/api/cm-auth/register", wrapHandler(http.HandlerFunc(controller.Api.CMAuthRegisterHandler)).ServeHTTP)
+	http.HandleFunc("/api/cm-auth/forgot-password", wrapHandler(http.HandlerFunc(controller.Api.CMAuthForgotPasswordHandler)).ServeHTTP)
+	http.HandleFunc("/api/cm-auth/reset-password", wrapHandler(http.HandlerFunc(controller.Api.CMAuthResetPasswordHandler)).ServeHTTP)
+	http.HandleFunc("/api/cm-auth/session", wrapHandler(http.HandlerFunc(controller.Api.CMAuthSessionHandler)).ServeHTTP)
+	http.HandleFunc("/api/cm-auth/manage-account", wrapHandler(http.HandlerFunc(controller.Api.CMAuthManageAccountHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/validate-access-code", wrapHandler(http.HandlerFunc(controller.Api.ValidateAccessCodeHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/verify", wrapHandler(http.HandlerFunc(controller.Api.UserVerifyHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/post-verify-plan-context", wrapHandler(http.HandlerFunc(controller.Api.PostVerifyPlanContextHandler)).ServeHTTP)
@@ -942,7 +955,6 @@ func main() {
 		}
 
 		// Relay full suspension: block public listener web UI and root WebSocket; keep /admin and static assets.
-		// Evaluated before central-management redirect so listeners see the lock page instead of being redirected away.
 		if controller.IsPublicWebListenerBlocked() {
 			if !strings.HasPrefix(requestPath, "/admin") && !isStaticAsset(requestPath) {
 				if strings.EqualFold(r.Header.Get("upgrade"), "websocket") {
@@ -956,23 +968,6 @@ func main() {
 					return
 				}
 				w.WriteHeader(http.StatusForbidden)
-				return
-			}
-		}
-
-		if controller.Options.CentralManagementEnabled &&
-			strings.TrimSpace(controller.Options.CentralManagementURL) != "" &&
-			!strings.HasPrefix(requestPath, "/admin") &&
-			!isStaticAsset(requestPath) &&
-			!strings.EqualFold(r.Header.Get("upgrade"), "websocket") &&
-			(r.Method == http.MethodGet || r.Method == http.MethodHead) {
-			baseCentralURL := strings.TrimRight(strings.TrimSpace(controller.Options.CentralManagementURL), "/")
-			if baseCentralURL != "" {
-				target := baseCentralURL + requestPath
-				if rawQuery := strings.TrimSpace(r.URL.RawQuery); rawQuery != "" {
-					target += "?" + rawQuery
-				}
-				http.Redirect(w, r, target, http.StatusFound)
 				return
 			}
 		}

@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, Inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -263,6 +263,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       height: 20px;
     }
   `],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RecoverAPIKeyDialogComponent implements OnInit {

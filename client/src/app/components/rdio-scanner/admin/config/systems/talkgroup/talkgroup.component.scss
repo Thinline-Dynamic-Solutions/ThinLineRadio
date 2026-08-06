@@ -1,3 +1,192 @@
+// ─── Compact horizontal talkgroup editor ─────────────────────────────────────
+.tg-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 4px 2px 8px;
+}
+
+.tg-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px 12px;
+    align-items: start;
+}
+
+.tg-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+
+    &--sm {
+        max-width: 180px;
+    }
+
+    &--full {
+        grid-column: 1 / -1;
+        max-width: none;
+    }
+}
+
+.tg-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #888;
+}
+
+.tg-input {
+    width: 100%;
+    margin: 0 !important;
+    font-size: 13px;
+
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+        margin-top: 0;
+    }
+
+    ::ng-deep .mat-mdc-text-field-wrapper {
+        background: transparent !important;
+        padding: 0 8px;
+    }
+
+    ::ng-deep .mat-mdc-form-field-flex {
+        height: 36px;
+        align-items: center;
+    }
+
+    ::ng-deep .mat-mdc-form-field-infix {
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+        min-height: unset;
+        min-width: 0 !important;
+        width: 100%;
+    }
+
+    ::ng-deep textarea {
+        min-height: 48px;
+        line-height: 1.35;
+    }
+
+    ::ng-deep .mdc-notched-outline__leading,
+    ::ng-deep .mdc-notched-outline__notch,
+    ::ng-deep .mdc-notched-outline__trailing {
+        border-color: #333 !important;
+    }
+
+    ::ng-deep input,
+    ::ng-deep .mat-mdc-select-value {
+        color: #e0e0e0 !important;
+        font-size: 13px;
+    }
+}
+
+.tg-field--full .tg-input {
+    ::ng-deep .mat-mdc-form-field-flex {
+        height: auto;
+        min-height: 36px;
+    }
+}
+
+.tg-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tg-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    min-width: 160px;
+    flex: 1 1 160px;
+    max-width: 240px;
+}
+
+.tg-toggle-title {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ddd;
+    line-height: 1.2;
+}
+
+.tg-toggle-hint {
+    display: block;
+    font-size: 11px;
+    color: #777;
+    line-height: 1.25;
+    margin-top: 2px;
+}
+
+.tg-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.tg-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.tg-block-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ddd;
+}
+
+.tg-block-hint {
+    font-size: 12px;
+    color: #777;
+    margin-top: 2px;
+}
+
+.tg-history-panel,
+.tg-history-suggestion {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tg-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+// Keep legacy .row blocks (tone forward) usable — do NOT stretch tone-set fields
+:host .row:not(.tone-sets-row) {
+    > p {
+        flex: 1 1 220px;
+    }
+
+    > .mat-mdc-form-field {
+        flex: 1 1 220px;
+        min-width: 180px;
+    }
+}
+
 // ─── Learned tone pattern: play dispatch audio per transcript sample ─────────
 .tone-sample-row {
     display: flex;
@@ -47,6 +236,7 @@
     > p {
         padding-right: 0 !important;
         margin-bottom: 6px;
+        flex: 0 0 auto !important;
     }
 }
 
@@ -56,6 +246,7 @@
     flex-direction: column;
     gap: 0;
     width: 100%;
+    max-width: none;
 }
 
 // ─── Individual Tone Set Card ─────────────────────────────────────────────────
@@ -66,6 +257,7 @@
     border-radius: 8px;
     margin-bottom: 14px;
     overflow: visible;
+    width: 100%;
 
     &--collapsed {
         margin-bottom: 6px;
@@ -105,22 +297,63 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px 6px;
+    padding: 8px 12px 6px;
     background: rgba(204, 0, 0, 0.08);
     border-bottom: 1px solid #2a2a2a;
     border-radius: 4px 4px 0 0;
 
     mat-form-field {
-        flex: 1;
+        flex: 1 1 auto;
+        max-width: none;
+        min-width: 0 !important;
+        width: auto !important;
     }
 }
 
 // ─── Tone Set Body ────────────────────────────────────────────────────────────
 .tone-set-content {
-    padding: 10px 14px 4px;
+    padding: 8px 12px 4px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 10px;
+}
+
+// ─── A / B / Long / Tolerance on one row ──────────────────────────────────────
+.tone-specs-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 14px;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.tone-spec-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 0;
+    min-width: 200px;
+
+    strong {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #777;
+    }
+
+    &--tol {
+        flex: 0 0 120px;
+        min-width: 110px;
+        max-width: 140px;
+    }
+
+    &--locked {
+        opacity: 0.45;
+        pointer-events: none;
+    }
 }
 
 // ─── A/B/Long Tone Rows ───────────────────────────────────────────────────────
@@ -147,65 +380,118 @@
 
 .tone-spec-row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;
+    gap: 6px;
     align-items: flex-start;
+    width: 100%;
 
-    // Each field: input on top, descriptor caption underneath.
     .tone-field {
         display: flex;
         flex-direction: column;
-        flex: 1;
-        min-width: 120px;
+        flex: 1 1 0;
+        width: auto;
+        max-width: none;
+        min-width: 0;
 
         mat-form-field {
-            width: 100%;
+            width: 100% !important;
+            min-width: 0 !important;
+            flex: none !important;
+        }
+
+        &--tol {
+            flex: 1 1 auto;
+        }
+
+        &--grow {
+            flex: 1.4 1 0;
+            min-width: 140px;
+        }
+
+        &--wide {
+            flex: 1.6 1 0;
+            min-width: 160px;
         }
     }
 }
 
-// ─── Tolerance ────────────────────────────────────────────────────────────────
+.tone-map-row,
+.tg-map-fields {
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 8px;
+}
+
+.tg-map-fields {
+    margin-top: 4px;
+}
+
+// ─── Tolerance (legacy class kept for safety) ─────────────────────────────────
 .tone-tolerance-section {
     padding-bottom: 8px;
 
     mat-form-field {
-        width: 100%;
+        width: 100% !important;
+        max-width: none;
+        min-width: 0 !important;
+        flex: none !important;
     }
 }
 
 .tone-set-location {
-    padding-top: 4px;
+    padding-top: 6px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    margin-top: 4px;
+    margin-top: 2px;
+    width: 100%;
 }
 
 // Field hint rendered under the input (not in the mat-form-field subscript) so it
 // reads like the Frequency / Min / Max columns and never gets clipped.
 .tone-field-hint {
     display: block;
-    margin-top: 5px;
-    font-size: 11px;
-    line-height: 1.3;
+    margin-top: 2px;
+    font-size: 10px;
+    line-height: 1.25;
     color: #888;
 }
 
-// These numeric fields have no validators, so drop Material's reserved subscript
-// space and shrink the box height (Material reserves 56px by default, which is
-// far taller than these single-line numeric inputs need).
-.tone-field,
-.tone-tolerance-section {
+// Compact Material numeric fields inside tone sets + mapping rows
+.tone-set-item,
+.tg-map-fields {
+    .mat-mdc-form-field {
+        font-size: 12px;
+    }
+
     ::ng-deep .mat-mdc-form-field-subscript-wrapper {
         display: none;
     }
 
     ::ng-deep .mat-mdc-text-field-wrapper {
-        background: transparent;
+        background: transparent !important;
+        padding: 0 8px !important;
+    }
+
+    ::ng-deep .mat-mdc-form-field-flex {
+        height: 32px !important;
+        align-items: center;
+        min-height: 32px !important;
     }
 
     ::ng-deep .mat-mdc-form-field-infix {
-        min-height: 40px;
-        padding-top: 8px;
-        padding-bottom: 8px;
+        min-height: unset !important;
+        padding-top: 6px !important;
+        padding-bottom: 6px !important;
+        width: auto !important;
+    }
+
+    ::ng-deep .mdc-notched-outline__leading,
+    ::ng-deep .mdc-notched-outline__notch,
+    ::ng-deep .mdc-notched-outline__trailing {
+        border-color: #333 !important;
+    }
+
+    ::ng-deep input {
+        font-size: 12px !important;
     }
 }
 

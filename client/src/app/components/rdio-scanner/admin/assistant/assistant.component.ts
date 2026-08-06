@@ -17,21 +17,30 @@
  * ****************************************************************************
  */
 
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, ViewChild, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { CopilotMessage, RdioScannerAdminService } from '../admin.service';
+import {
+    CopilotMessage,
+    CopilotStreamEvent,
+    CopilotToolEvent,
+    RdioScannerAdminService,
+} from '../admin.service';
 
 @Component({
     selector: 'rdio-scanner-admin-assistant',
     styleUrls: ['./assistant.component.scss'],
     templateUrl: './assistant.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
-export class RdioScannerAdminAssistantComponent {
+export class RdioScannerAdminAssistantComponent implements OnDestroy {
     messages: CopilotMessage[] = [];
     input = '';
     loading = false;
     error: string | null = null;
+    statusText = '';
+    activeTools: CopilotToolEvent[] = [];
+    awaitingConfirm = false;
 
     readonly suggestions = [
         'What should I check first on this server?',
@@ -41,13 +50,21 @@ export class RdioScannerAdminAssistantComponent {
         'How do I configure Stripe webhooks?',
     ];
 
+    private abort?: AbortController;
+    private softTimeoutId?: ReturnType<typeof setTimeout>;
+
     @ViewChild('thread') private threadEl?: ElementRef<HTMLDivElement>;
     @ViewChild('inputBox') private inputEl?: ElementRef<HTMLTextAreaElement>;
 
     constructor(
         private adminService: RdioScannerAdminService,
         private snackBar: MatSnackBar,
+        private cdr: ChangeDetectorRef,
     ) {}
+
+    ngOnDestroy(): void {
+        this.cancelInFlight();
+    }
 
     useSuggestion(text: string): void {
         this.input = text;
@@ -61,8 +78,39 @@ export class RdioScannerAdminAssistantComponent {
         if (!confirm('Are you sure you want to clear the assistant chat?')) {
             return;
         }
+        this.cancelInFlight();
         this.messages = [];
         this.error = null;
+        this.awaitingConfirm = false;
+        this.activeTools = [];
+        this.statusText = '';
+    }
+
+    cancel(): void {
+        this.cancelInFlight();
+        this.loading = false;
+        this.statusText = '';
+        this.activeTools = [];
+        this.error = 'Cancelled';
+        this.cdr.markForCheck();
+    }
+
+    confirmApply(): void {
+        if (this.loading) {
+            return;
+        }
+        this.awaitingConfirm = false;
+        this.input = 'Yes, confirmed — proceed with confirmed=true and apply the change.';
+        void this.send();
+    }
+
+    cancelApply(): void {
+        if (this.loading) {
+            return;
+        }
+        this.awaitingConfirm = false;
+        this.input = 'Cancel — do not apply the change.';
+        void this.send();
     }
 
     async send(): Promise<void> {
@@ -72,26 +120,64 @@ export class RdioScannerAdminAssistantComponent {
         }
 
         this.error = null;
+        this.awaitingConfirm = false;
         this.messages = [...this.messages, { role: 'user', content: text }];
         this.input = '';
         this.loading = true;
+        this.statusText = 'Starting…';
+        this.activeTools = [];
         this.scrollToBottom();
 
-        try {
-            const res = await this.adminService.copilotChat(this.messages);
-            if (res.message?.content) {
-                this.messages = [...this.messages, res.message];
+        this.abort = new AbortController();
+        this.softTimeoutId = setTimeout(() => {
+            if (this.loading) {
+                this.snackBar.open('Still working — you can Cancel if this seems stuck.', 'OK', { duration: 5000 });
             }
-            if (res.toolsUsed?.length) {
+        }, 180_000);
+
+        const historyForApi = this.messages.map(m => ({ role: m.role, content: m.content }));
+        const toolTranscript: CopilotToolEvent[] = [];
+
+        try {
+            const res = await this.adminService.copilotChatStream(
+                historyForApi,
+                (ev: CopilotStreamEvent) => this.onStreamEvent(ev, toolTranscript),
+                this.abort.signal,
+            );
+            if (res.message?.content) {
+                const content = res.message.content;
+                this.messages = [
+                    ...this.messages,
+                    {
+                        role: 'assistant',
+                        content,
+                        tools: toolTranscript.length ? [...toolTranscript] : undefined,
+                    },
+                ];
+                if (!this.awaitingConfirm && /\b(confirm|go ahead|shall i|reply yes|confirmed=true)\b/i.test(content)) {
+                    this.awaitingConfirm = true;
+                }
+            }
+            if (res.toolsUsed?.length && !toolTranscript.length) {
                 this.snackBar.open(`Used tools: ${res.toolsUsed.join(', ')}`, 'OK', { duration: 4000 });
             }
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Assistant request failed';
-            this.error = msg;
-            this.snackBar.open(msg, 'Dismiss', { duration: 6000 });
+            if (msg !== 'Cancelled') {
+                this.error = msg;
+                this.snackBar.open(msg, 'Dismiss', { duration: 6000 });
+            }
         } finally {
+            if (this.softTimeoutId) {
+                clearTimeout(this.softTimeoutId);
+                this.softTimeoutId = undefined;
+            }
+            this.abort = undefined;
             this.loading = false;
+            this.statusText = '';
+            this.activeTools = [];
             this.scrollToBottom();
+            this.cdr.markForCheck();
         }
     }
 
@@ -100,6 +186,71 @@ export class RdioScannerAdminAssistantComponent {
             event.preventDefault();
             void this.send();
         }
+    }
+
+    private onStreamEvent(ev: CopilotStreamEvent, toolTranscript: CopilotToolEvent[]): void {
+        switch (ev.type) {
+            case 'status':
+                this.statusText = ev.message || 'Working…';
+                if (ev.needsConfirm) {
+                    this.awaitingConfirm = true;
+                }
+                break;
+            case 'tool_start': {
+                const name = ev.tool || 'tool';
+                this.statusText = ev.message || `Running ${name}…`;
+                this.activeTools = [
+                    ...this.activeTools.filter(t => t.name !== name || t.status === 'done'),
+                    { name, status: 'running', summary: ev.message },
+                ];
+                const existing = toolTranscript.find(t => t.name === name && t.status === 'running');
+                if (!existing) {
+                    toolTranscript.push({ name, status: 'running' });
+                }
+                break;
+            }
+            case 'tool_end': {
+                const name = ev.tool || 'tool';
+                this.activeTools = this.activeTools.map(t =>
+                    t.name === name && t.status === 'running'
+                        ? { ...t, status: 'done' as const, summary: ev.summary }
+                        : t,
+                );
+                const idx = toolTranscript.map((t, i) => ({ t, i }))
+                    .reverse()
+                    .find(x => x.t.name === name)?.i;
+                if (idx !== undefined) {
+                    toolTranscript[idx] = { name, status: 'done', summary: ev.summary };
+                } else {
+                    toolTranscript.push({ name, status: 'done', summary: ev.summary });
+                }
+                if (ev.needsConfirm) {
+                    this.awaitingConfirm = true;
+                }
+                break;
+            }
+            case 'message':
+            case 'done':
+                if (ev.needsConfirm) {
+                    this.awaitingConfirm = true;
+                } else if (ev.type === 'done') {
+                    // Keep awaitingConfirm if tools already signaled it this turn.
+                }
+                break;
+            default:
+                break;
+        }
+        this.scrollToBottom();
+        this.cdr.markForCheck();
+    }
+
+    private cancelInFlight(): void {
+        if (this.softTimeoutId) {
+            clearTimeout(this.softTimeoutId);
+            this.softTimeoutId = undefined;
+        }
+        this.abort?.abort();
+        this.abort = undefined;
     }
 
     private scrollToBottom(): void {

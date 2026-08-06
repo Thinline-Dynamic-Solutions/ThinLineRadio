@@ -52,6 +52,13 @@ func (rw *securityResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) 
 	return nil, nil, http.ErrNotSupported
 }
 
+// Flush implements http.Flusher so streaming handlers (NDJSON/SSE) work through this middleware.
+func (rw *securityResponseWriter) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 func (rw *securityResponseWriter) addSecurityHeaders() {
 	// Check content type to determine which headers to apply
 	contentType := rw.Header().Get("Content-Type")

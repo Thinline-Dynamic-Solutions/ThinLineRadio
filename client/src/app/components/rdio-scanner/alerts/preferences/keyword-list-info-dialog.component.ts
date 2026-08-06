@@ -1,4 +1,4 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { RdioScannerKeywordList } from '../../rdio-scanner';
 
@@ -10,6 +10,7 @@ export interface KeywordListInfoDialogData {
     selector: 'rdio-scanner-keyword-list-info-dialog',
     templateUrl: './keyword-list-info-dialog.component.html',
     styleUrls: ['./keyword-list-info-dialog.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class KeywordListInfoDialogComponent {

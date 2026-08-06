@@ -123,33 +123,38 @@
           </div>
 
           <div class="lcd-now">
+            <!-- Layout mirrors mobile scanner LCD: meta grid → talkgroup card → freq footer. -->
             <div class="now-grid"
               [class.now-grid--idle]="!call"
-              [style.box-shadow]="call ? nowPlayingRowAccent(call) : null"
+              [style.--now-tag-color]="nowPlayingTagColor(call)"
               [style.background-color]="call ? getTransmissionHistoryBackgroundColor(call) : null">
-              <div class="now-cell now-cell--time">
-                <span class="cell-k">Time</span>
-                <span class="cell-v">{{ call ? (call.dateTime | date:timeFormat) : '—' }}</span>
+              <div class="now-meta">
+                <div class="now-cell now-cell--system">
+                  <span class="cell-k">System</span>
+                  <span class="cell-v" [matTooltip]="call?.systemData?.label || ''">{{ call?.systemData?.label || call?.system || '—' }}</span>
+                </div>
+                <div class="now-cell">
+                  <span class="cell-k">Tag</span>
+                  <span class="cell-v">{{ nowPlayingTagLabel(call) }}</span>
+                </div>
+                <div class="now-cell now-cell--end">
+                  <span class="cell-k">TGID</span>
+                  <span class="cell-v">{{ call ? displayTgidForCall(call) : '—' }}</span>
+                </div>
+                <div class="now-cell">
+                  <span class="cell-k">Source</span>
+                  <span class="cell-v">{{ call ? displaySourceForNowPlaying(call) : '—' }}</span>
+                </div>
               </div>
-              <div class="now-cell">
-                <span class="cell-k">System</span>
-                <span class="cell-v">{{ call?.systemData?.label || call?.system || '—' }}</span>
-              </div>
-              <div class="now-cell now-cell--tg">
+
+              <div class="now-tg-card">
                 <span class="cell-k">Talkgroup</span>
                 <span class="cell-v hero">{{ scannerTalkgroupLabel }}</span>
               </div>
-              <div class="now-cell">
-                <span class="cell-k">TGID</span>
-                <span class="cell-v">{{ call ? displayTgidForCall(call) : '—' }}</span>
-              </div>
-              <div class="now-cell">
-                <span class="cell-k">Source</span>
-                <span class="cell-v">{{ call ? displaySourceForNowPlaying(call) : '—' }}</span>
-              </div>
-              <div class="now-cell">
-                <span class="cell-k">MHz</span>
-                <span class="cell-v">{{ call ? (formatFrequencyMHz(call.frequency) || '—') : '—' }}</span>
+
+              <div class="now-footer">
+                <span class="now-freq">{{ call ? (formatFrequencyMHz(call.frequency) || '—') : '—' }}</span>
+                <span class="now-clock">{{ call ? (call.dateTime | date:timeFormat) : '—' }}</span>
               </div>
             </div>
 
@@ -270,6 +275,9 @@
                         <thead>
                           <tr>
                             <th>Time</th>
+                            @if (isSystemAdmin) {
+                              <th>Call ID</th>
+                            }
                             <th>System</th>
                             <th>Talkgroup</th>
                             <th>TGID</th>
@@ -284,17 +292,20 @@
                               [class.row-playing]="isRowPlaying(c)"
                               [class.row-selected]="selectedHistoryCall?.id === c?.id"
                               [style.background-color]="getTransmissionHistoryBackgroundColor(c)">
-                              <td>{{ c?.dateTime | date:timeFormat }}</td>
+                              <td>{{ $safeNavigationMigration(c?.dateTime) | date:timeFormat }}</td>
+                              @if (isSystemAdmin) {
+                                <td class="call-id-cell">{{ c?.id ?? '—' }}</td>
+                              }
                               <td>{{ c?.systemData?.label || c?.system }}</td>
                               <td>{{ c?.talkgroupData?.label || c?.talkgroup || '0' }}</td>
                               <td>{{ displayTgidForCall(c) }}</td>
                               <td class="src-cell">{{ displayUnitForCall(c) }}</td>
-                              <td>{{ formatFrequencyMHz(c?.frequency) || '—' }}</td>
+                              <td>{{ formatFrequencyMHz($safeNavigationMigration(c?.frequency)) || '—' }}</td>
                             </tr>
                           }
                           @if (callsLastHour.length === 0) {
                             <tr class="empty-row">
-                              <td colspan="6">No calls in the last hour</td>
+                              <td [attr.colspan]="isSystemAdmin ? 7 : 6">No calls in the last hour</td>
                             </tr>
                           }
                         </tbody>
@@ -321,8 +332,10 @@
                             <div class="dv">{{ dc.siteData?.label || (dc.site ? 'Site ' + dc.site : '—') }}</div>
                             <div class="dk">Time</div>
                             <div class="dv">{{ dc.dateTime | date:timeFormat }}</div>
-                            <div class="dk">Call ID</div>
-                            <div class="dv">{{ dc.id }}</div>
+                            @if (isSystemAdmin) {
+                              <div class="dk">Call ID</div>
+                              <div class="dv">{{ dc.id }}</div>
+                            }
                           </div>
                           @if (isTranscriptionEnabled && dc.transcript) {
                             <div class="transcript-block">
@@ -413,7 +426,7 @@
           }
 
           <!-- ─── MAP ─── -->
-          @if (isTranscriptionEnabled) {
+          @if (showIncidentMapTab) {
             <mat-tab label="Map">
               <ng-template matTabContent>
                 <div class="tab-panel tab-panel--fill embed-panel">
@@ -435,7 +448,9 @@
       </main>
 
       @if (isTranscriptionEnabled) {
-        <aside class="alerts-sidebar">
+        <aside class="alerts-sidebar"
+          [class.is-hidden]="mapTabActive"
+          [attr.aria-hidden]="mapTabActive">
           <rdio-scanner-alerts
             [boardEmbed]="true"
             [boardEmbedMax]="24"

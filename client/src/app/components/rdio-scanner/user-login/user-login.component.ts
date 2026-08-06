@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -27,6 +27,7 @@ import { RdioScannerService } from '../rdio-scanner.service';
     selector: 'rdio-scanner-user-login',
     templateUrl: './user-login.component.html',
     styleUrls: ['./user-login.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {

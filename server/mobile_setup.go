@@ -153,6 +153,10 @@ func (api *Api) UserMobileSetupConsumeHandler(w http.ResponseWriter, r *http.Req
 		api.exitWithError(w, http.StatusUnauthorized, "Invalid link")
 		return
 	}
+	if user.IsSuspended() {
+		api.exitWithError(w, http.StatusForbidden, "Your account has been suspended. Contact support for assistance.")
+		return
+	}
 	if !user.CheckPassword(body.Password) {
 		api.exitWithError(w, http.StatusUnauthorized, "Incorrect password")
 		return
@@ -215,6 +219,10 @@ func (api *Api) RelayListenerPinWebhookHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if api.Controller.Options.EmailVerificationRequired && !user.Verified {
+		json.NewEncoder(w).Encode(fail)
+		return
+	}
+	if user.IsSuspended() {
 		json.NewEncoder(w).Encode(fail)
 		return
 	}

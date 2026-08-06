@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -28,6 +28,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     selector: 'rdio-scanner-user-registration',
     templateUrl: './user-registration.component.html',
     styleUrls: ['./user-registration.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerUserRegistrationComponent implements OnInit {

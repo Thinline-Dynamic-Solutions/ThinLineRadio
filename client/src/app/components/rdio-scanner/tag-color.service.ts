@@ -171,6 +171,36 @@ export class TagColorService implements OnDestroy {
         return this.tagColors$.asObservable();
     }
 
+    /**
+     * Collapse LED color names / numeric tag ids to the canonical label used
+     * in the Channels list (e.g. "red" / "1" → "Fire Dispatch"). Prevents
+     * duplicate tag rows when talkgroups store mixed tag forms.
+     */
+    resolveTagLabel(tag: string | number | null | undefined): string {
+        const raw = (tag ?? '').toString().trim();
+        if (!raw) return 'Untagged';
+
+        const lower = raw.toLowerCase();
+        const fromLed = this.ledColorToTagLabel.get(lower);
+        if (fromLed) return fromLed;
+
+        if (/^\d+$/.test(raw) && this.configTagsData.length > 0) {
+            const byId = this.configTagsData.find((t: any) => String(t.id) === raw);
+            if (byId?.label && String(byId.label).trim()) {
+                return String(byId.label).trim();
+            }
+        }
+
+        if (this.configTagsData.length > 0) {
+            const byLabel = this.configTagsData.find((t: any) =>
+                t.label && String(t.label).trim().toLowerCase() === lower
+            );
+            if (byLabel?.label) return String(byLabel.label).trim();
+        }
+
+        return raw;
+    }
+
     getTagColor(tag: string | number | null | undefined): string {
         if (!tag) return '#fff';
         

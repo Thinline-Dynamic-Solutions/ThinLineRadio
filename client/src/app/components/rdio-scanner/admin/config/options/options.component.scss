@@ -2,10 +2,173 @@
     opacity: 0.8;
 }
 
-.options-top-bar {
+.options-chip-nav {
     position: sticky;
     top: 0;
-    z-index: 5;
+    z-index: 6;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 8px 0 10px;
+    background: var(--mat-card-background, #1e1e1e);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.options-chip {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.28);
+    color: rgba(255, 255, 255, 0.72);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    mat-icon {
+        width: 15px;
+        height: 15px;
+        font-size: 15px;
+        line-height: 1;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+    }
+
+    &.active {
+        background: rgba(126, 200, 232, 0.14);
+        border-color: rgba(126, 200, 232, 0.55);
+        color: #7ec8e8;
+    }
+
+    &.dirty:not(.active) {
+        border-color: rgba(255, 167, 38, 0.55);
+    }
+}
+
+.options-chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ffa726;
+    box-shadow: 0 0 6px rgba(255, 167, 38, 0.7);
+}
+
+.options-subchip-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 12px;
+}
+
+.options-subchip {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    padding: 5px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.62);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 550;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+    }
+
+    &.active {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.28);
+        color: rgba(255, 255, 255, 0.92);
+    }
+}
+
+.options-subpanel-hint {
+    margin: 4px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.2);
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.options-section {
+    margin-bottom: 8px;
+    padding: 4px 2px 12px;
+}
+
+.options-section-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 0 12px;
+}
+
+.options-section-heading {
+    flex: 1;
+    min-width: 0;
+}
+
+.options-section-title {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.options-section-desc {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.config-sync-path-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    max-width: 640px;
+
+    .config-sync-path-field {
+        flex: 1;
+        min-width: 0;
+        margin: 0 !important;
+    }
+
+    button mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        margin-right: 4px;
+    }
+}
+
+.options-top-bar {
     margin-bottom: 8px;
     padding: 8px 10px;
     background: var(--mat-card-background, #1e1e1e);
@@ -71,10 +234,11 @@
 
 .panel-save-bar {
     display: flex;
-    justify-content: flex-end;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+    align-items: flex-start;
+    margin: 0;
+    padding: 0;
+    border: none;
 }
 
 /* Full-width blocks inside the two-column .row layout (parent config.component.scss). */
@@ -338,6 +502,7 @@
     line-height: 1.3;
 }
 
+.auto-learn-tone-field .mat-mdc-form-field,
 .auto-learn-tone-field .mat-form-field {
     width: 100%;
 }

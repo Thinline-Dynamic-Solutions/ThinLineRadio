@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, EventEmitter, Output, OnInit, OnDestroy } from '@angular/core';
+import { Component, EventEmitter, Output, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { RdioScannerAdminService } from '../admin.service';
@@ -26,6 +26,7 @@ import { RdioScannerAdminService } from '../admin.service';
     selector: 'rdio-scanner-admin-login',
     styleUrls: ['./login.component.scss'],
     templateUrl: './login.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAdminLoginComponent implements OnInit, OnDestroy {

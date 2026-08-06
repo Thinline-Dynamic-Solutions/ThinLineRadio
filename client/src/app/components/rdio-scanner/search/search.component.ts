@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { MatDatepicker } from '@angular/material/datepicker';
 import { BehaviorSubject } from 'rxjs';
@@ -61,14 +61,15 @@ const PLAYBACK_PREFS_STORAGE_KEY = 'rdio-scanner-playback-prefs';
     selector: 'rdio-scanner-search',
     styleUrls: ['./search.component.scss'],
     templateUrl: './search.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
     call: RdioScannerCall | undefined;
     callPending: number | undefined;
 
-    /** Columns for archive results table (keep in sync with template). */
-    readonly archiveTableColumns = [
+    /** Columns for archive results table (keep in sync with template). Stable refs for MatTable. */
+    private readonly archiveColumnsBase = [
         'control',
         'date',
         'time',
@@ -77,7 +78,26 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         'tgid',
         'source',
         'name',
-    ] as const;
+    ];
+    private readonly archiveColumnsAdmin = [
+        'control',
+        'date',
+        'time',
+        'callid',
+        'system',
+        'alpha',
+        'tgid',
+        'source',
+        'name',
+    ];
+
+    get archiveTableColumns(): string[] {
+        return this.isSystemAdmin ? this.archiveColumnsAdmin : this.archiveColumnsBase;
+    }
+
+    get isSystemAdmin(): boolean {
+        return this.rdioScannerService.isSystemAdmin();
+    }
 
     form: any;
 

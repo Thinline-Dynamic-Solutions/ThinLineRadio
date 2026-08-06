@@ -2152,6 +2152,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						existingUser.SystemNoAudioAlertSystems = getStringFromMap(userMap, "systemNoAudioAlertSystems")
 						existingUser.ApiKeyNoAudioAlertApiKeys = getStringFromMap(userMap, "apiKeyNoAudioAlertApiKeys")
 						existingUser.ForcePasswordReset = getBoolFromMap(userMap, "forcePasswordReset", false)
+						existingUser.Suspended = getBoolFromMap(userMap, "suspended", false)
 						existingUser.PinExpiresAt = getUint64FromMap(userMap, "pinExpiresAt")
 						existingUser.ConnectionLimit = uint(getFloat64FromMap(userMap, "connectionLimit"))
 						existingUser.Systems = getStringFromMap(userMap, "systems")
@@ -2202,6 +2203,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 							SystemNoAudioAlertSystems: getStringFromMap(userMap, "systemNoAudioAlertSystems"),
 							ApiKeyNoAudioAlertApiKeys: getStringFromMap(userMap, "apiKeyNoAudioAlertApiKeys"),
 							ForcePasswordReset:      getBoolFromMap(userMap, "forcePasswordReset", false),
+							Suspended:               getBoolFromMap(userMap, "suspended", false),
 							Pin:                  getStringFromMap(userMap, "pin"),
 							PinExpiresAt:         getUint64FromMap(userMap, "pinExpiresAt"),
 							ConnectionLimit:      uint(getFloat64FromMap(userMap, "connectionLimit")),
@@ -3284,6 +3286,7 @@ func (admin *Admin) GetConfig() map[string]any {
 			"systemNoAudioAlertSystems": user.SystemNoAudioAlertSystems,
 			"apiKeyNoAudioAlertApiKeys": user.ApiKeyNoAudioAlertApiKeys,
 			"forcePasswordReset":   user.ForcePasswordReset,
+			"suspended":            user.Suspended,
 			"stripeCustomerId":     user.StripeCustomerId,
 			"stripeSubscriptionId": user.StripeSubscriptionId,
 			"subscriptionStatus":   user.SubscriptionStatus,
@@ -3722,6 +3725,13 @@ func (admin *Admin) SSOLoginHandler(w http.ResponseWriter, r *http.Request) {
 		admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("admin: SSO login denied for user %s — not a system admin", user.Email))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{"error": "user is not a system administrator"})
+		return
+	}
+
+	if user.IsSuspended() {
+		admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("admin: SSO login denied for user %s — account suspended", user.Email))
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "account suspended"})
 		return
 	}
 
@@ -6322,6 +6332,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"systemNoAudioAlertSystems": user.SystemNoAudioAlertSystems,
 			"apiKeyNoAudioAlertApiKeys": user.ApiKeyNoAudioAlertApiKeys,
 			"forcePasswordReset":       user.ForcePasswordReset,
+			"suspended":                user.Suspended,
 			"stripeCustomerId":         user.StripeCustomerId,
 			"stripeSubscriptionId":     user.StripeSubscriptionId,
 			"subscriptionStatus":       user.SubscriptionStatus,
@@ -6654,6 +6665,7 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		SystemNoAudioAlertSystems *string `json:"systemNoAudioAlertSystems"`
 		ApiKeyNoAudioAlertApiKeys *string `json:"apiKeyNoAudioAlertApiKeys"`
 		ForcePasswordReset        *bool   `json:"forcePasswordReset"`
+		Suspended                 *bool   `json:"suspended"`
 		StripeCustomerId     string  `json:"stripeCustomerId"`
 		StripeSubscriptionId string  `json:"stripeSubscriptionId"`
 		SubscriptionStatus   string  `json:"subscriptionStatus"`
@@ -6780,6 +6792,10 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if request.ForcePasswordReset != nil {
 		user.ForcePasswordReset = *request.ForcePasswordReset
 	}
+	wasSuspended := user.Suspended
+	if request.Suspended != nil {
+		user.Suspended = *request.Suspended
+	}
 
 	if request.RegeneratePin {
 		newPin, err := admin.Controller.Users.GenerateUniquePin(user.Id)
@@ -6820,6 +6836,11 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update user"})
 		return
+	}
+
+	// Kick active sessions when suspending so they cannot keep listening
+	if !wasSuspended && user.Suspended {
+		admin.Controller.DisconnectUserClients(user.Id, "Account suspended")
 	}
 
 	// Sync config to file if enabled
@@ -7076,6 +7097,80 @@ func (admin *Admin) UserResetPasswordHandler(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Password reset successfully"})
+}
+
+// UserSuspendHandler handles POST /api/admin/users/{id}/suspend to suspend or unsuspend a user.
+func (admin *Admin) UserSuspendHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 { // /api/admin/users/{id}/suspend
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid user ID"})
+		return
+	}
+
+	userIDStr := pathParts[len(pathParts)-2]
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid user ID format"})
+		return
+	}
+
+	user := admin.Controller.Users.GetUserById(userID)
+	if user == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+		return
+	}
+
+	var request struct {
+		Suspended bool `json:"suspended"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	wasSuspended := user.Suspended
+	user.Suspended = request.Suspended
+
+	admin.Controller.Users.Update(user)
+	if err := admin.Controller.Users.Write(admin.Controller.Database); err != nil {
+		log.Printf("Failed to update suspended state for user %d: %v", userID, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update user"})
+		return
+	}
+
+	if !wasSuspended && user.Suspended {
+		admin.Controller.DisconnectUserClients(user.Id, "Account suspended")
+	}
+
+	admin.Controller.SyncConfigToFile()
+
+	action := "unsuspended"
+	if user.Suspended {
+		action = "suspended"
+	}
+	log.Printf("Admin %s user: %s (ID: %d)", action, user.Email, user.Id)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":   fmt.Sprintf("User %s successfully", action),
+		"suspended": user.Suspended,
+	})
 }
 
 // HallucinationSuggestionsHandler returns pending hallucination suggestions

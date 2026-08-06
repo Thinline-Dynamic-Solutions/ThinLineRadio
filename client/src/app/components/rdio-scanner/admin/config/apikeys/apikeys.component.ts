@@ -19,35 +19,56 @@
  */
 
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { ChangeDetectorRef, Component, Input } from '@angular/core';
+import { ChangeDetectorRef, Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { FormArray, FormGroup } from '@angular/forms';
+import { PageEvent } from '@angular/material/paginator';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
-import { RdioScannerAdminSystemsSelectComponent } from '../systems/select/select.component';
+import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
 
 @Component({
     selector: 'rdio-scanner-admin-apikeys',
     templateUrl: './apikeys.component.html',
     styleUrls: ['./apikeys.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAdminApikeysComponent {
     @Input() form: FormArray | undefined;
     @Input() rawSystems: any[] | undefined;
 
-    displayedColumns: string[] = ['drag', 'status', 'ident', 'key', 'access', 'noAudio', 'actions'];
+    displayedColumns: string[] = ['drag', 'status', 'ident', 'key', 'access', 'systems', 'alerts', 'time', 'actions'];
 
-    // Per-row key visibility state
-    keyVisible: boolean[] = [];
+    readonly pageSize = 10;
+    pageIndex = 0;
+    searchQuery = '';
+
+    /** Per-key visibility keyed by the key string (stable across pagination). */
+    private keyVisibleMap: Record<string, boolean> = {};
 
     saving = false;
 
     get apikeys(): FormGroup[] {
-        // Spread into a new array so mat-table always receives a new reference
-        // and correctly detects additions/removals even inside an OnPush parent.
         return [...(this.form?.controls || [])]
-            .sort((a, b) => a.value.order - b.value.order) as FormGroup[];
+            .sort((a, b) => (a.value.order || 0) - (b.value.order || 0)) as FormGroup[];
+    }
+
+    get filteredApikeys(): FormGroup[] {
+        const q = this.searchQuery.trim().toLowerCase();
+        if (!q) {
+            return this.apikeys;
+        }
+        return this.apikeys.filter((apikey) => {
+            const ident = String(apikey.value.ident || '').toLowerCase();
+            const key = String(apikey.value.key || '').toLowerCase();
+            return ident.includes(q) || key.includes(q);
+        });
+    }
+
+    get pagedApikeys(): FormGroup[] {
+        const start = this.pageIndex * this.pageSize;
+        return this.filteredApikeys.slice(start, start + this.pageSize);
     }
 
     trackByKey(_index: number, apikey: FormGroup): string {
@@ -61,56 +82,81 @@ export class RdioScannerAdminApikeysComponent {
         private snackBar: MatSnackBar
     ) { }
 
+    onSearch(value: string): void {
+        this.searchQuery = value ?? '';
+        this.pageIndex = 0;
+        this.cdr.markForCheck();
+    }
+
+    onPage(event: PageEvent): void {
+        this.pageIndex = event.pageIndex;
+        this.cdr.markForCheck();
+    }
+
+    private clampPage(): void {
+        const maxPage = Math.max(0, Math.ceil(this.filteredApikeys.length / this.pageSize) - 1);
+        if (this.pageIndex > maxPage) {
+            this.pageIndex = maxPage;
+        }
+    }
+
     add(): void {
+        const key = this.uuid();
         const apikey = this.adminService.newApikeyForm({
-            key: this.uuid(),
+            key,
             systems: '*',
         });
 
         apikey.markAsDirty({ onlySelf: false });
 
         this.form?.insert(0, apikey);
-        this.keyVisible.unshift(true); // Show new key's value by default
+        this.keyVisibleMap[key] = true;
 
         this.form?.markAsDirty();
-
-        // markForCheck() propagates up through the OnPush parent (config.component)
-        // so the new array reference from the getter is picked up and mat-table
-        // renders the new row immediately without the user having to click elsewhere.
+        this.pageIndex = 0;
         this.cdr.markForCheck();
     }
 
-    remove(index: number): void {
-        const ident = (this.form?.at(index)?.get('ident')?.value || '').toString().trim() || 'this API key';
+    remove(apikey: FormGroup): void {
+        const index = this.form?.controls.indexOf(apikey) ?? -1;
+        if (index < 0) {
+            return;
+        }
+        const ident = (apikey.get('ident')?.value || '').toString().trim() || 'this API key';
         if (!confirm(`Are you sure you want to delete API key "${ident}"?\n\nRecorders using this key will stop uploading.`)) {
             return;
         }
+        const key = String(apikey.get('key')?.value || '');
         this.form?.removeAt(index);
-        this.keyVisible.splice(index, 1);
+        if (key) {
+            delete this.keyVisibleMap[key];
+        }
 
         this.form?.markAsDirty();
-        // Removal is structural — persist immediately.
+        this.clampPage();
         this.saveAll(false);
     }
 
     drop(event: CdkDragDrop<FormGroup[]>): void {
-        if (event.previousIndex !== event.currentIndex) {
-            moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
-
-            event.container.data.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
-
-            // Sync visibility array
-            const vis = this.keyVisible.splice(event.previousIndex, 1);
-            this.keyVisible.splice(event.currentIndex, 0, ...vis);
-
-            this.form?.markAsDirty();
-            // Reorder is structural — persist immediately.
-            this.saveAll(false);
+        if (this.searchQuery.trim() || event.previousIndex === event.currentIndex) {
+            return;
         }
+        const all = this.apikeys;
+        const from = this.pageIndex * this.pageSize + event.previousIndex;
+        const to = this.pageIndex * this.pageSize + event.currentIndex;
+        if (from === to || from < 0 || from >= all.length) {
+            return;
+        }
+        moveItemInArray(all, from, Math.min(to, all.length - 1));
+        all.forEach((dat, idx) => dat.get('order')?.setValue(idx + 1, { emitEvent: false }));
+
+        this.form?.markAsDirty();
+        this.saveAll(false);
     }
 
     select(access: FormGroup): void {
         const matDialogRef = this.matDialog.open(RdioScannerAdminSystemsSelectComponent, {
+            ...SYSTEMS_SELECT_DIALOG_OPTIONS,
             data: { access, rawSystems: this.rawSystems },
         });
 
@@ -118,7 +164,6 @@ export class RdioScannerAdminApikeysComponent {
             if (data) {
                 access.get('systems')?.setValue(data);
                 access.markAsDirty();
-                // Systems-access change — persist immediately.
                 this.saveAll(false);
             }
         });
@@ -129,7 +174,6 @@ export class RdioScannerAdminApikeysComponent {
         if (ctrl) {
             ctrl.setValue(!ctrl.value);
             apikey.markAsDirty();
-            // Toggle auto-saves.
             this.saveAll(false);
         }
     }
@@ -139,16 +183,9 @@ export class RdioScannerAdminApikeysComponent {
         this.saveAll(false);
     }
 
-    /**
-     * API-driven save: sends the full list to PUT /api/admin/apikeys.
-     * Called automatically for structural changes (toggle/reorder/remove/access)
-     * and explicitly via the Save button for text edits (ident/key).
-     */
     async saveAll(showToast = true): Promise<void> {
         if (!this.form) return;
 
-        // Never persist an invalid list (e.g. a half-entered new row). Only the
-        // explicit Save button surfaces the reason to the user.
         if (this.form.invalid) {
             if (showToast) {
                 this.snackBar.open('Fix the highlighted fields before saving.', 'Close', { duration: 4000 });
@@ -172,18 +209,18 @@ export class RdioScannerAdminApikeysComponent {
         this.cdr.markForCheck();
     }
 
-    toggleKeyVisible(index: number): void {
-        this.keyVisible[index] = !this.keyVisible[index];
+    isKeyVisible(apikey: FormGroup): boolean {
+        const key = String(apikey.get('key')?.value || '');
+        return !!this.keyVisibleMap[key];
     }
 
-    maskKey(key: string): string {
-        if (!key) return '—';
-        // Show first 8 chars then mask the rest: xxxxxxxx-••••-••••-••••-••••••••••••
-        const parts = key.split('-');
-        if (parts.length === 5) {
-            return `${parts[0]}-••••-••••-••••-••••••••••••`;
+    toggleKeyVisible(apikey: FormGroup): void {
+        const key = String(apikey.get('key')?.value || '');
+        if (!key) {
+            return;
         }
-        return key.slice(0, 8) + '••••••••••••••••••••••••••••';
+        this.keyVisibleMap[key] = !this.keyVisibleMap[key];
+        this.cdr.markForCheck();
     }
 
     copyKey(key: string): void {

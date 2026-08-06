@@ -1,6 +1,7 @@
 /*
  * *****************************************************************************
  * Copyright (C) 2019-2024 Chrystian Huot <chrystian@huot.qc.ca>
+ * Copyright (C) 2025 Thinline Dynamic Solutions
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,10 +18,9 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectionStrategy, Component, Inject, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, ViewEncapsulation } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup } from '@angular/forms';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { debounceTime } from 'rxjs/operators';
+import { MAT_DIALOG_DATA, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 
 interface System {
     all: boolean;
@@ -32,6 +32,16 @@ interface Talkgroup {
     checked: boolean;
     id: number;
 }
+
+/** Shared MatDialog options for systems/talkgroups selection. */
+export const SYSTEMS_SELECT_DIALOG_OPTIONS: MatDialogConfig = {
+    width: '100vw',
+    height: '100vh',
+    maxWidth: '100vw',
+    maxHeight: '100vh',
+    panelClass: ['admin-dialog-panel', 'systems-select-dialog'],
+    backdropClass: 'admin-dialog-backdrop',
+};
 
 @Component({
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,13 +60,12 @@ export class RdioScannerAdminSystemsSelectComponent {
     };
 
     select: FormGroup;
-
     configTalkgroups: FormGroup[][];
-
     access!: FormGroup;
-
-    // Track which systems are expanded (all collapsed by default for performance)
     expandedSystems: boolean[] = [];
+
+    /** Prevents cascading checkbox handlers from fighting each other. */
+    private syncing = false;
 
     trackByIndex(index: number): number {
         return index;
@@ -80,41 +89,40 @@ export class RdioScannerAdminSystemsSelectComponent {
 
     toggleSystem(index: number): void {
         this.expandedSystems[index] = !this.expandedSystems[index];
+        this.cdr.markForCheck();
     }
 
     expandAll(): void {
         this.expandedSystems = this.configSystems.map(() => true);
+        this.cdr.markForCheck();
     }
 
     collapseAll(): void {
         this.expandedSystems = this.configSystems.map(() => false);
+        this.cdr.markForCheck();
     }
 
     get configGroups(): FormGroup[] {
         const faGroups = this.access.root.get('groups') as FormArray;
-
-        return faGroups.controls as FormGroup[];
+        return (faGroups?.controls || []) as FormGroup[];
     }
 
     get configSystems(): FormGroup[] {
         const faSystems = this.access.root.get('systems') as FormArray;
-
-        return faSystems.controls as FormGroup[];
+        return (faSystems?.controls || []) as FormGroup[];
     }
 
     get configTags(): FormGroup[] {
         const faTags = this.access.root.get('tags') as FormArray;
-
-        return faTags.controls as FormGroup[];
+        return (faTags?.controls || []) as FormGroup[];
     }
 
     constructor(
         @Inject(MAT_DIALOG_DATA) dialogData: { access: FormGroup; rawSystems?: any[] } | FormGroup,
         private matDialogRef: MatDialogRef<RdioScannerAdminSystemsSelectComponent>,
         private ngFormBuilder: FormBuilder,
+        private cdr: ChangeDetectorRef,
     ) {
-        // Support both legacy callers (passing FormGroup directly) and new callers
-        // (passing { access, rawSystems }) so all dialog callers work correctly.
         const rawSystems: any[] | undefined = (dialogData as any)?.rawSystems;
         this.access = (dialogData as any)?.access instanceof FormGroup
             ? (dialogData as any).access
@@ -127,18 +135,16 @@ export class RdioScannerAdminSystemsSelectComponent {
                 return faTalkgroups.controls as FormGroup[];
             }
 
-            // Talkgroups were skipped at config load time for performance.
-            // Use the raw systems data when available to populate the list.
             if (rawSystems) {
                 const systemRef = fgSystem.get('systemRef')?.value;
                 const rawSystem = rawSystems.find((s: any) => s.systemRef === systemRef);
                 if (rawSystem?.talkgroups?.length) {
                     return (rawSystem.talkgroups as any[]).map((tg: any) =>
                         this.ngFormBuilder.group({
-                            groupIds: this.ngFormBuilder.control(tg.groupIds || []),
+                            groupIds: this.ngFormBuilder.control(this.normalizeIds(tg.groupIds || tg.group || [])),
                             label: this.ngFormBuilder.control(tg.label || ''),
                             talkgroupRef: this.ngFormBuilder.control(tg.talkgroupRef),
-                            tagId: this.ngFormBuilder.control(tg.tagId),
+                            tagId: this.ngFormBuilder.control(tg.tagId ?? tg.tag ?? null),
                         })
                     );
                 }
@@ -147,7 +153,6 @@ export class RdioScannerAdminSystemsSelectComponent {
             return [];
         });
 
-        // Initialize all systems as collapsed for better performance
         this.expandedSystems = this.configSystems.map(() => false);
 
         this.select = this.ngFormBuilder.group({
@@ -157,214 +162,143 @@ export class RdioScannerAdminSystemsSelectComponent {
             systems: this.ngFormBuilder.nonNullable.array<FormGroup>([]),
         });
 
-        const fcAll = this.select.get('all') as FormControl;
         const faGroups = this.select.get('groups') as FormArray;
         const faSystems = this.select.get('systems') as FormArray;
         const faTags = this.select.get('tags') as FormArray;
 
         this.configGroups.forEach((configGroup) => {
-            const fgGroup = this.ngFormBuilder.group({
-                id: this.ngFormBuilder.control(configGroup.get('id')?.value),
+            faGroups.push(this.ngFormBuilder.group({
+                id: this.ngFormBuilder.control(Number(configGroup.get('id')?.value)),
                 checked: this.ngFormBuilder.control(false),
-            });
-
-            faGroups.push(fgGroup);
-
-            fgGroup.valueChanges.pipe(debounceTime(50)).subscribe((vGroup) => {
-                faSystems.controls.forEach((fgSystem) => {
-                    const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-
-                    faTalkgroups.controls.forEach((fgTalkgroup) => {
-                        if (fgTalkgroup.get('groupIds')?.value.includes(vGroup.id) && fgTalkgroup.get('checked')?.value !== vGroup.checked) {
-                            fgTalkgroup.get('checked')?.setValue(vGroup.checked, { emitEvent: false });
-                        }
-                    });
-                });
-                
-                // Manually trigger indeterminate recalculation after all talkgroups are updated
-                this.rebuildSystemIndeterminates();
-            });
+            }));
+            this.indeterminate.groups.push(false);
         });
 
         this.configSystems.forEach((configSystem, index) => {
-            const fcSystemAll = this.ngFormBuilder.control(false);
-
-            const faSystemTalkgroups = this.ngFormBuilder.array<FormGroup<{
-                checked: FormControl<boolean>;
-                groupIds: FormControl<number[]>;
-                id: FormControl<number>;
-                tagId: FormControl<number>;
-            }>>([]);
+            const faSystemTalkgroups = this.ngFormBuilder.array<FormGroup>([]);
 
             const fgSystem = this.ngFormBuilder.group({
-                all: fcSystemAll,
+                all: this.ngFormBuilder.control(false),
                 id: this.ngFormBuilder.control(configSystem.get('systemRef')?.value),
-                talkgroups: faSystemTalkgroups
+                talkgroups: faSystemTalkgroups,
             });
 
             this.configTalkgroups[index].forEach((configTalkgroup) => {
-                const fgSystemTalkgroup = this.ngFormBuilder.group({
+                faSystemTalkgroups.push(this.ngFormBuilder.group({
                     checked: this.ngFormBuilder.nonNullable.control(false),
-                    groupIds: this.ngFormBuilder.nonNullable.control(configTalkgroup.get('groupIds')?.value),
+                    groupIds: this.ngFormBuilder.nonNullable.control(
+                        this.normalizeIds(configTalkgroup.get('groupIds')?.value || configTalkgroup.get('group')?.value || [])
+                    ),
                     id: this.ngFormBuilder.nonNullable.control(configTalkgroup.get('talkgroupRef')?.value),
-                    tagId: this.ngFormBuilder.nonNullable.control(configTalkgroup.get('tagId')?.value),
-                });
-
-                faSystemTalkgroups.push(fgSystemTalkgroup);
-
-                fgSystemTalkgroup.valueChanges.pipe(debounceTime(50)).subscribe(() => {
-                    const vAll = faSystemTalkgroups.controls.every((systemTalkgroup) => systemTalkgroup.get('checked')?.value);
-
-                    fcSystemAll.setValue(vAll, { emitEvent: false });
-                });
+                    tagId: this.ngFormBuilder.nonNullable.control(
+                        this.toNumOrNull(configTalkgroup.get('tagId')?.value ?? configTalkgroup.get('tag')?.value)
+                    ),
+                }));
             });
 
             faSystems.push(fgSystem);
-
-            fgSystem.valueChanges.pipe(debounceTime(100)).subscribe(() => {
-                this.rebuildGroupIndeterminates();
-                this.rebuildTagIndeterminates();
-            });
-
-            fcSystemAll.valueChanges.pipe(debounceTime(50)).subscribe((vAll) => {
-                const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-
-                faTalkgroups.controls.forEach((fgTalkgroup) => fgTalkgroup.get('checked')?.setValue(vAll, { emitEvent: false }));
-
-                this.rebuildGroupIndeterminates();
-                this.rebuildTagIndeterminates();
-            });
-
-            faSystemTalkgroups.valueChanges.pipe(debounceTime(100)).subscribe((vSystemTalkgroups) => {
-                let off = 0;
-                let on = 0;
-
-                vSystemTalkgroups.forEach((vSystemTalkgroup) => {
-                    if (vSystemTalkgroup.checked) {
-                        on++;
-
-                    } else {
-                        off++;
-                    }
-                });
-
-                this.indeterminate.systems[index] = !!off && !!on;
-
-                faSystems.at(index).get('all')?.setValue(!off && on, { emitEvent: false });
-            });
+            this.indeterminate.systems.push(false);
         });
 
         this.configTags.forEach((configTag) => {
-            const fgTag = this.ngFormBuilder.group({
-                id: this.ngFormBuilder.control(configTag.value.id),
+            faTags.push(this.ngFormBuilder.group({
+                id: this.ngFormBuilder.control(Number(configTag.value.id)),
                 checked: this.ngFormBuilder.control(false),
-            });
-
-            faTags.push(fgTag);
-
-            fgTag.valueChanges.pipe(debounceTime(50)).subscribe((vTag) => {
-                faSystems.controls.forEach((fgSystem) => {
-                    const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-
-                    faTalkgroups.controls.forEach((fgTalkgroup) => {
-                        if (fgTalkgroup.value.tagId === vTag.id && fgTalkgroup.value.checked !== vTag.checked) {
-                            fgTalkgroup.get('checked')?.setValue(vTag.checked, { emitEvent: false });
-                        }
-                    });
-                });
-                
-                // Manually trigger indeterminate recalculation after all talkgroups are updated
-                this.rebuildSystemIndeterminates();
-            });
+            }));
+            this.indeterminate.tags.push(false);
         });
 
-        fcAll.valueChanges.pipe(debounceTime(50)).subscribe((vAll) => {
-            // Update all system-level 'all' checkboxes
-            faSystems.controls.forEach((fgSystem) => {
-                fgSystem.get('all')?.setValue(vAll, { emitEvent: false });
-            });
-            
-            // Update all individual talkgroups, groups, and tags
-            faSystems.controls.flatMap((fgSystem) => {
-                const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
+        this.applySavedSelection();
+        this.syncDerivedState();
+    }
 
-                return faTalkgroups.controls;
-            }).concat(faGroups.controls, faTags.controls).forEach((control) => {
-                control.get('checked')?.setValue(vAll, { emitEvent: false });
-            });
-        });
-
-        faSystems.valueChanges.pipe(debounceTime(100)).subscribe((vSystems) => {
-            let off = 0;
-            let on = 0;
-
-            vSystems.forEach((vSystem: System) => {
-                if (vSystem.all) {
-                    on++;
-
-                } else {
-                    off++;
-                }
-            });
-
-            this.indeterminate.everything = !!off && !!on;
-
-            fcAll.setValue(!off && on, { emitEvent: false });
-        });
-
-        const accessValue = (this.access.value || {}) as { systems?: any };
-        const scopedSystems = accessValue.systems;
-
-        if (scopedSystems === '*') {
-            // When "Everything" is selected, manually check all systems, talkgroups, groups, and tags
-            // This ensures they show as checked immediately, even with debouncing
-            faSystems.controls.forEach((fgSystem) => {
-                fgSystem.get('all')?.setValue(true, { emitEvent: false });
-                const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-                faTalkgroups.controls.forEach((fgTalkgroup) => {
-                    fgTalkgroup.get('checked')?.setValue(true, { emitEvent: false });
-                });
-            });
-            faGroups.controls.forEach((fgGroup) => {
-                fgGroup.get('checked')?.setValue(true, { emitEvent: false });
-            });
-            faTags.controls.forEach((fgTag) => {
-                fgTag.get('checked')?.setValue(true, { emitEvent: false });
-            });
-            // Set the "Everything" checkbox last
-            this.select.get('all')?.setValue(true, { emitEvent: false });
-
-        } else if (Array.isArray(scopedSystems)) {
-            scopedSystems.forEach((vSystem: any) => {
-                if (typeof vSystem === 'number') {
-                    faSystems.controls.find((fgSystem) => fgSystem.get('id')?.value === vSystem)?.get('all')?.setValue(true);
-
-                } else if (vSystem !== null && typeof vSystem === 'object') {
-                    const fgSystem = faSystems.controls.find((fg) => {
-                        return fg.get('id')?.value === vSystem.id;
-                    });
-
-                    if (fgSystem) {
-                        if (vSystem.talkgroups === '*') {
-                            fgSystem.get('all')?.setValue(true);
-
-                        } else if (Array.isArray(vSystem.talkgroups)) {
-                            const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-
-                            vSystem.talkgroups.forEach((talkgroup: { id: number } | number) => {
-                                const talkgroupId = typeof talkgroup === 'number' ? talkgroup : talkgroup.id;
-
-                                const fgTalkgroup = faTalkgroups.controls.find((fg) => fg.get('id')?.value === talkgroupId);
-
-                                fgTalkgroup?.get('checked')?.setValue(true);
-                            });
-
-                            fgSystem?.updateValueAndValidity();
-                        }
-                    }
-                }
-            });
+    onEverythingChange(checked: boolean): void {
+        if (this.syncing) {
+            return;
         }
+        this.syncing = true;
+        this.forEachTalkgroup((fg) => fg.get('checked')?.setValue(checked, { emitEvent: false }));
+        this.syncDerivedState();
+        this.syncing = false;
+        this.cdr.markForCheck();
+    }
+
+    onGroupChange(groupIndex: number, checked: boolean): void {
+        if (this.syncing) {
+            return;
+        }
+        const groupId = Number((this.select.get('groups') as FormArray).at(groupIndex).get('id')?.value);
+        this.syncing = true;
+        this.forEachTalkgroup((fg) => {
+            const ids = this.normalizeIds(fg.get('groupIds')?.value);
+            if (ids.includes(groupId)) {
+                fg.get('checked')?.setValue(checked, { emitEvent: false });
+            }
+        });
+        this.syncDerivedState();
+        this.syncing = false;
+        this.cdr.markForCheck();
+    }
+
+    onTagChange(tagIndex: number, checked: boolean): void {
+        if (this.syncing) {
+            return;
+        }
+        const tagId = Number((this.select.get('tags') as FormArray).at(tagIndex).get('id')?.value);
+        this.syncing = true;
+        this.forEachTalkgroup((fg) => {
+            if (Number(fg.get('tagId')?.value) === tagId) {
+                fg.get('checked')?.setValue(checked, { emitEvent: false });
+            }
+        });
+        this.syncDerivedState();
+        this.syncing = false;
+        this.cdr.markForCheck();
+    }
+
+    onSystemChange(systemIndex: number, checked: boolean): void {
+        if (this.syncing) {
+            return;
+        }
+        this.syncing = true;
+        const faTalkgroups = (this.select.get('systems') as FormArray).at(systemIndex).get('talkgroups') as FormArray;
+        faTalkgroups.controls.forEach((fg) => fg.get('checked')?.setValue(checked, { emitEvent: false }));
+        this.syncDerivedState();
+        this.syncing = false;
+        this.cdr.markForCheck();
+    }
+
+    onTalkgroupChange(systemIndex: number, talkgroupIndex: number, checked: boolean): void {
+        if (this.syncing) {
+            return;
+        }
+        this.syncing = true;
+        const faTalkgroups = (this.select.get('systems') as FormArray).at(systemIndex).get('talkgroups') as FormArray;
+        faTalkgroups.at(talkgroupIndex).get('checked')?.setValue(checked, { emitEvent: false });
+        this.syncDerivedState();
+        this.syncing = false;
+        this.cdr.markForCheck();
+    }
+
+    isEverythingChecked(): boolean {
+        return !!this.select.get('all')?.value;
+    }
+
+    isGroupChecked(index: number): boolean {
+        return !!((this.select.get('groups') as FormArray).at(index)?.get('checked')?.value);
+    }
+
+    isTagChecked(index: number): boolean {
+        return !!((this.select.get('tags') as FormArray).at(index)?.get('checked')?.value);
+    }
+
+    isSystemChecked(index: number): boolean {
+        return !!((this.select.get('systems') as FormArray).at(index)?.get('all')?.value);
+    }
+
+    isTalkgroupChecked(systemIndex: number, talkgroupIndex: number): boolean {
+        const fa = (this.select.get('systems') as FormArray).at(systemIndex)?.get('talkgroups') as FormArray;
+        return !!fa?.at(talkgroupIndex)?.get('checked')?.value;
     }
 
     accept(): void {
@@ -376,15 +310,13 @@ export class RdioScannerAdminSystemsSelectComponent {
                     id: system['id'],
                     talkgroups: '*',
                 };
-
-            } else {
-                return {
-                    id: system['id'],
-                    talkgroups: system['talkgroups']
-                        .filter((talkgroup: Talkgroup) => talkgroup.checked)
-                        .map((talkgroup: Talkgroup) => talkgroup.id),
-                };
             }
+            return {
+                id: system['id'],
+                talkgroups: system['talkgroups']
+                    .filter((talkgroup: Talkgroup) => talkgroup.checked)
+                    .map((talkgroup: Talkgroup) => talkgroup.id),
+            };
         });
 
         this.matDialogRef.close(access);
@@ -394,84 +326,157 @@ export class RdioScannerAdminSystemsSelectComponent {
         this.matDialogRef.close(null);
     }
 
-    private rebuildGroupIndeterminates(): void {
+    private applySavedSelection(): void {
+        const accessValue = (this.access.value || {}) as { systems?: any };
+        const scopedSystems = accessValue.systems;
+        const faSystems = this.select.get('systems') as FormArray;
+
+        if (scopedSystems === '*') {
+            this.forEachTalkgroup((fg) => fg.get('checked')?.setValue(true, { emitEvent: false }));
+            return;
+        }
+
+        if (!Array.isArray(scopedSystems)) {
+            return;
+        }
+
+        scopedSystems.forEach((vSystem: any) => {
+            if (typeof vSystem === 'number') {
+                const fgSystem = faSystems.controls.find((fg) => fg.get('id')?.value === vSystem);
+                const faTalkgroups = fgSystem?.get('talkgroups') as FormArray | undefined;
+                faTalkgroups?.controls.forEach((fg) => fg.get('checked')?.setValue(true, { emitEvent: false }));
+                return;
+            }
+
+            if (vSystem !== null && typeof vSystem === 'object') {
+                const fgSystem = faSystems.controls.find((fg) => fg.get('id')?.value === vSystem.id);
+                if (!fgSystem) {
+                    return;
+                }
+                const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
+                if (vSystem.talkgroups === '*') {
+                    faTalkgroups.controls.forEach((fg) => fg.get('checked')?.setValue(true, { emitEvent: false }));
+                } else if (Array.isArray(vSystem.talkgroups)) {
+                    vSystem.talkgroups.forEach((talkgroup: { id: number } | number) => {
+                        const talkgroupId = typeof talkgroup === 'number' ? talkgroup : talkgroup.id;
+                        const fgTalkgroup = faTalkgroups.controls.find((fg) => fg.get('id')?.value === talkgroupId);
+                        fgTalkgroup?.get('checked')?.setValue(true, { emitEvent: false });
+                    });
+                }
+            }
+        });
+    }
+
+    /**
+     * Derive Everything / system / group / tag checkbox + indeterminate state
+     * ONLY from talkgroup checked flags (single source of truth).
+     */
+    private syncDerivedState(): void {
         const faGroups = this.select.get('groups') as FormArray;
-
         const faSystems = this.select.get('systems') as FormArray;
-
-        faGroups.controls.forEach((fgGroup, index) => {
-            let off = 0;
-            let on = 0;
-
-            faSystems.controls.forEach((fgSystem) => {
-                const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-
-                faTalkgroups.controls.forEach((fgTalkgroup) => {
-                    if (fgTalkgroup.get('groupIds')?.value.includes(fgGroup.get('id')?.value)) {
-                        if (fgTalkgroup.get('checked')?.value) {
-                            on++;
-
-                        } else {
-                            off++;
-                        }
-                    }
-                });
-            });
-
-            this.indeterminate.groups[index] = !!off && !!on;
-
-            fgGroup.get('checked')?.setValue(!off && on, { emitEvent: false });
-        });
-    }
-
-    private rebuildTagIndeterminates(): void {
         const faTags = this.select.get('tags') as FormArray;
+        const fcAll = this.select.get('all') as FormControl;
 
-        const faSystems = this.select.get('systems') as FormArray;
+        let systemsOn = 0;
+        let systemsOff = 0;
 
-        faTags.controls.forEach((fgTag, index) => {
-            let off = 0;
-            let on = 0;
-
-            faSystems.controls.forEach((fgSystem) => {
-                const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-
-                faTalkgroups.controls.forEach((fgTalkgroup) => {
-                    if (fgTalkgroup.value.tagId === fgTag.value.id) {
-                        if (fgTalkgroup.value.checked) {
-                            on++;
-
-                        } else {
-                            off++;
-                        }
-                    }
-                });
-            });
-
-            this.indeterminate.tags[index] = !!off && !!on;
-
-            fgTag.get('checked')?.setValue(!off && on, { emitEvent: false });
-        });
-    }
-
-    private rebuildSystemIndeterminates(): void {
-        const faSystems = this.select.get('systems') as FormArray;
-
-        faSystems.controls.forEach((fgSystem, index) => {
+        faSystems.controls.forEach((fgSystem, systemIndex) => {
             const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
-            let off = 0;
             let on = 0;
-
-            faTalkgroups.controls.forEach((fgTalkgroup) => {
-                if (fgTalkgroup.get('checked')?.value) {
+            let off = 0;
+            faTalkgroups.controls.forEach((fg) => {
+                if (fg.get('checked')?.value) {
                     on++;
                 } else {
                     off++;
                 }
             });
 
-            this.indeterminate.systems[index] = !!off && !!on;
-            fgSystem.get('all')?.setValue(!off && on, { emitEvent: false });
+            const allOn = on > 0 && off === 0;
+            const noneOn = on === 0;
+            this.indeterminate.systems[systemIndex] = on > 0 && off > 0;
+            fgSystem.get('all')?.setValue(allOn, { emitEvent: false });
+
+            if (faTalkgroups.length === 0) {
+                // Empty systems count as off for Everything.
+                systemsOff++;
+            } else if (allOn) {
+                systemsOn++;
+            } else if (noneOn) {
+                systemsOff++;
+            } else {
+                systemsOn++;
+                systemsOff++;
+            }
         });
+
+        this.indeterminate.everything = systemsOn > 0 && systemsOff > 0;
+        fcAll.setValue(systemsOn > 0 && systemsOff === 0 && faSystems.length > 0, { emitEvent: false });
+
+        faGroups.controls.forEach((fgGroup, index) => {
+            const groupId = Number(fgGroup.get('id')?.value);
+            let on = 0;
+            let off = 0;
+            this.forEachTalkgroup((fg) => {
+                const ids = this.normalizeIds(fg.get('groupIds')?.value);
+                if (!ids.includes(groupId)) {
+                    return;
+                }
+                if (fg.get('checked')?.value) {
+                    on++;
+                } else {
+                    off++;
+                }
+            });
+            this.indeterminate.groups[index] = on > 0 && off > 0;
+            fgGroup.get('checked')?.setValue(on > 0 && off === 0, { emitEvent: false });
+        });
+
+        faTags.controls.forEach((fgTag, index) => {
+            const tagId = Number(fgTag.get('id')?.value);
+            let on = 0;
+            let off = 0;
+            this.forEachTalkgroup((fg) => {
+                if (Number(fg.get('tagId')?.value) !== tagId) {
+                    return;
+                }
+                if (fg.get('checked')?.value) {
+                    on++;
+                } else {
+                    off++;
+                }
+            });
+            this.indeterminate.tags[index] = on > 0 && off > 0;
+            fgTag.get('checked')?.setValue(on > 0 && off === 0, { emitEvent: false });
+        });
+    }
+
+    private forEachTalkgroup(fn: (fg: FormGroup) => void): void {
+        const faSystems = this.select.get('systems') as FormArray;
+        faSystems.controls.forEach((fgSystem) => {
+            const faTalkgroups = fgSystem.get('talkgroups') as FormArray;
+            faTalkgroups.controls.forEach((fg) => fn(fg as FormGroup));
+        });
+    }
+
+    private normalizeIds(value: unknown): number[] {
+        if (!Array.isArray(value)) {
+            if (value == null || value === '') {
+                return [];
+            }
+            const n = Number(value);
+            return Number.isFinite(n) ? [n] : [];
+        }
+        return value
+            .map((v) => Number(v))
+            .filter((n) => Number.isFinite(n));
+    }
+
+    private toNumOrNull(value: unknown): number | null {
+        if (value == null || value === '') {
+            return null;
+        }
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
     }
 }

@@ -179,26 +179,31 @@
       }
       @if (showMyAlertsSection && alerts.length > 0 && filteredAlertGroups.length === 0 && hasActiveAlertSearch) {
         <div class="no-alerts">
+          <mat-icon>search_off</mat-icon>
           <p>No alerts match your search</p>
         </div>
       }
       @if (showSystemAlertsSection && systemAlerts.length > 0 && filteredSystemAlerts.length === 0 && hasActiveAlertSearch) {
         <div class="no-alerts">
+          <mat-icon>search_off</mat-icon>
           <p>No system alerts match your search</p>
         </div>
       }
       @if (showMyAlertsSection && alerts.length === 0 && !loading && alertsViewMode !== 'all') {
         <div class="no-alerts">
+          <mat-icon>notifications_off</mat-icon>
           <p>No alerts</p>
         </div>
       }
       @if (showSystemAlertsSection && systemAlerts.length === 0 && !loadingSystemAlerts && alertsViewMode === 'system') {
         <div class="no-alerts">
+          <mat-icon>notifications_off</mat-icon>
           <p>No system alerts in your access scope</p>
         </div>
       }
       @if (showMyAlertsSection && showSystemAlertsSection && alerts.length === 0 && systemAlerts.length === 0 && !alertsTabLoading) {
         <div class="no-alerts">
+          <mat-icon>notifications_off</mat-icon>
           <p>No alerts</p>
         </div>
       }
@@ -228,17 +233,22 @@
               class="alert-group-panel"
               [class.tone-alert-group]="group.groupType === 'tone'"
               [class.channel-alert-group]="group.groupType === 'channel'">
-              <mat-expansion-panel-header collapsedHeight="30px" expandedHeight="30px" class="group-panel-header">
+              <mat-expansion-panel-header collapsedHeight="34px" expandedHeight="34px" class="group-panel-header">
                 <mat-panel-title class="group-panel-title">
                   <span class="group-type-chip" [class.tone]="group.groupType === 'tone'" [class.channel]="group.groupType === 'channel'">
-                    <mat-icon class="group-icon">{{ group.groupType === 'tone' ? 'notifications_active' : 'tag' }}</mat-icon>
+                    <mat-icon class="group-icon">{{ group.groupType === 'tone' ? 'notifications_active' : 'podcasts' }}</mat-icon>
                   </span>
                   <span class="group-name">{{ group.key }}</span>
                 </mat-panel-title>
                 <mat-panel-description class="group-panel-meta">
-                  <span class="group-count-badge" [attr.title]="group.alerts.length + ' alert(s)'">{{ group.alerts.length }}</span>
-                  <span class="group-time" [attr.title]="formatAlertDateTime(group.latestTimestamp)">
-                    {{ formatAlertDateTime(group.latestTimestamp) }}
+                  <span class="group-meta-item">
+                    <span class="group-meta-label">Alerts</span>
+                    <span class="group-count-badge">{{ group.alerts.length }}</span>
+                  </span>
+                  <span class="group-meta-sep" aria-hidden="true">·</span>
+                  <span class="group-meta-item">
+                    <span class="group-meta-label">Latest</span>
+                    <span class="group-time">{{ formatAlertDateTime(group.latestTimestamp) }}</span>
                   </span>
                 </mat-panel-description>
               </mat-expansion-panel-header>

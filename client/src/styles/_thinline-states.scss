@@ -1,0 +1,125 @@
+/*
+ * ThinLine — shared empty / loading states + keyboard focus rings.
+ * Active under `.thinline-skin`.
+ */
+
+.thinline-skin {
+    /* ── Focus rings (keyboard / :focus-visible only) ─────────────────── */
+    :focus {
+        outline: none;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--tlr-accent);
+        outline-offset: 2px;
+    }
+
+    /* Soft inset ring for dense list / segment controls */
+    .segment-btn:focus-visible,
+    .settings-tab:focus-visible,
+    .calls-mode-btn:focus-visible,
+    .tab-button:focus-visible,
+    .alerts-subtab:focus-visible,
+    .toolbar-preset-btn:focus-visible,
+    .sidebar-system-row:focus-visible,
+    .talkgroup-row:focus-visible,
+    .talkgroup-preference-row .row-header:focus-visible,
+    .incident-list-item:focus-visible {
+        outline: none;
+        box-shadow:
+            0 0 0 2px rgba(10, 16, 20, 0.9),
+            0 0 0 4px rgba(126, 200, 232, 0.75);
+    }
+
+    /* ── Shared empty / loading LCD treatment ─────────────────────────── */
+    .tlr-state,
+    .channels-detail-empty,
+    .channels-full-empty,
+    .prefs-detail-empty,
+    .sidebar-empty,
+    .no-alerts,
+    .empty-state,
+    .empty-message,
+    .loading,
+    .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 8px;
+        padding: 28px 20px;
+        color: var(--tlr-text-secondary);
+        background: rgba(0, 0, 0, 0.22);
+        border: 1px dashed var(--tlr-bezel-border);
+        border-radius: 10px;
+        box-shadow: none;
+
+        mat-icon,
+        .empty-icon {
+            width: 36px;
+            height: 36px;
+            font-size: 36px;
+            line-height: 1;
+            color: var(--tlr-accent);
+            opacity: 0.55;
+            margin: 0;
+        }
+
+        h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--tlr-text);
+        }
+
+        p,
+        span {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.45;
+            color: var(--tlr-text-secondary);
+            max-width: 36ch;
+        }
+    }
+
+    .loading,
+    .loading-state,
+    .tlr-state--loading {
+        border-style: solid;
+        border-color: rgba(126, 200, 232, 0.18);
+        color: var(--tlr-accent);
+
+        p,
+        span {
+            color: var(--tlr-accent);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-size: 11px;
+            font-weight: 700;
+        }
+    }
+
+    /* Compact empties inside rails / sidebars */
+    .sidebar-empty,
+    .channels-detail-empty,
+    .prefs-detail-empty {
+        padding: 24px 16px;
+        background: transparent;
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Table empty row — keep table layout, match tone */
+    .empty-row td {
+        padding: 28px 16px !important;
+        text-align: center;
+        color: var(--tlr-text-secondary) !important;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: rgba(0, 0, 0, 0.18);
+        border: none !important;
+    }
+}

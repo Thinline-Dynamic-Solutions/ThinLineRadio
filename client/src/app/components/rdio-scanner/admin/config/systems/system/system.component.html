@@ -52,13 +52,50 @@
     </div>
   </div>
 
+  <nav class="system-chip-nav" aria-label="System sections">
+    @for (item of systemNav; track item.id) {
+      <button type="button"
+        class="system-chip"
+        [class.active]="activePanel === item.id"
+        (click)="setActivePanel(item.id)">
+        <mat-icon>{{ item.icon }}</mat-icon>
+        <span>{{ item.label }}</span>
+        @if (item.id === 'talkgroups' && form.get('talkgroups')?.invalid) {
+          <mat-icon color="warn" class="system-chip-error">error</mat-icon>
+        }
+      </button>
+    }
+  </nav>
+
   <!-- ══════════════════════════════════════════════════════════════
-  System Settings
+  Settings
   ══════════════════════════════════════════════════════════════ -->
+  @if (activePanel === 'settings') {
+  <section class="system-panel">
+    <header class="system-panel-header">
+      <div class="system-panel-heading">
+        <h3 class="system-panel-title">{{ panelMeta('settings').label }}</h3>
+        <p class="system-panel-desc">{{ panelMeta('settings').description }}</p>
+      </div>
+    </header>
+    @if (subNavFor('settings'); as subs) {
+      @if (subs.length) {
+        <nav class="system-subchip-nav" aria-label="Settings subsections">
+          @for (sub of subs; track sub.id) {
+            <button type="button"
+              class="system-subchip"
+              [class.active]="activeSubPanel === sub.id"
+              (click)="setActiveSubPanel(sub.id)">
+              {{ sub.label }}
+            </button>
+          }
+        </nav>
+      }
+    }
   <div class="settings-card">
-    <h4 class="section-label"><mat-icon>settings</mat-icon> System Settings</h4>
     <div class="settings-grid">
 
+      @if (activeSubPanel === 'general') {
       <div class="settings-field">
         <label class="field-label">System ID</label>
         <mat-form-field appearance="outline" class="compact-field">
@@ -125,7 +162,9 @@
         </div>
         <span class="field-hint">When enabled (and global duplicate detection is on), suppress duplicate calls on this system.</span>
       </div>
+      }
 
+      @if (activeSubPanel === 'autopopulate') {
       <div class="settings-field settings-field--toggle">
         <div class="toggle-row">
           <label class="field-label">Auto Populate</label>
@@ -151,7 +190,9 @@
         </div>
         <span class="field-hint">Add unit ID and label from heard traffic to this system's unit list. Independent of talkgroup auto-populate.</span>
       </div>
+      }
 
+      @if (activeSubPanel === 'alerts') {
       <div class="settings-field settings-field--toggle">
         <div class="toggle-row">
           <label class="field-label">Alerts Enabled</label>
@@ -237,7 +278,9 @@
           </mat-card>
         </div>
       }
+      }
 
+      @if (activeSubPanel === 'transcription') {
       <div class="settings-field settings-field--wide">
         <label class="field-label">Blacklists</label>
         <mat-form-field appearance="outline" class="compact-field">
@@ -257,15 +300,25 @@
         </mat-form-field>
         <span class="field-hint">Overrides the global prompt for all talkgroups in this system. Leave blank to use the global prompt. Individual talkgroups can further override this.</span>
       </div>
+      }
 
     </div>
   </div>
+  </section>
+  }
 
   <!-- ══════════════════════════════════════════════════════════════
   Incident Mapping
   ══════════════════════════════════════════════════════════════ -->
+  @if (activePanel === 'mapping') {
+  <section class="system-panel">
+    <header class="system-panel-header">
+      <div class="system-panel-heading">
+        <h3 class="system-panel-title">{{ panelMeta('mapping').label }}</h3>
+        <p class="system-panel-desc">{{ panelMeta('mapping').description }}</p>
+      </div>
+    </header>
   <div class="settings-card" formGroupName="incidentMapping">
-    <h4 class="section-label"><mat-icon>map</mat-icon> Incident Mapping</h4>
     <div class="settings-grid">
       <div class="settings-field settings-field--toggle settings-field--wide">
         <div class="toggle-row">
@@ -354,10 +407,14 @@
       </rdio-scanner-admin-mapping-data>
     }
   </div>
+  </section>
+  }
 
   <!-- ══════════════════════════════════════════════════════════════
   Talkgroups
   ══════════════════════════════════════════════════════════════ -->
+  @if (activePanel === 'talkgroups') {
+  <section class="system-panel">
   <div class="sub-section">
     <div class="sub-section-header">
       <div class="sub-section-title">
@@ -628,10 +685,14 @@
       </div>
     }
   </div>
+  </section>
+  }
 
   <!-- ══════════════════════════════════════════════════════════════
   Sites
   ══════════════════════════════════════════════════════════════ -->
+  @if (activePanel === 'sites') {
+  <section class="system-panel">
   <div class="sub-section">
     <div class="sub-section-header">
       <div class="sub-section-title">
@@ -750,10 +811,14 @@
       </div>
     }
   </div>
+  </section>
+  }
 
   <!-- ══════════════════════════════════════════════════════════════
   Units
   ══════════════════════════════════════════════════════════════ -->
+  @if (activePanel === 'units') {
+  <section class="system-panel">
   <div class="sub-section">
     <div class="sub-section-header">
       <div class="sub-section-title">
@@ -761,11 +826,163 @@
         <h4>Units</h4>
         <span class="count-chip">{{ rawUnits.length }}</span>
       </div>
-      <button type="button" mat-raised-button color="primary" (click)="addUnit()">
-        <mat-icon>add</mat-icon> Add Unit
-      </button>
     </div>
 
+    <!-- Saved / confirmed units -->
+    <div class="units-saved-section">
+      <div class="units-saved-header">
+        <div class="unit-alias-section-label" style="margin: 0;">
+          Saved units
+          <span class="unit-alias-count">{{ rawUnits.length }}</span>
+        </div>
+        <div class="units-saved-actions">
+          @if (rawUnits.length > 0) {
+            <mat-form-field appearance="outline" class="search-field units-inline-search" subscriptSizing="dynamic">
+              <mat-label>Search units</mat-label>
+              <input matInput [value]="unitsSearchTerm"
+                (input)="onUnitsSearchChange($any($event.target).value)"
+                placeholder="Unit ID or label" autocomplete="off">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+            @if (unitsSearchTerm) {
+              <span class="mat-caption search-count">
+                {{ filteredUnits.length }} of {{ rawUnits.length }}
+              </span>
+            }
+          }
+          <button type="button" mat-raised-button color="primary" (click)="addUnit()">
+            <mat-icon>add</mat-icon> Add Unit
+          </button>
+        </div>
+      </div>
+
+      @if (rawUnits.length === 0) {
+        <div class="sub-empty">
+          <mat-icon>person_pin</mat-icon>
+          <p>No units defined. Units map unit IDs to friendly labels on the main screen.</p>
+        </div>
+      }
+
+      @if (rawUnits.length > 0) {
+        <div class="units-triple-wrap">
+          @if (unitTotalPages > 1) {
+            <div class="pagination-controls">
+              <button type="button" mat-icon-button
+                [disabled]="unitCurrentPage === 0"
+                (click)="prevUnitPage()"
+                matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span class="page-info">{{ unitPageInfo }}</span>
+              <button type="button" mat-icon-button
+                [disabled]="unitCurrentPage >= unitTotalPages - 1"
+                (click)="nextUnitPage()"
+                matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          }
+
+          <div class="units-triple"
+            [class.single-column]="!showUnitTripleColumns"
+            [class.two-columns]="showUnitTripleColumns && visibleUnitColumnCount === 2">
+            @for (col of [0, 1, 2]; track col) {
+              @if (col < visibleUnitColumnCount) {
+                <div class="table-wrapper units-col">
+                  <mat-table [dataSource]="unitColumn(col)"
+                    cdkDropList
+                    [id]="unitColumnIds[col]"
+                    [cdkDropListData]="unitColumn(col)"
+                    [cdkDropListConnectedTo]="unitDropConnectedTo(col)"
+                    [cdkDropListDisabled]="!!unitsSearchTerm.trim()"
+                    (cdkDropListDropped)="dropUnit($event)"
+                    class="data-table units-table">
+                    <ng-container matColumnDef="drag">
+                      <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+                      <td mat-cell *matCellDef="let unit" class="drag-col">
+                        <mat-icon cdkDragHandle class="drag-handle"
+                          [class.drag-disabled]="!!unitsSearchTerm.trim()"
+                          [matTooltip]="unitsSearchTerm ? 'Clear search to reorder' : 'Drag to reorder'"
+                          (click)="$event.stopPropagation()">drag_indicator</mat-icon>
+                      </td>
+                    </ng-container>
+                    <ng-container matColumnDef="unitRef">
+                      <th mat-header-cell *matHeaderCellDef>ID</th>
+                      <td mat-cell *matCellDef="let unit">
+                        <code class="id-code">{{ unit.unitRef || '—' }}</code>
+                      </td>
+                    </ng-container>
+                    <ng-container matColumnDef="label">
+                      <th mat-header-cell *matHeaderCellDef>Label</th>
+                      <td mat-cell *matCellDef="let unit">
+                        <span class="tg-label">{{ unit.label?.trim() || '—' }}</span>
+                        @if (unit.unitFrom && unit.unitTo) {
+                          <span class="unit-range-inline">{{ unit.unitFrom }}–{{ unit.unitTo }}</span>
+                        }
+                      </td>
+                    </ng-container>
+                    <ng-container matColumnDef="actions">
+                      <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
+                      <td mat-cell *matCellDef="let unit" class="actions-col">
+                        <button mat-icon-button [class.active-edit]="expandedRawUnit === unit"
+                          (click)="toggleUnitExpand(unit); $event.stopPropagation()"
+                          matTooltip="Edit">
+                          <mat-icon>{{ expandedRawUnit === unit ? 'expand_less' : 'edit' }}</mat-icon>
+                        </button>
+                        <button mat-icon-button color="warn"
+                          (click)="removeUnit(unit); $event.stopPropagation()"
+                          matTooltip="Delete">
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      </td>
+                    </ng-container>
+                    <tr mat-header-row *matHeaderRowDef="['drag', 'unitRef', 'label', 'actions']"></tr>
+                    <tr mat-row *matRowDef="let row; columns: ['drag', 'unitRef', 'label', 'actions'];"
+                      class="data-row"
+                      [class.row-expanded]="expandedRawUnit === row"
+                      cdkDrag
+                      [cdkDragDisabled]="!!unitsSearchTerm.trim()"
+                      [cdkDragData]="row"
+                      (click)="toggleUnitExpand(row)">
+                    </tr>
+                  </mat-table>
+                </div>
+              }
+            }
+          </div>
+
+          @if (expandedRawUnit && expandedUnitForm) {
+            <div class="expanded-form-wrapper units-edit-panel">
+              <rdio-scanner-admin-unit
+                [form]="expandedUnitForm"
+                (save)="saveUnitEdit()"
+                (remove)="removeUnit(expandedRawUnit)">
+              </rdio-scanner-admin-unit>
+            </div>
+          }
+
+          @if (unitTotalPages > 1) {
+            <div class="pagination-controls bottom">
+              <button type="button" mat-icon-button
+                [disabled]="unitCurrentPage === 0"
+                (click)="prevUnitPage()"
+                matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span class="page-info">Page {{ unitCurrentPage + 1 }} of {{ unitTotalPages }}</span>
+              <button type="button" mat-icon-button
+                [disabled]="unitCurrentPage >= unitTotalPages - 1"
+                (click)="nextUnitPage()"
+                matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Pending auto-learn suggestions (below saved units) -->
     <div class="unit-alias-learn-panel">
       <div class="unit-alias-learn-header">
         <div>
@@ -803,8 +1020,11 @@
 
       @if (readyUnitAliasSuggestions.length) {
         <div class="unit-alias-block">
-          <div class="unit-alias-section-label">Ready to review</div>
-          @for (s of readyUnitAliasSuggestions; track s) {
+          <div class="unit-alias-section-label">
+            Ready to review
+            <span class="unit-alias-count">{{ readyUnitAliasSuggestions.length }}</span>
+          </div>
+          @for (s of paginatedReadyUnitAliasSuggestions; track s.candidateId) {
             <div class="unit-alias-row">
               <div class="unit-alias-meta">
                 <code class="id-code">{{ s.unitRef }}</code>
@@ -827,22 +1047,56 @@
               </div>
             </div>
           }
+          @if (readyUnitAliasTotalPages > 1) {
+            <div class="unit-alias-pager">
+              <button type="button" mat-icon-button
+                [disabled]="unitAliasReadyPage === 0"
+                (click)="prevReadyUnitAliasPage()"
+                matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span class="page-info">Page {{ unitAliasReadyPage + 1 }} of {{ readyUnitAliasTotalPages }}</span>
+              <button type="button" mat-icon-button
+                [disabled]="unitAliasReadyPage >= readyUnitAliasTotalPages - 1"
+                (click)="nextReadyUnitAliasPage()"
+                matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          }
         </div>
       }
 
       @if (emergingUnitAliasSuggestions.length) {
         <div class="unit-alias-block unit-alias-emerging">
-          <div class="unit-alias-section-label">Emerging</div>
-          @for (s of emergingUnitAliasSuggestions; track s) {
-            <div class="unit-alias-row">
-              <div class="unit-alias-meta">
-                <code class="id-code">{{ s.unitRef }}</code>
-                <span class="mat-body">{{ s.suggestedLabel || 'Collecting…' }}</span>
-                <span class="mat-caption">{{ s.sightings }} / {{ unitAliasStatus?.callsRequired || 3 }} sightings</span>
-              </div>
-              <div class="unit-alias-btns">
-                <button type="button" mat-stroked-button (click)="dismissUnitAliasSuggestion(s)">Dismiss</button>
-              </div>
+          <div class="unit-alias-section-label">
+            Emerging
+            <span class="unit-alias-count">{{ emergingUnitAliasSuggestions.length }}</span>
+          </div>
+          @for (s of paginatedEmergingUnitAliasSuggestions; track s.candidateId) {
+            <div class="unit-alias-row unit-alias-row--inline">
+              <code class="id-code">{{ s.unitRef }}</code>
+              <span class="unit-alias-collecting">{{ s.suggestedLabel || 'Collecting…' }}</span>
+              <span class="mat-caption unit-alias-sightings">{{ s.sightings }} / {{ unitAliasStatus?.callsRequired || 3 }} sightings</span>
+              <button type="button" mat-stroked-button class="unit-alias-dismiss"
+                (click)="dismissUnitAliasSuggestion(s)">Dismiss</button>
+            </div>
+          }
+          @if (emergingUnitAliasTotalPages > 1) {
+            <div class="unit-alias-pager">
+              <button type="button" mat-icon-button
+                [disabled]="unitAliasEmergingPage === 0"
+                (click)="prevEmergingUnitAliasPage()"
+                matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span class="page-info">Page {{ unitAliasEmergingPage + 1 }} of {{ emergingUnitAliasTotalPages }}</span>
+              <button type="button" mat-icon-button
+                [disabled]="unitAliasEmergingPage >= emergingUnitAliasTotalPages - 1"
+                (click)="nextEmergingUnitAliasPage()"
+                matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
             </div>
           }
         </div>
@@ -854,153 +1108,8 @@
         </div>
       }
     </div>
-
-    @if (rawUnits.length === 0) {
-      <div class="sub-empty">
-        <mat-icon>person_pin</mat-icon>
-        <p>No units defined. Units map unit IDs to friendly labels on the main screen.</p>
-      </div>
-    }
-
-    <!-- Search -->
-    @if (rawUnits.length > 0) {
-      <div class="table-search-bar">
-        <mat-form-field appearance="outline" class="search-field">
-          <mat-label>Search units</mat-label>
-          <input matInput [value]="unitsSearchTerm"
-            (input)="onUnitsSearchChange($any($event.target).value)"
-            placeholder="Unit ID or label" autocomplete="off">
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
-        @if (unitsSearchTerm) {
-          <span class="mat-caption search-count">
-            {{ filteredUnits.length }} of {{ rawUnits.length }}
-          </span>
-        }
-      </div>
-    }
-
-    @if (rawUnits.length > 0) {
-      <div class="table-wrapper">
-        <!-- Pagination Controls (Top) -->
-        @if (unitTotalPages > 1) {
-          <div class="pagination-controls">
-            <button type="button" mat-icon-button
-              [disabled]="unitCurrentPage === 0"
-              (click)="prevUnitPage()"
-              matTooltip="Previous page">
-              <mat-icon>chevron_left</mat-icon>
-            </button>
-            <span class="page-info">{{ unitPageInfo }}</span>
-            <button type="button" mat-icon-button
-              [disabled]="unitCurrentPage >= unitTotalPages - 1"
-              (click)="nextUnitPage()"
-              matTooltip="Next page">
-              <mat-icon>chevron_right</mat-icon>
-            </button>
-          </div>
-        }
-        <mat-table [dataSource]="paginatedUnits"
-          multiTemplateDataRows
-          cdkDropList
-          [cdkDropListData]="paginatedUnits"
-          (cdkDropListDropped)="dropUnit($event)"
-          class="data-table">
-          <!-- Drag Column -->
-          <ng-container matColumnDef="drag">
-            <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
-            <td mat-cell *matCellDef="let unit" class="drag-col">
-              <mat-icon cdkDragHandle class="drag-handle" (click)="$event.stopPropagation()">drag_indicator</mat-icon>
-            </td>
-          </ng-container>
-          <!-- Unit ID Column -->
-          <ng-container matColumnDef="unitRef">
-            <th mat-header-cell *matHeaderCellDef>Unit ID</th>
-            <td mat-cell *matCellDef="let unit">
-              <code class="id-code">{{ unit.unitRef || '—' }}</code>
-            </td>
-          </ng-container>
-          <!-- Label Column -->
-          <ng-container matColumnDef="label">
-            <th mat-header-cell *matHeaderCellDef>Label</th>
-            <td mat-cell *matCellDef="let unit">
-              <span class="tg-label">{{ unit.label?.trim() || '—' }}</span>
-            </td>
-          </ng-container>
-          <!-- Range Column -->
-          <ng-container matColumnDef="range">
-            <th mat-header-cell *matHeaderCellDef>Range</th>
-            <td mat-cell *matCellDef="let unit">
-              @if (unit.unitFrom && unit.unitTo) {
-                <span class="range-value">
-                  {{ unit.unitFrom }} – {{ unit.unitTo }}
-                </span>
-              }
-              @if (!unit.unitFrom || !unit.unitTo) {
-                <span class="no-value">—</span>
-              }
-            </td>
-          </ng-container>
-          <!-- Actions Column -->
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
-            <td mat-cell *matCellDef="let unit" class="actions-col">
-              <button mat-icon-button [class.active-edit]="expandedRawUnit === unit"
-                (click)="toggleUnitExpand(unit); $event.stopPropagation()"
-                matTooltip="Edit">
-                <mat-icon>{{ expandedRawUnit === unit ? 'expand_less' : 'edit' }}</mat-icon>
-              </button>
-              <button mat-icon-button color="warn"
-                (click)="removeUnit(unit); $event.stopPropagation()"
-                matTooltip="Delete">
-                <mat-icon>delete</mat-icon>
-              </button>
-            </td>
-          </ng-container>
-          <!-- Expanded Detail Column -->
-          <ng-container matColumnDef="expandedDetail">
-            <td mat-cell *matCellDef="let unit" [attr.colspan]="unitDisplayedColumns.length" class="detail-cell">
-              @if (expandedRawUnit === unit && expandedUnitForm) {
-                <div class="expanded-form-wrapper">
-                  <rdio-scanner-admin-unit
-                    [form]="expandedUnitForm"
-                    (remove)="removeUnit(unit)">
-                  </rdio-scanner-admin-unit>
-                </div>
-              }
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="unitDisplayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: unitDisplayedColumns;"
-            class="data-row"
-            [class.row-expanded]="expandedRawUnit === row"
-            cdkDrag [cdkDragData]="row"
-            (click)="toggleUnitExpand(row)">
-          </tr>
-          <tr mat-row *matRowDef="let row; columns: ['expandedDetail'];" class="detail-row"
-            [class.row-hidden]="expandedRawUnit !== row">
-          </tr>
-        </mat-table>
-        <!-- Pagination Controls (Bottom) -->
-        @if (unitTotalPages > 1) {
-          <div class="pagination-controls bottom">
-            <button type="button" mat-icon-button
-              [disabled]="unitCurrentPage === 0"
-              (click)="prevUnitPage()"
-              matTooltip="Previous page">
-              <mat-icon>chevron_left</mat-icon>
-            </button>
-            <span class="page-info">Page {{ unitCurrentPage + 1 }} of {{ unitTotalPages }}</span>
-            <button type="button" mat-icon-button
-              [disabled]="unitCurrentPage >= unitTotalPages - 1"
-              (click)="nextUnitPage()"
-              matTooltip="Next page">
-              <mat-icon>chevron_right</mat-icon>
-            </button>
-          </div>
-        }
-      </div>
-    }
   </div>
+  </section>
+  }
 
 </ng-container>

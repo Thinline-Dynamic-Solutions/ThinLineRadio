@@ -26,14 +26,30 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { RequestAPIKeyDialogComponent } from './request-api-key-dialog.component';
 import { RecoverAPIKeyDialogComponent } from './recover-api-key-dialog.component';
 import { RelayAccountDialogComponent } from './relay-account-dialog.component';
+import { ServerPathBrowseDialogComponent, ServerPathBrowseDialogResult } from './server-path-browse-dialog.component';
 import { LocationDataService } from 'src/app/services/location-data.service';
 import { OPENAI_CHAT_MODEL_OPTIONS, OpenAIChatModelOption, RELAY_SERVER_URL, RdioScannerAdminService } from '../../admin.service';
 import { MappingBoundaryStats, US_STATE_FIPS_OPTIONS } from '../../../mapping/mapping.types';
+import { TranscriptConfig } from '../transcript-parser/transcript-parser.types';
 
 export type OptionsPanelId =
     | 'alerts' | 'security' | 'branding' | 'notifications'
     | 'thinlineServices' | 'integrations' | 'general' | 'stripe' | 'transcription' | 'userRegistration' | 'mapping';
 
+/** Nav chips include Call Natures / Keyword Lists (not standard options save payloads). */
+export type OptionsNavId = OptionsPanelId | 'callNatures' | 'keywordLists';
+
+interface OptionsNavItem {
+    id: OptionsNavId;
+    label: string;
+    icon: string;
+    description: string;
+}
+
+interface OptionsSubNavItem {
+    id: string;
+    label: string;
+}
 interface OptionsPanelDef {
     keys: string[];
     systemsNoAudio?: boolean;
@@ -125,7 +141,7 @@ const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
         keys: [
             'time12hFormat', 'autoPopulate', 'defaultSystemDelay', 'playbackGoesLive',
             'keypadBeeps', 'maxClients', 'pruneDays', 'showListenersCount', 'sortTalkgroups',
-            'reconnectionGracePeriod', 'reconnectionMaxBufferSize', 'configSyncEnabled', 'configSyncPath',
+            'reconnectionGracePeriod', 'reconnectionMaxBufferSize', 'configSyncEnabled', 'configSyncPath', 'configSyncFileName',
         ],
         systemsRetention: true,
     },
@@ -161,6 +177,47 @@ const OPTIONS_PANEL_LABELS: Record<OptionsPanelId, string> = {
     transcription: 'Transcription Settings',
     userRegistration: 'User Registration',
     mapping: 'Incident Mapping',
+};
+
+const OPTIONS_NAV: OptionsNavItem[] = [
+    { id: 'alerts', label: 'Alerts', icon: 'notifications_active', description: 'System health alerts, transcription failures, tone detection, no audio monitoring' },
+    { id: 'security', label: 'Audio', icon: 'graphic_eq', description: 'Audio conversion, encryption, duplicate detection, download rate limits' },
+    { id: 'branding', label: 'Branding', icon: 'palette', description: 'App name, logos, favicon, support email, public base URL' },
+    { id: 'notifications', label: 'Email', icon: 'email', description: 'Outbound email provider, SMTP/SendGrid/Mailgun, delivery settings' },
+    { id: 'thinlineServices', label: 'Thinline Services', icon: 'cloud', description: 'Relay API key, account status, push billing, suspension controls' },
+    { id: 'integrations', label: 'Integrations', icon: 'extension', description: 'OpenAI, Radio Reference, and other external service credentials' },
+    { id: 'general', label: 'General', icon: 'settings', description: 'Listener counts, pruning, time zones, and other server-wide options' },
+    { id: 'stripe', label: 'Stripe', icon: 'payments', description: 'Stripe keys, webhooks, and subscription payment settings' },
+    { id: 'transcription', label: 'Transcription', icon: 'record_voice_over', description: 'Transcription engine, models, processing options, and transcript parser' },
+    { id: 'userRegistration', label: 'Registration', icon: 'person_add', description: 'Public signup, invite codes, and registration controls' },
+    { id: 'mapping', label: 'Mapping', icon: 'map', description: 'Geocoding providers, API keys, boundaries, and incident map options' },
+    { id: 'callNatures', label: 'Call Natures', icon: 'category', description: 'Incident categories, phrase matching, and OpenAI classification' },
+    { id: 'keywordLists', label: 'Keyword Lists', icon: 'format_list_bulleted', description: 'Keyword lists for real-time transcript alerting' },
+];
+
+/** Secondary chips for dense top-level tabs only. */
+const OPTIONS_SUB_NAV: Partial<Record<OptionsNavId, OptionsSubNavItem[]>> = {
+    alerts: [
+        { id: 'health', label: 'Retention & health' },
+        { id: 'transcriptionFailures', label: 'Transcription failures' },
+        { id: 'tone', label: 'Tone detection' },
+        { id: 'noAudio', label: 'No audio' },
+    ],
+    transcription: [
+        { id: 'provider', label: 'Provider' },
+        { id: 'processing', label: 'Processing' },
+        { id: 'quality', label: 'Quality' },
+        { id: 'parser', label: 'Parser' },
+    ],
+    notifications: [
+        { id: 'provider', label: 'Provider' },
+        { id: 'credentials', label: 'Credentials' },
+    ],
+    general: [
+        { id: 'display', label: 'Display' },
+        { id: 'clients', label: 'Clients & pruning' },
+        { id: 'sync', label: 'Config sync' },
+    ],
 };
 
 const OPTIONS_FIELD_LABELS: Record<string, string> = {
@@ -233,6 +290,7 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     reconnectionMaxBufferSize: 'Reconnection max buffer size',
     configSyncEnabled: 'Config sync',
     configSyncPath: 'Config sync path',
+    configSyncFileName: 'Config sync file name',
     stripePaywallEnabled: 'Stripe paywall',
     stripePublishableKey: 'Stripe publishable key',
     stripeSecretKey: 'Stripe secret key',
@@ -285,11 +343,16 @@ export interface UnsavedPanelChanges {
     selector: 'rdio-scanner-admin-options',
     templateUrl: './options.component.html',
     styleUrls: ['./options.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, OnDestroy, OnChanges {
     @Input() form: FormGroup | undefined;
     @Input() systemsForm: FormArray | undefined;
+    /** Transcript parser word lists / shorthand config (saved separately from options form). */
+    @Input() transcriptParserConfig: TranscriptConfig | null | undefined;
+    /** Keyword lists for transcript alerting (saved via their own API). */
+    @Input() keywordLists: any[] | null | undefined;
     private radioReferenceSubscription?: Subscription;
     private formChangeSubscription?: Subscription;
     private systemsChangeSubscription?: Subscription;
@@ -297,26 +360,15 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     private panelBaselines: Partial<Record<OptionsPanelId, string>> = {};
     public isEditingRadioReference = false;
     panelsReady = false;
+    activePanel: OptionsNavId = 'alerts';
+    activeSubPanel: string | null = OPTIONS_SUB_NAV.alerts?.[0]?.id ?? null;
+    readonly optionsNav = OPTIONS_NAV;
+    readonly optionsSubNav = OPTIONS_SUB_NAV;
     private originalRadioReferenceUsername = '';
     private originalRadioReferencePassword = '';
     faviconUrl: string = '';
     window = window;
-    
-    // Expansion panel state - all collapsed by default
-    generalExpanded = false;
-    brandingExpanded = false;
-    transcriptionExpanded = false;
-    alertsExpanded = false;
-    emailExpanded = false;
-    notificationsExpanded = false;
-    userRegistrationExpanded = false;
-    stripeExpanded = false;
-    thinlineServicesExpanded = false;
-    integrationsExpanded = false;
-    securityExpanded = false;
-    mappingExpanded = false;
-    callNaturesExpanded = false;
-    
+
     // Central Management Integration
     centralConnectionStatus: 'success' | 'error' | null = null;
     centralConnectionMessage: string = '';
@@ -562,6 +614,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         try {
             const cfg = await this.adminService.getMappingConfig();
             this.mappingForm.patchValue({
+                incidentMappingEnabled: cfg.incidentMappingEnabled ?? false,
                 geocodeCacheMaxAgeDays: cfg.geocodeCacheMaxAgeDays ?? 30,
                 autoLearnKnownPlaces: cfg.autoLearnKnownPlaces ?? false,
                 openAIModel: cfg.openAIModel || '',
@@ -602,7 +655,56 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     }
 
     goToUnsavedPanel(panelId: OptionsPanelId): void {
-        this.openPanel(`${panelId}Expanded`);
+        this.setActivePanel(panelId);
+    }
+
+    setActivePanel(id: OptionsNavId): void {
+        this.activePanel = id;
+        const subs = this.subNavFor(id);
+        this.activeSubPanel = subs[0]?.id ?? null;
+        this.cdr.markForCheck();
+        setTimeout(() => {
+            const el = document.getElementById('opt-panel-' + id);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 40);
+    }
+
+    setActiveSubPanel(id: string): void {
+        this.activeSubPanel = id;
+        this.cdr.markForCheck();
+    }
+
+    subNavFor(id: OptionsNavId): OptionsSubNavItem[] {
+        return this.optionsSubNav[id] ?? [];
+    }
+
+    isNavDirty(id: OptionsNavId): boolean {
+        if (id === 'callNatures') {
+            return this.isMappingDirty;
+        }
+        if (id === 'keywordLists') {
+            return false;
+        }
+        return this.isPanelDirty(id as OptionsPanelId);
+    }
+
+    panelTitle(id: OptionsNavId): string {
+        if (id === 'callNatures') {
+            return 'Call Natures';
+        }
+        if (id === 'keywordLists') {
+            return 'Keyword Lists';
+        }
+        if (id in OPTIONS_PANEL_LABELS) {
+            return OPTIONS_PANEL_LABELS[id as OptionsPanelId];
+        }
+        return this.optionsNav.find((n) => n.id === id)?.label || id;
+    }
+
+    panelDescription(id: OptionsNavId): string {
+        return this.optionsNav.find((n) => n.id === id)?.description || '';
     }
 
     /**
@@ -1132,6 +1234,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
     /** mappingForm booleans/selects that must persist via PUT /api/admin/mapping/config. */
     private static readonly MAPPING_AUTO_SAVE_KEYS = [
+        'incidentMappingEnabled',
         'autoLearnKnownPlaces',
         'mapBoundariesEnabled',
         'callNatureOpenAIClassify',
@@ -1209,16 +1312,17 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         return ctrl as FormGroup;
     }
 
-    /** Programmatically open a specific expansion panel (called by global search). */
+    /** Programmatically open a section (global search / unsaved jump). */
     openPanel(panelName: string): void {
-        const key = panelName as keyof this;
-        if (key in this) {
-            (this as any)[key] = true;
-            this.cdr.markForCheck();
-            setTimeout(() => {
-                const el = document.getElementById('opt-panel-' + panelName);
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 180);
+        // Supports "general", "generalExpanded", or "general:sync".
+        const cleaned = panelName.replace(/Expanded$/, '');
+        const [rawId, subId] = cleaned.split(':');
+        const id = rawId as OptionsNavId;
+        if (this.optionsNav.some((n) => n.id === id)) {
+            this.setActivePanel(id);
+            if (subId && this.subNavFor(id).some((s) => s.id === subId)) {
+                this.setActiveSubPanel(subId);
+            }
         }
     }
 
@@ -1232,6 +1336,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
     ngOnInit(): void {
         this.mappingForm = this.formBuilder.group({
+            incidentMappingEnabled: [false],
             geocodeCacheMaxAgeDays: [30],
             autoLearnKnownPlaces: [false],
             openAIModel: [''],
@@ -1295,21 +1400,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
     ngOnChanges(changes: SimpleChanges): void {
         if (changes['form'] && this.form) {
-            // Collapse all panels explicitly before hiding so they are in the right state when re-shown
-            this.generalExpanded = false;
-            this.brandingExpanded = false;
-            this.transcriptionExpanded = false;
-            this.alertsExpanded = false;
-            this.notificationsExpanded = false;
-            this.userRegistrationExpanded = false;
-            this.stripeExpanded = false;
-            this.thinlineServicesExpanded = false;
-            this.integrationsExpanded = false;
-            this.securityExpanded = false;
-            this.mappingExpanded = false;
-            this.callNaturesExpanded = false;
-            this.cdr.detectChanges(); // Force the hide to apply immediately
-
             this.setupRadioReferenceValidation();
             this.setInitialRadioReferenceValidation();
             this.storeOriginalCredentials();
@@ -2226,6 +2316,38 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                 this.refreshRelayBillingCatalog();
                 this.startRelayBillingWatch();
             }
+        });
+    }
+
+    /** Pick a folder on the ThinLine Radio server for config sync (not the admin browser's disk). */
+    browseConfigSyncPath(): void {
+        const initialPath = (this.form?.get('configSyncPath')?.value || '').trim();
+        const initialFileName = (this.form?.get('configSyncFileName')?.value || '').trim();
+        const dialogRef = this.dialog.open(ServerPathBrowseDialogComponent, {
+            width: '780px',
+            maxWidth: '94vw',
+            maxHeight: '90vh',
+            panelClass: 'admin-dialog-panel',
+            backdropClass: 'admin-dialog-backdrop',
+            autoFocus: 'first-tabbable',
+            data: {
+                initialPath,
+                initialFileName: initialFileName || 'ThinLineRadioV7-config.json',
+                title: 'Config sync location (server)',
+            },
+        });
+        dialogRef.afterClosed().subscribe((result: ServerPathBrowseDialogResult | null) => {
+            if (!result?.path || !this.form) {
+                return;
+            }
+            this.form.get('configSyncPath')?.setValue(result.path);
+            this.form.get('configSyncPath')?.markAsDirty();
+            if (result.fileName) {
+                this.form.get('configSyncFileName')?.setValue(result.fileName);
+                this.form.get('configSyncFileName')?.markAsDirty();
+            }
+            this.form.markAsDirty();
+            this.cdr.markForCheck();
         });
     }
 

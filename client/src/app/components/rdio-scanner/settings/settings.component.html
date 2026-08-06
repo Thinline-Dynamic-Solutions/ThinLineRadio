@@ -1,5 +1,46 @@
 <div class="settings-container">
+  <div class="settings-header">
+    <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" role="tab" class="settings-tab"
+        [class.active]="settingsTab === 'audio'"
+        [attr.aria-selected]="settingsTab === 'audio'"
+        (click)="setSettingsTab('audio')">
+        Audio
+      </button>
+      <button type="button" role="tab" class="settings-tab"
+        [class.active]="settingsTab === 'appearance'"
+        [attr.aria-selected]="settingsTab === 'appearance'"
+        (click)="setSettingsTab('appearance')">
+        Appearance
+      </button>
+      <button type="button" role="tab" class="settings-tab"
+        [class.active]="settingsTab === 'account'"
+        [attr.aria-selected]="settingsTab === 'account'"
+        (click)="setSettingsTab('account')">
+        Account
+      </button>
+    </div>
+  </div>
+
   <div class="settings-content">
+    @if (settingsTab === 'audio') {
+    <div class="settings-panel">
+      <div class="settings-tabs settings-tabs--sub" role="tablist" aria-label="Audio settings">
+        <button type="button" role="tab" class="settings-tab"
+          [class.active]="audioSection === 'livefeed'"
+          [attr.aria-selected]="audioSection === 'livefeed'"
+          (click)="setAudioSection('livefeed')">
+          Live Feed
+        </button>
+        <button type="button" role="tab" class="settings-tab"
+          [class.active]="audioSection === 'alerts'"
+          [attr.aria-selected]="audioSection === 'alerts'"
+          (click)="setAudioSection('alerts')">
+          Alerts
+        </button>
+      </div>
+
+      @if (audioSection === 'livefeed') {
     <div class="section livefeed-section">
       <h3>Live Feed Settings</h3>
       <p class="section-description">
@@ -54,12 +95,15 @@
           </p>
         }
       </div>
+    </div>
+      }
 
-      <div class="alert-sound-setting">
-        <h4>Alert Notification Sound</h4>
-        <p class="setting-description">
-          Choose a default sound to play when new scanner alerts arrive.
-        </p>
+      @if (audioSection === 'alerts') {
+    <div class="section alert-sound-setting">
+      <h3>Alert Notification Sound</h3>
+      <p class="section-description">
+        Choose a default sound to play when new scanner alerts arrive.
+      </p>
 
         <div class="sound-controls">
           <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
@@ -86,9 +130,9 @@
         </div>
       </div>
 
-      <div class="alert-sound-setting weather-alert-setting">
-        <h4>Severe Weather Alert Sound</h4>
-        <p class="setting-description">
+      <div class="section alert-sound-setting weather-alert-setting">
+        <h3>Severe Weather Alert Sound</h3>
+        <p class="section-description">
           Play a sound when new severe or extreme weather warnings appear in the header ticker for your ZIP code.
         </p>
 
@@ -101,7 +145,7 @@
           </mat-slide-toggle>
         </div>
 
-        <div class="setting-header">
+        <div class="setting-header setting-header--with-action">
           <mat-slide-toggle
             [(ngModel)]="weatherAlertTtsEnabled"
             (ngModelChange)="onWeatherAlertTtsChange()"
@@ -109,21 +153,19 @@
             color="primary">
             Read severe weather alerts aloud (text-to-speech)
           </mat-slide-toggle>
-        </div>
-        @if (!ttsSupported) {
-          <p class="setting-hint">
-            Text-to-speech isn't supported in this browser.
-          </p>
-        }
-        @if (ttsSupported) {
-          <div class="sound-actions">
+          @if (ttsSupported) {
             <button type="button" mat-stroked-button class="sound-action-btn"
               [disabled]="!weatherAlertTtsEnabled"
               (click)="previewWeatherAlertTts()">
               <mat-icon>record_voice_over</mat-icon>
               Test Voice
             </button>
-          </div>
+          }
+        </div>
+        @if (!ttsSupported) {
+          <p class="setting-hint">
+            Text-to-speech isn't supported in this browser.
+          </p>
         }
 
         <div class="sound-controls">
@@ -160,9 +202,9 @@
       </div>
 
       <!-- Per-channel alert sounds -->
-      <div class="per-channel-sounds-setting">
-        <h4>Per-Channel Alert Sounds</h4>
-        <p class="setting-description">
+      <div class="section per-channel-sounds-setting">
+        <h3>Per-Channel Alert Sounds</h3>
+        <p class="section-description">
           Override the alert sound for individual channels. Leave a channel on "Default" to use the sound above.
         </p>
 
@@ -260,8 +302,12 @@
           }
         }
       </div>
+      }
     </div>
+    }
 
+    @if (settingsTab === 'appearance') {
+    <div class="settings-panel">
     <div class="section display-section">
       <h3>Display Settings</h3>
       <p class="section-description">
@@ -375,11 +421,19 @@
         </div>
       }
     </div>
+    </div>
+    }
 
+    @if (settingsTab === 'account') {
+    <div class="settings-panel">
     <div class="section account-section">
       <h3>Account Information</h3>
       <p class="section-description">
-        Manage your account details and security settings.
+        @if (cmMode) {
+          Your listener account is managed on AlertPage.
+        } @else {
+          Manage your account details and security settings.
+        }
       </p>
 
       @if (loadingAccount) {
@@ -401,7 +455,7 @@
               <span class="info-value">{{ accountInfo.firstName }} {{ accountInfo.lastName }}</span>
             </div>
           }
-          @if (accountInfo.userGroupName && !accountInfo.memberships?.length) {
+          @if (!cmMode && accountInfo.userGroupName && !accountInfo.memberships?.length) {
             <div class="info-row">
               <span class="info-label">Group:</span>
               <span class="info-value">
@@ -426,22 +480,40 @@
           }
         </div>
       }
+
+      @if (cmMode) {
+        <div class="cm-manage-account">
+          <p class="section-description">
+            Change email, password, subscription, and billing on AlertPage.
+          </p>
+          <button mat-raised-button color="primary" type="button"
+            (click)="openCMManageAccount()"
+            [disabled]="openingCMAccount">
+            @if (openingCMAccount) {
+              <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+            } @else {
+              <mat-icon>open_in_new</mat-icon>
+            }
+            {{ openingCMAccount ? 'Opening…' : 'Manage account on AlertPage' }}
+          </button>
+        </div>
+      }
     </div>
 
-    @if (accountInfo?.memberships?.length || accountInfo?.availableTiers?.length) {
+    @if (!cmMode && (accountInfo?.memberships?.length || accountInfo?.availableTiers?.length)) {
       <div class="section tiers-section">
         <h3>Your Tiers</h3>
         <p class="section-description">
-          Public registration tiers you can join. Add or remove tiers to change which systems you can access — paid changes are billed automatically.
+          Your current access is listed below. To subscribe, choose one available paid tier and a plan.
         </p>
         @if (accountInfo.memberships?.length) {
           <div class="tier-list">
-            @for (m of accountInfo.memberships; track m) {
+            @for (m of accountInfo.memberships; track m.groupId) {
               <div class="tier-row">
                 <div class="tier-main">
                   <span class="tier-name">{{ m.name }}</span>
                   @if (m.isPrimary) {
-                    <span class="tier-badge tier-badge--primary">Primary</span>
+                    <span class="tier-badge tier-badge--primary">Current</span>
                   }
                   @if (m.paid) {
                     <span class="tier-badge tier-badge--paid">Paid</span>
@@ -466,21 +538,32 @@
         }
         @if (accountInfo.availableTiers?.length) {
           <div class="add-tier">
-            <h4>Available tiers</h4>
-            <p class="section-description">Other public tiers you can add to your account.</p>
-            @for (t of accountInfo.availableTiers; track t) {
-              <div class="tier-row tier-row--available">
+            <h4>Choose a plan</h4>
+            <p class="section-description">Select one tier, then pick Yearly or Monthly, then Subscribe.</p>
+            @for (t of accountInfo.availableTiers; track t.groupId) {
+              <div class="tier-row tier-row--available"
+                   [class.tier-row--selected]="selectedAvailableTierId === t.groupId"
+                   (click)="selectAvailableTier(t.groupId)">
                 <div class="tier-main">
-                  <span class="tier-name">{{ t.name }}</span>
+                  <label class="tier-radio">
+                    <input type="radio" name="availableTier"
+                           [checked]="selectedAvailableTierId === t.groupId"
+                           (change)="selectAvailableTier(t.groupId)"
+                           (click)="$event.stopPropagation()">
+                    <span class="tier-name">{{ t.name }}</span>
+                  </label>
                   @if (t.description) {
                     <span class="tier-desc">{{ t.description }}</span>
                   }
-                  @if (t.billingEnabled && t.pricingOptions?.length) {
+                  @if (selectedAvailableTierId === t.groupId && t.billingEnabled && t.pricingOptions?.length) {
                     <div class="tier-price-chips">
-                      @for (o of t.pricingOptions; track o) {
-                        <span class="tier-price-chip">
+                      @for (o of t.pricingOptions; track o.priceId) {
+                        <button type="button"
+                          class="tier-price-chip"
+                          [class.tier-price-chip--selected]="selectedTierPrice[t.groupId] === o.priceId"
+                          (click)="setTierPrice(t.groupId, o.priceId); $event.stopPropagation()">
                           {{ o.label }} — {{ o.amount }}
-                        </span>
+                        </button>
                       }
                     </div>
                   }
@@ -488,29 +571,23 @@
                     <span class="tier-badge">Free</span>
                   }
                 </div>
-                <div class="add-tier-controls">
-                  @if (t.billingEnabled && t.pricingOptions?.length > 1) {
-                    <select
-                      [(ngModel)]="selectedTierPrice[t.groupId]">
-                      @for (o of t.pricingOptions; track o) {
-                        <option [ngValue]="o.priceId">{{ o.label }} — {{ o.amount }}</option>
-                      }
-                    </select>
-                  }
-                  <button mat-raised-button color="primary"
-                    [disabled]="addingTier || (t.billingEnabled && !selectedTierPrice[t.groupId])"
-                    (click)="addTier(t.groupId, selectedTierPrice[t.groupId])">
-                    <mat-icon>add</mat-icon>
-                    Add
-                  </button>
-                </div>
               </div>
             }
+            <div class="add-tier-actions">
+              <button mat-raised-button color="primary"
+                type="button"
+                [disabled]="!canAddSelectedTier()"
+                (click)="addSelectedTier()">
+                <mat-icon>add_card</mat-icon>
+                Subscribe
+              </button>
+            </div>
           </div>
         }
       </div>
     }
 
+    @if (!cmMode) {
     <div class="section email-section">
       <h3>Change Email</h3>
       <p class="section-description">
@@ -833,6 +910,9 @@
         </div>
       </div>
     }
+    }
+    </div>
+    }
   </div>
 
   <!-- Stripe Checkout Modal -->
@@ -851,6 +931,11 @@
             (checkoutError)="onCheckoutError($event)"
             (checkoutCancel)="onCheckoutCancel()">
           </rdio-scanner-stripe-checkout>
+        } @else {
+          <div class="checkout-missing-config">
+            <p>Billing config is still loading. Close this and try Subscribe again in a moment.</p>
+            <button mat-raised-button color="primary" type="button" (click)="onCheckoutCancel()">Close</button>
+          </div>
         }
       </div>
     </div>

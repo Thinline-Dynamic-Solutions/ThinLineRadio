@@ -7,9 +7,9 @@
   }
 
   <div class="incident-map-toolbar">
-    <div class="toolbar-row toolbar-row--time">
+    <div class="toolbar-row toolbar-row--primary">
       <div class="toolbar-group toolbar-group--time">
-        <span class="toolbar-label">Time range</span>
+        <span class="toolbar-label">Time</span>
         <div class="toolbar-time-presets">
           @for (opt of timePresetOptions; track opt) {
             <button type="button"
@@ -22,32 +22,6 @@
         </div>
       </div>
 
-      @if (showCustomDateInputs()) {
-        <div class="toolbar-group toolbar-group--dates">
-          <span class="toolbar-label">Start</span>
-          <input class="toolbar-control toolbar-control--date"
-            type="date"
-            [max]="customEndDate || maxDateInput"
-            [ngModel]="customStartDate"
-            (ngModelChange)="onCustomStartDateChange($event)">
-        </div>
-      }
-
-      @if (showCustomDateInputs()) {
-        <div class="toolbar-group toolbar-group--dates">
-          <span class="toolbar-label">End</span>
-          <input class="toolbar-control toolbar-control--date"
-            type="date"
-            [min]="customStartDate"
-            [max]="maxDateInput"
-            [ngModel]="customEndDate"
-            (ngModelChange)="onCustomEndDateChange($event)">
-        </div>
-      }
-
-    </div>
-
-    <div class="toolbar-row toolbar-row--filters">
       <div class="toolbar-group">
         <span class="toolbar-label">System</span>
         <select class="toolbar-control"
@@ -94,47 +68,19 @@
         </div>
       </div>
 
-      <div class="toolbar-group toolbar-group--map">
-        <span class="toolbar-label">Map style</span>
-        <select class="toolbar-control"
-          [ngModel]="mapStyle"
-          (ngModelChange)="onMapStyleChange($event)">
-          @for (opt of mapStyleOptions; track opt) {
-            <option [value]="opt.id">{{ opt.label }}</option>
+      <div class="toolbar-group toolbar-group--tray-toggle">
+        <span class="toolbar-label">More</span>
+        <button type="button"
+          class="toolbar-preset-btn toolbar-more-btn"
+          [class.active]="moreFiltersOpen || moreFiltersActive"
+          [attr.aria-expanded]="moreFiltersOpen"
+          (click)="toggleMoreFilters()">
+          <mat-icon>{{ moreFiltersOpen ? 'expand_less' : 'tune' }}</mat-icon>
+          Map &amp; weather
+          @if (moreFiltersActive && !moreFiltersOpen) {
+            <span class="toolbar-more-dot" aria-hidden="true"></span>
           }
-        </select>
-      </div>
-
-      <div class="toolbar-group toolbar-group--weather">
-        <span class="toolbar-label">Weather</span>
-        <div class="toolbar-weather-toggles">
-          <button type="button"
-            class="toolbar-preset-btn"
-            [class.active]="weatherLayers.radar"
-            (click)="onWeatherLayerToggle('radar')">
-            Radar
-          </button>
-          @if (weatherLayers.radar) {
-            <button type="button"
-              class="toolbar-preset-btn toolbar-preset-btn--icon"
-              [class.active]="radarPlaying"
-              (click)="toggleRadarPlayback()"
-              [matTooltip]="radarPlaying ? 'Pause radar loop' : 'Play radar loop'">
-              <mat-icon>{{ radarPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
-            </button>
-          }
-          @if (weatherLayers.radar && radarFrameLabel) {
-            <span class="toolbar-radar-time">
-              {{ radarFrameLabel }}
-            </span>
-          }
-          <button type="button"
-            class="toolbar-preset-btn"
-            [class.active]="weatherLayers.alerts"
-            (click)="onWeatherLayerToggle('alerts')">
-            Alerts
-          </button>
-        </div>
+        </button>
       </div>
 
       @if (hasActiveFilters) {
@@ -142,11 +88,80 @@
           <button type="button"
             class="toolbar-reset-btn"
             (click)="clearAllFilters()">
-            Clear filters
+            Clear
           </button>
         </div>
       }
     </div>
+
+    @if (showCustomDateInputs()) {
+      <div class="toolbar-row toolbar-row--dates">
+        <div class="toolbar-group toolbar-group--dates">
+          <span class="toolbar-label">Start</span>
+          <input class="toolbar-control toolbar-control--date"
+            type="date"
+            [max]="customEndDate || maxDateInput"
+            [ngModel]="customStartDate"
+            (ngModelChange)="onCustomStartDateChange($event)">
+        </div>
+        <div class="toolbar-group toolbar-group--dates">
+          <span class="toolbar-label">End</span>
+          <input class="toolbar-control toolbar-control--date"
+            type="date"
+            [min]="customStartDate"
+            [max]="maxDateInput"
+            [ngModel]="customEndDate"
+            (ngModelChange)="onCustomEndDateChange($event)">
+        </div>
+      </div>
+    }
+
+    @if (moreFiltersOpen) {
+      <div class="toolbar-row toolbar-row--more" role="region" aria-label="Map style and weather">
+        <div class="toolbar-group toolbar-group--map">
+          <span class="toolbar-label">Map style</span>
+          <select class="toolbar-control"
+            [ngModel]="mapStyle"
+            (ngModelChange)="onMapStyleChange($event)">
+            @for (opt of mapStyleOptions; track opt) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="toolbar-group toolbar-group--weather">
+          <span class="toolbar-label">Weather</span>
+          <div class="toolbar-weather-toggles">
+            <button type="button"
+              class="toolbar-preset-btn"
+              [class.active]="weatherLayers.radar"
+              (click)="onWeatherLayerToggle('radar')">
+              Radar
+            </button>
+            @if (weatherLayers.radar) {
+              <button type="button"
+                class="toolbar-preset-btn toolbar-preset-btn--icon"
+                [class.active]="radarPlaying"
+                (click)="toggleRadarPlayback()"
+                [matTooltip]="radarPlaying ? 'Pause radar loop' : 'Play radar loop'">
+                <mat-icon>{{ radarPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+              </button>
+            }
+            @if (weatherLayers.radar && radarFrameLabel) {
+              <span class="toolbar-radar-time">
+                {{ radarFrameLabel }}
+              </span>
+            }
+            <button type="button"
+              class="toolbar-preset-btn"
+              [class.active]="weatherLayers.alerts"
+              (click)="onWeatherLayerToggle('alerts')">
+              Alerts
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   </div>
 
   <div class="incident-map-layout">

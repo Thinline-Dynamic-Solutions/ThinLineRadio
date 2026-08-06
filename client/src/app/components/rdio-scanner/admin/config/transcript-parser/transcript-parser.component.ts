@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
@@ -44,6 +44,7 @@ const emptyConfig = (): TranscriptConfig => ({
     selector: 'rdio-scanner-admin-transcript-parser',
     templateUrl: './transcript-parser.component.html',
     styleUrls: ['./transcript-parser.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAdminTranscriptParserComponent implements OnInit {

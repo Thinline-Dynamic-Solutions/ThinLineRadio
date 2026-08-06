@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  * ****************************************************************************
  */
+:host {
+    display: block;
+}
+
 .system-health-container {
     padding: 12px 14px 14px;
 }
@@ -152,48 +156,147 @@
 .alert-group {
     background: #161616;
     border-radius: 6px;
-    padding: 8px 10px;
     border: 1px solid #2a2a2a;
+    overflow: hidden;
+
+    &.severity-critical {
+        border-color: rgba(220, 53, 69, 0.55);
+    }
+
+    &.severity-error {
+        border-color: rgba(220, 53, 69, 0.4);
+    }
+
+    &.severity-warning {
+        border-color: rgba(255, 193, 7, 0.4);
+    }
+
+    &.severity-info {
+        border-color: rgba(23, 162, 184, 0.35);
+    }
+
+    &.severity-clear,
+    &.is-clear {
+        border-color: rgba(76, 175, 80, 0.3);
+    }
 
     .alert-group-header {
         display: flex;
+        width: 100%;
         justify-content: space-between;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 8px;
-        padding-bottom: 6px;
-        border-bottom: 1px solid #2a2a2a;
+        gap: 10px;
+        margin: 0;
+        padding: 10px 12px;
+        border: none;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        box-sizing: border-box;
+
+        &.is-disabled {
+            cursor: default;
+        }
+
+        &:hover:not(.is-disabled) {
+            background: rgba(255, 255, 255, 0.03);
+        }
 
         h3 {
+            flex: 1;
+            min-width: 0;
             margin: 0;
             font-size: 13px;
             font-weight: 600;
             color: #e0e0e0;
         }
 
-        .alert-group-actions {
-            display: flex;
-            align-items: center;
-            gap: 6px;
+        .alert-group-chevron {
             flex-shrink: 0;
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+            color: #888;
+        }
+    }
+
+    &.is-clear .alert-group-chevron {
+        color: #4caf50;
+    }
+
+    &.severity-critical .alert-group-chevron,
+    &.severity-error .alert-group-chevron {
+        color: #ef9a9a;
+    }
+
+    &.severity-warning .alert-group-chevron {
+        color: #ffc107;
+    }
+
+    &.is-expanded:not(.is-clear) .alert-group-header {
+        border-bottom: 1px solid #2a2a2a;
+    }
+
+    .alert-group-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+
+    .alert-status {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: #2a2a2a;
+        color: #bbb;
+        white-space: nowrap;
+
+        &[data-severity='clear'] {
+            background: rgba(76, 175, 80, 0.15);
+            color: #81c784;
         }
 
-        .alert-count {
-            font-size: 11px;
-            color: #bbb;
-            background: #2a2a2a;
-            padding: 2px 8px;
-            border-radius: 10px;
-            min-width: 20px;
-            text-align: center;
+        &[data-severity='critical'],
+        &[data-severity='error'] {
+            background: rgba(220, 53, 69, 0.18);
+            color: #ef9a9a;
         }
 
-        button mat-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
-            margin-right: 2px;
+        &[data-severity='warning'] {
+            background: rgba(255, 193, 7, 0.15);
+            color: #ffc107;
         }
+
+        &[data-severity='info'] {
+            background: rgba(23, 162, 184, 0.15);
+            color: #4dd0e1;
+        }
+    }
+
+    .alert-count {
+        font-size: 11px;
+        color: #bbb;
+        background: #2a2a2a;
+        padding: 2px 8px;
+        border-radius: 10px;
+        min-width: 20px;
+        text-align: center;
+    }
+
+    .alert-group-actions button mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        margin-right: 2px;
+    }
+
+    .alert-group-body {
+        padding: 8px 10px 10px;
     }
 
     .alert-item {

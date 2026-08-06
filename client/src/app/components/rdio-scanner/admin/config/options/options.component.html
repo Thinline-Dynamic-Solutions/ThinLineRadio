@@ -63,23 +63,50 @@
         </button>
       </div>
     </ng-template>
+    <nav class="options-chip-nav" aria-label="Options sections">
+      @for (item of optionsNav; track item.id) {
+        <button type="button"
+          class="options-chip"
+          [class.active]="activePanel === item.id"
+          [class.dirty]="isNavDirty(item.id)"
+          (click)="setActivePanel(item.id)">
+          <mat-icon>{{ item.icon }}</mat-icon>
+          <span>{{ item.label }}</span>
+          @if (isNavDirty(item.id)) {
+            <span class="options-chip-dot" aria-label="Unsaved changes"></span>
+          }
+        </button>
+      }
+    </nav>
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- ALERT & HEALTH MONITORING SETTINGS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-alertsExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="alertsExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>notifications_active</mat-icon>
-          <span>Alert & Health Monitoring</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          System health alerts, transcription failures, tone detection, no audio monitoring
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'alerts') {
+    <section class="options-section" id="opt-panel-alerts">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('alerts') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('alerts') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'alerts' }"></ng-container>
-        <div class="row">
+      </header>
+      @if (subNavFor('alerts'); as subs) {
+        @if (subs.length) {
+          <nav class="options-subchip-nav" aria-label="Alerts subsections">
+            @for (sub of subs; track sub.id) {
+              <button type="button"
+                class="options-subchip"
+                [class.active]="activeSubPanel === sub.id"
+                (click)="setActiveSubPanel(sub.id)">
+                {{ sub.label }}
+              </button>
+            }
+          </nav>
+        }
+      }
+<div class="panel-content">
+        @if (activeSubPanel === 'health') {
+<div class="row">
           <p>
             <span class="mat-body">Alert Retention Days</span><br>
             <span class="mat-caption">Number of days to retain alerts before automatic deletion. Set to 0 to keep forever.</span>
@@ -97,8 +124,10 @@
             <mat-slide-toggle color="primary" formControlName="systemHealthAlertsEnabled"></mat-slide-toggle>
           </div>
         </div>
-        @if (form?.get('systemHealthAlertsEnabled')?.value) {
-          <!-- Transcription Failure Alerts -->
+        }
+        @if (activeSubPanel === 'transcriptionFailures') {
+          @if (form?.get('systemHealthAlertsEnabled')?.value) {
+<!-- Transcription Failure Alerts -->
           <div class="row" style="margin-top: 16px;">
             <p>
               <span class="mat-body"><strong>Transcription Failure Alerts</strong></span><br>
@@ -141,7 +170,13 @@
               </mat-form-field>
             </div>
           }
-          <!-- Tone Detection Alerts -->
+          } @else {
+          <p class="options-subpanel-hint">Enable <strong>System Health Alerts</strong> under Retention &amp; health to configure this section.</p>
+          }
+        }
+        @if (activeSubPanel === 'tone') {
+          @if (form?.get('systemHealthAlertsEnabled')?.value) {
+<!-- Tone Detection Alerts -->
           <div class="row" style="margin-top: 16px;">
             <p>
               <span class="mat-body"><strong>Tone Detection Alerts</strong></span><br>
@@ -249,7 +284,13 @@
               </label>
             </div>
           </div>
-          <!-- No Audio Alerts -->
+          } @else {
+          <p class="options-subpanel-hint">Enable <strong>System Health Alerts</strong> under Retention &amp; health to configure this section.</p>
+          }
+        }
+        @if (activeSubPanel === 'noAudio') {
+          @if (form?.get('systemHealthAlertsEnabled')?.value) {
+<!-- No Audio Alerts -->
           <div class="row" style="margin-top: 16px;">
             <p>
               <span class="mat-body"><strong>No Audio Alerts</strong></span><br>
@@ -281,7 +322,6 @@
               </mat-form-field>
             </div>
           }
-        }
         <!-- Per-System No Audio Settings Table -->
         @if (form?.get('noAudioAlertsEnabled')?.value && systemsForm && systemsForm.length > 0) {
           <div style="margin-top: 24px;">
@@ -322,25 +362,27 @@
             </table>
           </div>
         }
+          } @else {
+          <p class="options-subpanel-hint">Enable <strong>System Health Alerts</strong> under Retention &amp; health to configure this section.</p>
+          }
+        }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- AUDIO SETTINGS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-securityExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="securityExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>graphic_eq</mat-icon>
-          <span>Audio Settings</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Audio conversion, duplicate detection, encryption, download limits
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'security') {
+    <section class="options-section" id="opt-panel-security">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('security') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('security') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'security' }"></ng-container>
-        <!-- Audio Conversion -->
+      </header>
+<div class="panel-content">
+<!-- Audio Conversion -->
         <div class="row">
           <p>
             <span class="mat-body">Audio Conversion</span><br>
@@ -482,24 +524,22 @@
           </div>
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- BRANDING -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-brandingExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="brandingExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>brush</mat-icon>
-          <span>Branding</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Instance labels, logos, favicon, visual identity
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'branding') {
+    <section class="options-section" id="opt-panel-branding">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('branding') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('branding') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'branding' }"></ng-container>
-        <div class="row">
+      </header>
+<div class="panel-content">
+<div class="row">
           <p>
             <span class="mat-body">Branding Label</span><br>
             <span class="mat-caption">A simple line of text displayed above the main screen to help identify the Thinline Radio instance.</span>
@@ -597,24 +637,37 @@
           </div>
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- PUSH NOTIFICATIONS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-notificationsExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="notificationsExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>email</mat-icon>
-          <span>Email</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Configure email service settings
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'notifications') {
+    <section class="options-section" id="opt-panel-notifications">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('notifications') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('notifications') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'notifications' }"></ng-container>
-        <!-- Email Service -->
+      </header>
+      @if (subNavFor('notifications'); as subs) {
+        @if (subs.length) {
+          <nav class="options-subchip-nav" aria-label="Email subsections">
+            @for (sub of subs; track sub.id) {
+              <button type="button"
+                class="options-subchip"
+                [class.active]="activeSubPanel === sub.id"
+                (click)="setActiveSubPanel(sub.id)">
+                {{ sub.label }}
+              </button>
+            }
+          </nav>
+        }
+      }
+<div class="panel-content">
+        @if (activeSubPanel === 'provider') {
+<!-- Email Service -->
         <div class="row">
           <p>
             <span class="mat-body">Email Service Enabled</span><br>
@@ -638,7 +691,65 @@
               </mat-select>
             </mat-form-field>
           </div>
-          <!-- SendGrid Configuration -->
+          <!-- Common Email Settings -->
+          <div class="row">
+            <p>
+              <span class="mat-body">From Email Address</span><br>
+              <span class="mat-caption">Email address that will appear as the sender.</span>
+            </p>
+            <mat-form-field floatLabel="auto">
+              <input type="email" matInput formControlName="emailSmtpFromEmail" placeholder="noreply@example.com" autocomplete="off">
+            </mat-form-field>
+          </div>
+          <div class="row">
+            <p>
+              <span class="mat-body">From Name</span><br>
+              <span class="mat-caption">Display name that will appear as the sender.</span>
+            </p>
+            <mat-form-field floatLabel="auto">
+              <input type="text" matInput formControlName="emailSmtpFromName" placeholder="Thinline Radio" autocomplete="off">
+            </mat-form-field>
+          </div>
+          <!-- Test Email -->
+          <div class="row" style="margin-top: 24px;">
+            <div style="width: 100%; padding: 20px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px;">
+              <h4 style="margin: 0 0 8px 0; font-size: 15px; font-weight: 500; color: #e0e0e0;">Test Email Configuration</h4>
+              <p style="margin: 0 0 16px 0; font-size: 13px; color: #aaa;">
+                Send a test email to verify your email service is configured correctly.
+              </p>
+              <div style="display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap;">
+                <mat-form-field appearance="outline" style="flex: 1; min-width: 250px;">
+                  <mat-label>Recipient Email</mat-label>
+                  <input matInput type="email" [(ngModel)]="testEmailAddress" [ngModelOptions]="{standalone: true}" placeholder="test@example.com" autocomplete="off">
+                  <mat-hint>Email address to send the test email to</mat-hint>
+                </mat-form-field>
+                <button mat-raised-button color="primary" type="button" (click)="sendTestEmail()" [disabled]="sendingTestEmail || !testEmailAddress">
+                  @if (!sendingTestEmail) {
+                    <mat-icon>send</mat-icon>
+                  }
+                  @if (sendingTestEmail) {
+                    <mat-spinner diameter="18" style="display:inline-block;"></mat-spinner>
+                  }
+                  <span style="margin-left: 8px;">{{ sendingTestEmail ? 'Sending...' : 'Send Test Email' }}</span>
+                </button>
+              </div>
+              @if (testEmailError) {
+                <div style="margin-top: 12px; padding: 12px; background-color: rgba(244,67,54,0.1); border: 1px solid #c62828; border-radius: 4px; color: #ef9a9a;">
+                  <strong>Error:</strong> {{ testEmailError }}
+                </div>
+              }
+              @if (testEmailSuccess) {
+                <div style="margin-top: 12px; padding: 12px; background-color: rgba(76,175,80,0.1); border: 1px solid #2e7d32; border-radius: 4px; color: #a5d6a7;">
+                  <strong>Success:</strong> {{ testEmailSuccess }}
+                </div>
+              }
+            </div>
+          </div>
+        }
+        }
+        @if (activeSubPanel === 'credentials') {
+          @if (form?.get('emailServiceEnabled')?.value) {
+<!-- SendGrid Configuration -->
           @if (form?.get('emailProvider')?.value === 'sendgrid') {
             <div class="row">
               <p>
@@ -754,82 +865,29 @@
               </div>
             </div>
           }
-          <!-- Common Email Settings -->
-          <div class="row">
-            <p>
-              <span class="mat-body">From Email Address</span><br>
-              <span class="mat-caption">Email address that will appear as the sender.</span>
-            </p>
-            <mat-form-field floatLabel="auto">
-              <input type="email" matInput formControlName="emailSmtpFromEmail" placeholder="noreply@example.com" autocomplete="off">
-            </mat-form-field>
-          </div>
-          <div class="row">
-            <p>
-              <span class="mat-body">From Name</span><br>
-              <span class="mat-caption">Display name that will appear as the sender.</span>
-            </p>
-            <mat-form-field floatLabel="auto">
-              <input type="text" matInput formControlName="emailSmtpFromName" placeholder="Thinline Radio" autocomplete="off">
-            </mat-form-field>
-          </div>
-          <!-- Test Email -->
-          <div class="row" style="margin-top: 24px;">
-            <div style="width: 100%; padding: 20px; background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px;">
-              <h4 style="margin: 0 0 8px 0; font-size: 15px; font-weight: 500; color: #e0e0e0;">Test Email Configuration</h4>
-              <p style="margin: 0 0 16px 0; font-size: 13px; color: #aaa;">
-                Send a test email to verify your email service is configured correctly.
-              </p>
-              <div style="display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap;">
-                <mat-form-field appearance="outline" style="flex: 1; min-width: 250px;">
-                  <mat-label>Recipient Email</mat-label>
-                  <input matInput type="email" [(ngModel)]="testEmailAddress" [ngModelOptions]="{standalone: true}" placeholder="test@example.com" autocomplete="off">
-                  <mat-hint>Email address to send the test email to</mat-hint>
-                </mat-form-field>
-                <button mat-raised-button color="primary" type="button" (click)="sendTestEmail()" [disabled]="sendingTestEmail || !testEmailAddress">
-                  @if (!sendingTestEmail) {
-                    <mat-icon>send</mat-icon>
-                  }
-                  @if (sendingTestEmail) {
-                    <mat-spinner diameter="18" style="display:inline-block;"></mat-spinner>
-                  }
-                  <span style="margin-left: 8px;">{{ sendingTestEmail ? 'Sending...' : 'Send Test Email' }}</span>
-                </button>
-              </div>
-              @if (testEmailError) {
-                <div style="margin-top: 12px; padding: 12px; background-color: rgba(244,67,54,0.1); border: 1px solid #c62828; border-radius: 4px; color: #ef9a9a;">
-                  <strong>Error:</strong> {{ testEmailError }}
-                </div>
-              }
-              @if (testEmailSuccess) {
-                <div style="margin-top: 12px; padding: 12px; background-color: rgba(76,175,80,0.1); border: 1px solid #2e7d32; border-radius: 4px; color: #a5d6a7;">
-                  <strong>Success:</strong> {{ testEmailSuccess }}
-                </div>
-              }
-            </div>
-          </div>
+          } @else {
+            <p class="options-subpanel-hint">Enable <strong>Email Service</strong> under Provider to configure credentials.</p>
+          }
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- INTEGRATIONS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- THINLINE RADIO SERVICES -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-thinlineServicesExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="thinlineServicesExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>hub</mat-icon>
-          <span>Thinline Radio Services</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Relay server, push notifications, geocoding, and add-on plans
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'thinlineServices') {
+    <section class="options-section" id="opt-panel-thinlineServices">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('thinlineServices') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('thinlineServices') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'thinlineServices' }"></ng-container>
-        <!-- Relay Server -->
+      </header>
+<div class="panel-content">
+<!-- Relay Server -->
         <div class="row">
           <p>
             <span class="mat-body">Thinline Relay Server</span><br>
@@ -876,7 +934,7 @@
               <span class="mat-caption">Relay server API key is configured.</span>
             </p>
             <mat-chip-set>
-              <mat-chip color="accent" selected>
+              <mat-chip color="accent" highlighted>
                 <mat-icon>check_circle</mat-icon>
                 Connected
               </mat-chip>
@@ -969,7 +1027,7 @@
                 </div>
                 <div class="relay-billing-plan-actions">
                   <mat-chip-set>
-                    <mat-chip [color]="planStatusColor(plan.status)" selected>
+                    <mat-chip [color]="planStatusColor(plan.status)" highlighted>
                       <mat-icon>{{ plan.subscribed ? 'check_circle' : (plan.status === 'past_due' ? 'error' : 'radio_button_unchecked') }}</mat-icon>
                       {{ planStatusLabel(plan.status, plan.includedWithGeocoding) }}
                     </mat-chip>
@@ -999,24 +1057,22 @@
           </div>
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- EXTERNAL INTEGRATIONS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-integrationsExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="integrationsExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>integration_instructions</mat-icon>
-          <span>External Integrations</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          OpenAI, Gemini, and Radio Reference
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'integrations') {
+    <section class="options-section" id="opt-panel-integrations">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('integrations') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('integrations') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'integrations' }"></ng-container>
-        <!-- OpenAI Integration -->
+      </header>
+<div class="panel-content">
+<!-- OpenAI Integration -->
         <div id="opt-openai-integration" class="row">
           <p>
             <span class="mat-body">OpenAI</span><br>
@@ -1163,24 +1219,37 @@
           }
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- GENERAL SETTINGS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-generalExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="generalExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>settings</mat-icon>
-          <span>General Settings</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Time format, branding, playback, system defaults
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'general') {
+    <section class="options-section" id="opt-panel-general">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('general') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('general') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'general' }"></ng-container>
-        <div class="row">
+      </header>
+      @if (subNavFor('general'); as subs) {
+        @if (subs.length) {
+          <nav class="options-subchip-nav" aria-label="General subsections">
+            @for (sub of subs; track sub.id) {
+              <button type="button"
+                class="options-subchip"
+                [class.active]="activeSubPanel === sub.id"
+                (click)="setActiveSubPanel(sub.id)">
+                {{ sub.label }}
+              </button>
+            }
+          </nav>
+        }
+      }
+<div class="panel-content">
+        @if (activeSubPanel === 'display') {
+<div class="row">
           <p>
             <span class="mat-body">12-Hour Time Format</span><br>
             <span class="mat-caption">Display time stamp in 12-hour format.</span>
@@ -1241,7 +1310,9 @@
             </mat-select>
           </mat-form-field>
         </div>
-        <div class="row">
+                }
+        @if (activeSubPanel === 'clients') {
+<div class="row">
           <p>
             <span class="mat-body">Maximum Clients</span><br>
             <span class="mat-caption">Maximum number of concurrent WebSocket clients. Set to 0 for unlimited.</span>
@@ -1343,7 +1414,9 @@
             <mat-hint>Recommended: 50-200 calls</mat-hint>
           </mat-form-field>
         </div>
-        <div class="row">
+                }
+        @if (activeSubPanel === 'sync') {
+<div class="row">
           <p>
             <span class="mat-body">Config Sync to Filesystem</span><br>
             <span class="mat-caption">Automatically write config.json to disk after every save. Useful for backups or GitOps workflows.</span>
@@ -1355,33 +1428,46 @@
         @if (form?.get('configSyncEnabled')?.value) {
           <div class="row">
             <p>
-              <span class="mat-body">Config Sync Path</span><br>
-              <span class="mat-caption">Path where config.json will be written (relative to TLR base directory or absolute). Leave empty for default location.</span>
+              <span class="mat-body">Config Sync Folder</span><br>
+              <span class="mat-caption">Folder on the ThinLine Radio <strong>server</strong> where the config file is written (absolute or relative to the TLR base directory).</span>
             </p>
-            <mat-form-field floatLabel="auto">
-              <input type="text" matInput formControlName="configSyncPath" placeholder="e.g., /backups/config.json" autocomplete="off">
+            <div class="config-sync-path-row">
+              <mat-form-field floatLabel="auto" class="config-sync-path-field">
+                <input type="text" matInput formControlName="configSyncPath" placeholder="e.g., /backups/config" autocomplete="off">
+              </mat-form-field>
+              <button mat-stroked-button type="button" (click)="browseConfigSyncPath()">
+                <mat-icon>folder_open</mat-icon>
+                Browse…
+              </button>
+            </div>
+          </div>
+          <div class="row">
+            <p>
+              <span class="mat-body">Config Sync File Name</span><br>
+              <span class="mat-caption">File name written inside that folder (for example <code>ThinLineRadioV7-config.json</code>).</span>
+            </p>
+            <mat-form-field floatLabel="auto" class="config-sync-path-field">
+              <input type="text" matInput formControlName="configSyncFileName" placeholder="ThinLineRadioV7-config.json" autocomplete="off">
             </mat-form-field>
           </div>
-        }
+        }        }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- STRIPE PAYMENTS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-stripeExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="stripeExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>payment</mat-icon>
-          <span>Stripe Payments</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Stripe subscription paywall, API keys, webhook configuration
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'stripe') {
+    <section class="options-section" id="opt-panel-stripe">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('stripe') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('stripe') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'stripe' }"></ng-container>
-        <!-- Stripe Paywall -->
+      </header>
+<div class="panel-content">
+<!-- Stripe Paywall -->
         <div class="row">
           <p>
             <span class="mat-body">Stripe Paywall Enabled</span><br>
@@ -1439,24 +1525,39 @@
           </div>
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- TRANSCRIPTION SETTINGS -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-transcriptionExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="transcriptionExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>transcribe</mat-icon>
-          <span>Transcription Settings</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Speech-to-text configuration, providers, and audio enhancement
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
-        <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'transcription' }"></ng-container>
-        <div class="row">
+@if (activePanel === 'transcription') {
+    <section class="options-section" id="opt-panel-transcription">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('transcription') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('transcription') }}</p>
+        </div>
+        @if (activeSubPanel !== 'parser') {
+          <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'transcription' }"></ng-container>
+        }
+      </header>
+      @if (subNavFor('transcription'); as subs) {
+        @if (subs.length) {
+          <nav class="options-subchip-nav" aria-label="Transcription subsections">
+            @for (sub of subs; track sub.id) {
+              <button type="button"
+                class="options-subchip"
+                [class.active]="activeSubPanel === sub.id"
+                (click)="setActiveSubPanel(sub.id)">
+                {{ sub.label }}
+              </button>
+            }
+          </nav>
+        }
+      }
+<div class="panel-content">
+        @if (activeSubPanel === 'provider') {
+<div class="row">
           <p>
             <span class="mat-body">Transcription Enabled</span><br>
             <span class="mat-caption">Enable transcription for calls. When enabled, calls will be transcribed if tone detected or user alerts are enabled.</span>
@@ -1474,9 +1575,9 @@
             <mat-slide-toggle color="primary" formControlName="transcriptionEnhancement"></mat-slide-toggle>
           </div>
         </div>
-        @if (form?.get('transcriptionEnabled')?.value) {
-          <ng-container formGroupName="transcriptionConfig">
-            <div class="row">
+                  @if (form?.get('transcriptionEnabled')?.value) {
+            <ng-container formGroupName="transcriptionConfig">
+<div class="row">
               <p>
                 <span class="mat-body">Transcription Provider</span><br>
                 <span class="mat-caption">Select the transcription provider to use. OpenAI-compatible API supports Whisper or official OpenAI servers.</span>
@@ -1706,7 +1807,13 @@
                 </mat-form-field>
               </div>
             }
-            <!-- Common Settings -->
+                        </ng-container>
+          }
+        }
+        @if (activeSubPanel === 'processing') {
+          @if (form?.get('transcriptionEnabled')?.value) {
+            <ng-container formGroupName="transcriptionConfig">
+<!-- Common Settings -->
             <div class="row">
               <p>
                 <span class="mat-body">Language</span><br>
@@ -1777,7 +1884,15 @@
                 }
               </mat-form-field>
             </div>
-            <div class="row">
+                        </ng-container>
+          } @else {
+          <p class="options-subpanel-hint">Enable <strong>Transcription</strong> under Provider to configure this section.</p>
+          }
+        }
+        @if (activeSubPanel === 'quality') {
+          @if (form?.get('transcriptionEnabled')?.value) {
+            <ng-container formGroupName="transcriptionConfig">
+<div class="row">
               <p>
                 <span class="mat-body">Hallucination Removal Patterns</span><br>
                 <span class="mat-caption">Phrases that should be removed from transcripts (case-insensitive). Whisper may hallucinate common phrases from tone-only audio. Add one pattern per line. Example: "THE BELL IS INVITED TO SOUND THREE TIMES"</span>
@@ -1830,27 +1945,33 @@
                 </mat-form-field>
               </div>
             }
-          </ng-container>
+            </ng-container>
+          } @else {
+          <p class="options-subpanel-hint">Enable <strong>Transcription</strong> under Provider to configure this section.</p>
+          }
+        }
+        @if (activeSubPanel === 'parser') {
+          <rdio-scanner-admin-transcript-parser
+            [initialConfig]="transcriptParserConfig">
+          </rdio-scanner-admin-transcript-parser>
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- USER REGISTRATION -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-userRegistrationExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="userRegistrationExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>person_add</mat-icon>
-          <span>User Registration</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          User registration, public access, Cloudflare Turnstile bot protection
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      <div class="panel-content">
+@if (activePanel === 'userRegistration') {
+    <section class="options-section" id="opt-panel-userRegistration">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('userRegistration') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('userRegistration') }}</p>
+        </div>
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'userRegistration' }"></ng-container>
-        @if (isCentrallyManaged) {
+      </header>
+<div class="panel-content">
+@if (isCentrallyManaged) {
           <rdio-scanner-admin-user-registration
             [form]="form">
           </rdio-scanner-admin-user-registration>
@@ -1937,32 +2058,42 @@
           }
         }
       </div>
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- INCIDENT MAPPING -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-mappingExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="mappingExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>map</mat-icon>
-          <span>Incident Mapping</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Mapping engine, geocode cache, boundaries, and related settings
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      @if (mappingForm) {
-        <div class="panel-content" [formGroup]="mappingForm">
-          <div class="panel-save-bar">
-            <button mat-stroked-button color="primary" type="button"
+@if (activePanel === 'mapping') {
+    <section class="options-section" id="opt-panel-mapping">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('mapping') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('mapping') }}</p>
+        </div>
+        <div class="panel-save-bar">
+<button mat-stroked-button color="primary" type="button"
               (click)="saveMappingPanel()"
               [disabled]="!isMappingDirty || savingMapping">
               <mat-icon>save</mat-icon>
               {{ savingMapping ? 'Saving…' : 'Save' }}
             </button>
+        </div>
+      </header>
+@if (mappingForm) {
+        <div class="panel-content" [formGroup]="mappingForm">
+          <div class="row">
+            <p>
+              <span class="mat-body">Enable incident mapping</span><br>
+              <span class="mat-caption">
+                Master switch for geocoding calls and showing the Map tab in the scanner console.
+                Off by default for new installs; existing installs that already have system/talkgroup/tone-set locations stay on.
+              </span>
+            </p>
+            <div>
+              <mat-slide-toggle color="primary" formControlName="incidentMappingEnabled"></mat-slide-toggle>
+            </div>
           </div>
-          <div class="row mapping-row-full">
+<div class="row mapping-row-full">
             <div class="mapping-external-warn" role="note" style="border-color: rgba(76, 175, 80, 0.35); background: rgba(76, 175, 80, 0.08);">
               <mat-icon class="mapping-external-warn-icon" color="accent">check_circle</mat-icon>
               <div class="mapping-external-warn-body">
@@ -2114,32 +2245,30 @@
           </div>
         </div>
       }
-    </mat-expansion-panel>
+        </section>
+    }
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <!-- CALL NATURES -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="opt-panel-callNaturesExpanded" style="height:0;overflow:hidden"></div>
-    <mat-expansion-panel [(expanded)]="callNaturesExpanded" class="section-panel">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-          <mat-icon>category</mat-icon>
-          <span>Call Natures</span>
-        </mat-panel-title>
-        <mat-panel-description>
-          Incident categories for call cards, transcript phrase matching, and optional OpenAI classification
-        </mat-panel-description>
-      </mat-expansion-panel-header>
-      @if (mappingForm) {
-        <div class="panel-content" [formGroup]="mappingForm">
-          <div class="panel-save-bar">
-            <button mat-stroked-button color="primary" type="button"
+@if (activePanel === 'callNatures') {
+    <section class="options-section" id="opt-panel-callNatures">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('callNatures') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('callNatures') }}</p>
+        </div>
+        <div class="panel-save-bar">
+<button mat-stroked-button color="primary" type="button"
               (click)="saveMappingPanel()"
               [disabled]="!isMappingDirty || savingMapping">
               <mat-icon>save</mat-icon>
               {{ savingMapping ? 'Saving…' : 'Save' }}
             </button>
-          </div>
-          <div class="row mapping-row-full">
+        </div>
+      </header>
+@if (mappingForm) {
+        <div class="panel-content" [formGroup]="mappingForm">
+<div class="row mapping-row-full">
             <mat-slide-toggle formControlName="callNatureOpenAIClassify">
               Use OpenAI to classify call nature when no phrase matches
             </mat-slide-toggle>
@@ -2182,6 +2311,25 @@
           <rdio-scanner-admin-call-natures></rdio-scanner-admin-call-natures>
         </div>
       }
-    </mat-expansion-panel>
+        </section>
+    }
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <!-- KEYWORD LISTS -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+@if (activePanel === 'keywordLists') {
+    <section class="options-section" id="opt-panel-keywordLists">
+      <header class="options-section-header">
+        <div class="options-section-heading">
+          <h3 class="options-section-title">{{ panelTitle('keywordLists') }}</h3>
+          <p class="options-section-desc">{{ panelDescription('keywordLists') }}</p>
+        </div>
+      </header>
+      <div class="panel-content">
+        <rdio-scanner-admin-keyword-lists
+          [initialLists]="keywordLists">
+        </rdio-scanner-admin-keyword-lists>
+      </div>
+    </section>
+}
   </ng-container>
 }

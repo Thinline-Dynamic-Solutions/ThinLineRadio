@@ -11,6 +11,8 @@ export interface MappingIntegrationConfig {
     /** Retained for interface stability; mapping always uses the built-in rules
      *  extractor + outbound geocode chain (Thinline Geocoding API → Census). */
     mappingEngine?: string;
+    /** Server-wide master switch; when false, mapping is skipped and clients hide the Map tab. */
+    incidentMappingEnabled?: boolean;
     /** Show Census boundary overlays on the incident map. */
     mapBoundariesEnabled?: boolean;
     /** Enabled overlay layers: county, place, cousub. */

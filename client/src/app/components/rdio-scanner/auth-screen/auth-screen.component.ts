@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, Output, EventEmitter, OnDestroy, AfterViewChecked, AfterViewInit, ChangeDetectorRef, NgZone } from '@angular/core';
+import { Component, OnInit, Output, EventEmitter, OnDestroy, AfterViewChecked, AfterViewInit, ChangeDetectorRef, NgZone, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -32,6 +32,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-auth-screen',
     templateUrl: './auth-screen.component.html',
     styleUrls: ['./auth-screen.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterViewChecked, AfterViewInit {
@@ -82,6 +83,21 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   pendingAccessCode = '';
   validatingCode = false;
   codeValidationError = '';
+
+  /** When true, this scanner is paired to Central Management — use AlertPage auth proxy. */
+  cmMode = false;
+  cmPortalUrl = '';
+  cmServerName = '';
+  needsSubscription = false;
+  needsSubscriptionMessage = '';
+  needsSubscriptionPortalUrl = '';
+  /** CM password-reset token from email link (?token= on /reset-password). */
+  cmResetToken = '';
+  showCMForgotPassword = false;
+  showCMResetPassword = false;
+  cmForgotSuccess = '';
+  cmResetPasswordValue = '';
+  cmResetConfirmValue = '';
 
   /** When true, signup is email → 6-digit code → full form (from `/api/registration-settings`). */
   emailVerificationRequired = false;
@@ -224,12 +240,23 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
         this.startCountdown(parseInt(seconds, 10));
       }
     });
+
+    // CM password-reset email links land on /reset-password?token=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const path = (window.location.pathname || '').replace(/\/+$/, '');
+    const resetToken = urlParams.get('token') || '';
+    if (resetToken && path.endsWith('/reset-password')) {
+      this.cmResetToken = resetToken;
+      this.showCMResetPassword = true;
+      this.authMode = 'login';
+      // Clean the URL so a refresh does not keep a one-time token in the address bar longer than needed.
+      window.history.replaceState({}, document.title, window.location.pathname.split('/reset-password')[0] || '/');
+    }
     
     // Load registration settings first to determine if invite-only
     this.loadRegistrationSettings();
     
     // Check for Stripe checkout success/cancel parameters
-    const urlParams = new URLSearchParams(window.location.search);
     const checkoutStatus = urlParams.get('checkout');
     
     if (checkoutStatus === 'success') {
@@ -468,6 +495,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   }
 
   setAuthMode(mode: 'login' | 'register' | 'group-admin'): void {
+    if (this.cmMode && mode === 'register') {
+      this.openCMSignup();
+      return;
+    }
+    if (this.cmMode && mode === 'group-admin') {
+      mode = 'login';
+    }
     // Prevent switching to register mode if registration is disabled
     if (mode === 'register' && !this.isUserRegistrationEnabled()) {
       this.authMode = 'login';
@@ -480,6 +514,13 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     }
     
     this.authMode = mode;
+    this.needsSubscription = false;
+    this.needsSubscriptionMessage = '';
+    this.showCMForgotPassword = false;
+    if (!this.cmResetToken) {
+      this.showCMResetPassword = false;
+    }
+    this.cmForgotSuccess = '';
     if (mode === 'register') {
       this.emailVerificationStep = false;
       this.verificationCode = '';
@@ -505,6 +546,17 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   }
 
   onForgotPassword(): void {
+    if (this.cmMode) {
+      this.showCMForgotPassword = true;
+      this.showCMResetPassword = false;
+      this.cmForgotSuccess = '';
+      this.error = '';
+      const email = this.loginForm.get('email')?.value;
+      if (email) {
+        this.forgotPasswordForm.patchValue({ email });
+      }
+      return;
+    }
     this.showForgotPassword = true;
     this.showResetPassword = false;
     this.error = '';
@@ -514,25 +566,93 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     if (this.forgotPasswordForm.valid && !this.loading) {
       this.loading = true;
       this.error = '';
+      this.cmForgotSuccess = '';
 
       const formData = {
-        email: this.forgotPasswordForm.value.email.toLowerCase() // Ensure email is lowercase
+        email: this.forgotPasswordForm.value.email.toLowerCase()
       };
+
+      const endpoint = this.cmMode ? '/api/cm-auth/forgot-password' : '/api/user/forgot-password';
       
-      this.http.post('/api/user/forgot-password', formData).subscribe({
+      this.http.post(endpoint, formData).subscribe({
         next: (response: any) => {
           this.loading = false;
           this.resetEmail = formData.email;
+          if (this.cmMode) {
+            this.cmForgotSuccess = response?.message ||
+              'If an account exists with this email, a password reset link has been sent.';
+            this.error = '';
+            this.cdr.markForCheck();
+            return;
+          }
           this.showForgotPassword = false;
           this.showResetPassword = true;
           this.error = '';
         },
         error: (error) => {
           this.loading = false;
-          this.error = error.error?.error || 'Failed to send reset code. Please try again.';
+          this.error = this.extractHttpError(error, 'Failed to send reset email. Please try again.');
+          this.cdr.markForCheck();
         }
       });
     }
+  }
+
+  onCMResetPassword(): void {
+    if (this.loading) {
+      return;
+    }
+    const password = (this.cmResetPasswordValue || '').trim();
+    const confirm = (this.cmResetConfirmValue || '').trim();
+    if (!this.cmResetToken) {
+      this.error = 'Reset link is missing or expired. Please request a new one.';
+      return;
+    }
+    if (password.length < 8) {
+      this.error = 'Password must be at least 8 characters.';
+      return;
+    }
+    if (password !== confirm) {
+      this.error = 'Passwords do not match.';
+      return;
+    }
+
+    this.loading = true;
+    this.error = '';
+    this.http.post('/api/cm-auth/reset-password', {
+      token: this.cmResetToken,
+      password,
+    }).subscribe({
+      next: () => {
+        this.loading = false;
+        this.showCMResetPassword = false;
+        this.showCMForgotPassword = false;
+        this.cmResetToken = '';
+        this.cmResetPasswordValue = '';
+        this.cmResetConfirmValue = '';
+        this.cmForgotSuccess = '';
+        this.snackBar.open('Password reset successful! Please login with your new password.', 'Close', {
+          duration: 5000,
+          panelClass: ['success-snackbar']
+        });
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        this.loading = false;
+        this.error = this.extractHttpError(error, 'Failed to reset password. Please try again.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  backToCMLogin(): void {
+    this.showCMForgotPassword = false;
+    this.showCMResetPassword = false;
+    this.cmForgotSuccess = '';
+    this.cmResetToken = '';
+    this.cmResetPasswordValue = '';
+    this.cmResetConfirmValue = '';
+    this.error = '';
   }
 
   onResetPassword(): void {
@@ -654,6 +774,11 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
 
   onLogin(): void {
     if (!this.loading) {
+      if (this.cmMode) {
+        this.onCMLogin();
+        return;
+      }
+
       // Check Turnstile if enabled (but don't disable button, just show error)
       if (this.turnstileEnabled && !this.turnstileToken) {
         this.error = 'Please complete the CAPTCHA verification';
@@ -733,8 +858,125 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     }
   }
 
+  private onCMLogin(): void {
+    if (this.loginForm.invalid) {
+      this.error = 'Please enter a valid email and password.';
+      return;
+    }
+    this.loading = true;
+    this.error = '';
+    this.needsSubscription = false;
+
+    const formData = {
+      email: this.loginForm.value.email.toLowerCase(),
+      password: this.loginForm.value.password,
+    };
+
+    this.http.post('/api/cm-auth/login', formData).subscribe({
+      next: (response: any) => {
+        const token = response?.token;
+        if (typeof token !== 'string' || !token) {
+          this.loading = false;
+          this.error = 'Login succeeded but no session token was returned.';
+          this.cdr.markForCheck();
+          return;
+        }
+        this.completeCMSession(token);
+      },
+      error: (error) => {
+        this.loading = false;
+        this.error = this.extractHttpError(error, 'Login failed. Please check your credentials.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private completeCMSession(token: string): void {
+    this.http.post('/api/cm-auth/session', {
+      token,
+      returnUrl: window.location.origin,
+    }).subscribe({
+      next: (session: any) => {
+        this.loading = false;
+        if (typeof session?.pin === 'string' && session.pin.length > 0) {
+          this.rdioScannerService.savePin(session.pin);
+          this.rdioScannerService.saveIsSystemAdmin(false);
+          window.location.reload();
+          return;
+        }
+        if (session?.needsSubscription) {
+          this.needsSubscription = true;
+          this.needsSubscriptionMessage = session.message ||
+            'An AlertPage subscription or scanner assignment is required.';
+          this.needsSubscriptionPortalUrl = session.portalUrl || this.cmPortalUrl;
+          this.error = '';
+          this.cdr.markForCheck();
+          return;
+        }
+        this.error = 'Unable to obtain scanner access. Please try again.';
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        this.loading = false;
+        this.error = this.extractHttpError(error, 'Unable to resolve scanner access.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  openCMPortal(): void {
+    const url = this.needsSubscriptionPortalUrl || this.cmPortalUrl;
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  /** Send new users to AlertPage to create an account (billing / scanner selection). */
+  openCMSignup(): void {
+    const base = (this.cmPortalUrl || '').replace(/\/$/, '');
+    if (!base) {
+      this.error = 'AlertPage portal URL is not configured.';
+      return;
+    }
+    window.location.href = `${base}/login?tab=register`;
+  }
+
+  getAlertPageLogoUrl(): string {
+    return 'assets/icons/alertpage.png';
+  }
+
+  /** Local scanner display name shown under the AlertPage logo. */
+  getScannerName(): string {
+    const fromConfig = (this.config?.branding || '').trim();
+    if (fromConfig && fromConfig.toLowerCase() !== 'thinline radio' && fromConfig.toLowerCase() !== 'alertpage radio') {
+      return fromConfig;
+    }
+    return (this.cmServerName || fromConfig || '').trim();
+  }
+
+  private extractHttpError(error: any, fallback: string): string {
+    if (error?.error?.message && typeof error.error.message === 'string') {
+      return error.error.message;
+    }
+    if (error?.error?.error && typeof error.error.error === 'string') {
+      return error.error.error;
+    }
+    if (typeof error?.error === 'string' && error.error.trim()) {
+      return error.error.trim();
+    }
+    if (error?.message && typeof error.message === 'string') {
+      return error.message;
+    }
+    return fallback;
+  }
+
 
   async onRegister(): Promise<void> {
+    if (this.cmMode) {
+      this.openCMSignup();
+      return;
+    }
+
     // Multi-tier signup (2+ public groups): require an explicit selection + plan per paid tier.
     // Single-tier paid signup does not pick a plan here — that happens on /setup/plan.
     if (this.usingTierSelection() && !this.tierSelectionValid()) {
@@ -950,7 +1192,14 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     }
   }
 
+  private onCMRegister(): void {
+    this.openCMSignup();
+  }
+
   getBranding(): string {
+    if (this.cmMode) {
+      return 'AlertPage Radio';
+    }
     return this.config?.branding || 'ThinLine Radio';
   }
 
@@ -1020,8 +1269,25 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.http.get<any>('/api/registration-settings').subscribe({
       next: (settings) => {
         console.log('[AUTH-SCREEN] Registration settings received:', settings);
+        this.cmMode = !!settings.centralManagementEnabled;
+        this.cmPortalUrl = settings.centralManagementPortalUrl || '';
+        this.cmServerName = settings.scannerName || settings.centralManagementServerName || '';
         this.isInviteOnlyMode = !settings.publicRegistrationEnabled;
         this.emailVerificationRequired = !!settings.emailVerificationRequired;
+
+        if (this.cmMode) {
+          // AlertPage signup: no local zip / invite / CAPTCHA / email-code flow.
+          this.isInviteOnlyMode = false;
+          this.emailVerificationRequired = false;
+          this.registerForm.get('zipCode')?.clearValidators();
+          this.registerForm.get('zipCode')?.updateValueAndValidity();
+          this.turnstileEnabled = false;
+          console.log('[AUTH-SCREEN] CM mode enabled — using AlertPage auth proxy');
+          this.registrationSettingsLoaded = true;
+          this.cdr.markForCheck();
+          return;
+        }
+
         console.log('[AUTH-SCREEN] isInviteOnlyMode set to:', this.isInviteOnlyMode);
         
         // Only load public info if NOT in invite-only mode
@@ -1306,6 +1572,9 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   }
 
   isUserRegistrationEnabled(): boolean {
+    if (this.cmMode) {
+      return true;
+    }
     // If options are missing (e.g., websocket config without options), assume enabled
     const opt = this.config?.options;
     if (!opt || opt.userRegistrationEnabled === undefined) {

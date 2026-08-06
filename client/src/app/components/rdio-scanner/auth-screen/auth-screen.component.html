@@ -1,4 +1,4 @@
-<div class="auth-screen">
+<div class="auth-screen" [class.cm-mode]="cmMode">
   <div class="auth-container">
     <!-- Blocked Message with Countdown -->
     @if (isBlocked) {
@@ -15,108 +15,231 @@
 
     @if (!isBlocked) {
       <div>
-        <div class="auth-header">
-          @if (!logoError && logoUrl) {
-            <a
-              class="auth-logo-link"
-              href="https://www.thinlineradio.com"
-              target="_blank"
-              rel="noopener noreferrer">
-              <img [src]="logoUrl"
-                [style.border-radius]="getLogoBorderRadius()"
-                class="auth-logo"
-                alt="Logo"
-                (error)="onLogoError($event)"
-                (load)="logoError = false">
-            </a>
-          }
-          <h1>{{ getBranding() }}</h1>
-          @if (isUserRegistrationEnabled()) {
-            <p>Sign in to your account or create a new one</p>
-          }
-          @if (!isUserRegistrationEnabled()) {
-            <p>Sign in to your account</p>
-          }
-        </div>
-        <div class="auth-tabs">
-          <button type="button"
-            [class.active]="authMode === 'login'"
-            (click)="setAuthMode('login')">
-            Sign In
-          </button>
-          @if (isUserRegistrationEnabled()) {
+        @if (cmMode) {
+          <div class="ap-logo-section">
+            <span class="ap-logo-edge ap-logo-edge-left"></span>
+            <span class="ap-logo-edge ap-logo-edge-right"></span>
+            <img [src]="getAlertPageLogoUrl()"
+              class="ap-logo-img"
+              alt="AlertPage Radio"
+              (error)="onLogoError($event)">
+            <p class="ap-logo-subtitle">AlertPage Radio powered by Thinline Radio</p>
+            @if (getScannerName()) {
+              <p class="ap-scanner-name">{{ getScannerName() }}</p>
+            }
+          </div>
+        } @else {
+          <div class="auth-header">
+            @if (!logoError && logoUrl) {
+              <a
+                class="auth-logo-link"
+                href="https://www.thinlineradio.com"
+                target="_blank"
+                rel="noopener noreferrer">
+                <img [src]="logoUrl"
+                  [style.border-radius]="getLogoBorderRadius()"
+                  class="auth-logo"
+                  alt="Logo"
+                  (error)="onLogoError($event)"
+                  (load)="logoError = false">
+              </a>
+            }
+            <h1>{{ getBranding() }}</h1>
+            @if (isUserRegistrationEnabled()) {
+              <p>Sign in to your account or create a new one</p>
+            }
+            @if (!isUserRegistrationEnabled()) {
+              <p>Sign in to your account</p>
+            }
+          </div>
+        }
+        @if (!(cmMode && (showCMForgotPassword || showCMResetPassword))) {
+          <div class="auth-tabs">
             <button type="button"
-              [class.active]="authMode === 'register'"
-              (click)="setAuthMode('register')">
-              Sign Up
+              [class.active]="authMode === 'login'"
+              (click)="setAuthMode('login')">
+              {{ cmMode ? 'Login' : 'Sign In' }}
             </button>
-          }
-          <button type="button"
-            [class.active]="authMode === 'group-admin'"
-            (click)="setAuthMode('group-admin')">
-            <span class="tab-label-full">Manage Group</span>
-            <span class="tab-label-short">Manage</span>
-          </button>
-        </div>
+            @if (cmMode) {
+              <button type="button" (click)="openCMSignup()">
+                Register
+              </button>
+            } @else if (isUserRegistrationEnabled()) {
+              <button type="button"
+                [class.active]="authMode === 'register'"
+                (click)="setAuthMode('register')">
+                Sign Up
+              </button>
+            }
+            @if (!cmMode) {
+              <button type="button"
+                [class.active]="authMode === 'group-admin'"
+                (click)="setAuthMode('group-admin')">
+                <span class="tab-label-full">Manage Group</span>
+                <span class="tab-label-short">Manage</span>
+              </button>
+            }
+          </div>
+        }
         <!-- Login Form -->
         @if (authMode === 'login') {
-          <div class="auth-form">
-            <form [formGroup]="loginForm" (ngSubmit)="onLogin()">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Email</mat-label>
-                <input matInput type="email" formControlName="email" required autocomplete="email">
-                @if (loginForm.get('email')?.hasError('required')) {
-                  <mat-error>
-                    Email is required
-                  </mat-error>
-                }
-                @if (loginForm.get('email')?.hasError('email')) {
-                  <mat-error>
-                    Please enter a valid email address
-                  </mat-error>
-                }
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Password</mat-label>
-                <input matInput type="password" formControlName="password" required autocomplete="current-password">
-                @if (loginForm.get('password')?.hasError('required')) {
-                  <mat-error>
-                    Password is required
-                  </mat-error>
-                }
-              </mat-form-field>
-              @if (error) {
-                <div class="error-message">
-                  {{ error }}
-                </div>
-              }
-              <!-- Cloudflare Turnstile Widget -->
-              @if (turnstileEnabled && turnstileSiteKey) {
-                <div class="turnstile-wrap">
-                  @if (turnstilePending) {
-                    <div class="turnstile-placeholder">
-                      <mat-spinner diameter="20"></mat-spinner>
-                      <span>Loading security check…</span>
+          <div class="auth-form" [class.ap-auth-form]="cmMode">
+            @if (cmMode) {
+              @if (showCMResetPassword) {
+                <form class="ap-native-form" (ngSubmit)="onCMResetPassword()">
+                  <h2>Reset Password</h2>
+                  <p class="ap-form-subtitle">Enter your new AlertPage password below.</p>
+                  <div class="ap-form-group">
+                    <label for="ap-reset-password">New Password</label>
+                    <input id="ap-reset-password" type="password" name="cmResetPassword"
+                      [(ngModel)]="cmResetPasswordValue" [ngModelOptions]="{standalone: true}"
+                      required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
+                  </div>
+                  <div class="ap-form-group">
+                    <label for="ap-reset-confirm">Confirm Password</label>
+                    <input id="ap-reset-confirm" type="password" name="cmResetConfirm"
+                      [(ngModel)]="cmResetConfirmValue" [ngModelOptions]="{standalone: true}"
+                      required autocomplete="new-password" placeholder="Re-enter password">
+                  </div>
+                  @if (error) {
+                    <div class="ap-error-message">{{ error }}</div>
+                  }
+                  <button type="submit" class="ap-btn-primary" [disabled]="loading">
+                    @if (loading) {
+                      <span>Resetting...</span>
+                    } @else {
+                      <span>Reset Password</span>
+                    }
+                  </button>
+                  <p class="ap-manage-account">
+                    <a href="#" (click)="backToCMLogin(); $event.preventDefault()">Back to Login</a>
+                  </p>
+                </form>
+              } @else if (showCMForgotPassword) {
+                <form class="ap-native-form" [formGroup]="forgotPasswordForm" (ngSubmit)="onRequestReset()">
+                  <h2>Forgot Password</h2>
+                  <p class="ap-form-subtitle">Enter your email and we will send an AlertPage password reset link. You will finish the reset on AlertPage, then return here to sign in.</p>
+                  <div class="ap-form-group">
+                    <label for="ap-forgot-email">Email</label>
+                    <input id="ap-forgot-email" type="email" formControlName="email" required autocomplete="email" placeholder="you@example.com">
+                  </div>
+                  @if (error) {
+                    <div class="ap-error-message">{{ error }}</div>
+                  }
+                  @if (cmForgotSuccess) {
+                    <div class="ap-success-message">{{ cmForgotSuccess }}</div>
+                  }
+                  <button type="submit" class="ap-btn-primary" [disabled]="loading || forgotPasswordForm.invalid">
+                    @if (loading) {
+                      <span>Sending...</span>
+                    } @else {
+                      <span>Send Reset Link</span>
+                    }
+                  </button>
+                  <p class="ap-manage-account">
+                    <a href="#" (click)="backToCMLogin(); $event.preventDefault()">Back to Login</a>
+                  </p>
+                </form>
+              } @else {
+                <form [formGroup]="loginForm" (ngSubmit)="onLogin()" class="ap-native-form">
+                  <h2>Welcome Back</h2>
+                  <div class="ap-form-group">
+                    <label for="ap-email">Email</label>
+                    <input id="ap-email" type="email" formControlName="email" required autocomplete="email" placeholder="you@example.com">
+                  </div>
+                  <div class="ap-form-group">
+                    <label for="ap-password">Password</label>
+                    <input id="ap-password" type="password" formControlName="password" required autocomplete="current-password" placeholder="Your password">
+                  </div>
+                  @if (error) {
+                    <div class="ap-error-message">{{ error }}</div>
+                  }
+                  @if (needsSubscription) {
+                    <div class="ap-needs-sub">
+                      <p>{{ needsSubscriptionMessage }}</p>
+                      <button type="button" class="ap-btn-primary" (click)="openCMPortal()">Open AlertPage</button>
                     </div>
                   }
-                  <div id="turnstile-widget-auth"></div>
-                </div>
+                  <div class="ap-form-links">
+                    <a href="#" (click)="onForgotPassword(); $event.preventDefault()">Forgot Password?</a>
+                  </div>
+                  <button type="submit" class="ap-btn-primary" [disabled]="loading || loginForm.invalid">
+                    @if (loading) {
+                      <span>Signing In...</span>
+                    } @else {
+                      <span>Login</span>
+                    }
+                  </button>
+                  @if (cmPortalUrl) {
+                    <p class="ap-manage-account">
+                      <a [href]="cmPortalUrl" target="_blank" rel="noopener noreferrer">Manage account on AlertPage</a>
+                    </p>
+                  }
+                </form>
               }
-              <div class="auth-link-row">
-                <a href="#" class="auth-text-link" (click)="onForgotPassword(); $event.preventDefault()">
-                  Forgot Password?
+              <div class="ap-tlr-banner">
+                <a href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">
+                  <img src="assets/icons/TLR-logo-banner.png" alt="Thinline Radio" class="ap-tlr-banner-img">
                 </a>
               </div>
-              <button mat-raised-button color="primary" type="submit"
-                [disabled]="loading || (turnstileEnabled && !turnstileToken)" class="full-width">
-                @if (loading) {
-                  <mat-spinner diameter="20"></mat-spinner>
+            } @else {
+              <form [formGroup]="loginForm" (ngSubmit)="onLogin()">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Email</mat-label>
+                  <input matInput type="email" formControlName="email" required autocomplete="email">
+                  @if (loginForm.get('email')?.hasError('required')) {
+                    <mat-error>
+                      Email is required
+                    </mat-error>
+                  }
+                  @if (loginForm.get('email')?.hasError('email')) {
+                    <mat-error>
+                      Please enter a valid email address
+                    </mat-error>
+                  }
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Password</mat-label>
+                  <input matInput type="password" formControlName="password" required autocomplete="current-password">
+                  @if (loginForm.get('password')?.hasError('required')) {
+                    <mat-error>
+                      Password is required
+                    </mat-error>
+                  }
+                </mat-form-field>
+                @if (error) {
+                  <div class="error-message">
+                    {{ error }}
+                  </div>
                 }
-                @if (!loading) {
-                  <span>Sign In</span>
+                <!-- Cloudflare Turnstile Widget -->
+                @if (turnstileEnabled && turnstileSiteKey) {
+                  <div class="turnstile-wrap">
+                    @if (turnstilePending) {
+                      <div class="turnstile-placeholder">
+                        <mat-spinner diameter="20"></mat-spinner>
+                        <span>Loading security check…</span>
+                      </div>
+                    }
+                    <div id="turnstile-widget-auth"></div>
+                  </div>
                 }
-              </button>
-            </form>
+                <div class="auth-link-row">
+                  <a href="#" class="auth-text-link" (click)="onForgotPassword(); $event.preventDefault()">
+                    Forgot Password?
+                  </a>
+                </div>
+                <button mat-raised-button color="primary" type="submit"
+                  [disabled]="loading || (turnstileEnabled && !turnstileToken)" class="full-width">
+                  @if (loading) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  }
+                  @if (!loading) {
+                    <span>Sign In</span>
+                  }
+                </button>
+              </form>
+            }
           </div>
         }
         <!-- Forgot Password Form -->
@@ -308,8 +431,8 @@
                   </div>
                 </div>
               }
-              <!-- Public Registration Group Info (only show when NOT invite-only mode) -->
-              @if (!success && !isInviteOnlyMode) {
+              <!-- Public Registration Group Info (only show when NOT invite-only mode and not CM) -->
+              @if (!success && !isInviteOnlyMode && !cmMode) {
                 <div class="public-registration-info">
                   <!-- Single tier: show it as a heading (classic single-group signup) -->
                   @if (tiers.length < 2 && publicGroupInfo?.name) {
@@ -545,20 +668,22 @@
                       </mat-error>
                     }
                   </mat-form-field>
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>ZIP Code</mat-label>
-                    <input matInput type="text" formControlName="zipCode" placeholder="12345" required>
-                    @if (registerForm.get('zipCode')?.hasError('required')) {
-                      <mat-error>
-                        ZIP code is required
-                      </mat-error>
-                    }
-                    @if (registerForm.get('zipCode')?.hasError('pattern')) {
-                      <mat-error>
-                        Please enter a valid ZIP code (12345 or 12345-6789)
-                      </mat-error>
-                    }
-                  </mat-form-field>
+                  @if (!cmMode) {
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>ZIP Code</mat-label>
+                      <input matInput type="text" formControlName="zipCode" placeholder="12345" required>
+                      @if (registerForm.get('zipCode')?.hasError('required')) {
+                        <mat-error>
+                          ZIP code is required
+                        </mat-error>
+                      }
+                      @if (registerForm.get('zipCode')?.hasError('pattern')) {
+                        <mat-error>
+                          Please enter a valid ZIP code (12345 or 12345-6789)
+                        </mat-error>
+                      }
+                    </mat-form-field>
+                  }
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>Email</mat-label>
                     <input matInput type="email" formControlName="email" required autocomplete="email"
@@ -623,7 +748,7 @@
                     }
                   </mat-form-field>
                   <!-- Invite Code field (public mode only; do not gate on accessCode value or the field vanishes on first keystroke) -->
-                  @if (!isInviteOnlyMode) {
+                  @if (!cmMode && !isInviteOnlyMode) {
                     <mat-form-field appearance="outline" class="full-width">
                       <mat-label>Invite Code (Optional)</mat-label>
                       <input matInput type="text" formControlName="accessCode" placeholder="Enter invite code if you have one" autocomplete="one-time-code">
@@ -639,8 +764,16 @@
                       {{ error }}
                     </div>
                   }
+                  @if (needsSubscription) {
+                    <div class="error-message" style="background: #1a2a3a; border-left: 4px solid #42a5f5; color: #90caf9;">
+                      <p style="margin: 0 0 12px;">{{ needsSubscriptionMessage }}</p>
+                      <button mat-raised-button color="primary" type="button" (click)="openCMPortal()" class="full-width">
+                        Open AlertPage
+                      </button>
+                    </div>
+                  }
                   <!-- Cloudflare Turnstile Widget (hidden when using invitation code) -->
-                  @if (turnstileEnabled && turnstileSiteKey && shouldShowTurnstile()) {
+                  @if (!cmMode && turnstileEnabled && turnstileSiteKey && shouldShowTurnstile()) {
                     <div class="turnstile-wrap">
                       @if (turnstilePending) {
                         <div class="turnstile-placeholder">
@@ -661,7 +794,7 @@
                     </div>
                   }
                   <button mat-raised-button color="primary" type="submit"
-                    [disabled]="registerForm.invalid || loading || (turnstileEnabled && !turnstileToken && !registerForm.get('invitationCode')?.value)" class="full-width">
+                    [disabled]="(cmMode ? (registerForm.get('firstName')?.invalid || registerForm.get('lastName')?.invalid || registerForm.get('email')?.invalid || registerForm.get('password')?.invalid || registerForm.get('confirmPassword')?.invalid) : registerForm.invalid) || loading || (!cmMode && turnstileEnabled && !turnstileToken && !registerForm.get('invitationCode')?.value)" class="full-width">
                     @if (loading) {
                       <mat-spinner diameter="20"></mat-spinner>
                     }
@@ -740,7 +873,7 @@
               @if (config) {
                 <rdio-scanner-stripe-checkout
                   [config]="config"
-                  [email]="loginForm.get('email')?.value"
+                  [email]="$safeNavigationMigration(loginForm.get('email')?.value)"
                   (checkoutSuccess)="onCheckoutSuccess($event)"
                   (checkoutError)="onCheckoutError($event)"
                   (checkoutCancel)="onCheckoutCancel()">
@@ -847,24 +980,26 @@
     <!-- End !isBlocked wrapper -->
 
     <!-- Support Section -->
-    <div class="support-section">
-      @if (hasSupportEmail()) {
-        <p class="support-text">
-          Need help? Contact us at
-          <a [href]="'mailto:' + getSupportEmail()" class="support-link">{{ getSupportEmail() }}</a>
-        </p>
-      }
-      @if (!hasSupportEmail()) {
-        <p class="no-support-text">
-          The owner of this server has not provided email support.
-        </p>
-      }
-      <a class="brand-banner-link" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">
-        <img src="assets/icons/tlr-logo.png" class="brand-banner-footer" alt="ThinLine Radio">
-      </a>
-      @if (getServerVersion()) {
-        <p class="server-version">ThinLine Radio v{{ getServerVersion() }}</p>
-      }
-      <a class="server-site" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">www.thinlineradio.com</a>
-    </div>
+    @if (!cmMode) {
+      <div class="support-section">
+        @if (hasSupportEmail()) {
+          <p class="support-text">
+            Need help? Contact us at
+            <a [href]="'mailto:' + getSupportEmail()" class="support-link">{{ getSupportEmail() }}</a>
+          </p>
+        }
+        @if (!hasSupportEmail()) {
+          <p class="no-support-text">
+            The owner of this server has not provided email support.
+          </p>
+        }
+        <a class="brand-banner-link" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">
+          <img src="assets/icons/tlr-logo.png" class="brand-banner-footer" alt="ThinLine Radio">
+        </a>
+        @if (getServerVersion()) {
+          <p class="server-version">ThinLine Radio v{{ getServerVersion() }}</p>
+        }
+        <a class="server-site" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">www.thinlineradio.com</a>
+      </div>
+    }
   </div>

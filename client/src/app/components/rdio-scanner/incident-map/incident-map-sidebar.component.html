@@ -27,12 +27,14 @@
   <div class="sidebar-list">
     @if (!m.loading && m.incidents.length === 0) {
       <div class="sidebar-empty">
-        No geocoded incidents yet.
+        <mat-icon>map</mat-icon>
+        <span>No geocoded incidents yet.</span>
       </div>
     }
     @if (!m.loading && m.incidents.length > 0 && m.filteredIncidents.length === 0) {
       <div class="sidebar-empty">
-        No incidents match your filters.
+        <mat-icon>filter_alt_off</mat-icon>
+        <span>No incidents match your filters.</span>
       </div>
     }
     @for (incident of m.filteredIncidents; track incident.callId) {

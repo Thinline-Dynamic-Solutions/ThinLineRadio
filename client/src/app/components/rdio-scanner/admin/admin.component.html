@@ -71,65 +71,7 @@
       </div>
     }
   </div>
-  <!-- Top-level tab navigation -->
-  <mat-tab-group
-    class="admin-tab-group"
-    [selectedIndex]="selectedTabIndex"
-    (selectedTabChange)="onTabChange($event)"
-    animationDuration="150ms">
-    <!-- ── Config ─────────────────────────────── -->
-    <mat-tab>
-      <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">settings</mat-icon>
-        <span class="tab-label">Config</span>
-      </ng-template>
-      <div class="tab-content">
-        <rdio-scanner-admin-config #configComponent [hideActions]="true"></rdio-scanner-admin-config>
-      </div>
-    </mat-tab>
-    <!-- ── Logs ──────────────────────────────── -->
-    <mat-tab>
-      <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">article</mat-icon>
-        <span class="tab-label">Logs</span>
-      </ng-template>
-      <div class="tab-content">
-        <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
-      </div>
-    </mat-tab>
-    <!-- ── System Health ─────────────────────── -->
-    <mat-tab>
-      <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">health_and_safety</mat-icon>
-        <span class="tab-label">System Health</span>
-      </ng-template>
-      <div class="tab-content">
-        <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
-      </div>
-    </mat-tab>
-    <!-- ── Tools ─────────────────────────────── -->
-    <mat-tab>
-      <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">build</mat-icon>
-        <span class="tab-label">Tools</span>
-      </ng-template>
-      <div class="tab-content">
-        <rdio-scanner-admin-tools
-          #toolsComponent
-          (config)="onConfigFromTools($event)"
-          (configSaved)="onConfigSavedFromTools($event)">
-        </rdio-scanner-admin-tools>
-      </div>
-    </mat-tab>
-    <!-- ── Assistant ─────────────────────────── -->
-    <mat-tab>
-      <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">smart_toy</mat-icon>
-        <span class="tab-label">Assistant</span>
-      </ng-template>
-      <div class="tab-content">
-        <rdio-scanner-admin-assistant></rdio-scanner-admin-assistant>
-      </div>
-    </mat-tab>
-  </mat-tab-group>
+  <div class="admin-shell">
+    <rdio-scanner-admin-config #configComponent [hideActions]="true"></rdio-scanner-admin-config>
+  </div>
 }

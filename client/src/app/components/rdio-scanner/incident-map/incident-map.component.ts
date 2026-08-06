@@ -54,6 +54,8 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     filterTalkgroupId: number | null = null;
     mapStyle: IncidentMapStyle = 'voyager';
     weatherLayers: NwsLayerToggles = { radar: false, alerts: false };
+    /** Map style + weather controls; collapsed by default to free map height. */
+    moreFiltersOpen = false;
     radarPlaying = true;
     radarFrameLabel = '';
     timePreset: IncidentTimePreset = '24h';
@@ -388,6 +390,16 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
 
     isTimePresetActive(preset: IncidentTimePreset): boolean {
         return this.timePreset === preset;
+    }
+
+    get moreFiltersActive(): boolean {
+        return this.mapStyle !== 'voyager' ||
+            this.weatherLayers.radar ||
+            this.weatherLayers.alerts;
+    }
+
+    toggleMoreFilters(): void {
+        this.moreFiltersOpen = !this.moreFiltersOpen;
     }
 
     showCustomDateInputs(): boolean {

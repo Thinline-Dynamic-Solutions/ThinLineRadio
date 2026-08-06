@@ -48,6 +48,50 @@ rdio-scanner-admin-config {
         width: 100%;
     }
 
+    .groups-tags-page {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .groups-tags-subnav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 0 0 4px;
+    }
+
+    .groups-tags-subchip {
+        appearance: none;
+        -webkit-appearance: none;
+        display: inline-flex;
+        align-items: center;
+        margin: 0;
+        padding: 5px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.62);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 550;
+        line-height: 1;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+        }
+
+        &.active {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.28);
+            color: rgba(255, 255, 255, 0.92);
+        }
+    }
+
     /* ── Sidebar ───────────────────────────────────────────── */
     .config-sidebar {
         width: 188px;
@@ -70,6 +114,12 @@ rdio-scanner-admin-config {
             letter-spacing: 1.5px;
             color: #777;
             padding: 4px 16px 10px;
+
+            &.sidebar-section-label--spaced {
+                margin-top: 12px;
+                padding-top: 14px;
+                border-top: 1px solid #2a2a2a;
+            }
         }
 
         .sidebar-item {
@@ -270,6 +320,10 @@ rdio-scanner-admin-config {
         flex: 1;
         padding: 12px 14px 14px;
         min-width: 0;
+
+        &--flush {
+            padding: 0;
+        }
     }
 
     /* ── Shared form helpers ───────────────────────────────── */
@@ -474,6 +528,10 @@ rdio-scanner-admin-config {
 
         .config-content {
             padding: 16px 12px;
+
+            &--flush {
+                padding: 0;
+            }
         }
     }
 }

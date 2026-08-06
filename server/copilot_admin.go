@@ -70,11 +70,15 @@ var copilotAdminReadActions = map[string]bool{
 
 func (admin *Admin) copilotToolGetAdminConfig(argsJSON string) (string, error) {
 	var args struct {
-		Section       string         `json:"section"`
-		SystemID      uint64         `json:"systemId"`
-		TalkgroupID   uint64         `json:"talkgroupId"`
-		TalkgroupRef  uint           `json:"talkgroupRef"`
-		Params        map[string]any `json:"params"`
+		Section         string         `json:"section"`
+		SystemID        uint64         `json:"systemId"`
+		SystemRef       uint           `json:"systemRef"`
+		SystemLabel     string         `json:"systemLabel"`
+		TalkgroupID     uint64         `json:"talkgroupId"`
+		TalkgroupRef    uint           `json:"talkgroupRef"`
+		TalkgroupLabel  string         `json:"talkgroupLabel"`
+		Query           string         `json:"query"`
+		Params          map[string]any `json:"params"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return "", err
@@ -84,65 +88,181 @@ func (admin *Admin) copilotToolGetAdminConfig(argsJSON string) (string, error) {
 		section = "summary"
 	}
 
+	// Pull common aliases from params.
+	if args.Params != nil {
+		if args.SystemID == 0 {
+			if v, ok := args.Params["systemId"].(float64); ok {
+				args.SystemID = uint64(v)
+			}
+		}
+		if args.SystemRef == 0 {
+			if v, ok := args.Params["systemRef"].(float64); ok {
+				args.SystemRef = uint(v)
+			}
+		}
+		if args.TalkgroupID == 0 {
+			if v, ok := args.Params["talkgroupId"].(float64); ok {
+				args.TalkgroupID = uint64(v)
+			}
+		}
+		if args.TalkgroupRef == 0 {
+			if v, ok := args.Params["talkgroupRef"].(float64); ok {
+				args.TalkgroupRef = uint(v)
+			}
+		}
+		if args.SystemLabel == "" {
+			if v, ok := args.Params["systemLabel"].(string); ok {
+				args.SystemLabel = v
+			}
+		}
+		if args.TalkgroupLabel == "" {
+			if v, ok := args.Params["talkgroupLabel"].(string); ok {
+				args.TalkgroupLabel = v
+			}
+		}
+		if args.Query == "" {
+			if v, ok := args.Params["query"].(string); ok {
+				args.Query = v
+			}
+			if v, ok := args.Params["search"].(string); ok && args.Query == "" {
+				args.Query = v
+			}
+		}
+	}
+
+	systemQuery := strings.TrimSpace(args.SystemLabel)
+	if systemQuery == "" && args.Query != "" && (section == "system" || section == "find" || section == "search") {
+		systemQuery = args.Query
+	}
+	tgQuery := strings.TrimSpace(args.TalkgroupLabel)
+	if tgQuery == "" && args.Query != "" && (section == "talkgroup" || section == "tone_sets" || section == "tonesets" || section == "find" || section == "search") {
+		tgQuery = args.Query
+	}
+
 	var out map[string]any
 
 	switch section {
 	case "summary":
 		out = admin.copilotConfigSummary()
 	case "all":
-		out = map[string]any{"config": admin.GetConfig()}
+		sum := admin.copilotConfigSummary()
+		sum["note"] = "section=all is gated; use summary, find, or a specific section. Secrets are never returned."
+		sum["optionsKeys"] = mapKeys(copilotOptionsPublicView(admin.Controller.Options))
+		out = sum
+	case "find", "search":
+		q := strings.TrimSpace(args.Query)
+		if q == "" {
+			q = strings.TrimSpace(args.SystemLabel + " " + args.TalkgroupLabel)
+		}
+		if q == "" && args.SystemID == 0 && args.TalkgroupID == 0 && args.TalkgroupRef == 0 {
+			return "", fmt.Errorf("query is required for section=find (e.g. \"trumbull 78 fd dispatch\")")
+		}
+		systems := admin.copilotFindSystems(q, args.SystemID, args.SystemRef, 8)
+		talkgroups := admin.copilotFindTalkgroups(nil, q, args.TalkgroupID, args.TalkgroupRef, 15)
+		out = map[string]any{
+			"query":      q,
+			"systems":    systems,
+			"talkgroups": talkgroups,
+			"hint":       "Use systemId + talkgroupId (or talkgroupRef) from these results with section=talkgroup or section=tone_sets. Do not confuse systemRef with talkgroupRef.",
+		}
+	case "tone_sets", "tonesets", "tones":
+		sysQ := systemQuery
+		tgQ := tgQuery
+		if sysQ == "" && tgQ != "" {
+			// "trumbull county talkgroup 78 fd dispatch" often lands only in query/tgQuery
+			sysQ = tgQ
+		}
+		system, tg, hint, err := admin.copilotResolveTalkgroup(args.SystemID, args.SystemRef, sysQ, args.TalkgroupID, args.TalkgroupRef, tgQ)
+		out = map[string]any{"resolution": hint}
+		if err != nil {
+			out["ok"] = false
+			out["error"] = err.Error()
+			b, _ := json.Marshal(out)
+			return string(b), nil
+		}
+		out["ok"] = true
+		out["systemId"] = system.Id
+		out["systemLabel"] = system.Label
+		out["systemRef"] = system.SystemRef
+		out["talkgroupId"] = tg.Id
+		out["talkgroupRef"] = tg.TalkgroupRef
+		out["talkgroupLabel"] = tg.Label
+		out["toneDetectionEnabled"] = tg.ToneDetectionEnabled
+		out["toneSetCount"] = len(tg.ToneSets)
+		out["toneSets"] = tg.ToneSets
+		out["toneSetSchema"] = copilotToneSetSchemaDoc
 	case "tags":
 		out = map[string]any{"tags": admin.Controller.Tags.List}
 	case "talkgroup_groups":
 		out = map[string]any{"groups": admin.Controller.Groups.List}
 	case "apikeys":
-		out = map[string]any{"apikeys": admin.Controller.Apikeys.List}
+		out = map[string]any{"apikeys": copilotApikeysPublicView(admin.Controller.Apikeys.List)}
 	case "dirwatch":
 		out = map[string]any{"dirwatch": admin.Controller.Dirwatches.List}
 	case "downstreams":
 		out = map[string]any{"downstreams": admin.Controller.Downstreams.List}
 	case "options":
-		out = map[string]any{"options": admin.Controller.Options}
+		out = map[string]any{"options": copilotOptionsPublicView(admin.Controller.Options)}
 	case "systems":
 		out = map[string]any{"systems": admin.copilotSystemsSummary()}
 	case "system":
-		if args.SystemID == 0 {
-			return "", fmt.Errorf("systemId is required when section=system")
+		if args.SystemID == 0 && args.SystemRef == 0 && systemQuery == "" && args.Query == "" {
+			return "", fmt.Errorf("systemId, systemRef, or systemLabel/query is required when section=system")
 		}
-		sys, ok := admin.Controller.Systems.GetSystemById(args.SystemID)
-		if !ok {
-			return "", fmt.Errorf("system %d not found", args.SystemID)
+		cands := admin.copilotFindSystems(firstNonEmpty(systemQuery, args.Query), args.SystemID, args.SystemRef, 5)
+		if len(cands) == 0 {
+			return "", fmt.Errorf("system not found")
 		}
-		out = map[string]any{"system": sys}
+		var sys *System
+		switch id := cands[0]["id"].(type) {
+		case uint64:
+			sys, _ = admin.Controller.Systems.GetSystemById(id)
+		case float64:
+			sys, _ = admin.Controller.Systems.GetSystemById(uint64(id))
+		}
+		if sys == nil {
+			return "", fmt.Errorf("system not found")
+		}
+		// Return summary of talkgroups instead of full system blob when large.
+		tgSummaries := make([]map[string]any, 0, len(sys.Talkgroups.List))
+		for _, tg := range sys.Talkgroups.List {
+			tgSummaries = append(tgSummaries, map[string]any{
+				"id": tg.Id, "talkgroupRef": tg.TalkgroupRef, "label": tg.Label, "name": tg.Name,
+				"toneDetectionEnabled": tg.ToneDetectionEnabled, "toneSetCount": len(tg.ToneSets),
+				"tagId": tg.TagId, "alertsEnabled": tg.AlertsEnabled,
+			})
+		}
+		out = map[string]any{
+			"system": map[string]any{
+				"id": sys.Id, "label": sys.Label, "systemRef": sys.SystemRef,
+				"noAudioAlertsEnabled": sys.NoAudioAlertsEnabled,
+				"retentionDays":        sys.RetentionDays,
+				"alertsEnabled":        sys.AlertsEnabled,
+			},
+			"talkgroups": tgSummaries,
+			"talkgroupCount": len(tgSummaries),
+			"candidates": cands,
+		}
 	case "talkgroup":
-		systemID := args.SystemID
-		tgID := args.TalkgroupID
-		tgRef := args.TalkgroupRef
-		if args.Params != nil {
-			if systemID == 0 {
-				if v, ok := args.Params["systemId"].(float64); ok {
-					systemID = uint64(v)
-				}
-			}
-			if tgID == 0 {
-				if v, ok := args.Params["talkgroupId"].(float64); ok {
-					tgID = uint64(v)
-				}
-			}
-			if tgRef == 0 {
-				if v, ok := args.Params["talkgroupRef"].(float64); ok {
-					tgRef = uint(v)
-				}
-			}
-		}
-		if systemID == 0 {
-			return "", fmt.Errorf("systemId is required when section=talkgroup")
-		}
-		result, err := admin.copilotGetTalkgroupConfig(systemID, tgID, tgRef)
+		sysQ := firstNonEmpty(systemQuery, "")
+		tgQ := firstNonEmpty(tgQuery, args.Query)
+		system, tg, hint, err := admin.copilotResolveTalkgroup(args.SystemID, args.SystemRef, sysQ, args.TalkgroupID, args.TalkgroupRef, tgQ)
 		if err != nil {
-			return "", err
+			out = map[string]any{"ok": false, "error": err.Error(), "resolution": hint}
+			b, _ := json.Marshal(out)
+			return string(b), nil
 		}
-		out = result
+		out = map[string]any{
+			"ok":                   true,
+			"systemId":             system.Id,
+			"systemLabel":          system.Label,
+			"systemRef":            system.SystemRef,
+			"talkgroup":            tg,
+			"toneSetCount":         len(tg.ToneSets),
+			"toneDetectionEnabled": tg.ToneDetectionEnabled,
+			"toneSetSchema":        copilotToneSetSchemaDoc,
+			"resolution":           hint,
+		}
 	case "users":
 		out = map[string]any{"users": admin.copilotUserList()}
 	case "user_groups":
@@ -198,11 +318,31 @@ func (admin *Admin) copilotToolGetAdminConfig(argsJSON string) (string, error) {
 		}
 		out = result
 	default:
-		return "", fmt.Errorf("unknown section %q — call get_admin_config section=capabilities for the full catalog", section)
+		// Unknown section: treat as find query instead of dead-ending.
+		q := firstNonEmpty(args.Query, args.Section)
+		systems := admin.copilotFindSystems(q, args.SystemID, args.SystemRef, 5)
+		talkgroups := admin.copilotFindTalkgroups(nil, q, args.TalkgroupID, args.TalkgroupRef, 10)
+		out = map[string]any{
+			"ok":         false,
+			"error":      fmt.Sprintf("unknown section %q — treated as find", args.Section),
+			"query":      q,
+			"systems":    systems,
+			"talkgroups": talkgroups,
+			"hint":       "Valid sections include: summary, find, systems, system, talkgroup, tone_sets, options, users, calls, capabilities. Or use db_query / run_admin_action.",
+		}
 	}
 
 	b, _ := json.Marshal(out)
 	return string(b), nil
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 func (admin *Admin) copilotConfigSummary() map[string]any {
@@ -324,7 +464,12 @@ func (admin *Admin) copilotToolApplyAdminChange(argsJSON string) (string, error)
 		return "", fmt.Errorf("unknown action %q — call get_admin_config section=summary for availableWriteActions", action)
 	}
 	if !args.Confirmed {
-		b, _ := json.Marshal(map[string]any{"applied": false, "error": "confirmed must be true to apply admin changes"})
+		b, _ := json.Marshal(map[string]any{
+			"applied":      false,
+			"needsConfirm": true,
+			"action":       action,
+			"error":        "confirmed must be true to apply admin changes",
+		})
 		return string(b), nil
 	}
 
@@ -335,7 +480,7 @@ func (admin *Admin) copilotToolApplyAdminChange(argsJSON string) (string, error)
 	switch action {
 	case "save_tags":
 		err = admin.copilotSaveTagsList(payloadJSON)
-		result = map[string]any{"tags": admin.Controller.Tags.List}
+		result = map[string]any{"ok": true, "tagCount": len(admin.Controller.Tags.List)}
 	case "update_tags":
 		wrapped := map[string]any{"confirmed": true}
 		for k, v := range args.Payload {
@@ -345,24 +490,32 @@ func (admin *Admin) copilotToolApplyAdminChange(argsJSON string) (string, error)
 		return admin.copilotToolApplyTagDefinitionUpdates(string(wb))
 	case "save_talkgroup_groups":
 		err = admin.copilotSaveTalkgroupGroups(payloadJSON)
-		result = map[string]any{"groups": admin.Controller.Groups.List}
+		result = map[string]any{"ok": true, "groupCount": len(admin.Controller.Groups.List)}
 	case "save_apikeys":
 		err = admin.copilotSaveApikeys(payloadJSON)
-		result = map[string]any{"apikeys": admin.Controller.Apikeys.List}
+		result = map[string]any{"ok": true, "apikeyCount": len(admin.Controller.Apikeys.List)}
 	case "save_dirwatch":
 		err = admin.copilotSaveDirwatch(payloadJSON)
-		result = map[string]any{"dirwatch": admin.Controller.Dirwatches.List}
+		result = map[string]any{"ok": true, "dirwatchCount": len(admin.Controller.Dirwatches.List)}
 	case "save_downstreams":
 		err = admin.copilotSaveDownstreams(payloadJSON)
-		result = map[string]any{"downstreams": admin.Controller.Downstreams.List}
+		result = map[string]any{"ok": true, "downstreamCount": len(admin.Controller.Downstreams.List)}
 	case "save_system":
 		err = admin.copilotSaveSystem(payloadJSON)
-		result = map[string]any{"systems": admin.Controller.Systems.List}
+		result = copilotSaveSystemSummary(args.Payload)
 	case "delete_system":
 		result, err = admin.copilotDeleteSystem(payloadJSON)
 	case "patch_options":
+		changedKeys := make([]string, 0, len(args.Payload))
+		partial := args.Payload
+		if opts, ok := args.Payload["options"].(map[string]any); ok {
+			partial = opts
+		}
+		for k := range partial {
+			changedKeys = append(changedKeys, k)
+		}
 		err = admin.copilotPatchOptions(payloadJSON)
-		result = map[string]any{"options": admin.Controller.Options}
+		result = map[string]any{"ok": true, "changedFields": changedKeys}
 	case "save_system_no_audio_settings":
 		err = admin.copilotSaveSystemNoAudio(payloadJSON)
 	case "patch_health_settings":
@@ -716,6 +869,30 @@ func (admin *Admin) copilotSaveSystem(payloadJSON []byte) error {
 	_ = admin.Controller.IdLookupsCache.Read(admin.Controller.Database)
 	admin.copilotFinishWrite("save_system")
 	return nil
+}
+
+func copilotSaveSystemSummary(payload map[string]any) map[string]any {
+	sys := payload
+	if nested, ok := payload["system"].(map[string]any); ok {
+		sys = nested
+	}
+	out := map[string]any{"ok": true}
+	if id, ok := sys["id"].(float64); ok {
+		out["systemId"] = uint64(id)
+	}
+	changed := make([]string, 0, len(sys))
+	for k := range sys {
+		if k == "talkgroups" || k == "sites" || k == "units" {
+			continue
+		}
+		changed = append(changed, k)
+	}
+	if tgs, ok := sys["talkgroups"].([]any); ok {
+		out["talkgroupCount"] = len(tgs)
+		changed = append(changed, "talkgroups")
+	}
+	out["changedFields"] = changed
+	return out
 }
 
 func (admin *Admin) copilotDeleteSystem(payloadJSON []byte) (map[string]any, error) {

@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidatorFn, ValidationErrors, Validators } from '@angular/forms';
 import { MatSnackBar, MatSnackBarConfig } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
@@ -27,6 +27,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-admin-password',
     styleUrls: ['./password.component.scss'],
     templateUrl: './password.component.html',
+    changeDetection: ChangeDetectionStrategy.Default,
     standalone: false
 })
 export class RdioScannerAdminPasswordComponent implements OnInit, OnDestroy {

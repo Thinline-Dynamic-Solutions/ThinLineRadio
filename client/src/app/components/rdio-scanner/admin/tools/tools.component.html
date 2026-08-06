@@ -16,14 +16,11 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>
 * ****************************************************************************
 -->
-<div class="tools-layout">
+<div class="tools-page">
 
-  <!-- ── Left Sidebar ──────────────────────────────────────── -->
-  <nav class="tools-sidebar">
-    <div class="sidebar-section-label">Tools</div>
-
-    @for (tool of toolSections; track tool) {
-      <button type="button" class="sidebar-item"
+  <nav class="tools-chip-nav" aria-label="Tools">
+    @for (tool of toolSections; track tool.id) {
+      <button type="button" class="tools-chip"
         [class.active]="activeSection === tool.id"
         (click)="setSection(tool.id)">
         <mat-icon>{{ tool.icon }}</mat-icon>
@@ -32,20 +29,17 @@
     }
   </nav>
 
-  <!-- ── Right Content Area ────────────────────────────────── -->
-  <div class="tools-content">
-
-    <!-- Section header -->
-    @if (activeToolSection) {
-      <div class="section-header">
-        <mat-icon>{{ activeToolSection.icon }}</mat-icon>
-        <div>
-          <h3>{{ activeToolSection.label }}</h3>
-          <p class="section-subtitle">{{ activeToolSection.description }}</p>
-        </div>
+  @if (activeToolSection) {
+    <div class="section-header">
+      <mat-icon>{{ activeToolSection.icon }}</mat-icon>
+      <div>
+        <h3>{{ activeToolSection.label }}</h3>
+        <p class="section-subtitle">{{ activeToolSection.description }}</p>
       </div>
-    }
+    </div>
+  }
 
+  <div class="tools-content">
     @switch (activeSection) {
       @case ('import-talkgroups') {
         <rdio-scanner-admin-import-talkgroups
@@ -70,9 +64,6 @@
         <rdio-scanner-admin-import-export-config
           (config)="config.emit($event)">
         </rdio-scanner-admin-import-export-config>
-      }
-      @case ('config-sync') {
-        <rdio-scanner-admin-config-sync></rdio-scanner-admin-config-sync>
       }
       @case ('stripe-sync') {
         <rdio-scanner-admin-stripe-sync></rdio-scanner-admin-stripe-sync>

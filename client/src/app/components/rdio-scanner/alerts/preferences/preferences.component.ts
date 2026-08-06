@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { RdioScannerAlertPreference, RdioScannerConfig, RdioScannerKeywordList, RdioScannerService, RdioScannerSystem, RdioScannerTalkgroup, RdioScannerToneSet } from '../../rdio-scanner';
 import { AlertsService } from '../alerts.service';
@@ -38,6 +38,7 @@ type StoredPreference = RdioScannerAlertPreference & {
         './preferences.component.scss',
     ],
     templateUrl: './preferences.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
@@ -49,6 +50,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     searchQuery = '';
     isSearchFocused = false;
     detailSystemId: number | null = null;
+    systemsRailCollapsed = false;
     expandedTags: Map<string, boolean> = new Map();
     
     private pin?: string;
@@ -226,6 +228,11 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
 
     selectDetailSystem(systemId: number): void {
         this.detailSystemId = systemId;
+        this.cdRef.markForCheck();
+    }
+
+    toggleSystemsRail(): void {
+        this.systemsRailCollapsed = !this.systemsRailCollapsed;
         this.cdRef.markForCheck();
     }
 

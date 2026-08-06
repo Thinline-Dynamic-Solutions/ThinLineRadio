@@ -102,7 +102,7 @@
 
 <mat-form-field appearance="outline" class="cn-search">
   <mat-label>Search categories or phrases</mat-label>
-  <input matInput [(ngModel)]="searchFilter" autocomplete="off">
+  <input matInput [ngModel]="searchFilter" (ngModelChange)="onSearch($event)" autocomplete="off">
   <mat-icon matSuffix>search</mat-icon>
 </mat-form-field>
 
@@ -130,9 +130,9 @@
   </div>
 }
 
-@if (!loading) {
+@if (!loading && pagedNatures.length > 0) {
   <div class="cn-cards">
-    @for (nature of filteredNatures; track nature) {
+    @for (nature of pagedNatures; track nature.id ?? indexOfNature(nature)) {
       <div
         class="cn-card"
         [class.cn-card--editing]="editingIndex === indexOfNature(nature)"
@@ -252,4 +252,16 @@
       </div>
     }
   </div>
+
+  @if (filteredNatures.length > pageSize) {
+    <mat-paginator
+      class="cn-paginator"
+      [length]="filteredNatures.length"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [hidePageSize]="true"
+      [showFirstLastButtons]="true"
+      (page)="onPage($event)">
+    </mat-paginator>
+  }
 }

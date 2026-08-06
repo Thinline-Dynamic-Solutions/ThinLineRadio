@@ -73,11 +73,11 @@
     </button>
 
     <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'groups'"
-      (click)="setSection('groups')">
+      [class.active]="activeSection === 'groups-tags'"
+      (click)="setSection('groups-tags')">
       <mat-icon>workspaces</mat-icon>
-      <span>Groups</span>
-      @if (form?.dirty && form?.get('groups')?.invalid) {
+      <span>Groups &amp; Tags</span>
+      @if (form?.dirty && (form?.get('groups')?.invalid || form?.get('tags')?.invalid)) {
         <mat-icon class="error-dot" color="warn">error</mat-icon>
       }
     </button>
@@ -86,7 +86,7 @@
       [class.active]="activeSection === 'options'"
       (click)="setSection('options')">
       <mat-icon>tune</mat-icon>
-      <span>Options</span>
+      <span>Options and Settings</span>
       @if (form?.dirty && form?.get('options')?.invalid) {
         <mat-icon class="error-dot" color="warn">error</mat-icon>
       }
@@ -134,110 +134,153 @@
       </div>
     </div>
 
+    <div class="sidebar-section-label sidebar-section-label--spaced">Operations</div>
+
     <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'tags'"
-      (click)="setSection('tags')">
-      <mat-icon>sell</mat-icon>
-      <span>Tags</span>
-      @if (form?.dirty && form?.get('tags')?.invalid) {
-        <mat-icon class="error-dot" color="warn">error</mat-icon>
-      }
+      [class.active]="activeSection === 'logs'"
+      (click)="setSection('logs')">
+      <mat-icon>article</mat-icon>
+      <span>Logs</span>
     </button>
 
     <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'keyword-lists'"
-      (click)="setSection('keyword-lists')">
-      <mat-icon>format_list_bulleted</mat-icon>
-      <span>Keyword Lists</span>
+      [class.active]="activeSection === 'system-health'"
+      (click)="setSection('system-health')">
+      <mat-icon>health_and_safety</mat-icon>
+      <span>System Health</span>
     </button>
 
     <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'transcript-parser'"
-      (click)="setSection('transcript-parser')">
-      <mat-icon>record_voice_over</mat-icon>
-      <span>Transcript Parser</span>
+      [class.active]="activeSection === 'tools'"
+      (click)="setSection('tools')">
+      <mat-icon>build</mat-icon>
+      <span>Tools</span>
     </button>
+
+    <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'assistant'"
+      (click)="setSection('assistant')">
+      <mat-icon>smart_toy</mat-icon>
+      <span>Assistant</span>
+    </button>
+
+    @if (isCentrallyManaged) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'central-management'"
+        (click)="setSection('central-management')">
+        <mat-icon>hub</mat-icon>
+        <span>Central Management</span>
+      </button>
+    }
 
   </nav>
 
   <!-- ── Right Content Area ────────────────────────────────── -->
-  <div class="config-content">
+  <div class="config-content" [class.config-content--flush]="activeSection === 'users'">
 
-    <!-- Loading state: shown until config is fetched and form is built -->
-    @if (loading) {
-      <div class="config-loading">
-        <mat-spinner diameter="48"></mat-spinner>
-        <p>Loading configuration…</p>
-      </div>
-    }
+    @if (activeSection === 'logs') {
+      <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
+    } @else if (activeSection === 'system-health') {
+      <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
+    } @else if (activeSection === 'tools') {
+      <rdio-scanner-admin-tools
+        (config)="onConfigFromTools($event)"
+        (configSaved)="onConfigSavedFromTools($event)">
+      </rdio-scanner-admin-tools>
+    } @else if (activeSection === 'assistant') {
+      <rdio-scanner-admin-assistant></rdio-scanner-admin-assistant>
+    } @else if (activeSection === 'central-management') {
+      <rdio-scanner-admin-central-management
+        [options]="options"
+        (leftCentralManagement)="onLeftCentralManagement()">
+      </rdio-scanner-admin-central-management>
+    } @else {
+      <!-- Loading state: shown until config is fetched and form is built -->
+      @if (loading) {
+        <div class="config-loading">
+          <mat-spinner diameter="48"></mat-spinner>
+          <p>Loading configuration…</p>
+        </div>
+      }
 
-    @if (!loading && form) {
-      <form autocomplete="off" [formGroup]="form" class="config-form-body">
-        @switch (activeSection) {
-          @case ('user-groups') {
-            <rdio-scanner-admin-user-groups [form]="userGroups" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-user-groups>
-          }
-          @case ('users') {
-            <rdio-scanner-admin-users
-              [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value"
-              [form]="users">
-            </rdio-scanner-admin-users>
-          }
-          @case ('apikeys') {
-            <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-apikeys>
-          }
-          @case ('dirwatch') {
-            <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-dirwatch>
-          }
-          @case ('downstreams') {
-            <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-downstreams>
-          }
-          @case ('groups') {
-            <rdio-scanner-admin-groups [form]="groups" [originalConfig]="originalConfig"></rdio-scanner-admin-groups>
-          }
-          @case ('options') {
-            <rdio-scanner-admin-options [form]="options" [systemsForm]="systems"></rdio-scanner-admin-options>
-          }
-          <!-- Systems overview (landing when none selected) -->
-          @case ('systems') {
-            <rdio-scanner-admin-systems
-              [form]="systems"
-              (systemSelected)="selectSystem($event)"
-              (addSystem)="addNewSystem()">
-            </rdio-scanner-admin-systems>
-          }
-          <!-- Individual system detail view -->
-          @case ('system-detail') {
-            @if (activeSystemForm) {
-              <rdio-scanner-admin-system
-                [form]="activeSystemForm"
-                [groups]="groupsValue"
-                [tags]="tagsValue"
-                [apikeys]="apikeysValue"
-                [systemData]="getSystemData(activeSystemForm)"
-                [saving]="savingSystem"
-                [saveSuccess]="systemSaveSuccess"
-                (remove)="removeCurrentSystem()"
-                (save)="saveCurrentSystem()"
-                (onTalkgroupsLoaded)="markSystemTalkgroupsLoaded(activeSystemForm)">
-              </rdio-scanner-admin-system>
+      @if (!loading && form) {
+        <form autocomplete="off" [formGroup]="form" class="config-form-body">
+          @switch (activeSection) {
+            @case ('user-groups') {
+              <rdio-scanner-admin-user-groups [form]="userGroups" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-user-groups>
+            }
+            @case ('users') {
+              <rdio-scanner-admin-users
+                [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value"
+                [form]="users">
+              </rdio-scanner-admin-users>
+            }
+            @case ('apikeys') {
+              <rdio-scanner-admin-apikeys #apikeyComponent [form]="apikeys" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-apikeys>
+            }
+            @case ('dirwatch') {
+              <rdio-scanner-admin-dirwatch #dirwatchComponent [form]="dirwatch" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-dirwatch>
+            }
+            @case ('downstreams') {
+              <rdio-scanner-admin-downstreams #downstreamsComponent [form]="downstreams" [rawSystems]="originalConfig.systems"></rdio-scanner-admin-downstreams>
+            }
+            @case ('groups-tags') {
+              <div class="groups-tags-page">
+                <nav class="groups-tags-subnav" aria-label="Groups and Tags">
+                  <button type="button" class="groups-tags-subchip"
+                    [class.active]="groupsTagsTab === 'groups'"
+                    (click)="setGroupsTagsTab('groups')">
+                    Groups
+                  </button>
+                  <button type="button" class="groups-tags-subchip"
+                    [class.active]="groupsTagsTab === 'tags'"
+                    (click)="setGroupsTagsTab('tags')">
+                    Tags
+                  </button>
+                </nav>
+                @if (groupsTagsTab === 'groups') {
+                  <rdio-scanner-admin-groups [form]="groups" [originalConfig]="originalConfig"></rdio-scanner-admin-groups>
+                }
+                @if (groupsTagsTab === 'tags') {
+                  <rdio-scanner-admin-tags [form]="tags" [originalConfig]="originalConfig"></rdio-scanner-admin-tags>
+                }
+              </div>
+            }
+            @case ('options') {
+              <rdio-scanner-admin-options
+                [form]="options"
+                [systemsForm]="systems"
+                [transcriptParserConfig]="originalConfig.options?.transcriptParserConfig"
+                [keywordLists]="originalConfig.keywordLists">
+              </rdio-scanner-admin-options>
+            }
+            <!-- Systems landing (pick from left panel) -->
+            @case ('systems') {
+              <rdio-scanner-admin-systems
+                [form]="systems"
+                (addSystem)="addNewSystem()">
+              </rdio-scanner-admin-systems>
+            }
+            <!-- Individual system detail view -->
+            @case ('system-detail') {
+              @if (activeSystemForm) {
+                <rdio-scanner-admin-system
+                  [form]="activeSystemForm"
+                  [groups]="groupsValue"
+                  [tags]="tagsValue"
+                  [apikeys]="apikeysValue"
+                  [systemData]="getSystemData(activeSystemForm)"
+                  [saving]="savingSystem"
+                  [saveSuccess]="systemSaveSuccess"
+                  (remove)="removeCurrentSystem()"
+                  (save)="saveCurrentSystem()"
+                  (onTalkgroupsLoaded)="markSystemTalkgroupsLoaded(activeSystemForm)">
+                </rdio-scanner-admin-system>
+              }
             }
           }
-          @case ('tags') {
-            <rdio-scanner-admin-tags [form]="tags" [originalConfig]="originalConfig"></rdio-scanner-admin-tags>
-          }
-          @case ('keyword-lists') {
-            <rdio-scanner-admin-keyword-lists
-              [initialLists]="originalConfig.keywordLists">
-            </rdio-scanner-admin-keyword-lists>
-          }
-          @case ('transcript-parser') {
-            <rdio-scanner-admin-transcript-parser
-              [initialConfig]="originalConfig.options?.transcriptParserConfig">
-            </rdio-scanner-admin-transcript-parser>
-          }
-        }
-      </form>
+        </form>
+      }
     }
 
   </div>

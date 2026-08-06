@@ -253,6 +253,8 @@ export interface RdioScannerConfig {
         turnstileEnabled?: boolean;
         turnstileSiteKey?: string;
         transcriptionEnabled?: boolean;
+        /** When false, the console Map tab is hidden. */
+        incidentMappingEnabled?: boolean;
     };
     playbackGoesLive: boolean;
     showListenersCount: boolean;

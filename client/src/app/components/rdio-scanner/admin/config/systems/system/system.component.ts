@@ -29,6 +29,37 @@ import { ToneSetLocationDialogComponent } from './tone-set-location-dialog.compo
 import { TalkgroupLocationDialogComponent } from './talkgroup-location-dialog.component';
 import { DeleteSystemDialogComponent } from '../delete-system-dialog.component';
 
+type SystemNavId = 'settings' | 'mapping' | 'talkgroups' | 'sites' | 'units';
+
+interface SystemNavItem {
+    id: SystemNavId;
+    label: string;
+    icon: string;
+    description: string;
+}
+
+interface SystemSubNavItem {
+    id: string;
+    label: string;
+}
+
+const SYSTEM_NAV: SystemNavItem[] = [
+    { id: 'settings', label: 'Settings', icon: 'settings', description: 'Identity, retention, auto-populate, alerts, and transcription overrides.' },
+    { id: 'mapping', label: 'Mapping', icon: 'map', description: 'Incident mapping geo center, radius, and talkgroup / tone-set locations.' },
+    { id: 'talkgroups', label: 'Talkgroups', icon: 'record_voice_over', description: 'Channels for this system — labels, groups, tags, and alert flags.' },
+    { id: 'sites', label: 'Sites', icon: 'cell_tower', description: 'P25 sites used for preferred-site duplicate detection.' },
+    { id: 'units', label: 'Units', icon: 'badge', description: 'Unit ID aliases shown in the Source column, plus auto-learn review.' },
+];
+
+const SYSTEM_SUB_NAV: Partial<Record<SystemNavId, SystemSubNavItem[]>> = {
+    settings: [
+        { id: 'general', label: 'General' },
+        { id: 'autopopulate', label: 'Auto-populate' },
+        { id: 'alerts', label: 'Alerts & learning' },
+        { id: 'transcription', label: 'Blacklist & prompt' },
+    ],
+};
+
 @Component({
     selector: 'rdio-scanner-admin-system',
     templateUrl: './system.component.html',
@@ -48,6 +79,10 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     @Output() remove = new EventEmitter<void>();
     @Output() save = new EventEmitter<void>();
     @Output() onTalkgroupsLoaded = new EventEmitter<void>();
+
+    readonly systemNav = SYSTEM_NAV;
+    activePanel: SystemNavId = 'settings';
+    activeSubPanel: string | null = SYSTEM_SUB_NAV.settings?.[0]?.id ?? null;
 
     // ─── Expanded row state ────────────────────────────────────────────────────
     expandedTalkgroup: FormGroup | null = null;
@@ -69,8 +104,12 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     talkgroupPageSize = 50;
     talkgroupCurrentPage = 0;
     talkgroupsLoaded = false;
-    unitPageSize = 50;
+    /** 10 units per column × 3 columns = 30 per page. */
+    readonly unitColumnSize = 10;
+    readonly unitColumnCount = 3;
+    unitPageSize = 30;
     unitCurrentPage = 0;
+    unitColumnIds = ['units-col0', 'units-col1', 'units-col2'];
 
     // ─── Bulk selection ────────────────────────────────────────────────────────
     /** Selected talkgroups by FormGroup reference — O(1) lookup in the table. */
@@ -89,6 +128,10 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     loadingUnitAliasSuggestions = false;
     scanningUnitAliases = false;
     unitAliasScanMessage = '';
+    unitAliasReadyPageSize = 10;
+    unitAliasReadyPage = 0;
+    unitAliasEmergingPageSize = 10;
+    unitAliasEmergingPage = 0;
     private unitAliasSystemId = 0;
     sitesSearchTerm = '';
 
@@ -139,18 +182,9 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
             this.rebuildLabelMaps();
         }
 
-        if (changes['systemData']) {
-            this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
-            this.unitCurrentPage = 0;
-            this.unitsSearchTerm = '';
-            this.expandedUnitFormSub?.unsubscribe();
-            this.expandedUnitFormSub = null;
-            this.expandedRawUnit = null;
-            this.expandedUnitForm = null;
-            this.loadUnitAliasSuggestions();
-        }
-
         if (changes['form'] && !changes['form'].firstChange) {
+            this.activePanel = 'settings';
+            this.activeSubPanel = SYSTEM_SUB_NAV.settings?.[0]?.id ?? null;
             const tgArray = this.form.get('talkgroups') as FormArray | null;
             this.talkgroupsLoaded = tgArray ? tgArray.length > 0 : false;
             this.talkgroupCurrentPage = 0;
@@ -161,6 +195,37 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
                 setTimeout(() => { this.loadTalkgroupsProgressively(); }, 100);
             }
         }
+
+        if (changes['systemData']) {
+            this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
+            this.unitCurrentPage = 0;
+            this.unitsSearchTerm = '';
+            this.expandedUnitFormSub?.unsubscribe();
+            this.expandedUnitFormSub = null;
+            this.expandedRawUnit = null;
+            this.expandedUnitForm = null;
+            this.loadUnitAliasSuggestions();
+        }
+    }
+
+    setActivePanel(id: SystemNavId): void {
+        this.activePanel = id;
+        const subs = this.subNavFor(id);
+        this.activeSubPanel = subs[0]?.id ?? null;
+        this.cdr.markForCheck();
+    }
+
+    setActiveSubPanel(id: string): void {
+        this.activeSubPanel = id;
+        this.cdr.markForCheck();
+    }
+
+    subNavFor(id: SystemNavId): SystemSubNavItem[] {
+        return SYSTEM_SUB_NAV[id] ?? [];
+    }
+
+    panelMeta(id: SystemNavId): SystemNavItem {
+        return SYSTEM_NAV.find((item) => item.id === id) ?? SYSTEM_NAV[0];
     }
 
     ngOnInit() {
@@ -356,10 +421,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
                 return (u.label || '').toLowerCase().includes(s) ||
                        String(u.unitRef).includes(s);
               })
-            : this.rawUnits.slice().sort((a, b) => {
-                const d = (a.order || 0) - (b.order || 0);
-                return d !== 0 ? d : (a.id || 0) - (b.id || 0);
-              });
+            : this.orderedUnits;
 
         const totalPages = Math.ceil(filtered.length / this.unitPageSize);
         if (this.unitCurrentPage >= totalPages && totalPages > 0) {
@@ -368,9 +430,34 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         return filtered;
     }
 
+    /** Units sorted by order for paging / drag. */
+    get orderedUnits(): any[] {
+        return this.rawUnits.slice().sort((a, b) => {
+            const d = (a.order || 0) - (b.order || 0);
+            return d !== 0 ? d : (a.id || 0) - (b.id || 0);
+        });
+    }
+
     get paginatedUnits(): any[] {
         const start = this.unitCurrentPage * this.unitPageSize;
         return this.filteredUnits.slice(start, start + this.unitPageSize);
+    }
+
+    unitColumn(col: number): any[] {
+        const start = this.unitCurrentPage * this.unitPageSize + col * this.unitColumnSize;
+        return this.filteredUnits.slice(start, start + this.unitColumnSize);
+    }
+
+    get showUnitTripleColumns(): boolean {
+        return this.filteredUnits.length > this.unitColumnSize;
+    }
+
+    get visibleUnitColumnCount(): number {
+        if (!this.showUnitTripleColumns) {
+            return 1;
+        }
+        const pageCount = this.paginatedUnits.length;
+        return Math.min(this.unitColumnCount, Math.max(1, Math.ceil(pageCount / this.unitColumnSize)));
     }
 
     get unitTotalPages(): number {
@@ -403,6 +490,15 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         this.unitsSearchTerm = term;
         this.unitCurrentPage = 0;
         this._closeExpandedUnit();
+    }
+
+    private unitColumnOffset(listId: string): number {
+        const idx = this.unitColumnIds.indexOf(listId);
+        return idx > 0 ? idx * this.unitColumnSize : 0;
+    }
+
+    unitDropConnectedTo(col: number): string[] {
+        return this.unitColumnIds.filter((_, i) => i !== col && i < this.visibleUnitColumnCount);
     }
 
     // ─── Expand / collapse rows ────────────────────────────────────────────────
@@ -471,6 +567,25 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
             if (this.systemData) this.systemData.units = this.rawUnits;
             this.form.markAsDirty();
         }
+    }
+
+    /** Commit the open unit editor, close it, and persist the system. */
+    saveUnitEdit(): void {
+        if (!this.expandedUnitForm) {
+            return;
+        }
+        if (this.expandedUnitForm.invalid) {
+            this.expandedUnitForm.markAllAsTouched();
+            this.cdr.markForCheck();
+            return;
+        }
+        this._commitUnitEdit();
+        this.expandedUnitFormSub?.unsubscribe();
+        this.expandedUnitFormSub = null;
+        this.expandedRawUnit = null;
+        this.expandedUnitForm = null;
+        this.cdr.markForCheck();
+        this.save.emit();
     }
 
     ngOnDestroy(): void {
@@ -550,6 +665,52 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         return this.unitAliasSuggestions.filter(s => !s.ready);
     }
 
+    get paginatedReadyUnitAliasSuggestions(): UnitAliasSuggestion[] {
+        const start = this.unitAliasReadyPage * this.unitAliasReadyPageSize;
+        return this.readyUnitAliasSuggestions.slice(start, start + this.unitAliasReadyPageSize);
+    }
+
+    get readyUnitAliasTotalPages(): number {
+        return Math.max(1, Math.ceil(this.readyUnitAliasSuggestions.length / this.unitAliasReadyPageSize));
+    }
+
+    get paginatedEmergingUnitAliasSuggestions(): UnitAliasSuggestion[] {
+        const start = this.unitAliasEmergingPage * this.unitAliasEmergingPageSize;
+        return this.emergingUnitAliasSuggestions.slice(start, start + this.unitAliasEmergingPageSize);
+    }
+
+    get emergingUnitAliasTotalPages(): number {
+        return Math.max(1, Math.ceil(this.emergingUnitAliasSuggestions.length / this.unitAliasEmergingPageSize));
+    }
+
+    nextReadyUnitAliasPage(): void {
+        if (this.unitAliasReadyPage < this.readyUnitAliasTotalPages - 1) {
+            this.unitAliasReadyPage++;
+            this.cdr.markForCheck();
+        }
+    }
+
+    prevReadyUnitAliasPage(): void {
+        if (this.unitAliasReadyPage > 0) {
+            this.unitAliasReadyPage--;
+            this.cdr.markForCheck();
+        }
+    }
+
+    nextEmergingUnitAliasPage(): void {
+        if (this.unitAliasEmergingPage < this.emergingUnitAliasTotalPages - 1) {
+            this.unitAliasEmergingPage++;
+            this.cdr.markForCheck();
+        }
+    }
+
+    prevEmergingUnitAliasPage(): void {
+        if (this.unitAliasEmergingPage > 0) {
+            this.unitAliasEmergingPage--;
+            this.cdr.markForCheck();
+        }
+    }
+
     resolveUnitAliasSystemId(): number {
         return this.systemId
             || this.systemData?.id
@@ -573,6 +734,8 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
             next: (res) => {
                 this.unitAliasStatus = res?.status || null;
                 this.unitAliasSuggestions = res?.suggestions || [];
+                this.unitAliasReadyPage = 0;
+                this.unitAliasEmergingPage = 0;
                 for (const s of this.unitAliasSuggestions) {
                     if (this.unitAliasEditLabels[s.candidateId] === undefined) {
                         this.unitAliasEditLabels[s.candidateId] = s.suggestedLabel || '';
@@ -597,6 +760,8 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         this.adminService.scanUnitAliasHistory(systemId).subscribe({
             next: (res) => {
                 this.unitAliasSuggestions = res?.suggestions || [];
+                this.unitAliasReadyPage = 0;
+                this.unitAliasEmergingPage = 0;
                 this.unitAliasScanMessage = res?.message || '';
                 this.unitAliasStatus = {
                     enabled: this.unitAliasStatus?.enabled ?? true,
@@ -861,12 +1026,31 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     }
 
     dropUnit(event: CdkDragDrop<any[]>): void {
-        if (event.previousIndex === event.currentIndex) return;
-        const page = event.container.data;
-        moveItemInArray(page, event.previousIndex, event.currentIndex);
-        const offset = this.unitCurrentPage * this.unitPageSize;
-        page.forEach((u, idx) => { u.order = offset + idx + 1; });
-        if (this.systemData) this.systemData.units = this.rawUnits;
+        if (this.unitsSearchTerm.trim()) {
+            return;
+        }
+        if (event.previousContainer === event.container
+            && event.previousIndex === event.currentIndex) {
+            return;
+        }
+        const all = this.orderedUnits;
+        const pageStart = this.unitCurrentPage * this.unitPageSize;
+        const from = pageStart
+            + this.unitColumnOffset(event.previousContainer.id)
+            + event.previousIndex;
+        const to = pageStart
+            + this.unitColumnOffset(event.container.id)
+            + event.currentIndex;
+        if (from === to || from < 0 || from >= all.length) {
+            return;
+        }
+        const clampedTo = Math.min(Math.max(to, 0), all.length - 1);
+        moveItemInArray(all, from, clampedTo);
+        all.forEach((u, idx) => { u.order = idx + 1; });
+        this.rawUnits = all;
+        if (this.systemData) {
+            this.systemData.units = this.rawUnits;
+        }
         this.form.markAsDirty();
         this.cdr.markForCheck();
     }

@@ -257,6 +257,7 @@ var PostgresqlSchema = []string{
     "subscriptionStatus" text NOT NULL DEFAULT '',
     "accountExpiresAt" bigint NOT NULL DEFAULT 0,
     "forcePasswordReset" boolean NOT NULL DEFAULT false,
+    "suspended" boolean NOT NULL DEFAULT false,
     "settings" text NOT NULL DEFAULT ''
   );`,
 

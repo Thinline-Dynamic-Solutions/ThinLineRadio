@@ -6,7 +6,7 @@
  * Nothing is persisted until Apply.
  */
 
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../../admin.service';
@@ -107,6 +107,7 @@ interface DialogRow extends Omit<MappingToneSetLocationRow, 'geoLat' | 'geoLon'>
         }
         .c-actions { display: flex; gap: 4px; align-items: center; padding-top: 2px; }
     `],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ToneSetLocationDialogComponent {

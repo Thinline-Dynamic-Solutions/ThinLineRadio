@@ -11,6 +11,7 @@
 @import "./styles/thinline-tokens";
 @import "./styles/thinline-app-font";
 @import "./styles/thinline-material";
+@import "./styles/thinline-states";
 
 @include mat.elevation-classes();
 @include mat.app-background();
@@ -328,6 +329,34 @@ $admin-dark-theme: mat.m2-define-dark-theme((
     background: #1a1a1a;
   }
 
+  // Outline form fields (dialogs sit outside .admin-dark-theme)
+  .mat-mdc-form-field {
+    .mdc-floating-label,
+    .mat-mdc-floating-label {
+      color: #aaa !important;
+    }
+    .mdc-text-field__input,
+    input,
+    textarea {
+      color: #fff !important;
+      caret-color: #fff;
+    }
+    .mdc-notched-outline__leading,
+    .mdc-notched-outline__notch,
+    .mdc-notched-outline__trailing {
+      border-color: #444 !important;
+    }
+    &:hover .mdc-notched-outline__leading,
+    &:hover .mdc-notched-outline__notch,
+    &:hover .mdc-notched-outline__trailing {
+      border-color: #888 !important;
+    }
+    .mat-mdc-form-field-hint,
+    .mat-mdc-form-field-subscript-wrapper {
+      color: #888 !important;
+    }
+  }
+
   .mat-mdc-checkbox label,
   .mat-mdc-checkbox .mdc-label {
     color: #e0e0e0 !important;
@@ -335,6 +364,31 @@ $admin-dark-theme: mat.m2-define-dark-theme((
 
   .mat-mdc-checkbox .mdc-checkbox__background {
     border-color: #666 !important;
+  }
+
+  // Systems/talkgroups select uses its own red/green checkbox colors
+  &.systems-select-dialog .mat-mdc-checkbox .mdc-checkbox__background,
+  &.systems-select-dialog rdio-scanner-admin-systems-selection .mat-mdc-checkbox .mdc-checkbox__background {
+    border-color: #8b1a1a !important;
+    background-color: rgba(139, 26, 26, 0.45) !important;
+  }
+
+  &.systems-select-dialog .mat-mdc-checkbox.mat-mdc-checkbox-checked .mdc-checkbox__background,
+  &.systems-select-dialog rdio-scanner-admin-systems-selection .mat-mdc-checkbox.mat-mdc-checkbox-checked .mdc-checkbox__background {
+    border-color: #1b5e20 !important;
+    background-color: #1b5e20 !important;
+  }
+
+  &.systems-select-dialog .mat-mdc-button:not([color]),
+  &.systems-select-dialog .mat-mdc-outlined-button:not([color]) {
+    color: #f5f5f5 !important;
+    border-color: rgba(255, 255, 255, 0.45) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  &.systems-select-dialog .mat-mdc-raised-button.mat-primary:not(:disabled) {
+    background: #1b5e20 !important;
+    color: #e8f5e9 !important;
   }
 
   .mat-mdc-progress-spinner circle {

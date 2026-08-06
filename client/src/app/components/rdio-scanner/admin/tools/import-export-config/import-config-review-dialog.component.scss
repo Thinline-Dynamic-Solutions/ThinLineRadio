@@ -26,14 +26,13 @@
         }
     }
 
-    ::ng-deep .mat-mdc-checkbox-layout,
-    ::ng-deep .mat-checkbox-layout {
+    ::ng-deep .mat-mdc-checkbox .mdc-form-field,
+    ::ng-deep .mat-mdc-checkbox-layout {
         align-items: flex-start;
         white-space: normal;
     }
 
-    ::ng-deep .mat-mdc-checkbox .mdc-checkbox,
-    ::ng-deep .mat-checkbox-inner-container {
+    ::ng-deep .mat-mdc-checkbox .mdc-checkbox {
         margin-top: 3px;
     }
 }

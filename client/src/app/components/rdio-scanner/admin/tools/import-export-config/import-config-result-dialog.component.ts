@@ -9,7 +9,7 @@
  * ****************************************************************************
  */
 
-import { ChangeDetectorRef, Component, Inject } from '@angular/core';
+import { ChangeDetectorRef, Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { ConfigImportSummaryItem } from '../../admin.service';
 
@@ -27,6 +27,7 @@ export interface ImportConfigResultDialogData {
     selector: 'rdio-scanner-admin-import-config-result-dialog',
     templateUrl: './import-config-result-dialog.component.html',
     styleUrls: ['./import-config-result-dialog.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ImportConfigResultDialogComponent {

@@ -22,6 +22,7 @@ import { AbstractControl, FormArray, FormBuilder, FormGroup, Validators } from '
 import { MatSelectChange } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { finalize } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 import { RdioScannerAdminService, Group, Tag, ToneHistoryAnalyzeResponse, ToneHistorySuggestion } from '../../../admin.service';
 import { RdioScannerToneSet } from '../../../../rdio-scanner';
 
@@ -58,6 +59,18 @@ export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
     // Tone sets are collapsed by default to keep the talkgroup editor compact;
     // tracked by tone-set id so the expanded state survives add/remove reorders.
     expandedToneSets = new Set<string>();
+
+    /** A/B vs long-tone exclusivity subscriptions, keyed by tone-set FormGroup. */
+    private toneExclusiveSubs = new Map<FormGroup, Subscription>();
+
+    private readonly abToneKeys = [
+        'aToneFrequency', 'aToneMinDuration', 'aToneMaxDuration',
+        'bToneFrequency', 'bToneMinDuration', 'bToneMaxDuration',
+    ] as const;
+
+    private readonly longToneKeys = [
+        'longToneFrequency', 'longToneMinDuration', 'longToneMaxDuration',
+    ] as const;
 
     analyzingToneHistory = false;
     toneHistoryStatus = '';
@@ -104,10 +117,12 @@ export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
         this.preservedTagId = typeof tagId === 'number' ? tagId : null;
 
         setTimeout(() => this.restoreSelectValuesIfCleared());
+        this.wireAllToneSetExclusivity();
     }
 
     ngOnDestroy(): void {
         this.stopToneAudio();
+        this.clearToneExclusiveSubs();
     }
 
     private restoreSelectValuesIfCleared(): void {
@@ -258,6 +273,7 @@ export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
             locationContext: [toneSet?.locationContext ?? ''],
         });
         this.getToneSets().push(toneSetForm);
+        this.wireToneSetExclusivity(toneSetForm);
         if (expand) {
             this.expandedToneSets.add(id);
         }
@@ -273,7 +289,106 @@ export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
         if (id) {
             this.expandedToneSets.delete(id);
         }
+        if (ctrl instanceof FormGroup) {
+            this.unwireToneSetExclusivity(ctrl);
+        }
         this.getToneSets().removeAt(index);
+    }
+
+    /** True when any A/B tone field has a value — long-tone inputs should be locked. */
+    isLongToneLocked(ctrl: AbstractControl): boolean {
+        return this.hasAbToneInput(ctrl);
+    }
+
+    /** True when any long-tone field has a value — A/B inputs should be locked. */
+    isAbToneLocked(ctrl: AbstractControl): boolean {
+        return this.hasLongToneInput(ctrl);
+    }
+
+    private wireAllToneSetExclusivity(): void {
+        for (const ctrl of this.getToneSets().controls) {
+            if (ctrl instanceof FormGroup) {
+                this.wireToneSetExclusivity(ctrl);
+            }
+        }
+    }
+
+    private wireToneSetExclusivity(toneSet: FormGroup): void {
+        this.unwireToneSetExclusivity(toneSet);
+        this.syncToneModeExclusivity(toneSet);
+        const sub = toneSet.valueChanges.subscribe(() => {
+            this.syncToneModeExclusivity(toneSet);
+        });
+        this.toneExclusiveSubs.set(toneSet, sub);
+    }
+
+    private unwireToneSetExclusivity(toneSet: FormGroup): void {
+        const sub = this.toneExclusiveSubs.get(toneSet);
+        if (sub) {
+            sub.unsubscribe();
+            this.toneExclusiveSubs.delete(toneSet);
+        }
+    }
+
+    private clearToneExclusiveSubs(): void {
+        for (const sub of this.toneExclusiveSubs.values()) {
+            sub.unsubscribe();
+        }
+        this.toneExclusiveSubs.clear();
+    }
+
+    private isToneFieldFilled(value: unknown): boolean {
+        return value !== null && value !== undefined && value !== '';
+    }
+
+    private hasAbToneInput(ctrl: AbstractControl): boolean {
+        return this.abToneKeys.some((key) => this.isToneFieldFilled(ctrl.get(key)?.value));
+    }
+
+    private hasLongToneInput(ctrl: AbstractControl): boolean {
+        return this.longToneKeys.some((key) => this.isToneFieldFilled(ctrl.get(key)?.value));
+    }
+
+    private syncToneModeExclusivity(toneSet: FormGroup): void {
+        const hasAb = this.hasAbToneInput(toneSet);
+        const hasLong = this.hasLongToneInput(toneSet);
+
+        if (hasAb) {
+            this.clearToneFields(toneSet, this.longToneKeys);
+            this.setToneFieldsEnabled(toneSet, this.longToneKeys, false);
+            this.setToneFieldsEnabled(toneSet, this.abToneKeys, true);
+        } else if (hasLong) {
+            this.clearToneFields(toneSet, this.abToneKeys);
+            this.setToneFieldsEnabled(toneSet, this.abToneKeys, false);
+            this.setToneFieldsEnabled(toneSet, this.longToneKeys, true);
+        } else {
+            this.setToneFieldsEnabled(toneSet, this.abToneKeys, true);
+            this.setToneFieldsEnabled(toneSet, this.longToneKeys, true);
+        }
+        this.cdr.markForCheck();
+    }
+
+    private clearToneFields(toneSet: FormGroup, keys: readonly string[]): void {
+        for (const key of keys) {
+            const ctrl = toneSet.get(key);
+            if (ctrl && this.isToneFieldFilled(ctrl.value)) {
+                ctrl.setValue(null, { emitEvent: false });
+            }
+        }
+    }
+
+    private setToneFieldsEnabled(toneSet: FormGroup, keys: readonly string[], enabled: boolean): void {
+        for (const key of keys) {
+            const ctrl = toneSet.get(key);
+            if (!ctrl) {
+                continue;
+            }
+            if (enabled && ctrl.disabled) {
+                ctrl.enable({ emitEvent: false });
+            } else if (!enabled && ctrl.enabled) {
+                ctrl.disable({ emitEvent: false });
+            }
+        }
     }
 
     isToneSetExpanded(ctrl: AbstractControl): boolean {

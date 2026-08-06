@@ -9,7 +9,7 @@
  * ****************************************************************************
  */
 
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { Config, RdioScannerAdminService } from '../../admin.service';
 import { ConfigImportSection, listConfigImportSections, mergeConfigSections } from './config-import.util';
@@ -27,6 +27,7 @@ export interface ImportConfigReviewDialogResult {
     selector: 'rdio-scanner-admin-import-config-review-dialog',
     templateUrl: './import-config-review-dialog.component.html',
     styleUrls: ['./import-config-review-dialog.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class ImportConfigReviewDialogComponent {

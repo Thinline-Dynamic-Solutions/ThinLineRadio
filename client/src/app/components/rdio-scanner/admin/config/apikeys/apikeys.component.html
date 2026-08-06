@@ -16,46 +16,68 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>
 * ****************************************************************************
 -->
-<div class="row top admin-section-bar">
-  <p class="admin-section-hint">Authenticate recorder uploads and downstream instances. Status, order, system access, and no-upload alert settings auto-save; use Save after editing names or keys.</p>
+<div class="admin-section-bar">
+  <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput
+      [ngModel]="searchQuery"
+      (ngModelChange)="onSearch($event)"
+      [ngModelOptions]="{standalone: true}"
+      placeholder="Search API keys"
+      autocomplete="off">
+    @if (searchQuery) {
+      <button mat-icon-button matSuffix type="button" (click)="onSearch('')" aria-label="Clear search">
+        <mat-icon>close</mat-icon>
+      </button>
+    }
+  </mat-form-field>
   <div class="admin-section-actions">
     <button type="button" mat-stroked-button color="primary" (click)="saveAll()" [disabled]="saving || !form?.dirty">
       <mat-icon>save</mat-icon>
       {{ saving ? 'Saving…' : 'Save' }}
     </button>
-    <button type="button" mat-raised-button color="primary" (click)="add()">
+    <button type="button" mat-stroked-button (click)="add()">
       <mat-icon>add</mat-icon>
       New API Key
     </button>
   </div>
 </div>
 
-<!-- Empty state -->
 @if (!apikeys?.length) {
   <div class="empty-state">
     <mat-icon>vpn_key</mat-icon>
     <p class="mat-body">No API keys defined</p>
     <p class="mat-caption">Create one above to allow recorders and downstreams to authenticate.</p>
+    <button type="button" mat-raised-button color="primary" (click)="add()">
+      <mat-icon>add</mat-icon>
+      Add First API Key
+    </button>
   </div>
 }
 
-<!-- API Keys Table -->
-@if (apikeys?.length) {
+@if (apikeys?.length && !filteredApikeys.length) {
+  <div class="empty-state">
+    <mat-icon>search_off</mat-icon>
+    <p class="mat-body">No API keys match “{{ searchQuery }}”</p>
+  </div>
+}
+
+@if (filteredApikeys.length) {
   <div class="table-wrapper">
-    <mat-table [dataSource]="apikeys"
+    <mat-table [dataSource]="pagedApikeys"
       [trackBy]="trackByKey"
       cdkDropList
-      [cdkDropListData]="apikeys"
+      [cdkDropListData]="pagedApikeys"
       (cdkDropListDropped)="drop($event)"
       class="apikeys-table">
-      <!-- Drag Handle Column -->
       <ng-container matColumnDef="drag">
         <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
         <td mat-cell *matCellDef="let apikey" class="drag-col">
-          <mat-icon cdkDragHandle class="drag-handle" matTooltip="Drag to reorder">drag_indicator</mat-icon>
+          <mat-icon cdkDragHandle class="drag-handle"
+            [class.drag-disabled]="!!searchQuery.trim()"
+            matTooltip="Drag to reorder">drag_indicator</mat-icon>
         </td>
       </ng-container>
-      <!-- Status Column -->
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>Status</th>
         <td mat-cell *matCellDef="let apikey">
@@ -67,112 +89,109 @@
               (click)="toggleDisabled(apikey)"
               [matTooltip]="apikey.get('disabled')?.value ? 'Click to enable' : 'Click to disable'">
               <mat-icon>{{ apikey.get('disabled')?.value ? 'block' : 'check_circle' }}</mat-icon>
-              {{ apikey.get('disabled')?.value ? 'Disabled' : 'Active' }}
+              {{ apikey.get('disabled')?.value ? 'Off' : 'On' }}
             </button>
           </ng-container>
         </td>
       </ng-container>
-      <!-- Ident Column -->
       <ng-container matColumnDef="ident">
-        <th mat-header-cell *matHeaderCellDef>Name / Identifier</th>
+        <th mat-header-cell *matHeaderCellDef>Name</th>
         <td mat-cell *matCellDef="let apikey" (mousedown)="$event.stopPropagation()">
-          <ng-container [formGroup]="apikey">
-            <mat-form-field appearance="outline" class="ident-field">
-              <input matInput formControlName="ident" placeholder="e.g. recorder-1, trunk-player"
-                [class.input-invalid]="apikey.get('ident')?.invalid && apikey.get('ident')?.touched" autocomplete="off">
-              @if (apikey.get('ident')?.hasError('required')) {
-                <mat-error>Required</mat-error>
-              }
+          <div class="cell-content" [formGroup]="apikey">
+            <mat-form-field appearance="outline" class="ident-field" subscriptSizing="dynamic">
+              <input matInput formControlName="ident"
+                [placeholder]="apikey.get('ident')?.invalid && apikey.get('ident')?.touched ? '⚠ Required' : 'Name / identifier'"
+                autocomplete="off">
             </mat-form-field>
             @if (apikey.get('ident')?.invalid && apikey.get('ident')?.touched) {
-              <mat-icon
-                color="warn" class="field-error-icon" matTooltip="Ident is required">
-                error
-              </mat-icon>
+              <mat-icon color="warn" class="field-error-icon" matTooltip="Ident is required">error</mat-icon>
             }
-          </ng-container>
+          </div>
         </td>
       </ng-container>
-      <!-- Key Column -->
       <ng-container matColumnDef="key">
         <th mat-header-cell *matHeaderCellDef>API Key</th>
-        <td mat-cell *matCellDef="let apikey; let i = index" (mousedown)="$event.stopPropagation()">
-          <ng-container [formGroup]="apikey">
-            <mat-form-field appearance="outline" class="key-field">
+        <td mat-cell *matCellDef="let apikey" (mousedown)="$event.stopPropagation()">
+          <div class="cell-content" [formGroup]="apikey">
+            <mat-form-field appearance="outline" class="key-field" subscriptSizing="dynamic">
               <input matInput
                 formControlName="key"
-                [type]="keyVisible[i] ? 'text' : 'password'"
+                [type]="isKeyVisible(apikey) ? 'text' : 'password'"
                 placeholder="API key"
                 autocomplete="off"
                 spellcheck="false">
               <button mat-icon-button matSuffix type="button"
-                (click)="toggleKeyVisible(i)"
-                [matTooltip]="keyVisible[i] ? 'Hide key' : 'Show key'">
-                <mat-icon>{{ keyVisible[i] ? 'visibility_off' : 'visibility' }}</mat-icon>
+                (click)="toggleKeyVisible(apikey)"
+                [matTooltip]="isKeyVisible(apikey) ? 'Hide key' : 'Show key'">
+                <mat-icon>{{ isKeyVisible(apikey) ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
               <button mat-icon-button matSuffix type="button"
-                (click)="copyKey(apikey.get('key')?.value)"
+                (click)="copyKey($safeNavigationMigration(apikey.get('key')?.value))"
                 matTooltip="Copy to clipboard">
                 <mat-icon>content_copy</mat-icon>
               </button>
-              @if (apikey.get('key')?.hasError('duplicate')) {
-                <mat-error>Duplicate key</mat-error>
-              }
+            </mat-form-field>
+            @if (apikey.get('key')?.hasError('duplicate')) {
+              <mat-icon color="warn" class="field-error-icon" matTooltip="Duplicate key">error</mat-icon>
+            }
+          </div>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="access">
+        <th mat-header-cell *matHeaderCellDef>Access</th>
+        <td mat-cell *matCellDef="let apikey">
+          <span class="access-badge"
+            [class.access-all]="apikey.get('systems')?.value === '*'"
+            [class.access-custom]="apikey.get('systems')?.value !== '*'">
+            {{ apikey.get('systems')?.value === '*' ? 'All' : 'Custom' }}
+          </span>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="systems">
+        <th mat-header-cell *matHeaderCellDef>Systems</th>
+        <td mat-cell *matCellDef="let apikey">
+          <button mat-stroked-button type="button" class="systems-btn"
+            (click)="select(apikey)"
+            [disabled]="apikey.disabled"
+            matTooltip="Choose which systems and talkgroups this key can access">
+            <mat-icon>tune</mat-icon>
+            Systems
+          </button>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="alerts">
+        <th mat-header-cell *matHeaderCellDef>No-Upload Alerts</th>
+        <td mat-cell *matCellDef="let apikey" (mousedown)="$event.stopPropagation()">
+          <ng-container [formGroup]="apikey">
+            <mat-slide-toggle color="primary"
+              formControlName="noAudioAlertsEnabled"
+              (change)="onNoAudioSettingChange(apikey)"
+              matTooltip="Alert when no uploads arrive through this API key">
+            </mat-slide-toggle>
+          </ng-container>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="time">
+        <th mat-header-cell *matHeaderCellDef>Time (min)</th>
+        <td mat-cell *matCellDef="let apikey" (mousedown)="$event.stopPropagation()">
+          <ng-container [formGroup]="apikey">
+            <mat-form-field appearance="outline" class="threshold-field"
+              [class.threshold-inactive]="!apikey.get('noAudioAlertsEnabled')?.value"
+              subscriptSizing="dynamic">
+              <input matInput type="number" min="1" step="1"
+                formControlName="noAudioThresholdMinutes"
+                (change)="onNoAudioSettingChange(apikey)"
+                placeholder="Min"
+                autocomplete="off">
             </mat-form-field>
           </ng-container>
         </td>
       </ng-container>
-      <!-- Access Column -->
-      <ng-container matColumnDef="access">
-        <th mat-header-cell *matHeaderCellDef>Systems Access</th>
-        <td mat-cell *matCellDef="let apikey">
-          <div class="access-cell">
-            <span class="access-badge"
-              [class.access-all]="apikey.get('systems')?.value === '*'"
-              [class.access-custom]="apikey.get('systems')?.value !== '*'">
-              <mat-icon>{{ apikey.get('systems')?.value === '*' ? 'lock_open' : 'tune' }}</mat-icon>
-              {{ apikey.get('systems')?.value === '*' ? 'All Systems' : 'Custom' }}
-            </span>
-            <button mat-icon-button type="button"
-              (click)="select(apikey)"
-              [disabled]="apikey.disabled"
-              matTooltip="Choose systems">
-              <mat-icon>settings</mat-icon>
-            </button>
-          </div>
-        </td>
-      </ng-container>
-      <!-- No-audio monitoring Column -->
-      <ng-container matColumnDef="noAudio">
-        <th mat-header-cell *matHeaderCellDef>No-Upload Alerts</th>
-        <td mat-cell *matCellDef="let apikey" (mousedown)="$event.stopPropagation()">
-          <ng-container [formGroup]="apikey">
-            <div class="no-audio-cell">
-              <mat-slide-toggle color="primary"
-                formControlName="noAudioAlertsEnabled"
-                (change)="onNoAudioSettingChange(apikey)"
-                matTooltip="Alert when no uploads arrive through this API key">
-              </mat-slide-toggle>
-              @if (apikey.get('noAudioAlertsEnabled')?.value) {
-                <mat-form-field appearance="outline" class="threshold-field"
-                  >
-                  <mat-label>Min</mat-label>
-                  <input matInput type="number" min="1" step="1"
-                    formControlName="noAudioThresholdMinutes"
-                    (change)="onNoAudioSettingChange(apikey)"
-                    autocomplete="off">
-                </mat-form-field>
-              }
-            </div>
-          </ng-container>
-        </td>
-      </ng-container>
-      <!-- Actions Column -->
       <ng-container matColumnDef="actions">
         <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
-        <td mat-cell *matCellDef="let apikey; let i = index" class="actions-col">
+        <td mat-cell *matCellDef="let apikey" class="actions-col">
           <button mat-icon-button color="warn" type="button"
-            (click)="remove(i)"
+            (click)="remove(apikey)"
             matTooltip="Delete API key">
             <mat-icon>delete</mat-icon>
           </button>
@@ -182,8 +201,21 @@
       <tr mat-row *matRowDef="let row; columns: displayedColumns;"
         class="apikey-row"
         cdkDrag
+        [cdkDragDisabled]="!!searchQuery.trim()"
         [cdkDragData]="row">
       </tr>
     </mat-table>
   </div>
+
+  @if (filteredApikeys.length > pageSize) {
+    <mat-paginator
+      class="apikeys-paginator"
+      [length]="filteredApikeys.length"
+      [pageIndex]="pageIndex"
+      [pageSize]="pageSize"
+      [hidePageSize]="true"
+      [showFirstLastButtons]="true"
+      (page)="onPage($event)">
+    </mat-paginator>
+  }
 }

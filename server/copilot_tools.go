@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-const copilotMaxToolRounds = 15
-
 func copilotToolDefinitions() []openAIToolDef {
 	stringProp := func(desc string) map[string]any {
 		return map[string]any{"type": "string", "description": desc}
@@ -43,20 +41,45 @@ func copilotToolDefinitions() []openAIToolDef {
 
 	return []openAIToolDef{
 		def("get_admin_config",
-			"Read TLR admin configuration and data. Use section=capabilities when unsure (full action catalog + workflows). section=summary for overview. section=talkgroup needs systemId + talkgroupId and returns toneSets schema.",
+			"Read/search TLR admin config. Prefer section=find with query for name lookups. section=tone_sets or talkgroup accepts systemLabel+talkgroupLabel (or query). IDs: systemId vs systemRef vs talkgroupId vs talkgroupRef are different — use find when unsure.",
 			map[string]any{
-				"section":      stringProp("capabilities, summary, tags, systems, system, talkgroup, options, users, transcription_failures, hallucinations, relay_status, ..."),
-				"systemId":     intProp("Required for section=system or talkgroup"),
-				"talkgroupId":  intProp("Required for section=talkgroup (or talkgroupRef)"),
-				"talkgroupRef": intProp("Alternative to talkgroupId for section=talkgroup"),
-				"params":       objectProp("Optional filters, e.g. for section=calls"),
+				"section":         stringProp("find, tone_sets, talkgroup, system, systems, summary, options, users, calls, capabilities, ..."),
+				"query":           stringProp("Free-text search, e.g. 'trumbull 78 fd dispatch'"),
+				"systemId":        intProp("DB system id (optional)"),
+				"systemRef":       intProp("Radio systemRef (optional)"),
+				"systemLabel":     stringProp("System name fragment, e.g. Trumbull"),
+				"talkgroupId":     intProp("DB talkgroup id (optional)"),
+				"talkgroupRef":    intProp("Radio talkgroupRef/TGID (optional)"),
+				"talkgroupLabel":  stringProp("Talkgroup name fragment, e.g. 78 FD DISP"),
+				"params":          objectProp("Optional filters for section=calls etc."),
 			},
 			nil,
 		),
-		def("apply_admin_change",
-			"Apply admin UI changes. confirmed=true required for writes only. Read actions (no confirm): radioreference_browse, radioreference_search, parse_tone_import, tone_history_analyze, check_server_update, test_central_connection. Writes include update_talkgroup, update_talkgroup_tone_sets, invite_user, radioreference_import_to_system, patch_transcript_parser, etc. Call get_admin_config section=capabilities for full list and payload shapes.",
+		def("run_admin_action",
+			"Invoke an allowlisted admin API route. Prefer actionId from the action index (or actionId=list). Writes require confirmed=true. Prefer this for mapping, systems order, call natures, unit aliases, transcript review, FS browse, bulk user ops.",
 			map[string]any{
-				"action":    stringProp("Action name — see get_admin_config section=capabilities or summary availableWriteActions/availableReadActions"),
+				"actionId":  stringProp("Registry id, or 'list' to enumerate actions"),
+				"method":    stringProp("HTTP method if using path instead of actionId"),
+				"path":      stringProp("Admin API path if not using actionId"),
+				"query":     objectProp("Optional query string key/values"),
+				"body":      objectProp("JSON body for POST/PUT/PATCH"),
+				"confirmed": boolProp("Required true for write actions"),
+			},
+			nil,
+		),
+		def("db_query",
+			"Guarded SQL. SELECT/WITH…SELECT allowed (auto LIMIT). INSERT/UPDATE/DELETE need confirmed=true and allowlisted tables. DDL/multi-statement blocked. Prefer run_admin_action when an admin API exists.",
+			map[string]any{
+				"sql":       stringProp("Single SQL statement"),
+				"confirmed": boolProp("Required for INSERT/UPDATE/DELETE"),
+				"limit":     intProp("Max rows for SELECT (default 100, max 500)"),
+			},
+			[]string{"sql"},
+		),
+		def("apply_admin_change",
+			"Legacy write helpers (tags, talkgroups, tone sets, patch_options, users, etc.). confirmed=true required for writes. Read actions need no confirm.",
+			map[string]any{
+				"action":    stringProp("Action name — see summary availableWriteActions/availableReadActions"),
 				"confirmed": boolProp("Must be true for write actions"),
 				"payload":   objectProp("Action-specific JSON body matching the admin API"),
 			},
@@ -108,10 +131,14 @@ func copilotToolDefinitions() []openAIToolDef {
 	}
 }
 
-func (admin *Admin) executeCopilotTool(name string, argsJSON string) (string, error) {
+func (admin *Admin) executeCopilotToolCtx(name string, argsJSON string, authToken string) (string, error) {
 	switch name {
 	case "get_admin_config":
 		return admin.copilotToolGetAdminConfig(argsJSON)
+	case "run_admin_action":
+		return admin.copilotToolRunAdminAction(authToken, argsJSON)
+	case "db_query":
+		return admin.copilotToolDBQuery(argsJSON)
 	case "apply_admin_change":
 		return admin.copilotToolApplyAdminChange(argsJSON)
 	case "search_logs":
@@ -129,6 +156,10 @@ func (admin *Admin) executeCopilotTool(name string, argsJSON string) (string, er
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+func (admin *Admin) executeCopilotTool(name string, argsJSON string) (string, error) {
+	return admin.executeCopilotToolCtx(name, argsJSON, "")
 }
 
 func (admin *Admin) copilotToolSearchLogs(argsJSON string) (string, error) {

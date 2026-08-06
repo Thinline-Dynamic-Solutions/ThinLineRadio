@@ -4,18 +4,26 @@
       <mat-icon>smart_toy</mat-icon>
       <div>
         <h2>Admin Assistant</h2>
-        <p class="assistant-subtitle">Diagnose issues, search logs, and get help with TLR admin settings.</p>
+        <p class="assistant-subtitle">Diagnose issues, search logs, and change TLR admin settings with live progress.</p>
       </div>
     </div>
-    <button mat-stroked-button type="button" (click)="clearChat()" [disabled]="!messages.length || loading">
-      <mat-icon>delete_outline</mat-icon>
-      Clear chat
-    </button>
+    <div class="header-actions">
+      @if (loading) {
+        <button mat-stroked-button type="button" color="warn" (click)="cancel()">
+          <mat-icon>stop</mat-icon>
+          Cancel
+        </button>
+      }
+      <button mat-stroked-button type="button" (click)="clearChat()" [disabled]="!messages.length || loading">
+        <mat-icon>delete_outline</mat-icon>
+        Clear chat
+      </button>
+    </div>
   </div>
 
   <div class="assistant-hint admin-section-hint">
     Requires an OpenAI API key under <strong>Config → Options → Integrations → OpenAI Integration</strong>.
-    The assistant can read and change admin settings (tags, systems, options, users, etc.) — reply <strong>yes</strong> or <strong>go ahead</strong> to confirm changes.
+    Writes need confirmation — use the <strong>Confirm apply</strong> chip or reply yes.
   </div>
 
   @if (!messages.length) {
@@ -37,16 +45,26 @@
     @if (!messages.length && !loading) {
       <div class="chat-empty">
         <mat-icon>forum</mat-icon>
-        <span>Ask about logs, health alerts, tags, Stripe, transcription, or how to use admin tabs.</span>
+        <span>Ask about logs, health alerts, tags, Stripe, transcription, mapping, or admin settings.</span>
       </div>
     }
 
-    @for (msg of messages; track msg) {
+    @for (msg of messages; track $index) {
       <div
         class="chat-bubble"
         [class.user]="msg.role === 'user'"
         [class.assistant]="msg.role === 'assistant'">
         <div class="bubble-role">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</div>
+        @if (msg.tools?.length) {
+          <div class="tool-transcript">
+            @for (t of msg.tools; track $index) {
+              <span class="tool-chip done" [title]="t.summary || t.name">
+                <mat-icon>build</mat-icon>
+                {{ t.name }}{{ t.summary ? ': ' + t.summary : '' }}
+              </span>
+            }
+          </div>
+        }
         <div class="bubble-content">{{ msg.content }}</div>
       </div>
     }
@@ -56,11 +74,33 @@
         <div class="bubble-role">Assistant</div>
         <div class="bubble-content">
           <mat-spinner diameter="20"></mat-spinner>
-          <span>Thinking…</span>
+          <span>{{ statusText || 'Thinking…' }}</span>
         </div>
+        @if (activeTools.length) {
+          <div class="tool-transcript live">
+            @for (t of activeTools; track t.name + t.status) {
+              <span class="tool-chip" [class.running]="t.status === 'running'" [class.done]="t.status === 'done'">
+                <mat-icon>{{ t.status === 'running' ? 'hourglass_empty' : 'check_circle' }}</mat-icon>
+                {{ t.name }}{{ t.summary ? ' — ' + t.summary : '' }}
+              </span>
+            }
+          </div>
+        }
       </div>
     }
   </div>
+
+  @if (awaitingConfirm && !loading) {
+    <div class="confirm-row">
+      <span class="confirm-label">Apply the pending change?</span>
+      <button mat-flat-button color="primary" type="button" (click)="confirmApply()">
+        Confirm apply
+      </button>
+      <button mat-stroked-button type="button" (click)="cancelApply()">
+        Cancel
+      </button>
+    </div>
+  }
 
   @if (error) {
     <div class="chat-error">

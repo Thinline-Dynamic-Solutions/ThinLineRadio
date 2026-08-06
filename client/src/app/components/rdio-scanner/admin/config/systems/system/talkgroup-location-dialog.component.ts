@@ -6,7 +6,7 @@
  * Clear returns a talkgroup to inherit system geo.
  */
 
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../../admin.service';
@@ -127,6 +127,7 @@ const SUGGEST_BATCH_SIZE = 50;
         }
         .c-actions { display: flex; gap: 4px; align-items: center; padding-top: 2px; }
     `],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class TalkgroupLocationDialogComponent {

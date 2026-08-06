@@ -95,35 +95,42 @@
         }
         @if (accountInfo.availableTiers?.length) {
           <div class="add-tier">
-            <h3>Add a tier</h3>
-            @for (t of accountInfo.availableTiers; track t) {
-              <div class="tier-row">
+            <h3>Choose a plan</h3>
+            <p class="muted">Select one tier and a plan, then subscribe.</p>
+            @for (t of accountInfo.availableTiers; track t.groupId) {
+              <div class="tier-row" [class.tier-row--selected]="selectedAvailableTierId === t.groupId"
+                   (click)="selectAvailableTier(t.groupId)">
                 <div class="tier-main">
-                  <span class="tier-name">{{ t.name }}</span>
+                  <label class="tier-radio">
+                    <input type="radio" name="hubAvailableTier"
+                           [checked]="selectedAvailableTierId === t.groupId"
+                           (change)="selectAvailableTier(t.groupId)"
+                           (click)="$event.stopPropagation()">
+                    <span class="tier-name">{{ t.name }}</span>
+                  </label>
                   @if (t.description) {
                     <span class="tier-desc">{{ t.description }}</span>
                   }
-                </div>
-                <div class="add-tier-controls">
-                  @if (t.billingEnabled && t.pricingOptions?.length) {
-                    <select
-                      [(ngModel)]="selectedTierPrice[t.groupId]">
-                      @for (o of t.pricingOptions; track o) {
-                        <option [ngValue]="o.priceId">
+                  @if (selectedAvailableTierId === t.groupId && t.billingEnabled && t.pricingOptions?.length) {
+                    <div class="tier-price-chips">
+                      @for (o of t.pricingOptions; track o.priceId) {
+                        <button type="button" class="tier-price-chip"
+                          [class.tier-price-chip--selected]="selectedTierPrice[t.groupId] === o.priceId"
+                          (click)="setTierPrice(t.groupId, o.priceId); $event.stopPropagation()">
                           {{ o.label }} — {{ o.amount }}
-                        </option>
+                        </button>
                       }
-                    </select>
+                    </div>
                   }
-                  <button mat-raised-button color="primary"
-                    type="button"
-                    [disabled]="addingTier || (t.billingEnabled && !selectedTierPrice[t.groupId])"
-                    (click)="addTier(t.groupId, selectedTierPrice[t.groupId])">
-                    Add
-                  </button>
                 </div>
               </div>
             }
+            <button mat-raised-button color="primary"
+              type="button"
+              [disabled]="!canAddSelectedTier()"
+              (click)="addSelectedTier()">
+              Subscribe
+            </button>
           </div>
         }
       </section>

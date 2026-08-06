@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -208,8 +209,9 @@ type Options struct {
 	// When non-empty this overrides AdminLocalhostOnly for IPs that are in the list.
 	// When empty, AdminLocalhostOnly governs access as before.  Default: "" (no extra IPs).
 	AdminAllowedIPs   string `json:"adminAllowedIPs"`
-	ConfigSyncEnabled bool   `json:"configSyncEnabled"`
-	ConfigSyncPath    string `json:"configSyncPath"`
+	ConfigSyncEnabled  bool   `json:"configSyncEnabled"`
+	ConfigSyncPath     string `json:"configSyncPath"`
+	ConfigSyncFileName string `json:"configSyncFileName"`
 	// Cloudflare Turnstile configuration (for user registration/login and group admin login)
 	TurnstileEnabled   bool   `json:"turnstileEnabled"`
 	TurnstileSiteKey   string `json:"turnstileSiteKey"`
@@ -319,6 +321,26 @@ func NewOptions() *Options {
 	return &Options{
 		mutex: sync.Mutex{},
 	}
+}
+
+// sanitizeConfigSyncFileName keeps only a base file name (no directories) and
+// falls back to the default export name when empty or path-like.
+func sanitizeConfigSyncFileName(name string) string {
+	const fallback = "ThinLineRadioV7-config.json"
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fallback
+	}
+	name = filepath.Base(name)
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == ".." {
+		return fallback
+	}
+	// Reject empty / weird Windows basenames.
+	if strings.ContainsAny(name, `/\`) {
+		return fallback
+	}
+	return name
 }
 
 func (options *Options) FromMap(m map[string]any) *Options {
@@ -945,6 +967,13 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.ConfigSyncPath = defaults.options.configSyncPath
 	}
 
+	switch v := m["configSyncFileName"].(type) {
+	case string:
+		options.ConfigSyncFileName = sanitizeConfigSyncFileName(v)
+	default:
+		options.ConfigSyncFileName = defaults.options.configSyncFileName
+	}
+
 	switch v := m["turnstileEnabled"].(type) {
 	case bool:
 		options.TurnstileEnabled = v
@@ -995,10 +1024,10 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.TranscriptionEnhancement = v
 	}
 
-	// Transcription: allow flat toggle and nested config from admin UI
-	if v, ok := m["transcriptionEnabled"].(bool); ok {
-		options.TranscriptionConfig.Enabled = v
-	}
+	// Transcription: allow flat toggle and nested config from admin UI.
+	// Apply nested first, then flat transcriptionEnabled so a PATCH that only
+	// sends the top-level toggle wins over the stale nested enabled flag that
+	// ApplyPartial copies from the current options marshal.
 	if tc, ok := m["transcriptionConfig"].(map[string]any); ok {
 		if v, ok := tc["enabled"].(bool); ok {
 			options.TranscriptionConfig.Enabled = v
@@ -1101,6 +1130,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 			options.TranscriptionConfig.SendLocationContext = v
 		}
 	}
+	if v, ok := anyToBool(m["transcriptionEnabled"]); ok {
+		options.TranscriptionConfig.Enabled = v
+	}
 
 	if oai, ok := m["openAIIntegration"].(map[string]any); ok {
 		applyOpenAIIntegrationFromMap(&options.OpenAIIntegration, oai)
@@ -1150,6 +1182,10 @@ func applyMappingIntegrationFromMap(cfg *MappingIntegration, m map[string]any) {
 	}
 	if v, ok := m["mappingEngine"].(string); ok {
 		cfg.MappingEngine = v
+	}
+	if v, ok := anyToBool(m["incidentMappingEnabled"]); ok {
+		cfg.IncidentMappingEnabled = v
+		cfg.IncidentMappingEnabledConfigured = true
 	}
 	if v, ok := m["callNatureOpenAIClassify"].(bool); ok {
 		cfg.CallNatureOpenAIClassify = v
@@ -1274,6 +1310,7 @@ func (options *Options) Read(db *Database) error {
 	options.AdminLocalhostOnly = defaults.options.adminLocalhostOnly
 	options.ConfigSyncEnabled = defaults.options.configSyncEnabled
 	options.ConfigSyncPath = defaults.options.configSyncPath
+	options.ConfigSyncFileName = defaults.options.configSyncFileName
 	options.ReconnectionEnabled = defaults.options.reconnectionEnabled
 	options.ReconnectionGracePeriod = defaults.options.reconnectionGracePeriod
 	options.ReconnectionMaxBufferSize = defaults.options.reconnectionMaxBufferSize
@@ -1999,6 +2036,13 @@ func (options *Options) Read(db *Database) error {
 					options.ConfigSyncPath = v
 				}
 			}
+		case "configSyncFileName":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.ConfigSyncFileName = sanitizeConfigSyncFileName(v)
+				}
+			}
 		case "turnstileEnabled":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -2053,6 +2097,24 @@ func (options *Options) Read(db *Database) error {
 			options.AutoLearnToneSetConfig = cfg
 		}); err != nil {
 			return formatError(err, "autoLearnToneSetConfig migration")
+		}
+	}
+
+	if !options.MappingIntegration.IncidentMappingEnabledConfigured {
+		options.MappingIntegration.IncidentMappingEnabled = detectIncidentMappingAlreadySetup(db)
+		options.MappingIntegration.IncidentMappingEnabledConfigured = true
+		// Persist while Options.Read still holds the mutex (WriteKey would deadlock).
+		if b, err := json.Marshal(options.MappingIntegration); err == nil {
+			valStr := string(b)
+			res, err := db.Sql.Exec(`UPDATE "options" SET "value" = $1 WHERE "key" = $2`, valStr, "mappingIntegration")
+			if err != nil {
+				return formatError(err, "incidentMappingEnabled migration")
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				if _, err = db.Sql.Exec(`INSERT INTO "options" ("key", "value") VALUES ($1, $2)`, "mappingIntegration", valStr); err != nil {
+					return formatError(err, "incidentMappingEnabled migration insert")
+				}
+			}
 		}
 	}
 
@@ -2191,6 +2253,7 @@ func (options *Options) Write(db *Database) error {
 	set("adminAllowedIPs", options.AdminAllowedIPs)
 	set("configSyncEnabled", options.ConfigSyncEnabled)
 	set("configSyncPath", options.ConfigSyncPath)
+	set("configSyncFileName", options.ConfigSyncFileName)
 	set("turnstileEnabled", options.TurnstileEnabled)
 	set("turnstileSiteKey", options.TurnstileSiteKey)
 	set("turnstileSecretKey", options.TurnstileSecretKey)
@@ -2251,6 +2314,15 @@ func (options *Options) ApplyPartial(db *Database, partial map[string]any) error
 			}
 		}
 		merged[k] = v
+	}
+
+	// Keep nested transcriptionConfig.enabled aligned with the flat admin toggle
+	// so marshal→merge→FromMap never leaves a stale nested enabled value.
+	if v, ok := partial["transcriptionEnabled"]; ok {
+		if tc, ok := merged["transcriptionConfig"].(map[string]any); ok {
+			tc["enabled"] = v
+			merged["transcriptionConfig"] = tc
+		}
 	}
 
 	// FromMap mutates the same Options in place, only overwriting fields it knows

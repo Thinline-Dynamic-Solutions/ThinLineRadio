@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 
@@ -118,6 +118,7 @@ type RelayAccountMode = 'login' | 'create';
       font-size: 13px;
     }
   `],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RelayAccountDialogComponent {

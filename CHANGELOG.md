@@ -4,6 +4,23 @@
 
 ---
 
+## Version 26.08.6 - Released August 6, 2026
+
+### Changed
+
+- **Client — Angular 21**
+  - Upgraded the scanner web client and Angular Material stack to Angular 21.
+
+- **Incident mapping — master enable switch**
+  - Options → Incident Mapping adds **Enable incident mapping**. When off, the Map tab is hidden and mapping work does not run for listeners.
+  - Defaults **off** for new installs; existing installs that already have geo / mapping setup keep it **on**.
+
+- **Transcription — live feature gating**
+  - Turning transcription off now immediately hides Alerts, Transcripts, and Stats in the player (and related console tabs), without requiring a reload.
+  - Fixed partial options updates so nested transcription config could not overwrite the flat `transcriptionEnabled` flag.
+
+---
+
 ## Version 26.08.5 - Released August 5, 2026
 
 ### Added

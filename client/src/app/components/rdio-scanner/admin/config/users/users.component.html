@@ -37,7 +37,7 @@
   <!-- Search + filters -->
   @if (!loading && !error && users.length > 0) {
     <div class="search-bar">
-      <mat-form-field appearance="outline" class="search-field">
+      <mat-form-field appearance="fill" class="search-field">
         <mat-label>Search by name, email, or group</mat-label>
         <input matInput type="text" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Enter name, email, or group..." autocomplete="off">
         <mat-icon matPrefix>search</mat-icon>
@@ -47,7 +47,7 @@
           </button>
         }
       </mat-form-field>
-      <mat-form-field appearance="outline" class="filter-field">
+      <mat-form-field appearance="fill" class="filter-field">
         <mat-label>Group</mat-label>
         <mat-select [(ngModel)]="groupFilter" (selectionChange)="onFiltersChange()">
           <mat-option value="">All groups</mat-option>
@@ -59,7 +59,7 @@
           }
         </mat-select>
       </mat-form-field>
-      <mat-form-field appearance="outline" class="filter-field">
+      <mat-form-field appearance="fill" class="filter-field">
         <mat-label>Subscription</mat-label>
         <mat-select [(ngModel)]="subscriptionFilter" (selectionChange)="onFiltersChange()">
           <mat-option value="">All</mat-option>
@@ -70,17 +70,18 @@
           <mat-option value="none">None</mat-option>
         </mat-select>
       </mat-form-field>
-      <mat-form-field appearance="outline" class="filter-field">
+      <mat-form-field appearance="fill" class="filter-field">
         <mat-label>Status</mat-label>
         <mat-select [(ngModel)]="statusFilter" (selectionChange)="onFiltersChange()">
           <mat-option value="">All</mat-option>
           <mat-option value="pin_expired">PIN expired</mat-option>
           <mat-option value="account_expired">Account expired</mat-option>
+          <mat-option value="suspended">Suspended</mat-option>
           <mat-option value="verified">Verified</mat-option>
           <mat-option value="unverified">Unverified</mat-option>
         </mat-select>
       </mat-form-field>
-      <mat-form-field appearance="outline" class="filter-field">
+      <mat-form-field appearance="fill" class="filter-field">
         <mat-label>Sort</mat-label>
         <mat-select [(ngModel)]="sortMode" (selectionChange)="onSortModeChange()">
           <mat-option value="name">Name A–Z</mat-option>
@@ -223,6 +224,12 @@
                   Password Reset Required
                 </span>
               }
+              @if (user.suspended) {
+                <span class="chip chip-error">
+                  <mat-icon>block</mat-icon>
+                  Suspended
+                </span>
+              }
               @if (user.subscriptionStatus) {
                 <span class="chip"
                   [class.chip-success]="user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing'"
@@ -295,6 +302,17 @@
                     <span>Resend Verification</span>
                   </button>
                 }
+                @if (user.suspended) {
+                  <button mat-menu-item (click)="setUserSuspended(user, false)">
+                    <mat-icon>check_circle</mat-icon>
+                    <span>Unsuspend User</span>
+                  </button>
+                } @else {
+                  <button mat-menu-item (click)="setUserSuspended(user, true)" class="suspend-menu-item">
+                    <mat-icon color="warn">block</mat-icon>
+                    <span>Suspend User</span>
+                  </button>
+                }
                 <mat-divider></mat-divider>
                 <button mat-menu-item (click)="deleteUser(user)" class="delete-menu-item">
                   <mat-icon color="warn">delete</mat-icon>
@@ -357,116 +375,118 @@
                 <form [formGroup]="editForm" class="edit-form" autocomplete="off">
                   <h5 class="section-label"><mat-icon>edit</mat-icon> Edit User</h5>
                   <div class="form-row">
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>Email</mat-label>
-                      <input matInput type="email" formControlName="email" required autocomplete="off">
-                      @if (editForm.get('email')?.hasError('required')) {
-                        <mat-error>Email is required</mat-error>
-                      }
-                      @if (editForm.get('email')?.hasError('email')) {
-                        <mat-error>Please enter a valid email</mat-error>
-                      }
-                    </mat-form-field>
-                  </div>
-                  <div class="form-row">
-                    <mat-form-field appearance="outline" class="half-width">
-                      <mat-label>First Name</mat-label>
-                      <input matInput type="text" formControlName="firstName" autocomplete="off">
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="half-width">
-                      <mat-label>Last Name</mat-label>
-                      <input matInput type="text" formControlName="lastName" autocomplete="off">
-                    </mat-form-field>
-                  </div>
-                  <div class="form-row">
-                    <mat-form-field appearance="outline" class="half-width">
-                      <mat-label>ZIP Code</mat-label>
-                      <input matInput type="text" formControlName="zipCode" placeholder="12345" autocomplete="off">
-                      @if (editForm.get('zipCode')?.hasError('pattern')) {
-                        <mat-error>Invalid ZIP (use 12345 or 12345-6789)</mat-error>
-                      }
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="half-width">
-                      <mat-label>Delay (minutes)</mat-label>
-                      <input matInput type="number" formControlName="delay" min="0" autocomplete="off"
-                        [disabled]="editingUser ? (editingUser.userGroupId || 0) > 0 : false">
-                      @if (editingUser && editingUser.userGroupId) {
-                        <mat-hint>Managed by group</mat-hint>
-                      }
-                    </mat-form-field>
-                  </div>
-                  <div class="form-row">
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>Primary Group</mat-label>
-                      <mat-select formControlName="userGroupId">
-                        <mat-option [value]="0">No Group (Unassigned)</mat-option>
-                        @for (group of availableGroups; track group) {
-                          <mat-option [value]="group.id">
-                            {{ group.name }}
-                          </mat-option>
+                    <div class="field flex-2">
+                      <label class="field-label">Email</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="email" formControlName="email" required autocomplete="off" placeholder="email@example.com">
+                        @if (editForm.get('email')?.hasError('required')) {
+                          <mat-error>Email is required</mat-error>
                         }
-                      </mat-select>
-                      <mat-hint>Home group (group-admin role, invitation default)</mat-hint>
-                    </mat-form-field>
-                  </div>
-                  <div class="form-row">
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>Group Memberships</mat-label>
-                      <mat-select formControlName="userGroupIds" multiple>
-                        @for (group of availableGroups; track group) {
-                          <mat-option [value]="group.id">
-                            {{ group.name }}
-                          </mat-option>
+                        @if (editForm.get('email')?.hasError('email')) {
+                          <mat-error>Please enter a valid email</mat-error>
                         }
-                      </mat-select>
-                      <mat-hint>All groups this user belongs to — access is the union. The primary group is always included.</mat-hint>
-                    </mat-form-field>
-                  </div>
-                  <div class="form-row pin-row">
-                    <mat-form-field appearance="outline" class="half-width">
-                      <mat-label>PIN</mat-label>
-                      <input matInput type="text" formControlName="pin" placeholder="Leave blank to keep current" autocomplete="off">
-                    </mat-form-field>
-                    <div class="pin-actions">
-                      <button mat-stroked-button color="primary" type="button" (click)="requestPinRegeneration()" [disabled]="saving">
-                        <mat-icon>autorenew</mat-icon>
-                        Regenerate PIN
-                      </button>
+                      </mat-form-field>
+                    </div>
+                    <div class="field flex-1">
+                      <label class="field-label">First Name</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="text" formControlName="firstName" autocomplete="off">
+                      </mat-form-field>
+                    </div>
+                    <div class="field flex-1">
+                      <label class="field-label">Last Name</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="text" formControlName="lastName" autocomplete="off">
+                      </mat-form-field>
+                    </div>
+                    <div class="field field-zip">
+                      <label class="field-label">ZIP</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="text" formControlName="zipCode" placeholder="12345" autocomplete="off">
+                        @if (editForm.get('zipCode')?.hasError('pattern')) {
+                          <mat-error>Invalid ZIP</mat-error>
+                        }
+                      </mat-form-field>
                     </div>
                   </div>
                   <div class="form-row">
-                    <mat-form-field appearance="outline" class="half-width">
-                      <mat-label>Connection Limit</mat-label>
-                      <input matInput type="number" min="0" formControlName="connectionLimit" placeholder="0 for unlimited" autocomplete="off">
-                      @if (editingUser && editingUser.userGroupId && editingUser.effectiveConnectionLimit) {
-                        <mat-hint>
-                          Group limit: {{ editingUser.effectiveConnectionLimit }}
-                        </mat-hint>
-                      }
-                      @if (!editingUser || !editingUser.userGroupId || !editingUser.effectiveConnectionLimit) {
-                        <mat-hint>
-                          0 = unlimited
-                        </mat-hint>
-                      }
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="half-width">
-                      <mat-label>PIN Expiration</mat-label>
-                      <input matInput type="datetime-local" formControlName="pinExpiresAt" autocomplete="off">
-                      <mat-hint>Leave blank for no expiration</mat-hint>
-                    </mat-form-field>
+                    <div class="field flex-1">
+                      <label class="field-label">Primary Group</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <mat-select formControlName="userGroupId">
+                          <mat-option [value]="0">No Group (Unassigned)</mat-option>
+                          @for (group of availableGroups; track group) {
+                            <mat-option [value]="group.id">
+                              {{ group.name }}
+                            </mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                    </div>
+                    <div class="field flex-1">
+                      <label class="field-label">Group Memberships</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <mat-select formControlName="userGroupIds" multiple>
+                          @for (group of availableGroups; track group) {
+                            <mat-option [value]="group.id">
+                              {{ group.name }}
+                            </mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                    </div>
+                  </div>
+                  <div class="form-row pin-row">
+                    <div class="field flex-2">
+                      <label class="field-label">PIN</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="text" formControlName="pin" placeholder="Leave blank to keep current" autocomplete="off">
+                      </mat-form-field>
+                    </div>
+                    <div class="pin-actions">
+                      <button mat-stroked-button color="primary" type="button" (click)="requestPinRegeneration()" [disabled]="saving">
+                        <mat-icon>autorenew</mat-icon>
+                        Regenerate
+                      </button>
+                    </div>
+                    <div class="field field-narrow">
+                      <label class="field-label">Delay (min)</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="number" formControlName="delay" min="0" autocomplete="off"
+                          [disabled]="editingUser ? (editingUser.userGroupId || 0) > 0 : false">
+                      </mat-form-field>
+                    </div>
+                    <div class="field field-narrow">
+                      <label class="field-label">Conn. Limit</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="number" min="0" formControlName="connectionLimit" placeholder="0" autocomplete="off">
+                      </mat-form-field>
+                    </div>
+                    <div class="field flex-1">
+                      <label class="field-label">PIN Expiration</label>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="datetime-local" formControlName="pinExpiresAt" autocomplete="off">
+                      </mat-form-field>
+                    </div>
                   </div>
                   @if (!editingUser || !editingUser.userGroupId) {
                     <div class="form-section">
                       <h6 class="form-section-title">System &amp; Talkgroup Access</h6>
                       <p class="mat-caption muted">
-                        This user has access to
-                        <strong>{{ editForm.get('systems')?.value === '*' ? 'all' : 'selected' }}</strong>
-                        systems and talkgroups.
+                        Choose which systems and talkgroups this user can access (same picker as API keys / downstreams).
                       </p>
-                      <button type="button" mat-stroked-button color="primary" (click)="selectUserSystems()">
-                        <mat-icon>tune</mat-icon>
-                        Choose Systems
-                      </button>
+                      <div class="system-access-picker">
+                        <span class="access-badge"
+                          [class.access-all]="userSystemsAccessIsAll"
+                          [class.access-custom]="!userSystemsAccessIsAll">
+                          {{ userSystemsAccessIsAll ? 'All' : 'Custom' }}
+                        </span>
+                        <span class="system-access-summary">{{ userSystemsAccessSummary }}</span>
+                        <button type="button" mat-stroked-button color="primary" (click)="selectUserSystems()">
+                          <mat-icon>tune</mat-icon>
+                          Choose Systems
+                        </button>
+                      </div>
                     </div>
                   }
                   @if (!editingUser || !editingUser.userGroupId) {
@@ -474,20 +494,24 @@
                       <h6 class="form-section-title">System-Specific Delays</h6>
                       @for (entry of systemDelayEntries; track entry; let i = $index) {
                         <div class="delay-entry">
-                          <mat-form-field appearance="outline" class="system-select">
-                            <mat-label>System</mat-label>
-                            <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}">
-                              @for (system of systems; track system) {
-                                <mat-option [value]="system.id">
-                                  {{ system.label || ('System ' + system.id) }}
-                                </mat-option>
-                              }
-                            </mat-select>
-                          </mat-form-field>
-                          <mat-form-field appearance="outline" class="delay-input">
-                            <mat-label>Delay (min)</mat-label>
-                            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
-                          </mat-form-field>
+                          <div class="field system-select">
+                            <label class="field-label">System</label>
+                            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                              <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}">
+                                @for (system of systems; track system) {
+                                  <mat-option [value]="system.id">
+                                    {{ system.label || ('System ' + system.id) }}
+                                  </mat-option>
+                                }
+                              </mat-select>
+                            </mat-form-field>
+                          </div>
+                          <div class="field delay-input">
+                            <label class="field-label">Delay (min)</label>
+                            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                              <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
+                            </mat-form-field>
+                          </div>
                           <button mat-icon-button type="button" (click)="removeSystemDelay(i)" color="warn">
                             <mat-icon>delete</mat-icon>
                           </button>
@@ -503,32 +527,38 @@
                       <h6 class="form-section-title">Talkgroup-Specific Delays</h6>
                       @for (entry of talkgroupDelayEntries; track entry; let i = $index) {
                         <div class="delay-entry">
-                          <mat-form-field appearance="outline" class="system-select">
-                            <mat-label>System</mat-label>
-                            <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}" (selectionChange)="entry.talkgroupId = 0">
-                              @for (system of systems; track system) {
-                                <mat-option [value]="system.id">
-                                  {{ system.label || ('System ' + system.id) }}
-                                </mat-option>
-                              }
-                            </mat-select>
-                          </mat-form-field>
-                          @if (entry.systemId > 0) {
-                            <mat-form-field appearance="outline" class="talkgroup-select">
-                              <mat-label>Talkgroup</mat-label>
-                              <mat-select [(ngModel)]="entry.talkgroupId" [ngModelOptions]="{standalone: true}">
-                                @for (tg of getTalkgroupsForSystem(entry.systemId); track tg) {
-                                  <mat-option [value]="tg.id">
-                                    {{ tg.label || ('Talkgroup ' + tg.id) }}
+                          <div class="field system-select">
+                            <label class="field-label">System</label>
+                            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                              <mat-select [(ngModel)]="entry.systemId" [ngModelOptions]="{standalone: true}" (selectionChange)="entry.talkgroupId = 0">
+                                @for (system of systems; track system) {
+                                  <mat-option [value]="system.id">
+                                    {{ system.label || ('System ' + system.id) }}
                                   </mat-option>
                                 }
                               </mat-select>
                             </mat-form-field>
+                          </div>
+                          @if (entry.systemId > 0) {
+                            <div class="field talkgroup-select">
+                              <label class="field-label">Talkgroup</label>
+                              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                                <mat-select [(ngModel)]="entry.talkgroupId" [ngModelOptions]="{standalone: true}">
+                                  @for (tg of getTalkgroupsForSystem(entry.systemId); track tg) {
+                                    <mat-option [value]="tg.id">
+                                      {{ tg.label || ('Talkgroup ' + tg.id) }}
+                                    </mat-option>
+                                  }
+                                </mat-select>
+                              </mat-form-field>
+                            </div>
                           }
-                          <mat-form-field appearance="outline" class="delay-input">
-                            <mat-label>Delay (min)</mat-label>
-                            <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
-                          </mat-form-field>
+                          <div class="field delay-input">
+                            <label class="field-label">Delay (min)</label>
+                            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                              <input matInput type="number" [(ngModel)]="entry.delay" [ngModelOptions]="{standalone: true}" min="0" autocomplete="off">
+                            </mat-form-field>
+                          </div>
                           <button mat-icon-button type="button" (click)="removeTalkgroupDelay(i)" color="warn">
                             <mat-icon>delete</mat-icon>
                           </button>
@@ -548,29 +578,32 @@
                   <div class="form-section">
                     <h6 class="form-section-title">Stripe Billing</h6>
                     <div class="form-row">
-                      <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Stripe Customer ID</mat-label>
-                        <input matInput type="text" formControlName="stripeCustomerId" placeholder="cus_..." autocomplete="off">
-                        <mat-hint>e.g. cus_abc123</mat-hint>
-                      </mat-form-field>
-                    </div>
-                    <div class="form-row">
-                      <mat-form-field appearance="outline" class="half-width">
-                        <mat-label>Stripe Subscription ID</mat-label>
-                        <input matInput type="text" formControlName="stripeSubscriptionId" placeholder="sub_..." autocomplete="off">
-                      </mat-form-field>
-                      <mat-form-field appearance="outline" class="half-width">
-                        <mat-label>Subscription Status</mat-label>
-                        <mat-select formControlName="subscriptionStatus">
-                          <mat-option value="">None</mat-option>
-                          <mat-option value="active">Active</mat-option>
-                          <mat-option value="trialing">Trialing</mat-option>
-                          <mat-option value="incomplete">Incomplete</mat-option>
-                          <mat-option value="past_due">Past Due</mat-option>
-                          <mat-option value="canceled">Canceled</mat-option>
-                          <mat-option value="unpaid">Unpaid</mat-option>
-                        </mat-select>
-                      </mat-form-field>
+                      <div class="field flex-1">
+                        <label class="field-label">Stripe Customer ID</label>
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <input matInput type="text" formControlName="stripeCustomerId" placeholder="cus_..." autocomplete="off">
+                        </mat-form-field>
+                      </div>
+                      <div class="field flex-1">
+                        <label class="field-label">Stripe Subscription ID</label>
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <input matInput type="text" formControlName="stripeSubscriptionId" placeholder="sub_..." autocomplete="off">
+                        </mat-form-field>
+                      </div>
+                      <div class="field field-status">
+                        <label class="field-label">Status</label>
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-select formControlName="subscriptionStatus">
+                            <mat-option value="">None</mat-option>
+                            <mat-option value="active">Active</mat-option>
+                            <mat-option value="trialing">Trialing</mat-option>
+                            <mat-option value="incomplete">Incomplete</mat-option>
+                            <mat-option value="past_due">Past Due</mat-option>
+                            <mat-option value="canceled">Canceled</mat-option>
+                            <mat-option value="unpaid">Unpaid</mat-option>
+                          </mat-select>
+                        </mat-form-field>
+                      </div>
                     </div>
                   </div>
                   <div class="form-row checkboxes-row">
@@ -579,7 +612,8 @@
                       Group Admin
                     </mat-checkbox>
                     <mat-checkbox formControlName="systemAdmin">System Admin</mat-checkbox>
-                    <mat-checkbox formControlName="forcePasswordReset">Require Password Reset on Next Login</mat-checkbox>
+                    <mat-checkbox formControlName="forcePasswordReset">Require Password Reset</mat-checkbox>
+                    <mat-checkbox formControlName="suspended">Suspended</mat-checkbox>
                   </div>
                   <div class="hint-row">
                     @if (editingUser && !editingUser.userGroupId) {
@@ -592,17 +626,18 @@
                     <div class="form-section">
                       <h6 class="form-section-title">System No Audio Alerts</h6>
                       <div class="form-row">
-                        <mat-form-field appearance="outline" class="full-width">
-                          <mat-label>Systems to view</mat-label>
-                          <mat-select formControlName="systemNoAudioAlertSystemIds" multiple>
-                            @for (system of systems; track system) {
-                              <mat-option [value]="system.id">
-                                {{ system.label || ('System ' + system.id) }}
-                              </mat-option>
-                            }
-                          </mat-select>
-                          <mat-hint>Select which systems' no-audio alerts this user can see in the app.</mat-hint>
-                        </mat-form-field>
+                        <div class="field full-width">
+                          <label class="field-label">Systems to view</label>
+                          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                            <mat-select formControlName="systemNoAudioAlertSystemIds" multiple>
+                              @for (system of systems; track system) {
+                                <mat-option [value]="system.id">
+                                  {{ system.label || ('System ' + system.id) }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
                       </div>
                       <div class="form-row checkboxes-row">
                         <mat-checkbox formControlName="pushSystemNoAudioAlerts">Push notifications</mat-checkbox>
@@ -613,17 +648,18 @@
                     <div class="form-section">
                       <h6 class="form-section-title">API Key No Audio Alerts</h6>
                       <div class="form-row">
-                        <mat-form-field appearance="outline" class="full-width">
-                          <mat-label>API keys to view</mat-label>
-                          <mat-select formControlName="apiKeyNoAudioAlertApiKeyIds" multiple>
-                            @for (apikey of apikeys; track apikey) {
-                              <mat-option [value]="apiKeyOptionId(apikey)">
-                                {{ apikey.ident || ('API Key ' + apiKeyOptionId(apikey)) }}
-                              </mat-option>
-                            }
-                          </mat-select>
-                          <mat-hint>Select which uploader/API key no-audio alerts this user can see.</mat-hint>
-                        </mat-form-field>
+                        <div class="field full-width">
+                          <label class="field-label">API keys to view</label>
+                          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                            <mat-select formControlName="apiKeyNoAudioAlertApiKeyIds" multiple>
+                              @for (apikey of apikeys; track apikey) {
+                                <mat-option [value]="apiKeyOptionId(apikey)">
+                                  {{ apikey.ident || ('API Key ' + apiKeyOptionId(apikey)) }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
                       </div>
                       <div class="form-row checkboxes-row">
                         <mat-checkbox formControlName="pushApiKeyNoAudioAlerts">Push notifications</mat-checkbox>
@@ -669,7 +705,8 @@
           class="user-row"
         [class.row-expanded]="expandedUser?.id === user.id"></tr>
         <tr mat-row *matRowDef="let row; columns: ['expandedDetail']"
-        class="detail-row"></tr>
+          class="detail-row"
+          [class.detail-expanded]="expandedUser?.id === row.id"></tr>
       </mat-table>
     </div>
   }

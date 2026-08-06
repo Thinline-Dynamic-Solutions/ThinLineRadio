@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -29,6 +29,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-email-verification',
     templateUrl: './email-verification.component.html',
     styleUrls: ['./email-verification.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerEmailVerificationComponent implements OnInit, OnDestroy {

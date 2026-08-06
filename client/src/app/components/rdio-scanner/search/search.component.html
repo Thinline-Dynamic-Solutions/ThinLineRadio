@@ -180,40 +180,36 @@
       }
     </div>
 
-    <div class="archive-toolbar">
-      <div class="archive-download-wrap" matTooltip="Download mode — tap rows to save audio">
-        <mat-slide-toggle #downloadMode class="archive-download-toggle" color="primary" labelPosition="before">
-          <mat-icon>save_alt</mat-icon>
-        </mat-slide-toggle>
-      </div>
-    </div>
-
     <div class="archive-scroll-frame">
       <div class="archive-table-scroll" #archiveScroll (scroll)="onArchiveScroll($event)">
         <mat-table class="archive-results-table" [dataSource]="results">
           <ng-container matColumnDef="control">
             <mat-header-cell *matHeaderCellDef></mat-header-cell>
-            <mat-cell *matCellDef="let row">
-              @if (downloadMode.checked && row) {
-                <button mat-icon-button (click)="download(+row.id)">
-                  <mat-icon>save_alt</mat-icon>
-                </button>
-              }
-              @if (row && !downloadMode.checked && !paused && row?.id != call?.id && row?.id != callPending) {
-                <button
-                  mat-icon-button (click)="play(+row.id)">
-                  <mat-icon>play_arrow</mat-icon>
-                </button>
-              }
-              @if (row && !downloadMode.checked && row?.id == callPending) {
-                <button mat-icon-button>
-                  <mat-icon class="spin">cached</mat-icon>
-                </button>
-              }
-              @if (row && !downloadMode.checked && row?.id == call?.id) {
-                <button mat-icon-button (click)="stop()">
-                  <mat-icon>stop</mat-icon>
-                </button>
+            <mat-cell *matCellDef="let row" class="archive-control-cell">
+              @if (row) {
+                <div class="archive-row-actions">
+                  @if (!paused && row?.id != call?.id && row?.id != callPending) {
+                    <button type="button" mat-icon-button matTooltip="Play"
+                      (click)="play(+row.id); $event.stopPropagation()">
+                      <mat-icon>play_arrow</mat-icon>
+                    </button>
+                  } @else if (row?.id == callPending) {
+                    <button type="button" mat-icon-button disabled>
+                      <mat-icon class="spin">cached</mat-icon>
+                    </button>
+                  } @else if (row?.id == call?.id) {
+                    <button type="button" mat-icon-button matTooltip="Stop"
+                      (click)="stop(); $event.stopPropagation()">
+                      <mat-icon>stop</mat-icon>
+                    </button>
+                  } @else {
+                    <span class="archive-action-spacer" aria-hidden="true"></span>
+                  }
+                  <button type="button" mat-icon-button matTooltip="Download"
+                    (click)="download(+row.id); $event.stopPropagation()">
+                    <mat-icon>save_alt</mat-icon>
+                  </button>
+                </div>
               }
             </mat-cell>
           </ng-container>
@@ -222,7 +218,7 @@
               <span>Date</span>
             </mat-header-cell>
             <mat-cell *matCellDef="let row">
-              <span>{{ row?.dateTime | date:'MM/dd' }}</span>
+              <span>{{ $safeNavigationMigration(row?.dateTime) | date:'MM/dd' }}</span>
             </mat-cell>
           </ng-container>
           <ng-container matColumnDef="time">
@@ -230,7 +226,15 @@
               <span>Time</span>
             </mat-header-cell>
             <mat-cell *matCellDef="let row" [ngClass]="{'time12h': time12h}">
-              <span>{{ row?.dateTime | date: time12h ? 'h:mm a' : 'HH:mm' }}</span>
+              <span>{{ $safeNavigationMigration(row?.dateTime) | date: time12h ? 'h:mm a' : 'HH:mm' }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="callid">
+            <mat-header-cell *matHeaderCellDef>
+              <span>Call ID</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <span>{{ row?.id ?? '—' }}</span>
             </mat-cell>
           </ng-container>
           <ng-container matColumnDef="system">

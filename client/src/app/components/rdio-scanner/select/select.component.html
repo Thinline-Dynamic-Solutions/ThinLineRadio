@@ -22,10 +22,6 @@
         <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'all'" (click)="setNavMode('all')">
           Channels
         </button>
-        <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'favorites'" (click)="setNavMode('favorites')">
-          <mat-icon class="segment-star">star</mat-icon>
-          Favorites
-        </button>
         <button type="button" role="tab" class="segment-btn" [class.active]="navMode === 'scanLists'" (click)="setNavMode('scanLists')">
           <mat-icon class="segment-icon">playlist_play</mat-icon>
           Scan Lists
@@ -71,131 +67,178 @@
     </div>
   </div>
 
-  <!-- Scan Lists Panel -->
+  <!-- Scan Lists — same master/detail split as Channels (Favorites pinned at top) -->
   @if (navMode === 'scanLists') {
-    <div class="scan-lists-panel">
-      <div class="scan-lists-header">
-        <span class="scan-lists-title">Scan Lists</span>
-        <button type="button" class="scan-list-btn" (click)="createScanList()">New List</button>
-      </div>
-      @if (scanLists.length === 0) {
-        <div class="scan-lists-empty">
-          <mat-icon>playlist_add</mat-icon>
-          <p>No scan lists yet</p>
-          <small>Create a list to group channels for quick access</small>
+    <div class="channels-split scan-lists-split">
+      <aside class="channels-sidebar scan-lists-sidebar">
+        <div class="sidebar-head">
+          <span class="sidebar-head-label">Scan Lists</span>
+          <button type="button" class="scan-list-btn" (click)="createScanList()">New</button>
         </div>
-      }
-      <div class="scan-lists-body" cdkDropList (cdkDropListDropped)="onScanListDrop($event)">
-        @for (list of scanLists; track list) {
-          <div
-            class="scan-list-card"
-            [class.expanded]="isScanListExpanded(list.id)"
-            cdkDrag
-            [cdkDragDisabled]="list.isFavoritesSource"
-            cdkDragLockAxis="y">
-            <!-- Drag placeholder shown at drop target while dragging -->
-            <div *cdkDragPlaceholder class="scan-list-drag-placeholder"></div>
-            <!-- Card header -->
-            <div class="scan-list-card-header" (click)="toggleScanListExpanded(list.id)">
-              @if (!list.isFavoritesSource) {
-                <div class="drag-handle" cdkDragHandle (click)="$event.stopPropagation()">
-                  <mat-icon>drag_indicator</mat-icon>
-                </div>
-              }
-              <div class="scan-list-icon" [class.fav]="list.isFavoritesSource">
-                <mat-icon>{{ list.isFavoritesSource ? 'star' : 'playlist_play' }}</mat-icon>
-              </div>
-              <span class="scan-list-name">{{ list.name }}</span>
-              <span class="scan-list-count" [class.all-on]="getScanListLiveState(list) === 'all'"
-                [class.some-on]="getScanListLiveState(list) === 'some'">
-                {{ getScanListEnabledCount(list) }} / {{ list.channels.length }}
+        <nav class="sidebar-list">
+          @if (getFavoritesScanList(); as favList) {
+            <div
+              class="sidebar-system-row scan-list-rail-row"
+              role="button"
+              tabindex="0"
+              [class.active]="detailScanListId === favList.id"
+              [class.status-all]="getScanListLiveState(favList) === 'all'"
+              [class.status-some]="getScanListLiveState(favList) === 'some'"
+              [class.status-none]="getScanListLiveState(favList) === 'none'"
+              [title]="favList.name"
+              (click)="selectDetailScanList(favList.id)"
+              (keydown.enter)="selectDetailScanList(favList.id)"
+              (keydown.space)="$event.preventDefault(); selectDetailScanList(favList.id)">
+              <span class="sidebar-row-icon fav">
+                <mat-icon>star</mat-icon>
               </span>
-              <div class="scan-list-actions" (click)="$event.stopPropagation()">
-                @if (list.channels.length > 0) {
-                  <button
-                    type="button"
-                    class="scan-list-btn bulk-toggle"
-                    [class.all-on]="getScanListLiveState(list) === 'all'"
-                    [class.some-on]="getScanListLiveState(list) === 'some'"
-                    [title]="getScanListLiveState(list) === 'all' ? 'All enabled — click to disable list' : getScanListLiveState(list) === 'some' ? 'Some enabled — click to toggle list' : 'None enabled — click to enable list'"
-                    matTooltip="Turns every channel in this list on or off. Channels outside the list are unaffected, so this combines with manual selections from the Channels tab."
-                    (click)="bulkToggleScanList(list, $event)">
-                    {{ getScanListBulkLabel(list) }}
-                  </button>
-                }
+              <span class="sidebar-row-body">
+                <span class="sidebar-row-label">{{ favList.name }}</span>
+                <span class="sidebar-row-meta">
+                  <span class="enabled-count">{{ getScanListEnabledCount(favList) }}</span>
+                  <span class="total-count">/ {{ favList.channels.length }}</span>
+                </span>
+              </span>
+            </div>
+          }
+          <div class="scan-lists-user-drop" cdkDropList (cdkDropListDropped)="onScanListDrop($event)">
+            @for (list of getUserScanLists(); track list.id) {
+              <div
+                class="sidebar-system-row scan-list-rail-row"
+                role="button"
+                tabindex="0"
+                [class.active]="detailScanListId === list.id"
+                [class.status-all]="getScanListLiveState(list) === 'all'"
+                [class.status-some]="getScanListLiveState(list) === 'some'"
+                [class.status-none]="getScanListLiveState(list) === 'none'"
+                cdkDrag
+                cdkDragLockAxis="y"
+                [title]="list.name"
+                (click)="selectDetailScanList(list.id)"
+                (keydown.enter)="selectDetailScanList(list.id)"
+                (keydown.space)="$event.preventDefault(); selectDetailScanList(list.id)">
+                <div *cdkDragPlaceholder class="scan-list-drag-placeholder scan-list-drag-placeholder--rail"></div>
+                <span class="drag-handle" cdkDragHandle (click)="$event.stopPropagation()">
+                  <mat-icon>drag_indicator</mat-icon>
+                </span>
+                <span class="sidebar-row-icon">
+                  <mat-icon>playlist_play</mat-icon>
+                </span>
+                <span class="sidebar-row-body">
+                  <span class="sidebar-row-label">{{ list.name }}</span>
+                  <span class="sidebar-row-meta">
+                    <span class="enabled-count">{{ getScanListEnabledCount(list) }}</span>
+                    <span class="total-count">/ {{ list.channels.length }}</span>
+                  </span>
+                </span>
+              </div>
+            }
+          </div>
+          @if (getUserScanLists().length === 0) {
+            <div class="sidebar-empty scan-lists-user-empty">
+              <mat-icon>playlist_add</mat-icon>
+              <span>Create a list to group channels for quick access</span>
+            </div>
+          }
+        </nav>
+      </aside>
+
+      <main class="channels-detail scan-lists-detail">
+        @if (getDetailScanList(); as list) {
+          <div class="channels-detail-header system-card-header scan-list-detail-header">
+            <div class="system-icon" [class.fav]="list.isFavoritesSource">
+              <mat-icon>{{ list.isFavoritesSource ? 'star' : 'playlist_play' }}</mat-icon>
+            </div>
+            <div class="system-info">
+              <div class="system-label">{{ list.name }}</div>
+              <div class="system-stats">
+                <span class="enabled-count"
+                  [class.some-on]="getScanListLiveState(list) === 'some'"
+                  [class.all-on]="getScanListLiveState(list) === 'all'">
+                  {{ getScanListEnabledCount(list) }}
+                </span>
+                <span class="total-count">/ {{ list.channels.length }} {{ list.isFavoritesSource ? 'favorited' : 'in list' }}</span>
+              </div>
+            </div>
+            <div class="system-toggle scan-list-actions">
+              @if (list.channels.length > 0) {
+                <button
+                  type="button"
+                  class="scan-list-btn bulk-toggle"
+                  [class.all-on]="getScanListLiveState(list) === 'all'"
+                  [class.some-on]="getScanListLiveState(list) === 'some'"
+                  [title]="getScanListLiveState(list) === 'all' ? 'All enabled — click to disable list' : getScanListLiveState(list) === 'some' ? 'Some enabled — click to toggle list' : 'None enabled — click to enable list'"
+                  matTooltip="Turns every channel in this list on or off. Channels outside the list are unaffected, so this combines with manual selections from the Channels tab."
+                  (click)="bulkToggleScanList(list, $event)">
+                  {{ getScanListBulkLabel(list) }}
+                </button>
+              }
+              @if (!list.isFavoritesSource) {
                 <button type="button"
                   class="scan-list-btn"
                   title="Edit channels in this list"
                   (click)="editScanListChannels(list, $event)">
-                  Channels
+                  Edit
                 </button>
-                @if (!list.isFavoritesSource) {
-                  <button
-                    type="button"
-                    class="scan-list-btn"
-                    title="Rename this scan list"
-                    (click)="renameScanList(list)">
-                    Rename
-                  </button>
-                }
-                @if (!list.isFavoritesSource) {
-                  <button
-                    type="button"
-                    class="scan-list-btn danger"
-                    title="Delete this scan list"
-                    (click)="deleteScanList(list)">
-                    Delete
-                  </button>
+                <button type="button" class="scan-list-btn" title="Rename this scan list" (click)="renameScanList(list, $event)">
+                  Rename
+                </button>
+                <button type="button" class="scan-list-btn danger" title="Delete this scan list" (click)="deleteScanList(list, $event)">
+                  Delete
+                </button>
+              }
+            </div>
+          </div>
+          <div class="channels-detail-body scan-list-body">
+            @if (list.channels.length === 0) {
+              <div class="scan-list-channels-empty">
+                @if (list.isFavoritesSource) {
+                  Star talkgroups on the Channels tab to build your Favorites list
+                } @else {
+                  No channels in this list
                 }
               </div>
-              <mat-icon class="expand-icon">{{ isScanListExpanded(list.id) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
-            </div>
-            <!-- Channels grouped by system then tag -->
-            @if (isScanListExpanded(list.id)) {
-              <div class="scan-list-body">
-                @if (list.channels.length === 0) {
-                  <div class="scan-list-channels-empty">No channels in this list</div>
-                }
-                @for (sysGroup of getScanListSystems(list); track sysGroup) {
-                  <div class="scan-list-system-group">
-                    <div class="scan-list-system-header" (click)="toggleScanListSystem(list.id, sysGroup.systemId)">
-                      <mat-icon class="expand-sm">{{ isScanListSystemExpanded(list.id, sysGroup.systemId) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
-                      <mat-icon style="font-size:14px;width:14px;height:14px;color:#00e676">radio</mat-icon>
-                      <span class="sys-label">{{ sysGroup.systemLabel }}</span>
-                      <span class="sys-count">{{ sysGroup.channels.length }}</span>
-                    </div>
-                    @if (isScanListSystemExpanded(list.id, sysGroup.systemId)) {
-                      <div class="scan-list-channels">
-                        @for (tagGroup of getScanListTags(sysGroup.channels); track tagGroup) {
-                          <div class="scan-list-tag-group">
-                            <div class="scan-list-tag-header" [style.color]="getTagColor(tagGroup.tag)" (click)="toggleScanListTag(list.id, sysGroup.systemId, tagGroup.tag)">
-                              <mat-icon class="expand-sm">{{ isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
-                              <mat-icon style="font-size:13px;width:13px;height:13px;color:inherit">label</mat-icon>
-                              <span>{{ tagGroup.tag || 'Untagged' }}</span>
-                              <span class="tag-count-sm">{{ tagGroup.channels.length }}</span>
-                            </div>
-                            @if (isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag)) {
-                              <div class="talkgroup-list">
-                                @for (ch of tagGroup.channels; track ch) {
-                                  <div
-                                    class="talkgroup-row"
-                                    [class.enabled]="isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId)"
-                                    (click)="toggleScanListRowEnabled(ch, $event)">
-                                    <mat-icon class="row-radio-icon">
-                                      {{ isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId) ? 'radio_button_checked' : 'radio_button_unchecked' }}
-                                    </mat-icon>
-                                    <div class="row-text">
-                                      <span class="row-label">{{ ch.talkgroupLabel }}</span>
-                                      @if (ch.talkgroupName) {
-                                        <span class="row-name">{{ ch.talkgroupName }}</span>
-                                      }
-                                    </div>
-                                    <span class="row-id">{{ ch.talkgroupId }}</span>
-                                    <button class="icon-action sm error" title="Remove from list" (click)="removeScanListChannel(list, ch, $event)">
-                                      <mat-icon>remove_circle_outline</mat-icon>
-                                    </button>
-                                  </div>
-                                }
+            }
+            @for (sysGroup of getScanListSystems(list); track sysGroup.systemId) {
+              <div class="scan-list-system-group">
+                <div class="scan-list-system-header" (click)="toggleScanListSystem(list.id, sysGroup.systemId)">
+                  <mat-icon class="expand-sm">{{ isScanListSystemExpanded(list.id, sysGroup.systemId) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                  <mat-icon style="font-size:14px;width:14px;height:14px;color:var(--tlr-primary)">radio</mat-icon>
+                  <span class="sys-label">{{ sysGroup.systemLabel }}</span>
+                  <span class="sys-count">{{ sysGroup.channels.length }}</span>
+                </div>
+                @if (isScanListSystemExpanded(list.id, sysGroup.systemId)) {
+                  <div class="scan-list-channels">
+                    @for (tagGroup of getScanListTags(sysGroup.channels); track tagGroup.tag) {
+                      <div class="scan-list-tag-group" [style.--tag-accent]="getTagColor(tagGroup.tag)">
+                        <button type="button"
+                          class="scan-list-tag-header"
+                          (click)="toggleScanListTag(list.id, sysGroup.systemId, tagGroup.tag)">
+                          <mat-icon class="expand-sm">{{ isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag) ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                          <mat-icon class="tag-icon-sm">label</mat-icon>
+                          <span class="tag-label-sm">{{ tagGroup.tag || 'Untagged' }}</span>
+                          <span class="tag-count-sm">{{ tagGroup.channels.length }}</span>
+                        </button>
+                        @if (isScanListTagExpanded(list.id, sysGroup.systemId, tagGroup.tag)) {
+                          <div class="talkgroup-list">
+                            @for (ch of tagGroup.channels; track trackScanListChannel($index, ch)) {
+                              <div
+                                class="talkgroup-row"
+                                [class.enabled]="isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId)"
+                                (click)="toggleScanListRowEnabled(ch, $event)">
+                                <mat-icon class="row-radio-icon">
+                                  {{ isTalkgroupEnabled(+ch.systemId, +ch.talkgroupId) ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                                </mat-icon>
+                                <div class="row-text">
+                                  <span class="row-label">{{ ch.talkgroupLabel }}</span>
+                                  @if (ch.talkgroupName) {
+                                    <span class="row-name">{{ ch.talkgroupName }}</span>
+                                  }
+                                </div>
+                                <span class="row-id">{{ ch.talkgroupId }}</span>
+                                <button class="icon-action sm error" title="Remove from list" (click)="removeScanListChannel(list, ch, $event)">
+                                  <mat-icon>remove_circle_outline</mat-icon>
+                                </button>
                               </div>
                             }
                           </div>
@@ -208,7 +251,13 @@
             }
           </div>
         }
-      </div>
+        @if (!getDetailScanList()) {
+          <div class="channels-detail-empty">
+            <mat-icon>playlist_play</mat-icon>
+            <span>Select a scan list</span>
+          </div>
+        }
+      </main>
     </div>
   }
 
@@ -275,16 +324,20 @@
   @if (navMode !== 'scanLists' && systems && systems.length > 0 && !isSearchActive()) {
     <div class="channels-split">
       <aside class="channels-sidebar"
-        [class.is-empty]="navMode === 'favorites' && getSystemsForBrowseRail().length === 0">
-        <div class="sidebar-head">Systems</div>
-        @if (navMode === 'favorites' && getSystemsForBrowseRail().length === 0) {
-          <div class="sidebar-empty">
-            <mat-icon>star_border</mat-icon>
-            <span>Star a system, tag, or talkgroup to list it here</span>
-          </div>
-        }
+        [class.is-collapsed]="systemsRailCollapsed">
+        <div class="sidebar-head">
+          <span class="sidebar-head-label">Systems</span>
+          <button type="button"
+            class="sidebar-collapse-btn"
+            [attr.aria-expanded]="!systemsRailCollapsed"
+            [attr.aria-label]="systemsRailCollapsed ? 'Expand systems list' : 'Collapse systems list'"
+            [title]="systemsRailCollapsed ? 'Expand systems' : 'Collapse systems'"
+            (click)="toggleSystemsRail()">
+            <mat-icon>{{ systemsRailCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+          </button>
+        </div>
         <nav class="sidebar-list">
-          @for (system of getSystemsForBrowseRail(); track system) {
+          @for (system of getSystemsForBrowseRail(); track system.id) {
             <button type="button"
               class="sidebar-system-row"
               [class.active]="detailSystemId === system.id"
@@ -347,15 +400,16 @@
           </div>
           @if (getTalkgroupsInSystemView(ds).length > 0) {
             <div class="channels-detail-body">
-              @for (tagGroup of (navMode === 'favorites' ? getFavoriteTagGroupsForSystem(ds) : groupTalkgroupsByTag(ds)); track tagGroup) {
+              @for (tagGroup of detailTagGroups; track tagGroup.tag) {
                 <div class="tag-group">
                   <div class="tag-header"
+                    [style.--tag-accent]="getTagColor(tagGroup.tag)"
                     (click)="toggleTag(ds.id, tagGroup.tag, $event)"
                     (contextmenu)="$event.preventDefault()">
-                    <div class="tag-icon" [style.color]="getTagColor(tagGroup.tag)">
+                    <div class="tag-icon">
                       <mat-icon>{{ getTagIcon(tagGroup.tag) }}</mat-icon>
                     </div>
-                    <div class="tag-label" [style.color]="getTagColor(tagGroup.tag)">{{ tagGroup.tag || 'Untagged' }}</div>
+                    <div class="tag-label">{{ tagGroup.tag || 'Untagged' }}</div>
                     <div class="tag-count">{{ tagGroup.talkgroups.length }}</div>
                     <div class="tag-status">
                       <mat-icon [class]="getTagStatusClass(ds.id, tagGroup.tag, tagGroup.talkgroups)">{{ getTagStatusIcon(ds.id, tagGroup.tag, tagGroup.talkgroups) }}</mat-icon>
@@ -387,7 +441,7 @@
                   @if (isTagExpanded(ds.id, tagGroup.tag)) {
                     <div class="tag-content">
                       <div class="talkgroup-list">
-                        @for (talkgroup of tagGroup.talkgroups; track talkgroup) {
+                        @for (talkgroup of tagGroup.talkgroups; track talkgroup.id) {
                           <div
                             class="talkgroup-row"
                             [class.enabled]="isTalkgroupEnabled(ds.id, talkgroup.id)"
