@@ -1155,6 +1155,12 @@ func applyMappingIntegrationFromMap(cfg *MappingIntegration, m map[string]any) {
 		cfg.CallNatureOpenAIClassify = v
 		cfg.CallNatureOpenAIClassifyConfigured = true
 	}
+	if v, ok := anyToBool(m["callNaturePhraseLearn"]); ok {
+		cfg.CallNaturePhraseLearn = v
+	}
+	if v, ok := m["callNaturePhraseLearnMinSightings"].(float64); ok {
+		cfg.CallNaturePhraseLearnMinSightings = uint(v)
+	}
 	if v, ok := anyToBool(m["suppressUnknownNaturePins"]); ok {
 		cfg.SuppressUnknownNaturePins = v
 	}

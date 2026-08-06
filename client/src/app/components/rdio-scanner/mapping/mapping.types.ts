@@ -17,6 +17,10 @@ export interface MappingIntegrationConfig {
     mapBoundaryLayers?: string[];
     /** When phrase matching finds no call nature, use OpenAI to classify from the category list. */
     callNatureOpenAIClassify?: boolean;
+    /** Suggest local transcript jargon under call natures (admin must Accept). */
+    callNaturePhraseLearn?: boolean;
+    /** Distinct calls required before a phrase suggestion is ready (default 3). */
+    callNaturePhraseLearnMinSightings?: number;
     /** Skip geocoding and drop map pins for catch-all UNKNOWN PROBLEM natures. */
     suppressUnknownNaturePins?: boolean;
     /** Append incident-mapping location context to the STT prompt (Gemini/Whisper/etc.). */

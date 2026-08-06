@@ -20,7 +20,12 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { CallNature, RdioScannerAdminService } from '../../admin.service';
+import {
+    CallNature,
+    CallNaturePhraseLearnStatus,
+    CallNaturePhraseSuggestion,
+    RdioScannerAdminService,
+} from '../../admin.service';
 
 @Component({
     selector: 'rdio-scanner-admin-call-natures',
@@ -35,6 +40,13 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     editingForm: FormGroup | null = null;
     editingPhrases: string[] = [];
     newPhraseText = '';
+
+    learnEnabled = false;
+    learnStatus: CallNaturePhraseLearnStatus | null = null;
+    suggestions: CallNaturePhraseSuggestion[] = [];
+    loadingSuggestions = false;
+    scanning = false;
+    scanMessage = '';
     private phrasesSubscription?: Subscription;
 
     constructor(
@@ -46,6 +58,7 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
 
     ngOnInit(): void {
         void this.loadCallNatures(true);
+        void this.loadSuggestions();
     }
 
     ngOnDestroy(): void {
@@ -63,6 +76,14 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             }
             return (n.phrases || []).some((p) => p.toUpperCase().includes(q));
         });
+    }
+
+    get readySuggestions(): CallNaturePhraseSuggestion[] {
+        return this.suggestions.filter((s) => s.ready);
+    }
+
+    get emergingSuggestions(): CallNaturePhraseSuggestion[] {
+        return this.suggestions.filter((s) => !s.ready);
     }
 
     private normalizeNature(nature: CallNature): CallNature {
@@ -88,6 +109,69 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
         }
         this.loading = false;
         this.cdr.markForCheck();
+    }
+
+    async loadSuggestions(): Promise<void> {
+        this.loadingSuggestions = true;
+        this.cdr.markForCheck();
+        const res = await this.adminService.getCallNaturePhraseSuggestions();
+        if (res) {
+            this.learnStatus = res.status;
+            this.learnEnabled = !!res.status?.enabled;
+            this.suggestions = res.suggestions || [];
+        }
+        this.loadingSuggestions = false;
+        this.cdr.markForCheck();
+    }
+
+    async scanHistory(): Promise<void> {
+        if (!this.learnEnabled) {
+            this.scanMessage = 'Turn on “Suggest phrases from transcripts” above first, then Save if needed.';
+            this.cdr.markForCheck();
+            return;
+        }
+        const ok = confirm(
+            'Scan recent transcripts for phrase suggestions?\n\n' +
+            'This re-reads stored transcriptions from the last 7 days (up to a few hundred calls).\n' +
+            'Suggestions are local to your traffic. Nothing is added until you Accept a phrase.',
+        );
+        if (!ok) {
+            return;
+        }
+        this.scanning = true;
+        this.scanMessage = '';
+        this.cdr.markForCheck();
+        const res = await this.adminService.scanCallNaturePhrases(168, 200);
+        if (res) {
+            this.suggestions = res.suggestions || [];
+            this.scanMessage = res.message || `Scanned ${res.callsScanned} calls.`;
+            if (this.learnStatus) {
+                this.learnStatus = {
+                    ...this.learnStatus,
+                    pendingAll: this.suggestions.length,
+                    pendingReady: this.readySuggestions.length,
+                    minSightings: res.minSightings || this.learnStatus.minSightings,
+                };
+            }
+        } else {
+            this.scanMessage = 'Scan failed — check that phrase learning is enabled and try again.';
+        }
+        this.scanning = false;
+        this.cdr.markForCheck();
+    }
+
+    async acceptSuggestion(s: CallNaturePhraseSuggestion): Promise<void> {
+        const ok = await this.adminService.acceptCallNaturePhraseSuggestion(s.candidateId);
+        if (ok) {
+            await Promise.all([this.loadCallNatures(), this.loadSuggestions()]);
+        }
+    }
+
+    async dismissSuggestion(s: CallNaturePhraseSuggestion): Promise<void> {
+        const ok = await this.adminService.dismissCallNaturePhraseSuggestion(s.candidateId);
+        if (ok) {
+            await this.loadSuggestions();
+        }
     }
 
     startEdit(index: number): void {
@@ -123,7 +207,15 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     }
 
     async saveEdit(): Promise<void> {
-        if (!this.editingForm || this.editingForm.invalid || this.editingIndex === null) {
+        if (!this.editingForm || this.editingIndex === null) {
+            return;
+        }
+
+        // Commit a phrase typed into the "Add phrase" box but not yet added via
+        // Enter/Add, so clicking Save directly doesn't silently drop it.
+        this.addPhraseFromInput();
+
+        if (this.editingForm.invalid) {
             return;
         }
 

@@ -588,6 +588,9 @@ func main() {
 	http.HandleFunc("/api/transcripts/training-progress", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.TranscriptsTrainingProgressHandler))).ServeHTTP)
 	http.HandleFunc("/api/keyword-lists", wrapHandler(http.HandlerFunc(controller.Api.KeywordListsHandler)).ServeHTTP)
 	http.HandleFunc("/api/call-natures", wrapHandler(http.HandlerFunc(controller.Api.CallNaturesHandler)).ServeHTTP)
+	http.HandleFunc("/api/call-nature-phrase-suggestions", wrapHandler(http.HandlerFunc(controller.Api.CallNaturePhraseSuggestionsHandler)).ServeHTTP)
+	http.HandleFunc("/api/call-nature-phrase-suggestions/", wrapHandler(http.HandlerFunc(controller.Api.CallNaturePhraseSuggestionActionHandler)).ServeHTTP)
+	http.HandleFunc("/api/call-nature-phrase-scan", wrapHandler(http.HandlerFunc(controller.Api.CallNaturePhraseScanHandler)).ServeHTTP)
 
 	// System alert routes (system admins only)
 	http.HandleFunc("/api/system-alerts", wrapHandler(http.HandlerFunc(controller.Api.SystemAlertsHandler)).ServeHTTP)
