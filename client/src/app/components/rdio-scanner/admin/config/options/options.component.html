@@ -9,7 +9,7 @@
         <p *ngIf="relaySuspensionStatus?.public_listener_blocked" style="margin:0 0 10px 0;font-size:14px;">The public web listener is disabled. You can unlock it below so listeners can use the web app again. Mobile push notifications stay off until the relay clears the suspension.</p>
         <p *ngIf="!relaySuspensionStatus?.public_listener_blocked" style="margin:0 0 10px 0;font-size:14px;">The public web listener has been unlocked from this admin panel. Push notifications remain disabled until the relay clears the suspension.</p>
         <button *ngIf="relaySuspensionStatus?.public_listener_blocked" mat-stroked-button color="accent" type="button" (click)="unlockPublicWebListener()">Unlock public web listener</button>
-        <p style="margin:12px 0 0 0;font-size:12px;opacity:0.85;">Server operators: email <a href="mailto:support@thinlineds.com" style="color:#90caf9;">support@thinlineds.com</a> (not for listener support).</p>
+        <p style="margin:12px 0 0 0;font-size:12px;opacity:0.85;">Server operators: email <a href="mailto:support@thinlineds.com" style="color:#90caf9;">support&#64;thinlineds.com</a> (not for listener support).</p>
       </div>
     </div>
   </div>
@@ -1610,7 +1610,7 @@
                   <li style="margin-bottom:6px;">Open <a href="https://dash.cloudflare.com/?to=/:account/ai/workers-ai" target="_blank" rel="noopener noreferrer" style="color:#90caf9;">Workers &amp; Pages → Workers AI</a> and choose <strong>Use REST API</strong>.</li>
                   <li style="margin-bottom:6px;"><strong>Account ID:</strong> copy the value shown on that page, from the dashboard URL (<code style="color:#c5cae9;">dash.cloudflare.com/&lt;ACCOUNT_ID&gt;/…</code>), or from Account Home → Overview (right sidebar).</li>
                   <li style="margin-bottom:6px;"><strong>API token:</strong> click <strong>Create a Workers AI API Token</strong> on the Workers AI page and save it immediately (shown once). Alternative: <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer" style="color:#90caf9;">My Profile → API Tokens</a> → Create Token → <strong>Workers AI</strong> template (requires Workers AI Read and Edit).</li>
-                  <li style="margin-bottom:6px;"><strong>Model:</strong> use the full Workers AI model ID including the <code style="color:#c5cae9;">@cf/</code> prefix (default below is recommended). Browse all models in the <a href="https://developers.cloudflare.com/workers-ai/models/" target="_blank" rel="noopener noreferrer" style="color:#90caf9;">Workers AI model catalog</a>.</li>
+                  <li style="margin-bottom:6px;"><strong>Model:</strong> use the full Workers AI model ID including the <code style="color:#c5cae9;">&#64;cf/</code> prefix (default below is recommended). Browse all models in the <a href="https://developers.cloudflare.com/workers-ai/models/" target="_blank" rel="noopener noreferrer" style="color:#90caf9;">Workers AI model catalog</a>.</li>
                 </ol>
                 <p style="margin:0 0 8px 0;opacity:0.9;">Usage is billed to your Cloudflare account (many plans include a free daily allowance). Transcription still runs only for talkgroups where a user has <strong>alert notifications enabled</strong> (bell icon) plus tone or keyword alerts — keyword list buttons alone are not enough.</p>
                 <p style="margin:0;font-size:12px;opacity:0.85;">REST API reference: <a href="https://developers.cloudflare.com/workers-ai/get-started/rest-api/" target="_blank" rel="noopener noreferrer" style="color:#90caf9;">Cloudflare Workers AI REST API</a></p>
@@ -1641,16 +1641,16 @@
           <div class="row">
             <p>
               <span class="mat-body">Model</span><br>
-              <span class="mat-caption">Cloudflare Workers AI Whisper model ID (must include <code>@cf/</code>). See the <a href="https://developers.cloudflare.com/workers-ai/models/" target="_blank" rel="noopener noreferrer" style="color: #cc0000;">model catalog</a>.</span>
+              <span class="mat-caption">Cloudflare Workers AI Whisper model ID (must include <code>&#64;cf/</code>). See the <a href="https://developers.cloudflare.com/workers-ai/models/" target="_blank" rel="noopener noreferrer" style="color: #cc0000;">model catalog</a>.</span>
             </p>
             <mat-form-field floatLabel="auto">
               <input type="text" matInput formControlName="cloudflareModel"
                      placeholder="@cf/openai/whisper-large-v3-turbo"
                      list="cloudflare-model-suggestions" autocomplete="off">
               <datalist id="cloudflare-model-suggestions">
-                <option value="@cf/openai/whisper-large-v3-turbo">@cf/openai/whisper-large-v3-turbo — faster, recommended</option>
-                <option value="@cf/openai/whisper-large-v3">@cf/openai/whisper-large-v3 — higher accuracy</option>
-                <option value="@cf/openai/whisper">@cf/openai/whisper — original Whisper</option>
+                <option value="@cf/openai/whisper-large-v3-turbo">&#64;cf/openai/whisper-large-v3-turbo — faster, recommended</option>
+                <option value="@cf/openai/whisper-large-v3">&#64;cf/openai/whisper-large-v3 — higher accuracy</option>
+                <option value="@cf/openai/whisper">&#64;cf/openai/whisper — original Whisper</option>
               </datalist>
             </mat-form-field>
           </div>

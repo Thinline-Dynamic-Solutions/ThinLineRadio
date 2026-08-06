@@ -84,11 +84,11 @@
           },
           "configurations": {
             "production": {
-              "browserTarget": "rdio-scanner:build:production"
+              "buildTarget": "rdio-scanner:build:production"
             },
             "development": {
-              "browserTarget": "rdio-scanner:build:development",
-              "proxyConfig": "src/proxy.conf.js"
+              "proxyConfig": "src/proxy.conf.js",
+              "buildTarget": "rdio-scanner:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -96,7 +96,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "rdio-scanner:build"
+            "buildTarget": "rdio-scanner:build"
           }
         },
         "test": {
