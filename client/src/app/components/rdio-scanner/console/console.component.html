@@ -390,6 +390,7 @@
                 *ngIf="config"
                 [config]="config"
                 [email]="userEmail || email"
+                [checkoutTiers]="checkoutTiers"
                 (checkoutSuccess)="onCheckoutSuccess($event)"
                 (checkoutError)="onCheckoutError($event)"
                 (checkoutCancel)="onCheckoutCancel()">

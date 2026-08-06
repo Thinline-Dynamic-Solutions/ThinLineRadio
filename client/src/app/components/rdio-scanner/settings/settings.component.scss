@@ -1339,15 +1339,41 @@
     .tier-list { margin-bottom: 12px; }
     .tier-row {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
-        padding: 8px 0;
+        padding: 10px 0;
         border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        flex-wrap: wrap;
     }
-    .tier-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .tier-row--available {
+        align-items: center;
+    }
+    .tier-main {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-width: 0;
+        flex: 1 1 200px;
+    }
     .tier-name { font-weight: 600; }
-    .tier-desc { color: #888; font-size: 12px; }
+    .tier-desc { color: #888; font-size: 12px; width: 100%; }
+    .tier-price-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        width: 100%;
+        margin-top: 2px;
+    }
+    .tier-price-chip {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(204, 0, 0, 0.35);
+        color: #cc0000;
+        background: rgba(204, 0, 0, 0.06);
+    }
     .tier-badge {
         font-size: 10px;
         text-transform: uppercase;
@@ -1362,12 +1388,14 @@
     .tier-badge--warn { border-color: #cc7000; color: #cc7000; }
     .add-tier {
         margin-top: 12px;
-        h4 { margin: 0 0 6px; font-size: 13px; }
+        h4 { margin: 0 0 4px; font-size: 14px; }
+        .section-description { margin-bottom: 8px; }
     }
     .add-tier-controls {
         display: flex;
         gap: 8px;
         align-items: center;
-        select { padding: 4px 6px; border-radius: 4px; }
+        flex-shrink: 0;
+        select { padding: 4px 6px; border-radius: 4px; max-width: 100%; }
     }
 }

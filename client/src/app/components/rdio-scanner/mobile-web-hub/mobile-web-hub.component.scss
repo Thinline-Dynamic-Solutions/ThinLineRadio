@@ -84,6 +84,100 @@
   margin-top: 8px;
 }
 
+.status-warn {
+  color: #ff9800;
+}
+
+.tier-list,
+.unpaid-plans,
+.add-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.add-tier h3 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.tier-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tier-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tier-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.tier-desc {
+  width: 100%;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.tier-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.tier-badge--primary {
+  background: rgba(0, 230, 118, 0.2);
+  color: #00e676;
+}
+
+.tier-badge--paid {
+  background: rgba(33, 150, 243, 0.2);
+  color: #64b5f6;
+}
+
+.tier-badge--warn {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ffb74d;
+}
+
+.add-tier-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-one {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #121212;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
 .footer-actions {
   display: flex;
   justify-content: center;

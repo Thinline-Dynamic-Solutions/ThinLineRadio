@@ -13,13 +13,18 @@
 
     <div *ngIf="!isBlocked">
       <div class="auth-header">
-        <img *ngIf="!logoError && logoUrl" 
-             [src]="logoUrl" 
-             [style.border-radius]="getLogoBorderRadius()"
-             class="auth-logo"
-             alt="Logo"
-             (error)="onLogoError($event)"
-             (load)="logoError = false">
+        <a *ngIf="!logoError && logoUrl"
+           class="auth-logo-link"
+           href="https://www.thinlineradio.com"
+           target="_blank"
+           rel="noopener noreferrer">
+          <img [src]="logoUrl"
+               [style.border-radius]="getLogoBorderRadius()"
+               class="auth-logo"
+               alt="Logo"
+               (error)="onLogoError($event)"
+               (load)="logoError = false">
+        </a>
         <h1>{{ getBranding() }}</h1>
         <p *ngIf="isUserRegistrationEnabled()">Sign in to your account or create a new one</p>
         <p *ngIf="!isUserRegistrationEnabled()">Sign in to your account</p>
@@ -40,8 +45,8 @@
       <button type="button" 
               [class.active]="authMode === 'group-admin'" 
               (click)="setAuthMode('group-admin')">
-        <span class="tab-label-full">Group Management</span>
-        <span class="tab-label-short">Groups</span>
+        <span class="tab-label-full">Manage Group</span>
+        <span class="tab-label-short">Manage</span>
       </button>
     </div>
 
@@ -257,15 +262,29 @@
         <div class="tiers-section" *ngIf="tiers.length > 1">
           <h4>Choose your tiers</h4>
           <p class="tiers-hint">Select one or more tiers. Paid tiers are billed together on a single subscription.</p>
-          <div class="tier-option" *ngFor="let t of tiers">
+          <div class="tier-option" *ngFor="let t of tiers" [class.tier-option--selected]="selectedTiers[t.groupId]">
             <label class="tier-check">
               <input type="checkbox" [checked]="selectedTiers[t.groupId]" (change)="toggleTier(t.groupId)">
-              <span class="tier-title">{{ t.name }}</span>
-              <span class="tier-meta" *ngIf="t.talkgroupCount"> &middot; {{ t.talkgroupCount }} channels</span>
-              <span class="tier-free" *ngIf="!t.billingEnabled"> &middot; Free</span>
+              <span class="tier-copy">
+                <span class="tier-title">{{ t.name }}</span>
+                <span class="tier-meta" *ngIf="t.talkgroupCount">{{ t.talkgroupCount }} channels</span>
+                <span class="tier-free" *ngIf="!t.billingEnabled">Free</span>
+              </span>
             </label>
             <p class="tier-desc" *ngIf="t.description">{{ t.description }}</p>
+
+            <!-- Always show pricing summary for paid tiers -->
+            <div class="tier-price-summary" *ngIf="t.billingEnabled && t.pricingOptions?.length">
+              <div class="tier-price-chip" *ngFor="let o of t.pricingOptions">
+                <span class="chip-label">{{ o.label }}</span>
+                <span class="chip-amount">{{ o.amount }}</span>
+                <span class="chip-trial" *ngIf="o.trialDays">{{ o.trialDays }}-day trial</span>
+              </div>
+            </div>
+
+            <!-- When selected, choose which plan to bill -->
             <div class="tier-prices" *ngIf="selectedTiers[t.groupId] && t.billingEnabled && t.pricingOptions?.length">
+              <p class="tier-prices-label">Select a plan</p>
               <label class="tier-price-option" *ngFor="let o of t.pricingOptions">
                 <input type="radio" name="tier-price-{{ t.groupId }}" [value]="o.priceId"
                        [checked]="tierPrice[t.groupId] === o.priceId"
@@ -648,6 +667,10 @@
       <p class="no-support-text" *ngIf="!hasSupportEmail()">
         The owner of this server has not provided email support.
       </p>
-    <img src="assets/icons/logo-banner.png" class="brand-banner-footer" alt="ThinLine Radio">
+    <a class="brand-banner-link" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">
+      <img src="assets/icons/tlr-logo.png" class="brand-banner-footer" alt="ThinLine Radio">
+    </a>
+    <p class="server-version" *ngIf="getServerVersion()">ThinLine Radio v{{ getServerVersion() }}</p>
+    <a class="server-site" href="https://www.thinlineradio.com" target="_blank" rel="noopener noreferrer">www.thinlineradio.com</a>
   </div>
 </div>

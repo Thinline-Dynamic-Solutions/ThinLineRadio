@@ -148,6 +148,8 @@ export class RdioScannerService implements OnDestroy {
     private reconnectAttempts = 0;
     private reconnectDelay = 2000; // Start with 2 seconds
     private configReceived = false;
+    /** True while the server is waiting for PIN auth — CFG will not arrive yet. */
+    private awaitingPinAuth = false;
     private configWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
     private configRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -210,7 +212,10 @@ export class RdioScannerService implements OnDestroy {
         if (this.pinExpired) {
             return;
         }
+        this.awaitingPinAuth = false;
         this.sendtoWebsocket(WebsocketCommand.Pin, window.btoa(password));
+        // After submitting a PIN, CFG should arrive — watch for it again.
+        this.armConfigWatchdog();
     }
 
     avoid(options: RdioScannerAvoidOptions = {}): void {
@@ -1287,8 +1292,10 @@ export class RdioScannerService implements OnDestroy {
         }
 
         // Always use the root endpoint for WebSocket, regardless of current page URL
-        // This ensures the WebSocket connects to the correct endpoint even if user is on /verify or other pages
-        const websocketUrl = window.location.origin.replace(/^http/, 'ws');
+        // This ensures the WebSocket connects to the correct endpoint even if user is on /verify or other pages.
+        // On ng serve (:4200), connect straight to the Go API so the Angular live-reload
+        // socket is not proxied/contended and the CFG watchdog does not reconnect every ~7s.
+        const websocketUrl = this.getWebsocketUrl();
 
         try {
             this.websocket = new WebSocket(websocketUrl);
@@ -1367,15 +1374,23 @@ export class RdioScannerService implements OnDestroy {
     private armConfigWatchdog(): void {
         this.clearConfigWatchdog();
         this.configReceived = false;
+        // Unauthenticated sessions get PIN instead of CFG — do not thrash-reconnect.
+        if (this.awaitingPinAuth) {
+            return;
+        }
         this.configWatchdogTimer = setTimeout(() => {
             this.configWatchdogTimer = null;
-            if (this.configReceived || this.websocket?.readyState !== WebSocket.OPEN) {
+            if (
+                this.configReceived ||
+                this.awaitingPinAuth ||
+                this.websocket?.readyState !== WebSocket.OPEN
+            ) {
                 return;
             }
             this.sendtoWebsocket(WebsocketCommand.Config);
             this.configRetryTimer = setTimeout(() => {
                 this.configRetryTimer = null;
-                if (!this.configReceived) {
+                if (!this.configReceived && !this.awaitingPinAuth) {
                     this.reconnectWebsocket();
                 }
             }, 4000);
@@ -1452,6 +1467,7 @@ export class RdioScannerService implements OnDestroy {
 
                     try {
                         this.configReceived = true;
+                        this.awaitingPinAuth = false;
                         this.clearConfigWatchdog();
                         this.config = {
                         alerts: config.alerts,
@@ -1502,6 +1518,8 @@ export class RdioScannerService implements OnDestroy {
 
                 case WebsocketCommand.Expired:
                     this.pinExpired = true;
+                    this.awaitingPinAuth = true;
+                    this.clearConfigWatchdog();
                     this.emitEvent({ auth: true, expired: true });
 
                     break;
@@ -1540,12 +1558,19 @@ export class RdioScannerService implements OnDestroy {
                 case WebsocketCommand.Max:
                     // message[1] contains the connection limit
                     const connectionLimit = message[1] || 0;
+                    this.awaitingPinAuth = true;
+                    this.clearConfigWatchdog();
                     this.emitEvent({ auth: true, tooMany: true, connectionLimit: connectionLimit });
 
                     break;
 
                 case WebsocketCommand.Pin:
-                    // Server is requesting PIN authentication - try to authenticate automatically with stored PIN
+                    // Server is requesting PIN authentication — CFG will not arrive until we auth.
+                    // Clear the CFG watchdog so we don't reconnect every ~7s on the login/signup screen.
+                    this.awaitingPinAuth = true;
+                    this.clearConfigWatchdog();
+
+                    // Try to authenticate automatically with stored PIN
                     // BUT: Don't send PIN if it's expired (to prevent loop)
                     if (this.pinExpired) {
                         this.emitEvent({ auth: true, expired: true });
@@ -1833,6 +1858,16 @@ export class RdioScannerService implements OnDestroy {
         timer(500).subscribe(() => {
             this.openWebsocket();
         });
+    }
+
+    /** WebSocket URL for the Go server (bypasses ng-serve proxy in development). */
+    private getWebsocketUrl(): string {
+        const { protocol, hostname, port, origin } = window.location;
+        if (port === '4200') {
+            const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${wsProtocol}//${hostname}:3000`;
+        }
+        return origin.replace(/^http/, 'ws');
     }
 
     private saveLivefeedMap(): void {

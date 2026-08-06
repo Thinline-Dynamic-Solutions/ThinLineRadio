@@ -1247,14 +1247,14 @@
 
   .checkout-modal {
     position: relative;
-    background: #1a1d22;
-    border: 1px solid var(--tlr-bezel-border);
+    background: transparent;
+    border: none;
     border-radius: 10px;
-    max-width: 600px;
-    width: 90%;
+    max-width: 540px;
+    width: min(92vw, 540px);
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+    box-shadow: none;
   }
 }
 

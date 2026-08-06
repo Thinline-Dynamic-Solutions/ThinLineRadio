@@ -23,6 +23,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
+import packageInfo from '../../../../../package.json';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { RdioScannerEvent, RdioScannerConfig } from '../rdio-scanner';
 import { Subscription } from 'rxjs';
@@ -940,6 +941,10 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     return this.config?.branding || 'ThinLine Radio';
   }
 
+  getServerVersion(): string {
+    return this.config?.version || packageInfo.version || '';
+  }
+
   getSupportEmail(): string {
     return this.config?.email || '';
   }
@@ -1033,7 +1038,10 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.http.get<any>('/api/public-registration-info').subscribe({
       next: (info) => {
         this.publicGroupInfo = info;
-        this.tiers = info?.tiers || [];
+        // Only offer self-billable public tiers for signup (admin-billed tiers
+        // reject at register with "cannot be self-selected").
+        const rawTiers = info?.tiers || [];
+        this.tiers = rawTiers.filter((t: any) => t.selfBillable !== false);
         // A single tier behaves exactly like the old single-group signup.
         if (this.tiers.length === 1) {
           this.selectedTiers[this.tiers[0].groupId] = true;

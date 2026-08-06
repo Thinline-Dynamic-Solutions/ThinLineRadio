@@ -26,14 +26,79 @@
             </div>
         </section>
 
+        <section class="section tiers"
+                 *ngIf="!loadingAccount && accountInfo && (accountInfo.memberships?.length || accountInfo.availableTiers?.length)">
+            <h2>Your tiers</h2>
+            <div class="tier-list" *ngIf="accountInfo.memberships?.length">
+                <div class="tier-row" *ngFor="let m of accountInfo.memberships">
+                    <div class="tier-main">
+                        <span class="tier-name">{{ m.name }}</span>
+                        <span class="tier-badge tier-badge--primary" *ngIf="m.isPrimary">Primary</span>
+                        <span class="tier-badge tier-badge--paid" *ngIf="m.paid">Paid</span>
+                        <span class="tier-badge tier-badge--warn" *ngIf="m.billingEnabled && !m.paid">Unpaid</span>
+                        <span class="tier-badge" *ngIf="!m.billingEnabled">Free</span>
+                    </div>
+                    <button mat-button color="warn"
+                            *ngIf="m.selfBillable && !(m.isPrimary && accountInfo.memberships.length <= 1)"
+                            type="button"
+                            (click)="removeTier(m.groupId)">
+                        Remove
+                    </button>
+                </div>
+            </div>
+
+            <div class="unpaid-plans" *ngIf="unpaidSources()?.length && showSubscribeButton()">
+                <p class="muted">Choose a plan for each unpaid tier, then Subscribe.</p>
+                <div class="tier-row" *ngFor="let u of unpaidSources()">
+                    <div class="tier-main">
+                        <span class="tier-name">{{ u.name }}</span>
+                    </div>
+                    <select *ngIf="u.pricingOptions?.length > 1"
+                            [(ngModel)]="unpaidPriceSelection[u.groupId]">
+                        <option *ngFor="let o of u.pricingOptions" [ngValue]="o.priceId">
+                            {{ o.label }} — {{ o.amount }}
+                        </option>
+                    </select>
+                    <span class="plan-one" *ngIf="u.pricingOptions?.length === 1">
+                        {{ u.pricingOptions[0].label }} — {{ u.pricingOptions[0].amount }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="add-tier" *ngIf="accountInfo.availableTiers?.length">
+                <h3>Add a tier</h3>
+                <div class="tier-row" *ngFor="let t of accountInfo.availableTiers">
+                    <div class="tier-main">
+                        <span class="tier-name">{{ t.name }}</span>
+                        <span class="tier-desc" *ngIf="t.description">{{ t.description }}</span>
+                    </div>
+                    <div class="add-tier-controls">
+                        <select *ngIf="t.billingEnabled && t.pricingOptions?.length"
+                                [(ngModel)]="selectedTierPrice[t.groupId]">
+                            <option *ngFor="let o of t.pricingOptions" [ngValue]="o.priceId">
+                                {{ o.label }} — {{ o.amount }}
+                            </option>
+                        </select>
+                        <button mat-raised-button color="primary"
+                                type="button"
+                                [disabled]="addingTier || (t.billingEnabled && !selectedTierPrice[t.groupId])"
+                                (click)="addTier(t.groupId, selectedTierPrice[t.groupId])">
+                            Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="section billing" *ngIf="showBillingSection()">
             <h2>Billing &amp; subscription</h2>
             <p *ngIf="loadingAccount" class="muted">Loading account…</p>
 
             <ng-container *ngIf="!loadingAccount && accountInfo">
-                <p class="status-line" *ngIf="accountInfo.subscriptionStatus || accountInfo.subscriptionStatusDisplay">
+                <p class="status-line" *ngIf="accountInfo.subscriptionStatus || accountInfo.subscriptionStatusDisplay || accountInfo.pinExpired">
                     Status:
-                    <strong>{{ accountInfo.subscriptionStatusDisplay || accountInfo.subscriptionStatus }}</strong>
+                    <strong *ngIf="!accountInfo.pinExpired">{{ accountInfo.subscriptionStatusDisplay || accountInfo.subscriptionStatus }}</strong>
+                    <strong *ngIf="accountInfo.pinExpired" class="status-warn">Payment required</strong>
                 </p>
 
                 <div class="actions" *ngIf="!isGroupAdminManaged()">
@@ -56,7 +121,7 @@
                         Change plan
                     </button>
                     <button
-                        *ngIf="(!accountInfo.stripeSubscriptionId || (accountInfo.subscriptionStatus !== 'active' && accountInfo.subscriptionStatus !== 'trialing')) && accountInfo.billingRequired"
+                        *ngIf="showSubscribeButton()"
                         mat-raised-button
                         color="primary"
                         type="button"
@@ -93,6 +158,7 @@
                 [email]="userEmail"
                 [isChangingPlan]="showChangeSubscription"
                 [currentPriceId]="currentPriceId"
+                [checkoutItems]="checkoutItems"
                 (checkoutSuccess)="onCheckoutSuccess()"
                 (checkoutError)="onCheckoutCancel()"
                 (checkoutCancel)="onCheckoutCancel()">

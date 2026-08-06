@@ -1,115 +1,178 @@
+// Match auth-screen / console dark palette
+$red:          #cc0000;
+$red-hover:    #e53935;
+$bg-card:      #1a1a1a;
+$bg-inner:     #242424;
+$bg-input:     #2a2a2a;
+$border:       #333;
+$text:         #f0f0f0;
+$text-muted:   #999;
+$text-hint:    #777;
+$amber:        #ffb74d;
+
 .stripe-checkout {
-  max-width: 500px;
+  max-width: 520px;
   margin: 0 auto;
-  padding: 2rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  border: 1px solid white;
+  padding: 1.5rem 1.25rem;
+  background: $bg-card;
+  border-radius: 10px;
+  border: 1px solid $border;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  color: $text;
   outline: none;
 
   .checkout-header {
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
 
     h2 {
-      margin: 0 0 0.5rem 0;
-      color: #333;
-      font-size: 1.5rem;
+      margin: 0 0 0.4rem;
+      color: $text;
+      font-size: 1.35rem;
+      font-weight: 500;
     }
 
     p {
       margin: 0;
-      color: #666;
+      color: $text-muted;
       font-size: 0.9rem;
     }
   }
 
   .checkout-content {
     .error-message {
-      background: #fee;
-      color: #c33;
-      padding: 0.75rem;
-      border-radius: 4px;
+      background: rgba(204, 0, 0, 0.12);
+      color: #ff8a80;
+      padding: 0.7rem 0.85rem;
+      border-radius: 6px;
       margin-bottom: 1rem;
-      border: 1px solid #fcc;
+      border: 1px solid rgba(204, 0, 0, 0.35);
+      font-size: 0.88rem;
     }
 
-      .payment-form {
-        margin-bottom: 1.5rem;
+    .payment-form {
+      margin-bottom: 1rem;
 
-        .subscription-info {
-          margin-bottom: 1.5rem;
-          padding: 1rem;
-          background: #f8f9fa;
-          border-radius: 4px;
-          border-left: 4px solid #007bff;
+      .subscription-info {
+        margin-bottom: 1rem;
+        padding: 0.75rem 0.9rem;
+        background: $bg-inner;
+        border-radius: 6px;
+        border-left: 3px solid $red;
 
-          p {
-            margin: 0 0 0.5rem 0;
-            color: #333;
-            font-size: 0.9rem;
+        p {
+          margin: 0 0 0.35rem;
+          color: $text-muted;
+          font-size: 0.88rem;
+          line-height: 1.4;
 
-            &:last-child {
-              margin-bottom: 0;
-            }
-          }
-
-          .contact-info {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            background: #e3f2fd;
-            border-radius: 4px;
-            border-left: 4px solid #2196f3;
-            font-size: 0.85rem;
-
-            strong {
-              color: #1976d2;
-            }
+          &:last-child {
+            margin-bottom: 0;
           }
         }
+      }
+
+      .tier-choice {
+        margin: 0 0 0.75rem;
+        padding: 0.7rem 0.8rem 0.8rem;
+        border: 1px solid $border;
+        border-radius: 8px;
+        background: $bg-inner;
+
+        &.has-selection {
+          border-color: rgba(204, 0, 0, 0.55);
+          background: rgba(204, 0, 0, 0.06);
+        }
+      }
+
+      .tier-choice-header {
+        display: flex;
+        align-items: flex-start;
+        width: 100%;
+        padding: 0 0 0.4rem;
+        border: none;
+        background: transparent;
+        text-align: left;
+      }
+
+      .tier-choice-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .tier-choice-name {
+        font-weight: 650;
+        font-size: 0.95rem;
+        color: $text;
+      }
+
+      .tier-choice-desc {
+        font-size: 0.8rem;
+        color: $text-hint;
+      }
+
+      .tier-choice-required {
+        font-size: 0.72rem;
+        color: $amber;
+        font-weight: 600;
+      }
 
       .pricing-options {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 2rem 0;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 0.65rem;
+        margin: 0.5rem 0 0;
+
+        &.pricing-options--compact {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.5rem;
+          margin: 0.3rem 0 0;
+        }
 
         .pricing-card {
-          border: 2px solid #ddd;
+          border: 1.5px solid $border;
           border-radius: 8px;
-          padding: 1.5rem;
+          padding: 0.85rem 0.75rem;
           cursor: pointer;
-          transition: all 0.2s ease;
-          background: white;
-          text-align: center;
+          transition: border-color 0.15s ease, background 0.15s ease;
+          background: $bg-input;
+          text-align: left;
+
+          &.pricing-card--compact {
+            padding: 0.65rem 0.7rem;
+          }
 
           &:hover {
-            border-color: #666;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-color: #555;
           }
 
           &.selected {
-            border-color: #28a745;
-            background: #f0fff4;
-            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+            border-color: $red;
+            background: rgba(204, 0, 0, 0.12);
+            box-shadow: none;
+
+            .pricing-header h3 {
+              color: #ff6b6b;
+            }
+
+            .checkmark {
+              color: $red;
+            }
           }
 
           &.current-plan {
-            border-color: #007bff;
-            background: #e7f3ff;
-            position: relative;
+            border-color: #5c6bc0;
+            background: rgba(92, 107, 192, 0.12);
           }
 
           &.disabled {
             cursor: not-allowed;
-            opacity: 0.6;
+            opacity: 0.55;
 
             &:hover {
-              transform: none;
-              box-shadow: none;
-              border-color: #007bff;
+              border-color: #5c6bc0;
             }
           }
 
@@ -117,55 +180,61 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.5rem;
+            gap: 0.4rem;
+            margin-bottom: 0.2rem;
 
             h3 {
               margin: 0;
-              font-size: 1.25rem;
-              font-weight: 600;
-              color: #333;
+              font-size: 0.95rem;
+              font-weight: 650;
+              color: $text;
             }
 
             .checkmark {
-              color: #28a745;
-              font-size: 24px;
+              color: $red;
+              font-size: 18px;
+              width: 18px;
+              height: 18px;
             }
 
             .current-badge {
-              background: #007bff;
-              color: white;
-              padding: 0.25rem 0.5rem;
+              background: #5c6bc0;
+              color: $text;
+              padding: 0.15rem 0.4rem;
               border-radius: 4px;
-              font-size: 0.75rem;
-              font-weight: 600;
+              font-size: 0.65rem;
+              font-weight: 650;
               text-transform: uppercase;
+              letter-spacing: 0.03em;
             }
           }
 
           .pricing-amount {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #555;
-            margin-top: 0.5rem;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: $text-muted;
+            margin-top: 0.15rem;
+            line-height: 1.3;
           }
 
           .trial-badge {
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
-            gap: 0.25rem;
-            margin-top: 0.75rem;
-            padding: 0.5rem;
-            background: #e3f2fd;
+            gap: 0.2rem;
+            margin-top: 0.45rem;
+            padding: 0.15rem 0.4rem;
+            background: rgba(255, 183, 77, 0.12);
+            border: 1px solid rgba(255, 183, 77, 0.35);
             border-radius: 4px;
-            font-size: 0.85rem;
+            font-size: 0.68rem;
             font-weight: 600;
-            color: #1976d2;
+            color: $amber;
 
             mat-icon {
-              font-size: 16px;
-              width: 16px;
-              height: 16px;
+              font-size: 12px;
+              width: 12px;
+              height: 12px;
+              color: $amber;
             }
           }
         }
@@ -173,55 +242,43 @@
 
       .checkout-actions {
         display: flex;
-        gap: 1rem;
-        justify-content: center;
-        margin-top: 2rem;
+        gap: 0.75rem;
+        justify-content: stretch;
+        margin-top: 1.25rem;
 
         button {
-          min-width: 120px;
-          font-weight: 500;
-          transition: all 0.2s ease;
+          flex: 1;
+          min-width: 0;
+          min-height: 44px;
+          font-weight: 600;
+          border-radius: 6px !important;
         }
 
         .subscribe-button {
-          background-color: #28a745 !important;
-          color: #000 !important;
-          
-          &:hover:not([disabled]) {
-            background-color: #218838 !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
-          }
+          background-color: $red !important;
+          color: #fff !important;
 
-          &:active:not([disabled]) {
-            transform: translateY(0);
+          &:hover:not([disabled]) {
+            background-color: $red-hover !important;
           }
 
           &[disabled] {
-            background-color: #6c757d !important;
-            color: #ccc !important;
-            cursor: not-allowed;
+            background-color: #3a3a3a !important;
+            color: $text-hint !important;
           }
         }
 
         .cancel-button {
-          background-color: #dc3545 !important;
-          color: #000 !important;
-          
-          &:hover:not([disabled]) {
-            background-color: #c82333 !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-          }
+          background-color: $bg-input !important;
+          color: $text !important;
+          border: 1px solid $border !important;
 
-          &:active:not([disabled]) {
-            transform: translateY(0);
+          &:hover:not([disabled]) {
+            background-color: #333 !important;
           }
 
           &[disabled] {
-            background-color: #6c757d !important;
-            color: #ccc !important;
-            cursor: not-allowed;
+            opacity: 0.55;
           }
         }
       }
@@ -229,114 +286,23 @@
 
     .checkout-footer {
       text-align: center;
-      padding-top: 1rem;
-      border-top: 1px solid #eee;
+      padding-top: 0.85rem;
+      border-top: 1px solid $border;
 
       .security-note {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 0.4rem;
         margin: 0;
-        color: #666;
-        font-size: 0.85rem;
+        color: $text-hint;
+        font-size: 0.8rem;
 
         mat-icon {
-          font-size: 16px;
-          width: 16px;
-          height: 16px;
-        }
-      }
-    }
-  }
-}
-
-// Dark theme support
-@media (prefers-color-scheme: dark) {
-  .stripe-checkout {
-    background: #2a2a2a;
-    color: #fff;
-    border: 1px solid #2a2a2a !important;
-    outline: none;
-
-    .checkout-header {
-      h2 {
-        color: #fff;
-      }
-
-      p {
-        color: #ccc;
-      }
-    }
-
-    .checkout-content {
-      .error-message {
-        background: #4a1a1a;
-        color: #ff6b6b;
-        border-color: #6a2a2a;
-      }
-
-      .payment-form {
-        .subscription-info {
-          background: #333;
-          border-left-color: #007bff;
-
-          p {
-            color: #fff;
-          }
-
-          .contact-info {
-            background: #1a237e;
-            border-left-color: #3f51b5;
-
-            strong {
-              color: #9c27b0;
-            }
-          }
-        }
-
-        .pricing-options {
-          .pricing-card {
-            background: #333;
-            border-color: #555;
-
-            &:hover {
-              border-color: #888;
-            }
-
-            &.selected {
-              background: #1a3d1a;
-              border-color: #28a745;
-            }
-
-            &.current-plan {
-              background: #1a2a3d;
-              border-color: #007bff;
-            }
-
-            .pricing-header {
-              h3 {
-                color: #fff;
-              }
-            }
-
-            .pricing-amount {
-              color: #ccc;
-            }
-
-            .trial-badge {
-              background: #1a237e;
-              color: #64b5f6;
-            }
-          }
-        }
-      }
-
-      .checkout-footer {
-        border-color: #444;
-
-        .security-note {
-          color: #ccc;
+          font-size: 15px;
+          width: 15px;
+          height: 15px;
+          color: $text-hint;
         }
       }
     }

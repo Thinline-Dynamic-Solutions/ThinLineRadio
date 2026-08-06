@@ -21,11 +21,18 @@
 
 const server = 'http://localhost:3000';
 
+// Only proxy API/HTTP assets — do NOT blanket-proxy /** or the Angular
+// live-reload websocket (/ng-cli-ws) gets swallowed and the page thrash-reloads.
+// App WebSocket connects directly to :3000 in development (see getWebsocketUrl).
 module.exports = [
     {
-        context: ['/**', '!/admin**', '!/ng-cli-ws**', '!/reset**'],
+        context: [
+            '/api',
+            '/email-logo',
+            '/ws',
+        ],
         secure: false,
         target: server,
-        ws: true
-    }
-]
+        changeOrigin: true,
+    },
+];

@@ -244,7 +244,10 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
         }
         
         if ('config' in event) {
-            this.userRegistrationEnabled = event.config?.options?.userRegistrationEnabled ?? false;
+            // VER-only updates omit options — don't clobber registration state with false.
+            if (event.config?.options && 'userRegistrationEnabled' in event.config.options) {
+                this.userRegistrationEnabled = !!event.config.options.userRegistrationEnabled;
+            }
 
             if (this.userRegistrationEnabled) {
                 // Check if we're coming from a route that requires explicit authentication

@@ -151,6 +151,15 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
     userEmail = '';
     isGroupAdminManaged = false;
     transferring = false;
+    /** Public unpaid + available tiers for the subscribe modal picker. */
+    checkoutTiers: {
+        groupId: number;
+        name: string;
+        description?: string;
+        pricingOptions: Array<{ priceId: string; label: string; amount: string; trialDays?: number }>;
+        required?: boolean;
+        included?: boolean;
+    }[] | null = null;
     private subscriptionCheckInProgress = false;
 
     // ────────────────────────────────────────────────────────────────────────
@@ -847,6 +856,68 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         this.checkUserSubscription();
     }
 
+    /**
+     * Build subscribe-modal tiers from /api/account:
+     * unpaid memberships (required) + other public available tiers (optional, selected by default).
+     */
+    private buildCheckoutTiers(account: any): {
+        groupId: number;
+        name: string;
+        description?: string;
+        pricingOptions: Array<{ priceId: string; label: string; amount: string; trialDays?: number }>;
+        required?: boolean;
+        included?: boolean;
+    }[] {
+        const out: {
+            groupId: number;
+            name: string;
+            description?: string;
+            pricingOptions: Array<{ priceId: string; label: string; amount: string; trialDays?: number }>;
+            required?: boolean;
+            included?: boolean;
+        }[] = [];
+        const seen = new Set<number>();
+
+        const pushTier = (src: any, required: boolean, included: boolean) => {
+            const groupId = Number(src?.groupId);
+            const opts = src?.pricingOptions;
+            if (!groupId || seen.has(groupId) || !Array.isArray(opts) || !opts.length) {
+                return;
+            }
+            if (src.billingEnabled === false) {
+                return;
+            }
+            seen.add(groupId);
+            out.push({
+                groupId,
+                name: src.name || `Tier ${groupId}`,
+                description: src.description || '',
+                pricingOptions: opts,
+                required,
+                included,
+            });
+        };
+
+        const unpaid = Array.isArray(account?.unpaidCheckoutItems) ? account.unpaidCheckoutItems : [];
+        for (const u of unpaid) {
+            pushTier(u, true, true);
+        }
+        if (!unpaid.length && Array.isArray(account?.memberships)) {
+            for (const m of account.memberships) {
+                if (m?.billingEnabled && m?.selfBillable && !m?.paid && m?.pricingOptions?.length) {
+                    pushTier(m, true, true);
+                }
+            }
+        }
+        for (const t of account?.availableTiers || []) {
+            if (t?.billingEnabled && t?.pricingOptions?.length) {
+                // Shown as alternate single-select options (one plan total).
+                pushTier(t, false, false);
+            }
+        }
+        return out;
+    }
+
     private checkUserSubscription(): void {
         const pin = this.rdioScannerService.readPin();
         if (!pin) return;
@@ -855,6 +926,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
             .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to fetch account info')))
             .then(data => {
                 if (data.email) this.userEmail = data.email;
+                this.checkoutTiers = this.buildCheckoutTiers(data);
 
                 const isAdminManagedNonAdmin =
                     data.subscriptionStatusDisplay === 'group_admin_managed'
@@ -874,6 +946,8 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                 const isPinValid = !data.pinExpired;
                 const hasPricingOptions = !!(this.config?.options?.pricingOptions
                     && this.config.options.pricingOptions.length > 0);
+                const hasCheckoutTiers = !!(this.checkoutTiers && this.checkoutTiers.length > 0);
+                const canShowCheckout = hasCheckoutTiers || hasPricingOptions;
                 const isAdminNeedsSubscription = billingRequired && data.isGroupAdmin && !isAdminManagedNonAdmin;
 
                 if (isAdminNeedsSubscription) {
@@ -886,7 +960,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                         this.subscriptionActive = false;
                         this.subscriptionChecked = true;
                         this.isGroupAdminManaged = false;
-                        this.showCheckout = hasPricingOptions;
+                        this.showCheckout = canShowCheckout;
                         this.cdr.detectChanges();
                     }
                     this.subscriptionCheckInProgress = false;
@@ -925,7 +999,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                     this.subscriptionActive = false;
                     this.subscriptionChecked = true;
                     this.isGroupAdminManaged = false;
-                    this.showCheckout = hasPricingOptions;
+                    this.showCheckout = canShowCheckout;
                     this.cdr.detectChanges();
                 }
                 this.subscriptionCheckInProgress = false;

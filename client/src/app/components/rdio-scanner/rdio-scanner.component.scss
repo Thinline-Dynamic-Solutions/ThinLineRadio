@@ -58,6 +58,7 @@ $background-color: rgb(30, 30, 30);
     max-width: 100%;
     min-width: 0;
     flex: 1 1 auto;
+    align-self: stretch;
   }
 
   .view-host {

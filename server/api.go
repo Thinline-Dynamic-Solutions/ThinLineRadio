@@ -4729,6 +4729,36 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Multi-tier: billing is also required when any self-billable paid membership
+	// is unpaid (price not on the Stripe subscription). Primary-group-only
+	// billingRequired left free-primary + unpaid paid-tier users unable to
+	// Subscribe on mobile hub / native app.
+	unpaidCheckoutItems := []map[string]interface{}{}
+	for _, m := range memberships {
+		billingEnabled, _ := m["billingEnabled"].(bool)
+		selfBillable, _ := m["selfBillable"].(bool)
+		paid, _ := m["paid"].(bool)
+		if !billingEnabled || !selfBillable || paid {
+			continue
+		}
+		opts, _ := m["pricingOptions"].([]PricingOption)
+		if len(opts) == 0 {
+			continue
+		}
+		billingRequired = true
+		// Legacy pricingOptions: if primary has none, expose unpaid-tier plans
+		// so older clients still show something to pick.
+		if len(pricingOptions) == 0 {
+			pricingOptions = opts
+		}
+		gid, _ := m["groupId"].(uint64)
+		unpaidCheckoutItems = append(unpaidCheckoutItems, map[string]interface{}{
+			"groupId":        gid,
+			"name":           m["name"],
+			"pricingOptions": opts,
+		})
+	}
+
 	// Return user account info (excluding sensitive data)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -4755,6 +4785,7 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		"pinExpiresAt":              user.PinExpiresAt,
 		"memberships":               memberships,
 		"availableTiers":            availableTiers,
+		"unpaidCheckoutItems":       unpaidCheckoutItems,
 	})
 }
 

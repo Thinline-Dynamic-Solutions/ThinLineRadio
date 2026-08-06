@@ -22,7 +22,10 @@ $text-hint:     #777;
 }
 
 .auth-screen {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   width: 100%;
   max-width: 100%;
   min-height: 100vh;
@@ -43,11 +46,12 @@ $text-hint:     #777;
   padding: 40px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   box-sizing: border-box;
   border: 1px solid $border;
   margin: 0 auto;
   min-width: 0;
+  align-self: center;
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
@@ -55,14 +59,29 @@ $text-hint:     #777;
   text-align: center;
   margin-bottom: 30px;
 
+  .auth-logo-link {
+    display: inline-block;
+    margin: 0 auto 16px;
+    cursor: pointer;
+    line-height: 0;
+    text-decoration: none;
+    width: fit-content;
+    max-width: 90px;
+
+    &:hover .auth-logo {
+      opacity: 0.9;
+    }
+  }
+
   .auth-logo {
     max-width: 90px;
     max-height: 90px;
     width: auto;
     height: auto;
-    margin: 0 auto 16px;
+    margin: 0;
     display: block;
     object-fit: contain;
+    transition: opacity 0.15s ease;
   }
 
   h1 {
@@ -79,25 +98,69 @@ $text-hint:     #777;
   }
 }
 
+.brand-banner-link {
+  display: block;
+  width: fit-content;
+  max-width: 96px;
+  margin: 28px auto 0;
+  line-height: 0;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover .brand-banner-footer {
+    opacity: 0.85;
+  }
+}
+
 .brand-banner-footer {
   display: block;
-  width: 60%;
-  max-width: 220px;
+  width: 100%;
+  max-width: 96px;
   height: auto;
-  margin: 28px auto 0;
+  margin: 0;
   object-fit: contain;
-  opacity: 0.35;
-  pointer-events: none;
+  opacity: 0.55;
   user-select: none;
+  border-radius: 16px;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.server-version {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: $text-muted;
+  opacity: 0.7;
+  letter-spacing: 0.02em;
+}
+
+.server-site {
+  display: block;
+  width: fit-content;
+  margin: 4px auto 0;
+  text-align: center;
+  font-size: 12px;
+  color: $red;
+  opacity: 0.85;
+  text-decoration: underline;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+  }
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 .auth-tabs {
   display: flex;
+  width: 100%;
   margin-bottom: 30px;
   border-radius: 4px;
   overflow: hidden;
   border: 1px solid $border;
+  box-sizing: border-box;
 
   button {
     flex: 1;
@@ -135,6 +198,15 @@ $text-hint:     #777;
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 .auth-form {
+  width: 100%;
+
+  form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .full-width {
     width: 100%;
     margin-bottom: 20px;
@@ -142,6 +214,20 @@ $text-hint:     #777;
 
   // Angular Material outline field — dark overrides
   ::ng-deep .mat-mdc-form-field {
+    width: 100%;
+    display: block;
+
+    .mat-mdc-text-field-wrapper,
+    .mat-mdc-form-field-flex,
+    .mat-mdc-form-field-infix {
+      width: 100%;
+    }
+
+    // Kill Material's asymmetric bottom gutter so fields sit centered in the card
+    .mat-mdc-form-field-subscript-wrapper {
+      width: 100%;
+    }
+
     // Input text
     input.mat-mdc-input-element,
     .mdc-text-field__input {
@@ -514,10 +600,13 @@ $text-hint:     #777;
     }
   }
 
-  .brand-banner-footer {
-    width: 70%;
-    max-width: 180px;
+  .brand-banner-link {
     margin-top: 20px;
+    max-width: 80px;
+  }
+
+  .brand-banner-footer {
+    max-width: 80px;
   }
 
   .support-section {
@@ -617,6 +706,7 @@ $text-hint:     #777;
 // ─── Public registration info ─────────────────────────────────────────────────
 .public-registration-info {
   width: 100%;
+  box-sizing: border-box;
   margin-bottom: 24px;
   padding: 16px;
   background: $bg-inner;
@@ -663,20 +753,25 @@ $text-hint:     #777;
     margin-top: 16px;
     border-top: 1px solid $border;
     padding-top: 16px;
+    width: 100%;
+    box-sizing: border-box;
 
     .channels-toggle {
       width: 100%;
       display: flex;
       align-items: center;
+      justify-content: center;
+      gap: 6px;
       padding: 12px;
       margin-bottom: 8px;
       background: $bg-input;
       border-radius: 4px;
       font-weight: 500;
       color: $red;
+      box-sizing: border-box;
 
       &:hover { background: #333; }
-      mat-icon { margin-right: 8px; }
+      mat-icon { margin: 0; }
     }
 
     .channels-list {
@@ -760,103 +855,195 @@ $text-hint:     #777;
 
 /* Multi-tier public registration picker */
 .tiers-section {
-    margin: 12px 0;
+  width: 100%;
+  margin: 0 0 8px;
+  box-sizing: border-box;
 
-    h4 {
-        margin: 0 0 4px;
+  h4 {
+    margin: 0 0 6px;
+    color: $text;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .tiers-hint {
+    color: $text-muted;
+    font-size: 13px;
+    line-height: 1.4;
+    margin: 0 0 12px;
+  }
+
+  .tier-option {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid $border;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: $bg-input;
+    transition: border-color 0.15s, background 0.15s;
+
+    &.tier-option--selected,
+    &:has(.tier-check input:checked) {
+      border-color: rgba(204, 0, 0, 0.65);
+      background: rgba(204, 0, 0, 0.08);
+    }
+  }
+
+  .tier-price-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 0 30px;
+  }
+
+  .tier-price-chip {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 120px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid $border;
+    background: $bg-card;
+    box-sizing: border-box;
+
+    .chip-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: $text-muted;
     }
 
-    .tiers-hint {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 12px;
-        margin: 0 0 8px;
+    .chip-amount {
+      font-size: 13px;
+      font-weight: 700;
+      color: $red;
+      line-height: 1.3;
     }
 
-    .tier-option {
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 6px;
-        padding: 10px 12px;
-        margin-bottom: 8px;
+    .chip-trial {
+      font-size: 11px;
+      color: #ffb74d;
+    }
+  }
+
+  .tier-prices-label {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: $text-muted;
+  }
+
+  .tier-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    min-height: 44px;
+    width: 100%;
+    box-sizing: border-box;
+    color: $text;
+
+    input[type='checkbox'] {
+      width: 18px;
+      height: 18px;
+      margin: 2px 0 0;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: $red;
+    }
+  }
+
+  .tier-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .tier-title {
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .tier-meta {
+    color: $text-muted;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.3;
+  }
+
+  .tier-free {
+    color: #4caf50;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  .tier-desc {
+    color: $text-muted;
+    font-size: 12px;
+    margin: 8px 0 0 32px;
+    line-height: 1.4;
+  }
+
+  .tier-prices {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0 0 32px;
+  }
+
+  .tier-price-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    min-height: 40px;
+    color: $text;
+    font-size: 13px;
+
+    input[type='radio'] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: $red;
+    }
+  }
+
+  .tier-price-missing {
+    margin: 8px 0 0 32px;
+    font-size: 12px;
+    color: #ffb4a9;
+  }
+
+  .tier-primary {
+    margin: 8px 0 0 32px;
+    font-size: 12px;
+    color: $text-muted;
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 40px;
+      cursor: pointer;
     }
 
-    .tier-check {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        cursor: pointer;
-        font-weight: 600;
-        min-height: 44px;
-
-        input[type='checkbox'] {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-            cursor: pointer;
-        }
+    input[type='radio'] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: $red;
     }
-
-    .tier-meta {
-        color: rgba(255, 255, 255, 0.6);
-        font-weight: 400;
-    }
-
-    .tier-free {
-        color: #4caf50;
-        font-weight: 400;
-    }
-
-    .tier-desc {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 12px;
-        margin: 6px 0 0;
-    }
-
-    .tier-prices {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        margin: 8px 0 0 24px;
-    }
-
-    .tier-price-option {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        cursor: pointer;
-        min-height: 40px;
-
-        input[type='radio'] {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-            cursor: pointer;
-        }
-    }
-
-    .tier-price-missing {
-        margin: 8px 0 0 24px;
-        font-size: 12px;
-        color: #ffb4a9;
-    }
-
-    .tier-primary {
-        margin: 6px 0 0 24px;
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.7);
-
-        label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-height: 40px;
-            cursor: pointer;
-        }
-
-        input[type='radio'] {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-            cursor: pointer;
-        }
-    }
+  }
 }

@@ -346,7 +346,7 @@
                     <span class="info-label">Name:</span>
                     <span class="info-value">{{ accountInfo.firstName }} {{ accountInfo.lastName }}</span>
                 </div>
-                <div class="info-row" *ngIf="accountInfo.userGroupName">
+                <div class="info-row" *ngIf="accountInfo.userGroupName && !accountInfo.memberships?.length">
                     <span class="info-label">Group:</span>
                     <span class="info-value">
                         {{ accountInfo.userGroupName }}
@@ -360,6 +360,60 @@
                 <div class="info-row" *ngIf="accountInfo.lastLogin && accountInfo.lastLogin > 0">
                     <span class="info-label">Last Login:</span>
                     <span class="info-value">{{ accountInfo.lastLogin * 1000 | date:'medium' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section tiers-section" *ngIf="accountInfo?.memberships?.length || accountInfo?.availableTiers?.length">
+            <h3>Your Tiers</h3>
+            <p class="section-description">
+                Public registration tiers you can join. Add or remove tiers to change which systems you can access — paid changes are billed automatically.
+            </p>
+
+            <div class="tier-list" *ngIf="accountInfo.memberships?.length">
+                <div class="tier-row" *ngFor="let m of accountInfo.memberships">
+                    <div class="tier-main">
+                        <span class="tier-name">{{ m.name }}</span>
+                        <span class="tier-badge tier-badge--primary" *ngIf="m.isPrimary">Primary</span>
+                        <span class="tier-badge tier-badge--paid" *ngIf="m.paid">Paid</span>
+                        <span class="tier-badge tier-badge--warn" *ngIf="m.billingEnabled && !m.paid">Unpaid</span>
+                        <span class="tier-badge" *ngIf="!m.billingEnabled">Free</span>
+                    </div>
+                    <button mat-button color="warn"
+                            *ngIf="m.selfBillable && !(m.isPrimary && accountInfo.memberships.length <= 1)"
+                            (click)="removeTier(m.groupId)">
+                        <mat-icon>remove_circle_outline</mat-icon>
+                        Remove
+                    </button>
+                </div>
+            </div>
+
+            <div class="add-tier" *ngIf="accountInfo.availableTiers?.length">
+                <h4>Available tiers</h4>
+                <p class="section-description">Other public tiers you can add to your account.</p>
+                <div class="tier-row tier-row--available" *ngFor="let t of accountInfo.availableTiers">
+                    <div class="tier-main">
+                        <span class="tier-name">{{ t.name }}</span>
+                        <span class="tier-desc" *ngIf="t.description">{{ t.description }}</span>
+                        <div class="tier-price-chips" *ngIf="t.billingEnabled && t.pricingOptions?.length">
+                            <span class="tier-price-chip" *ngFor="let o of t.pricingOptions">
+                                {{ o.label }} — {{ o.amount }}
+                            </span>
+                        </div>
+                        <span class="tier-badge" *ngIf="!t.billingEnabled">Free</span>
+                    </div>
+                    <div class="add-tier-controls">
+                        <select *ngIf="t.billingEnabled && t.pricingOptions?.length > 1"
+                                [(ngModel)]="selectedTierPrice[t.groupId]">
+                            <option *ngFor="let o of t.pricingOptions" [ngValue]="o.priceId">{{ o.label }} — {{ o.amount }}</option>
+                        </select>
+                        <button mat-raised-button color="primary"
+                                [disabled]="addingTier || (t.billingEnabled && !selectedTierPrice[t.groupId])"
+                                (click)="addTier(t.groupId, selectedTierPrice[t.groupId])">
+                            <mat-icon>add</mat-icon>
+                            Add
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -574,54 +628,6 @@
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
-
-        <div class="section tiers-section" *ngIf="accountInfo?.memberships?.length || accountInfo?.availableTiers?.length">
-            <h3>Your Tiers</h3>
-            <p class="section-description">
-                The subscription tiers you belong to. Add or remove tiers to change which systems you can access — paid changes are billed automatically.
-            </p>
-
-            <div class="tier-list">
-                <div class="tier-row" *ngFor="let m of accountInfo.memberships">
-                    <div class="tier-main">
-                        <span class="tier-name">{{ m.name }}</span>
-                        <span class="tier-badge tier-badge--primary" *ngIf="m.isPrimary">Primary</span>
-                        <span class="tier-badge tier-badge--paid" *ngIf="m.paid">Paid</span>
-                        <span class="tier-badge tier-badge--warn" *ngIf="m.billingEnabled && !m.paid">Unpaid</span>
-                        <span class="tier-badge" *ngIf="!m.billingEnabled">Free</span>
-                    </div>
-                    <button mat-button color="warn"
-                            *ngIf="m.selfBillable && !(m.isPrimary && accountInfo.memberships.length <= 1)"
-                            (click)="removeTier(m.groupId)">
-                        <mat-icon>remove_circle_outline</mat-icon>
-                        Remove
-                    </button>
-                </div>
-            </div>
-
-            <div class="add-tier" *ngIf="accountInfo.availableTiers?.length">
-                <h4>Add a tier</h4>
-                <div class="tier-row" *ngFor="let t of accountInfo.availableTiers">
-                    <div class="tier-main">
-                        <span class="tier-name">{{ t.name }}</span>
-                        <span class="tier-desc" *ngIf="t.description">{{ t.description }}</span>
-                    </div>
-                    <div class="add-tier-controls">
-                        <select *ngIf="t.billingEnabled && t.pricingOptions?.length"
-                                [(ngModel)]="selectedTierPrice[t.groupId]">
-                            <option [ngValue]="undefined" disabled>Select a plan…</option>
-                            <option *ngFor="let o of t.pricingOptions" [ngValue]="o.priceId">{{ o.label }} — {{ o.amount }}</option>
-                        </select>
-                        <button mat-raised-button color="primary"
-                                [disabled]="addingTier || (t.billingEnabled && !selectedTierPrice[t.groupId])"
-                                (click)="addTier(t.groupId, selectedTierPrice[t.groupId])">
-                            <mat-icon>add</mat-icon>
-                            Add
-                        </button>
-                    </div>
-                </div>
             </div>
         </div>
 

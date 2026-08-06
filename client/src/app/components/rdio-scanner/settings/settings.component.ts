@@ -619,6 +619,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
                 this.userEmail = account.email || '';
                 // Store current subscription price ID if available
                 this.currentPriceId = account.currentPriceId || null;
+                this.seedTierPriceDefaults(account);
                 this.loadingAccount = false;
             },
             error: (error) => {
@@ -883,8 +884,54 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
             return;
         }
         this.userEmail = this.accountInfo.email;
+        this.checkoutItems = this.buildUnpaidCheckoutItems();
+        if (!this.checkoutItems?.length && !(this.accountInfo.pricingOptions?.length > 0)) {
+            this.snackBar.open('No unpaid plans available to subscribe. Contact support if this persists.', 'Close', { duration: 5000 });
+            return;
+        }
         this.showCheckout = true;
         this.showChangeSubscription = false;
+    }
+
+    /** Build multi-tier checkout items from unpaid self-billable memberships. */
+    private buildUnpaidCheckoutItems(): {
+        groupId: number;
+        priceId: string;
+        name?: string;
+        label?: string;
+        amount?: string;
+    }[] | null {
+        const unpaid = this.accountInfo?.unpaidCheckoutItems as any[] | undefined;
+        const memberships = this.accountInfo?.memberships as any[] | undefined;
+        const sources = (unpaid?.length ? unpaid : memberships?.filter((m: any) =>
+            m.billingEnabled && m.selfBillable && !m.paid && m.pricingOptions?.length
+        )) || [];
+        if (!sources.length) {
+            return null;
+        }
+        const items: {
+            groupId: number;
+            priceId: string;
+            name?: string;
+            label?: string;
+            amount?: string;
+        }[] = [];
+        for (const src of sources) {
+            const opts = src.pricingOptions || [];
+            const selectedId = this.selectedTierPrice?.[src.groupId];
+            const opt = opts.find((o: any) => o.priceId === selectedId) || opts[0];
+            if (!opt?.priceId) {
+                continue;
+            }
+            items.push({
+                groupId: src.groupId,
+                priceId: opt.priceId,
+                name: src.name,
+                label: opt.label,
+                amount: opt.amount,
+            });
+        }
+        return items.length ? items : null;
     }
     
     openChangeSubscription(): void {
@@ -897,11 +944,31 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.showCheckout = true; // Reuse the same checkout modal
     }
 
-    /** Combined-checkout items when adding a tier requires a fresh subscription. */
-    checkoutItems: { groupId: number; priceId: string }[] | null = null;
+    /** Combined-checkout items when adding a tier / completing unpaid multi-tier signup. */
+    checkoutItems: {
+        groupId: number;
+        priceId: string;
+        name?: string;
+        label?: string;
+        amount?: string;
+    }[] | null = null;
     addingTier = false;
     /** Price selection per available tier in the add picker (groupId -> priceId). */
     selectedTierPrice: { [groupId: number]: string } = {};
+
+    /** Default each available/unpaid tier to its first plan so Add isn't stuck disabled. */
+    private seedTierPriceDefaults(account: any): void {
+        for (const t of account?.availableTiers || []) {
+            if (t.billingEnabled && t.pricingOptions?.length && !this.selectedTierPrice[t.groupId]) {
+                this.selectedTierPrice[t.groupId] = t.pricingOptions[0].priceId;
+            }
+        }
+        for (const u of account?.unpaidCheckoutItems || []) {
+            if (u.pricingOptions?.length && !this.selectedTierPrice[u.groupId]) {
+                this.selectedTierPrice[u.groupId] = u.pricingOptions[0].priceId;
+            }
+        }
+    }
 
     /** Add a public tier. Paid tiers with an active subscription are added
      *  server-side with proration; otherwise a combined checkout is shown. */

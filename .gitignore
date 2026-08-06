@@ -53,13 +53,26 @@ run-server.sh
 
 # Docker
 .env
-scripts/nextcloud-migrate/
-scripts/nextcloud-migrate-to-vps/
-scripts/mail-migrate-to-vps/migrate.env
-scripts/mail-migrate-to-vps/secrets/
+
+# Local ops / migrate / one-off scripts (never commit secrets from these trees)
+/scripts/
 .nextcloud-migrate-staging/
 .nextcloud-vps-migrate-staging/
 .mail-migrate-staging/
+
+# Local server ops helpers and ad-hoc tools (keep icad_tone_bridge.py tracked)
+server/scripts/*.sh
+server/scripts/launchd/
+server/cmd/streetscan_prototype/
+server/*_main.go
+server/setup_*_main.go
+server/mapping/tmp_*.go
+
+# Built webapp / local binaries (produced by build-all; not source)
+server/webapp/
+/thinline-radio-*
+/thinline-radio
+
 TLR-Tones2Active911-main/
 docker/data/
 docker/logs/

@@ -255,7 +255,7 @@ export class RdioScannerUserRegistrationComponent implements OnInit {
     this.http.get<any>('/api/public-registration-info').subscribe({
       next: (info) => {
         this.publicGroupInfo = info;
-        this.tiers = info.tiers || [];
+        this.tiers = (info.tiers || []).filter((t: any) => t.selfBillable !== false);
         // Auto-select a lone tier so single-tier signup is unchanged.
         if (this.tiers.length === 1) {
           this.selectedTiers[this.tiers[0].groupId] = true;
