@@ -127,7 +127,6 @@ import { TalkgroupLocationDialogComponent } from './config/systems/system/talkgr
         ToneSetLocationDialogComponent,
         TalkgroupLocationDialogComponent,
     ],
-    entryComponents: [RdioScannerAdminSystemsSelectComponent],
     exports: [RdioScannerAdminComponent],
     imports: [AppSharedModule, HttpClientModule, FormsModule, MatProgressSpinnerModule, MatProgressBarModule, MatChipsModule, MatPaginatorModule, MatSnackBarModule],
     providers: [
