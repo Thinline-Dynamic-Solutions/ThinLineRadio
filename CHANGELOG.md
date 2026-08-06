@@ -4,6 +4,39 @@
 
 ---
 
+## Version 26.08.5 - Released August 5, 2026
+
+### Added
+
+- **Call natures — opt-in phrase learning (#263)**
+  - Mapping toggle **Suggest phrases from transcripts** (default off) queues radio/CAD-style candidates for Accept / Dismiss under each call nature, with optional **Scan recent transcripts** backfill.
+  - Min sightings configurable; Accept appends the phrase and refreshes the match cache.
+
+- **Unit aliases — Accept / Dismiss review (#266)**
+  - Consistent P25 aliases still auto-add to Units / Source; OpenAI / conflict / unknown suggestions queue on the system Units panel for Accept / Dismiss, with optional history scan.
+  - Empty “tags to enable” now enables auto-learn on all talkgroups (selected tags remain a restrictor).
+
+- **Admin Users — bulk delete and last-login sort (#268)**
+  - Multi-select **Delete selected** with the same transactional cleanup as single delete; refuses to remove the last system administrator.
+  - Sort by name or last login (newest / oldest); API returns numeric `lastLoginAt`.
+
+### Fixed
+
+- **Channels — talkgroup labels truncated (#262 / #265)**
+  - Channel Selection sizes talkgroup columns from container width and defaults to a readable single-column list beside the systems rail.
+
+- **Signup — email locked empty after access/invite code (#261 / #264)**
+  - Generic access/invite codes no longer mark Email as Verified/readonly when no address was bound; users can type an email after Validate.
+
+- **Call natures — admin phrases silently dropped on save (#260 / #263)**
+  - Manual phrase saves no longer run through the auto-mining acceptability filter; pending Add-phrase text is committed on Save.
+
+- **Multi-tier — mobile subscribe / unpaid checkout**
+  - Account API exposes unpaid self-billable memberships (`unpaidCheckoutItems`) so mobile hub / subscribe can bill paid tiers even when the primary group is free.
+  - Checkout / settings / mobile-web-hub UX updated for multi-tier unpaid plans.
+
+---
+
 ## Version 26.08.1 - Released August 1, 2026
 
 ### Fixed
