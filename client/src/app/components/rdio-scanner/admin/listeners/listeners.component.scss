@@ -1,0 +1,285 @@
+/*
+ * *****************************************************************************
+ * Copyright (C) 2025 Thinline Dynamic Solutions
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ * ****************************************************************************
+ */
+:host {
+    display: block;
+}
+
+.listeners-container {
+    padding: 12px 14px 14px;
+}
+
+.listeners-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.listeners-title-block {
+    h2 {
+        margin: 0 0 4px;
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #eee;
+    }
+}
+
+.listeners-hint {
+    margin: 0;
+    color: #999;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    max-width: 42rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+
+    @media (max-width: 640px) {
+        grid-template-columns: 1fr;
+    }
+}
+
+.stat-card {
+    background: #1a1a1a;
+    border-radius: 6px;
+    padding: 8px 10px;
+    border: 1px solid #2a2a2a;
+    border-left: 3px solid #3b82f6;
+
+    h3 {
+        margin: 0;
+        font-size: 0.65rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #888;
+        font-weight: 500;
+    }
+
+    .value {
+        margin-top: 4px;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #fff;
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+.state-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 2.5rem 1rem;
+    color: #999;
+    text-align: center;
+
+    mat-icon {
+        font-size: 32px;
+        width: 32px;
+        height: 32px;
+        color: #555;
+    }
+
+    &.error {
+        color: #ef9a9a;
+
+        mat-icon {
+            color: #f44336;
+        }
+    }
+}
+
+.listeners-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.listener-row {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    overflow: hidden;
+
+    &.multi {
+        border-color: rgba(59, 130, 246, 0.35);
+    }
+
+    &.anonymous {
+        border-style: dashed;
+    }
+}
+
+.listener-summary {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.7rem 0.85rem;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.03);
+    }
+}
+
+.expand-icon {
+    color: #777;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.listener-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.listener-name {
+    font-weight: 600;
+    color: #fff;
+    font-size: 0.92rem;
+}
+
+.listener-email {
+    font-size: 0.75rem;
+    color: #999;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.listener-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &.badge-multi {
+        background: rgba(59, 130, 246, 0.18);
+        color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+
+    &.badge-single {
+        background: rgba(255, 255, 255, 0.05);
+        color: #aaa;
+        border: 1px solid #333;
+    }
+
+    &.badge-anon {
+        background: rgba(255, 193, 7, 0.12);
+        color: #ffd54f;
+        border: 1px solid rgba(255, 193, 7, 0.3);
+    }
+}
+
+.device-list {
+    border-top: 1px solid #252525;
+    padding: 0.35rem 0.85rem 0.7rem 2.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.device-row {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1.2fr) 7rem 4rem auto;
+    gap: 0.55rem;
+    align-items: center;
+    font-size: 0.78rem;
+    color: #bbb;
+    padding: 0.35rem 0;
+
+    @media (max-width: 720px) {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.3rem 0.75rem;
+    }
+}
+
+.device-kind {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #ddd;
+    font-weight: 500;
+
+    mat-icon {
+        font-size: 15px;
+        width: 15px;
+        height: 15px;
+        color: #888;
+    }
+
+    &.mobile mat-icon {
+        color: #60a5fa;
+    }
+}
+
+.device-ip {
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    color: #ccc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.device-feed {
+    color: #777;
+
+    &.active {
+        color: #81c784;
+        font-weight: 600;
+    }
+}
+
+.device-age {
+    font-variant-numeric: tabular-nums;
+    color: #999;
+}
+
+.device-pin-expired {
+    color: #f44336;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    font-size: 0.7rem;
+}

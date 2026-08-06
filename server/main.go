@@ -329,6 +329,8 @@ func main() {
 
 	http.HandleFunc("/api/admin/alerts", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.AlertsHandler)).ServeHTTP)
 
+	http.HandleFunc("/api/admin/listeners", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ListenersHandler)).ServeHTTP)
+
 	http.HandleFunc("/api/admin/systemhealth", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemHealthHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/system-no-audio-settings", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemNoAudioSettingsHandler)).ServeHTTP)

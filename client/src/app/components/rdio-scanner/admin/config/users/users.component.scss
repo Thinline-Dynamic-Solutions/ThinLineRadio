@@ -522,6 +522,13 @@
             color: #aaa;
             border: 1px solid #333;
         }
+
+        &.chip-listening {
+            background: rgba(59, 130, 246, 0.16);
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            font-weight: 600;
+        }
     }
 
     // PIN cell

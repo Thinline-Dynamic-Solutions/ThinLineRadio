@@ -238,6 +238,16 @@
                   {{ user.subscriptionStatus | titlecase }}
                 </span>
               }
+              @if (listeningDeviceCount(user) > 0) {
+                <span class="chip chip-listening">
+                  <mat-icon>headset</mat-icon>
+                  @if (listeningDeviceCount(user) > 1) {
+                    Listening · {{ listeningDeviceCount(user) }} devices
+                  } @else {
+                    Listening
+                  }
+                </span>
+              }
             </div>
           </td>
         </ng-container>
