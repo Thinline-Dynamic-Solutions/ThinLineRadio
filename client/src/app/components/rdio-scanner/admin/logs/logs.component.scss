@@ -185,15 +185,15 @@ $log-visible-rows: 12;
 }
 
 .logs-cat-chip {
-    --mdc-chip-label-text-size: 11px;
+    --mat-chip-label-text-size: 11px;
     height: 26px !important;
     cursor: pointer;
     opacity: 0.75;
 
     &--active {
         opacity: 1;
-        --mdc-chip-elevated-container-color: #1e3a5f;
-        --mdc-chip-label-text-color: #90caf9;
+        --mat-chip-elevated-container-color: #1e3a5f;
+        --mat-chip-label-text-color: #90caf9;
     }
 }
 

@@ -393,7 +393,7 @@ rdio-scanner-admin-config {
 
 /* Save confirmation snackbars (system save, etc.) */
 .success-snackbar {
-    --mdc-snackbar-container-color: #4caf50;
+    --mat-snackbar-container-color: #4caf50;
 
     .mat-mdc-snack-bar-label,
     .mat-mdc-button {
@@ -402,7 +402,7 @@ rdio-scanner-admin-config {
 }
 
 .error-snackbar {
-    --mdc-snackbar-container-color: #f44336;
+    --mat-snackbar-container-color: #f44336;
 
     .mat-mdc-snack-bar-label,
     .mat-mdc-button {

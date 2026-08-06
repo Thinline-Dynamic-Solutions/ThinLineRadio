@@ -468,13 +468,13 @@
   .vol-slider {
     flex: 1 1 auto;
     min-width: 0;
-    --mdc-slider-active-track-color: var(--tlr-primary);
-    --mdc-slider-inactive-track-color: rgba(57, 255, 20, 0.18);
-    --mdc-slider-handle-color: var(--tlr-primary);
-    --mdc-slider-hover-handle-color: var(--tlr-primary);
-    --mdc-slider-focus-handle-color: var(--tlr-primary);
-    --mdc-slider-label-container-color: var(--tlr-primary);
-    --mdc-slider-label-label-text-color: #0b1208;
+    --mat-slider-active-track-color: var(--tlr-primary);
+    --mat-slider-inactive-track-color: rgba(57, 255, 20, 0.18);
+    --mat-slider-handle-color: var(--tlr-primary);
+    --mat-slider-hover-handle-color: var(--tlr-primary);
+    --mat-slider-focus-handle-color: var(--tlr-primary);
+    --mat-slider-label-container-color: var(--tlr-primary);
+    --mat-slider-label-label-text-color: #0b1208;
     --mat-mdc-slider-ripple-color: rgba(57, 255, 20, 0.32);
 
     ::ng-deep .mat-mdc-slider { width: 100%; min-width: 0; margin: 0; }

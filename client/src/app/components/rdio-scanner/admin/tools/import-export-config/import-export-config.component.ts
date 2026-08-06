@@ -17,8 +17,8 @@
  * ****************************************************************************
  */
 
-import { DOCUMENT } from '@angular/common';
-import { Component, EventEmitter, Inject, Output } from '@angular/core';
+
+import { Component, EventEmitter, Inject, Output, DOCUMENT } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Config, RdioScannerAdminService } from '../../admin.service';

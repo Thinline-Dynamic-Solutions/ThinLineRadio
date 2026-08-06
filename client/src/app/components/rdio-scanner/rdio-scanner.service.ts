@@ -17,8 +17,8 @@
  * ****************************************************************************
  */
 
-import { DOCUMENT } from '@angular/common';
-import { EventEmitter, Inject, Injectable, NgZone, OnDestroy } from '@angular/core';
+
+import { EventEmitter, Inject, Injectable, NgZone, OnDestroy, DOCUMENT } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription, timer } from 'rxjs';
 import { takeWhile } from 'rxjs/operators';
