@@ -16,14 +16,14 @@
 
 $rdio-scanner-font-family: var(--tlr-font-primary, Roboto, "Helvetica Neue", sans-serif);
 
-$rdio-scanner-primary: mat.define-palette(mat.$grey-palette, 800, 50);
-$rdio-scanner-accent: mat.define-palette(mat.$green-palette);
-$rdio-scanner-warn: mat.define-palette(mat.$red-palette);
-$rdio-scanner-typography: mat.define-typography-config(
+$rdio-scanner-primary: mat.m2-define-palette(mat.$m2-grey-palette, 800, 50);
+$rdio-scanner-accent: mat.m2-define-palette(mat.$m2-green-palette);
+$rdio-scanner-warn: mat.m2-define-palette(mat.$m2-red-palette);
+$rdio-scanner-typography: mat.m2-define-typography-config(
 	$font-family: $rdio-scanner-font-family,
 );
 
-$rdio-scanner-theme: mat.define-light-theme(
+$rdio-scanner-theme: mat.m2-define-light-theme(
 	(
 		color: (
 			primary: $rdio-scanner-primary,
@@ -40,9 +40,9 @@ $rdio-scanner-theme: mat.define-light-theme(
 // The global theme above is light (needed for the main scanner UI).
 // We define a separate dark theme and scope it to .admin-dark-theme so that
 // all Material components inside the admin panel render correctly on dark bg.
-$admin-primary: mat.define-palette(mat.$red-palette, 700, 300, 900);
-$admin-accent:  mat.define-palette(mat.$grey-palette, 400, 200, 700);
-$admin-dark-theme: mat.define-dark-theme((
+$admin-primary: mat.m2-define-palette(mat.$m2-red-palette, 700, 300, 900);
+$admin-accent:  mat.m2-define-palette(mat.$m2-grey-palette, 400, 200, 700);
+$admin-dark-theme: mat.m2-define-dark-theme((
   color: (
     primary: $admin-primary,
     accent:  $admin-accent,

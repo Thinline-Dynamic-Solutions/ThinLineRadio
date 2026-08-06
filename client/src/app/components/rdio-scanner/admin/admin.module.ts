@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { HttpClientModule } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ErrorStateMatcher, ShowOnDirtyErrorStateMatcher } from '@angular/material/core';
@@ -76,8 +76,7 @@ import { RdioScannerAdminMappingDataComponent } from './config/mapping-data/mapp
 import { ToneSetLocationDialogComponent } from './config/systems/system/tone-set-location-dialog.component';
 import { TalkgroupLocationDialogComponent } from './config/systems/system/talkgroup-location-dialog.component';
 
-@NgModule({
-    declarations: [
+@NgModule({ declarations: [
         RdioScannerAdminComponent,
         RdioScannerAdminConfigComponent,
         RdioScannerAdminApikeysComponent,
@@ -127,9 +126,7 @@ import { TalkgroupLocationDialogComponent } from './config/systems/system/talkgr
         ToneSetLocationDialogComponent,
         TalkgroupLocationDialogComponent,
     ],
-    exports: [RdioScannerAdminComponent],
-    imports: [AppSharedModule, HttpClientModule, FormsModule, MatProgressSpinnerModule, MatProgressBarModule, MatChipsModule, MatPaginatorModule, MatSnackBarModule],
-    providers: [
+    exports: [RdioScannerAdminComponent], imports: [AppSharedModule, FormsModule, MatProgressSpinnerModule, MatProgressBarModule, MatChipsModule, MatPaginatorModule, MatSnackBarModule], providers: [
         RdioScannerAdminService,
         AlertsService,
         // Only show mat-form-field error styling after the user changes a control,
@@ -139,6 +136,6 @@ import { TalkgroupLocationDialogComponent } from './config/systems/system/talkgr
         // The CDK overlay is rendered outside .admin-dark-theme, so panel colours
         // must be driven by a global panelClass rather than the scoped theme.
         { provide: MAT_SELECT_CONFIG, useValue: { panelClass: 'admin-select-panel' } },
-    ],
-})
+        provideHttpClient(withInterceptorsFromDi()),
+    ] })
 export class RdioScannerAdminModule { }

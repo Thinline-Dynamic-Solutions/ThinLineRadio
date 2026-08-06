@@ -19,7 +19,7 @@
 
 import { APP_INITIALIZER, NgModule } from '@angular/core';
 import { AppFontService } from './components/rdio-scanner/app-font.service';
-import { HttpClientModule } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { ServiceWorkerModule } from '@angular/service-worker';
@@ -29,24 +29,18 @@ import { RdioScannerModule } from './components/rdio-scanner/rdio-scanner.module
 import { AppSharedModule } from './shared/shared.module';
 import { routes } from './app.routes';
 
-@NgModule({
-    bootstrap: [AppComponent],
-    declarations: [AppComponent],
-    imports: [
-        RdioScannerModule,
+@NgModule({ bootstrap: [AppComponent],
+    declarations: [AppComponent], imports: [RdioScannerModule,
         AppSharedModule.forRoot({
             routerExtraOptions: { enableTracing: false },
             routerRoutes: routes,
         }),
         BrowserAnimationsModule,
         BrowserModule,
-        HttpClientModule,
         ServiceWorkerModule.register('ngsw-worker.js', {
             enabled: environment.production,
             registrationStrategy: 'registerWhenStable:5000',
-        }),
-    ],
-    providers: [
+        })], providers: [
         {
             provide: APP_INITIALIZER,
             useFactory: (appFontService: AppFontService) => () => {
@@ -55,6 +49,6 @@ import { routes } from './app.routes';
             deps: [AppFontService],
             multi: true,
         },
-    ],
-})
+        provideHttpClient(withInterceptorsFromDi()),
+    ] })
 export class AppModule { }
