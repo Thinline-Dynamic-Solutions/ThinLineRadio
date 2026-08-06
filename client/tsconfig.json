@@ -18,8 +18,7 @@
     "target": "es2022",
     "module": "es2022",
     "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-    "ignoreDeprecations": "6.0"
+    "resolveJsonModule": true
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

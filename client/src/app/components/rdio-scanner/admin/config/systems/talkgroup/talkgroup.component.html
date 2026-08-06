@@ -336,8 +336,8 @@
                     @for (ts of getToneSets().controls; track ts; let i = $index) {
                       <div
                         style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
-                        <mat-checkbox [checked]="isToneSetSelected($safeNavigationMigration(ts.get('id')?.value))"
-                          (change)="toggleToneSetSelection($safeNavigationMigration(ts.get('id')?.value), $event.checked)">
+                        <mat-checkbox [checked]="isToneSetSelected(ts.get('id')?.value)"
+                          (change)="toggleToneSetSelection(ts.get('id')?.value, $event.checked)">
                           {{ ts.get('label')?.value || '(unnamed)' }}
                         </mat-checkbox>
                       </div>
@@ -353,7 +353,7 @@
                 <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                   <button type="button" mat-stroked-button color="accent"
                     [disabled]="syncingToneSets || !form.get('toneDownstreamURL')?.value || syncSelectedIds.size === 0"
-                    (click)="syncToneSetsToDownstream($safeNavigationMigration(form.get('toneDownstreamURL')?.value), $safeNavigationMigration(form.get('toneDownstreamAPIKey')?.value))">
+                    (click)="syncToneSetsToDownstream(form.get('toneDownstreamURL')?.value, form.get('toneDownstreamAPIKey')?.value)">
                     <mat-icon>sync</mat-icon>
                     {{ syncingToneSets ? 'Syncing…' : 'Sync List with TonesToActive' }}
                   </button>

@@ -109,7 +109,7 @@
             }
           </mat-form-field>
         </div>
-        @if (['default','dsdplus','trunk-recorder'].includes($safeNavigationMigration(dirwatch.get('type')?.value))) {
+        @if (['default','dsdplus','trunk-recorder'].includes(dirwatch.get('type')?.value)) {
           <div class="row"
             [class.row-invalid]="rowHasError(dirwatch, ['extension'])">
             <p>
@@ -130,7 +130,7 @@
               </mat-form-field>
             </div>
           }
-          @if (['default','dsdplus'].includes($safeNavigationMigration(dirwatch.get('type')?.value))) {
+          @if (['default','dsdplus'].includes(dirwatch.get('type')?.value)) {
             <div class="row"
               [class.row-invalid]="rowHasError(dirwatch, ['systemId'])">
               <p>
@@ -159,7 +159,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (['default','dsdplus'].includes($safeNavigationMigration(dirwatch.get('type')?.value))) {
+            @if (['default','dsdplus'].includes(dirwatch.get('type')?.value)) {
               <div class="row">
                 <p>
                   <span class="mat-body">Site</span><br>
@@ -179,7 +179,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (['default','dsdplus'].includes($safeNavigationMigration(dirwatch.get('type')?.value))) {
+            @if (['default','dsdplus'].includes(dirwatch.get('type')?.value)) {
               <div class="row"
                 [class.row-invalid]="rowHasError(dirwatch, ['talkgroupId'])">
                 <p>
@@ -223,7 +223,7 @@
                   </mat-form-field>
                 </div>
               }
-              @if (['default'].includes($safeNavigationMigration(dirwatch.get('type')?.value))) {
+              @if (['default'].includes(dirwatch.get('type')?.value)) {
                 <div class="row"
                   [class.row-invalid]="rowHasError(dirwatch, ['mask'])">
                   <p>
@@ -276,7 +276,7 @@
       </mat-form-field>
     </div>
   }
-  @if (['default'].includes($safeNavigationMigration(dirwatch.get('type')?.value))) {
+  @if (['default'].includes(dirwatch.get('type')?.value)) {
     <div class="row"
       [class.row-invalid]="rowHasError(dirwatch, ['frequency'])">
       <p>
@@ -296,7 +296,7 @@
         </mat-form-field>
       </div>
     }
-    @if (['default'].includes($safeNavigationMigration(dirwatch.get('type')?.value))) {
+    @if (['default'].includes(dirwatch.get('type')?.value)) {
       <div class="row"
         [class.row-invalid]="rowHasError(dirwatch, ['delay'])">
         <p>

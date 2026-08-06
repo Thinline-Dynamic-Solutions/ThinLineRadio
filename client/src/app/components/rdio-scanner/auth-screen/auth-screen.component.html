@@ -873,7 +873,7 @@
               @if (config) {
                 <rdio-scanner-stripe-checkout
                   [config]="config"
-                  [email]="$safeNavigationMigration(loginForm.get('email')?.value)"
+                  [email]="loginForm.get('email')?.value"
                   (checkoutSuccess)="onCheckoutSuccess($event)"
                   (checkoutError)="onCheckoutError($event)"
                   (checkoutCancel)="onCheckoutCancel()">
