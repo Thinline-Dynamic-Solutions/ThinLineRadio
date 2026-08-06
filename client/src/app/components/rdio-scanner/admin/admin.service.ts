@@ -561,6 +561,45 @@ export interface ToneHistoryAnalyzeResponse {
     message?: string;
 }
 
+export interface UnitAliasSuggestion {
+    candidateId: number;
+    systemId: number;
+    unitRef: number;
+    suggestedLabel: string;
+    reason?: string;
+    usedOpenAI: boolean;
+    sightings: number;
+    sampleCallIds?: number[];
+    sampleTranscript?: string;
+    firstSeenAt: number;
+    lastSeenAt: number;
+    ready: boolean;
+    talkgroupIds?: number[];
+}
+
+export interface UnitAliasLearnStatus {
+    enabled: boolean;
+    callsRequired: number;
+    pendingReady: number;
+    pendingAll: number;
+}
+
+export interface UnitAliasSuggestionsResponse {
+    status: UnitAliasLearnStatus;
+    suggestions: UnitAliasSuggestion[];
+}
+
+export interface UnitAliasScanResponse {
+    callsScanned: number;
+    callsWithUnits: number;
+    candidatesTouched: number;
+    readyCount: number;
+    lookbackHours: number;
+    callsRequired: number;
+    suggestions: UnitAliasSuggestion[];
+    message?: string;
+}
+
 export interface Site {
     id?: number | null;
     label?: string;
@@ -2333,6 +2372,41 @@ export class RdioScannerAdminService implements OnDestroy {
         return this.ngHttpClient.post<ToneHistoryAnalyzeResponse>(
             '/api/admin/tone-history-analyze',
             { systemId, talkgroupId, limit, hours },
+            { headers: this.getHeaders() },
+        ).pipe(timeout(900000));
+    }
+
+    getUnitAliasSuggestions(systemId: number, readyOnly = false): Observable<UnitAliasSuggestionsResponse> {
+        const params: Record<string, string | number | boolean> = { systemId };
+        if (readyOnly) {
+            params['ready'] = 1;
+        }
+        return this.ngHttpClient.get<UnitAliasSuggestionsResponse>(
+            '/api/admin/unit-alias-suggestions',
+            { headers: this.getHeaders(), params },
+        );
+    }
+
+    acceptUnitAliasSuggestion(candidateId: number, systemId: number, label?: string): Observable<void> {
+        return this.ngHttpClient.post<void>(
+            `/api/admin/unit-alias-suggestions/${candidateId}/accept`,
+            { label: label || '' },
+            { headers: this.getHeaders(), params: { systemId } },
+        );
+    }
+
+    dismissUnitAliasSuggestion(candidateId: number, systemId: number): Observable<void> {
+        return this.ngHttpClient.post<void>(
+            `/api/admin/unit-alias-suggestions/${candidateId}/dismiss`,
+            {},
+            { headers: this.getHeaders(), params: { systemId } },
+        );
+    }
+
+    scanUnitAliasHistory(systemId: number, hours = 168, limit = 200): Observable<UnitAliasScanResponse> {
+        return this.ngHttpClient.post<UnitAliasScanResponse>(
+            '/api/admin/unit-alias-history-scan',
+            { systemId, hours, limit },
             { headers: this.getHeaders() },
         ).pipe(timeout(900000));
     }

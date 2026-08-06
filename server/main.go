@@ -378,6 +378,9 @@ func main() {
 	http.HandleFunc("/api/admin/tone-import", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ToneImportHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/sync-tone-sets", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SyncToneSetsHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/tone-history-analyze", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ToneHistoryAnalyzeHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/unit-alias-suggestions", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UnitAliasSuggestionsHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/unit-alias-suggestions/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UnitAliasSuggestionActionHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/unit-alias-history-scan", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UnitAliasHistoryScanHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/config", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ConfigHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/options", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.OptionsPatchHandler)).ServeHTTP)

@@ -2914,6 +2914,24 @@ func migrateUnitAliasAutoLearn(db *Database) error {
 	return nil
 }
 
+// migrateUnitAliasSuggestionsReview adds Accept/Dismiss review columns for unit alias learning.
+func migrateUnitAliasSuggestionsReview(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "unitAliasLearnCandidates" ADD COLUMN IF NOT EXISTS "suggestedLabel" text NOT NULL DEFAULT ''`,
+		`ALTER TABLE "unitAliasLearnCandidates" ADD COLUMN IF NOT EXISTS "reason" text NOT NULL DEFAULT ''`,
+		`ALTER TABLE "unitAliasLearnCandidates" ADD COLUMN IF NOT EXISTS "usedOpenAI" boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE "unitAliasLearnCandidates" ADD COLUMN IF NOT EXISTS "acceptedAt" bigint NOT NULL DEFAULT 0`,
+		`ALTER TABLE "unitAliasLearnCandidates" ADD COLUMN IF NOT EXISTS "dismissedAt" bigint NOT NULL DEFAULT 0`,
+		`CREATE INDEX IF NOT EXISTS "unitAliasLearnCandidates_review_idx" ON "unitAliasLearnCandidates" ("systemId", "dismissedAt", "acceptedAt", "finalizedAt", "lastSeenAt" DESC)`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			log.Printf("migrateUnitAliasSuggestionsReview note: %v", err)
+		}
+	}
+	return nil
+}
+
 // migrateAutoLearnTagRollout adds tag-based rollout for tone and unit alias auto-learn.
 func migrateAutoLearnTagRollout(db *Database) error {
 	queries := []string{

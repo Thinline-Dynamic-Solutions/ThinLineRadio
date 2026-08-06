@@ -32,23 +32,33 @@ func (controller *Controller) expireAutoLearnUnitAliases() {
 
 func (controller *Controller) finalizeAutoLearnUnitAliasesExpiry(system *System) {
 	tagSet := bulkToneTagSet(system.AutoLearnUnitAliasesTagIds)
-	if len(tagSet) == 0 {
-		return
-	}
-
 	disabled := 0
-	for tagId := range tagSet {
-		q := `UPDATE "talkgroups" SET "autoLearnUnitAliases" = false WHERE "systemId" = ? AND "tagId" = ?`
+
+	if len(tagSet) == 0 {
+		q := `UPDATE "talkgroups" SET "autoLearnUnitAliases" = false WHERE "systemId" = ?`
 		if controller.Database.Config.DbType == DbTypePostgresql {
-			q = `UPDATE "talkgroups" SET "autoLearnUnitAliases" = false WHERE "systemId" = $1 AND "tagId" = $2`
+			q = `UPDATE "talkgroups" SET "autoLearnUnitAliases" = false WHERE "systemId" = $1`
 		}
-		res, err := controller.Database.Sql.Exec(q, system.Id, tagId)
+		res, err := controller.Database.Sql.Exec(q, system.Id)
 		if err != nil {
-			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("unit auto-learn expiry: disable tag %d on system %d failed: %v", tagId, system.Id, err))
-			continue
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("unit auto-learn expiry: disable all talkgroups on system %d failed: %v", system.Id, err))
+		} else if n, _ := res.RowsAffected(); n > 0 {
+			disabled = int(n)
 		}
-		if n, _ := res.RowsAffected(); n > 0 {
-			disabled += int(n)
+	} else {
+		for tagId := range tagSet {
+			q := `UPDATE "talkgroups" SET "autoLearnUnitAliases" = false WHERE "systemId" = ? AND "tagId" = ?`
+			if controller.Database.Config.DbType == DbTypePostgresql {
+				q = `UPDATE "talkgroups" SET "autoLearnUnitAliases" = false WHERE "systemId" = $1 AND "tagId" = $2`
+			}
+			res, err := controller.Database.Sql.Exec(q, system.Id, tagId)
+			if err != nil {
+				controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("unit auto-learn expiry: disable tag %d on system %d failed: %v", tagId, system.Id, err))
+				continue
+			}
+			if n, _ := res.RowsAffected(); n > 0 {
+				disabled += int(n)
+			}
 		}
 	}
 
@@ -69,7 +79,7 @@ func (controller *Controller) finalizeAutoLearnUnitAliasesExpiry(system *System)
 		sys.AutoLearnUnitAliasesExpiresAt = 0
 		if sys.Talkgroups != nil {
 			for _, tg := range sys.Talkgroups.List {
-				if tagSet[tg.TagId] {
+				if len(tagSet) == 0 || tagSet[tg.TagId] {
 					tg.AutoLearnUnitAliases = false
 				}
 			}

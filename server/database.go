@@ -396,6 +396,7 @@ func (db *Database) migrate() error {
 		{"migrateBulkToneDetection", migrateBulkToneDetection},
 		{"migrateUnitAliasAutoLearn", migrateUnitAliasAutoLearn},
 		{"migrateAutoLearnTagRollout", migrateAutoLearnTagRollout},
+		{"migrateUnitAliasSuggestionsReview", migrateUnitAliasSuggestionsReview},
 		{"migrateCallsVerifiedDuplicate", migrateCallsVerifiedDuplicate},
 		{"migratePostgresSiteRefToText", migratePostgresSiteRefToText},
 		{"migrateApikeyNoAudioMonitoring", migrateApikeyNoAudioMonitoring},

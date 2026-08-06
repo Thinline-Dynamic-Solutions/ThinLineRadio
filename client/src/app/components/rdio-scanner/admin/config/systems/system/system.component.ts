@@ -24,7 +24,7 @@ import { FormArray, FormControl, FormGroup } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { Subscription } from 'rxjs';
-import { RdioScannerAdminService, Group, Tag } from '../../../admin.service';
+import { RdioScannerAdminService, Group, Tag, UnitAliasSuggestion, UnitAliasLearnStatus } from '../../../admin.service';
 import { ToneSetLocationDialogComponent } from './tone-set-location-dialog.component';
 import { TalkgroupLocationDialogComponent } from './talkgroup-location-dialog.component';
 import { DeleteSystemDialogComponent } from '../delete-system-dialog.component';
@@ -80,6 +80,15 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     // ─── Search ────────────────────────────────────────────────────────────────
     talkgroupsSearchTerm = '';
     unitsSearchTerm = '';
+
+    // ─── Unit alias suggestions ────────────────────────────────────────────────
+    unitAliasStatus: UnitAliasLearnStatus | null = null;
+    unitAliasSuggestions: UnitAliasSuggestion[] = [];
+    unitAliasEditLabels: Record<number, string> = {};
+    loadingUnitAliasSuggestions = false;
+    scanningUnitAliases = false;
+    unitAliasScanMessage = '';
+    private unitAliasSystemId = 0;
     sitesSearchTerm = '';
 
     // ─── Cached sorted arrays ──────────────────────────────────────────────────
@@ -137,6 +146,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
             this.expandedUnitFormSub = null;
             this.expandedRawUnit = null;
             this.expandedUnitForm = null;
+            this.loadUnitAliasSuggestions();
         }
 
         if (changes['form'] && !changes['form'].firstChange) {
@@ -156,6 +166,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         this.rebuildLabelMaps();
         // Initialize raw units instantly from systemData — no FormGroups needed for display
         this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
+        this.loadUnitAliasSuggestions();
 
         // Talkgroups still use progressive FormArray loading
         const tgArray = this.form.get('talkgroups') as FormArray | null;
@@ -528,6 +539,130 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         if (!expiresAt || !this.form.get('autoLearnUnitAliases')?.value) return '';
         const d = new Date(expiresAt);
         return `Scheduled auto-off: ${d.toLocaleString()}`;
+    }
+
+    get readyUnitAliasSuggestions(): UnitAliasSuggestion[] {
+        return this.unitAliasSuggestions.filter(s => s.ready);
+    }
+
+    get emergingUnitAliasSuggestions(): UnitAliasSuggestion[] {
+        return this.unitAliasSuggestions.filter(s => !s.ready);
+    }
+
+    resolveUnitAliasSystemId(): number {
+        return this.systemId
+            || this.systemData?.id
+            || this.systemData?.systemId
+            || this.unitAliasSystemId
+            || 0;
+    }
+
+    loadUnitAliasSuggestions(): void {
+        const systemId = this.resolveUnitAliasSystemId();
+        if (!systemId) {
+            this.unitAliasSuggestions = [];
+            this.unitAliasStatus = null;
+            this.cdr.markForCheck();
+            return;
+        }
+        this.unitAliasSystemId = systemId;
+        this.loadingUnitAliasSuggestions = true;
+        this.cdr.markForCheck();
+        this.adminService.getUnitAliasSuggestions(systemId).subscribe({
+            next: (res) => {
+                this.unitAliasStatus = res?.status || null;
+                this.unitAliasSuggestions = res?.suggestions || [];
+                for (const s of this.unitAliasSuggestions) {
+                    if (this.unitAliasEditLabels[s.candidateId] === undefined) {
+                        this.unitAliasEditLabels[s.candidateId] = s.suggestedLabel || '';
+                    }
+                }
+                this.loadingUnitAliasSuggestions = false;
+                this.cdr.markForCheck();
+            },
+            error: () => {
+                this.loadingUnitAliasSuggestions = false;
+                this.cdr.markForCheck();
+            },
+        });
+    }
+
+    scanUnitAliasHistory(): void {
+        const systemId = this.resolveUnitAliasSystemId();
+        if (!systemId || this.scanningUnitAliases) return;
+        this.scanningUnitAliases = true;
+        this.unitAliasScanMessage = '';
+        this.cdr.markForCheck();
+        this.adminService.scanUnitAliasHistory(systemId).subscribe({
+            next: (res) => {
+                this.unitAliasSuggestions = res?.suggestions || [];
+                this.unitAliasScanMessage = res?.message || '';
+                this.unitAliasStatus = {
+                    enabled: this.unitAliasStatus?.enabled ?? true,
+                    callsRequired: res?.callsRequired || this.unitAliasStatus?.callsRequired || 3,
+                    pendingReady: res?.readyCount || 0,
+                    pendingAll: this.unitAliasSuggestions.length,
+                };
+                for (const s of this.unitAliasSuggestions) {
+                    this.unitAliasEditLabels[s.candidateId] = s.suggestedLabel || this.unitAliasEditLabels[s.candidateId] || '';
+                }
+                this.scanningUnitAliases = false;
+                this.snackBar.open(this.unitAliasScanMessage || 'Unit history scan complete.', 'OK', { duration: 5000 });
+                this.cdr.markForCheck();
+            },
+            error: (err) => {
+                this.scanningUnitAliases = false;
+                const msg = err?.error?.error || err?.message || 'Unit history scan failed';
+                this.snackBar.open(msg, 'OK', { duration: 6000 });
+                this.cdr.markForCheck();
+            },
+        });
+    }
+
+    acceptUnitAliasSuggestion(s: UnitAliasSuggestion): void {
+        const systemId = this.resolveUnitAliasSystemId();
+        if (!systemId) return;
+        const label = (this.unitAliasEditLabels[s.candidateId] ?? s.suggestedLabel ?? '').trim();
+        if (!label) {
+            this.snackBar.open('Enter a label before accepting.', 'OK', { duration: 4000 });
+            return;
+        }
+        this.adminService.acceptUnitAliasSuggestion(s.candidateId, systemId, label).subscribe({
+            next: () => {
+                const existing = this.rawUnits.find(u => Number(u.unitRef) === Number(s.unitRef));
+                if (existing) {
+                    existing.label = label;
+                } else {
+                    this.rawUnits = [
+                        { id: null, label, order: 0, unitRef: s.unitRef, unitFrom: null, unitTo: null },
+                        ...this.rawUnits,
+                    ];
+                }
+                if (this.systemData) this.systemData.units = this.rawUnits;
+                this.form.markAsDirty();
+                this.snackBar.open(`Added unit ${label} (ID ${s.unitRef}) for Source.`, 'OK', { duration: 4000 });
+                this.loadUnitAliasSuggestions();
+                this.cdr.markForCheck();
+            },
+            error: (err) => {
+                const msg = err?.error?.error || err?.message || 'Accept failed';
+                this.snackBar.open(msg, 'OK', { duration: 6000 });
+            },
+        });
+    }
+
+    dismissUnitAliasSuggestion(s: UnitAliasSuggestion): void {
+        const systemId = this.resolveUnitAliasSystemId();
+        if (!systemId) return;
+        this.adminService.dismissUnitAliasSuggestion(s.candidateId, systemId).subscribe({
+            next: () => {
+                this.loadUnitAliasSuggestions();
+            },
+            error: (err) => {
+                const msg = err?.error?.error || err?.message || 'Dismiss failed';
+                this.snackBar.open(msg, 'OK', { duration: 6000 });
+            },
+        });
     }
 
     // ─── Bulk selection ────────────────────────────────────────────────────────

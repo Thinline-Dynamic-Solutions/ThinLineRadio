@@ -171,13 +171,15 @@
                 <label class="field-label">Auto-learn unit aliases</label>
                 <mat-slide-toggle color="primary" formControlName="autoLearnUnitAliases"></mat-slide-toggle>
             </div>
+            <span class="field-hint">Learns radio unit IDs → labels for the Source column. Consistent P25 aliases auto-add; OpenAI / ambiguous cases appear under Units for Accept / Dismiss. Requires alerts on the system and channel.</span>
             <ng-container *ngIf="form.get('autoLearnUnitAliases')?.value">
-                <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 100%;">
-                    <mat-label>Tags to enable</mat-label>
+                <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 100%; margin-top: 8px;">
+                    <mat-label>Limit to talkgroup tags (optional)</mat-label>
                     <mat-select formControlName="autoLearnUnitAliasesTagIds" multiple>
                         <mat-option *ngFor="let tag of tagsUsedInSystemList" [value]="tag.id">{{ tag.label }}</mat-option>
                     </mat-select>
                 </mat-form-field>
+                <span class="field-hint">Leave empty to enable on all talkgroups. Selecting tags only turns learning on for channels with those tags — it does not tag units.</span>
                 <mat-form-field appearance="outline" class="compact-field compact-field--no-hint" style="width: 220px; margin-top: 8px;">
                     <mat-label>Auto-off after (days)</mat-label>
                     <input type="number" min="0" step="1" matInput formControlName="autoLearnUnitAliasesAutoOffDays" placeholder="0 = never">
@@ -711,6 +713,74 @@
         <button type="button" mat-raised-button color="primary" (click)="addUnit()">
             <mat-icon>add</mat-icon> Add Unit
         </button>
+    </div>
+
+    <div class="unit-alias-learn-panel">
+        <div class="unit-alias-learn-header">
+            <div>
+                <div class="unit-alias-learn-title">Unit alias suggestions</div>
+                <div class="mat-caption">Radio IDs heard on channels with auto-learn. Consistent P25 aliases auto-add; otherwise review and Accept / Dismiss. Accepted labels appear in Source on transmissions.</div>
+            </div>
+            <div class="unit-alias-learn-actions">
+                <button type="button" mat-stroked-button color="primary"
+                        (click)="scanUnitAliasHistory()"
+                        [disabled]="scanningUnitAliases || !resolveUnitAliasSystemId()">
+                    <mat-icon>{{ scanningUnitAliases ? 'hourglass_empty' : 'manage_search' }}</mat-icon>
+                    {{ scanningUnitAliases ? 'Scanning…' : 'Scan recent history' }}
+                </button>
+                <button type="button" mat-stroked-button
+                        (click)="loadUnitAliasSuggestions()"
+                        [disabled]="loadingUnitAliasSuggestions || !resolveUnitAliasSystemId()">
+                    <mat-icon>refresh</mat-icon>
+                    Refresh
+                </button>
+            </div>
+        </div>
+        <div class="mat-caption unit-alias-status" *ngIf="unitAliasStatus as st">
+            <ng-container *ngIf="st.enabled; else unitLearnOff">
+                Learning on · ready after {{ st.callsRequired }} sightings ·
+                {{ st.pendingReady }} ready · {{ st.pendingAll }} pending
+            </ng-container>
+            <ng-template #unitLearnOff>Learning off for this system — enable Auto-learn unit aliases (or per talkgroup) to collect suggestions.</ng-template>
+        </div>
+        <div class="mat-caption" *ngIf="unitAliasScanMessage">{{ unitAliasScanMessage }}</div>
+
+        <div class="unit-alias-block" *ngIf="readyUnitAliasSuggestions.length">
+            <div class="unit-alias-section-label">Ready to review</div>
+            <div class="unit-alias-row" *ngFor="let s of readyUnitAliasSuggestions">
+                <div class="unit-alias-meta">
+                    <code class="id-code">{{ s.unitRef }}</code>
+                    <mat-form-field appearance="outline" class="unit-alias-label-field">
+                        <mat-label>Label</mat-label>
+                        <input matInput [(ngModel)]="unitAliasEditLabels[s.candidateId]" [ngModelOptions]="{standalone: true}" autocomplete="off">
+                    </mat-form-field>
+                    <span class="mat-caption">{{ s.sightings }} sightings<span *ngIf="s.usedOpenAI"> · OpenAI</span><span *ngIf="s.reason"> · {{ s.reason }}</span></span>
+                    <span class="mat-caption unit-alias-sample" *ngIf="s.sampleTranscript">{{ s.sampleTranscript }}</span>
+                </div>
+                <div class="unit-alias-btns">
+                    <button type="button" mat-flat-button color="primary" (click)="acceptUnitAliasSuggestion(s)">Accept</button>
+                    <button type="button" mat-stroked-button (click)="dismissUnitAliasSuggestion(s)">Dismiss</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="unit-alias-block unit-alias-emerging" *ngIf="emergingUnitAliasSuggestions.length">
+            <div class="unit-alias-section-label">Emerging</div>
+            <div class="unit-alias-row" *ngFor="let s of emergingUnitAliasSuggestions">
+                <div class="unit-alias-meta">
+                    <code class="id-code">{{ s.unitRef }}</code>
+                    <span class="mat-body">{{ s.suggestedLabel || 'Collecting…' }}</span>
+                    <span class="mat-caption">{{ s.sightings }} / {{ unitAliasStatus?.callsRequired || 3 }} sightings</span>
+                </div>
+                <div class="unit-alias-btns">
+                    <button type="button" mat-stroked-button (click)="dismissUnitAliasSuggestion(s)">Dismiss</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mat-caption" *ngIf="!loadingUnitAliasSuggestions && !unitAliasSuggestions.length && resolveUnitAliasSystemId()">
+            No pending suggestions.
+        </div>
     </div>
 
     <div *ngIf="rawUnits.length === 0" class="sub-empty">
