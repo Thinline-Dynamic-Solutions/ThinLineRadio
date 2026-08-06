@@ -210,12 +210,18 @@
             <div class="status-chips">
               <span class="chip" [class.chip-success]="user.verified" [class.chip-warn]="!user.verified">
                 <mat-icon>{{ user.verified ? 'verified' : 'pending' }}</mat-icon>
-                {{ user.verified ? 'Verified' : 'Pending' }}
+                {{ user.verified ? 'Verified' : 'Unverified' }}
               </span>
               @if (user.systemAdmin) {
                 <span class="chip chip-primary">
                   <mat-icon>admin_panel_settings</mat-icon>
                   Sys Admin
+                </span>
+              }
+              @if (user.isGroupAdmin) {
+                <span class="chip chip-warn">
+                  <mat-icon>manage_accounts</mat-icon>
+                  Group Admin
                 </span>
               }
               @if (user.forcePasswordReset) {
@@ -232,29 +238,20 @@
               }
               @if (user.subscriptionStatus) {
                 <span class="chip"
-                  [class.chip-success]="user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing'"
-                  [class.chip-error]="user.subscriptionStatus === 'canceled' || user.subscriptionStatus === 'unpaid' || user.subscriptionStatus === 'past_due'"
-                  [class.chip-warn]="user.subscriptionStatus === 'incomplete'">
-                  {{ user.subscriptionStatus | titlecase }}
+                  [class.chip-success]="isSubscriptionOk(user.subscriptionStatus)"
+                  [class.chip-error]="isSubscriptionProblem(user.subscriptionStatus)"
+                  [class.chip-warn]="isSubscriptionWarn(user.subscriptionStatus)">
+                  {{ formatSubscriptionStatus(user.subscriptionStatus) }}
                 </span>
               }
-            </div>
-          </td>
-        </ng-container>
-        <!-- PIN Column -->
-        <ng-container matColumnDef="pin">
-          <th mat-header-cell *matHeaderCellDef>PIN</th>
-          <td mat-cell *matCellDef="let user">
-            <div class="pin-cell">
-              <code class="pin-code">{{ user.pin || '—' }}</code>
-              @if (user.pinExpired) {
-                <span class="pin-expired">
-                  <mat-icon>warning</mat-icon> Expired
+              @if (isPinExpired(user)) {
+                <span class="chip chip-pin-expired">
+                  PIN EXPIRED
                 </span>
               }
-              @if (user.pinExpiresAt && !user.pinExpired) {
-                <span class="pin-expiry muted">
-                  Exp: {{ formatPinExpiration(user.pinExpiresAt) }}
+              @if (isAccountExpired(user)) {
+                <span class="chip chip-pin-expired">
+                  ACCOUNT EXPIRED
                 </span>
               }
             </div>
