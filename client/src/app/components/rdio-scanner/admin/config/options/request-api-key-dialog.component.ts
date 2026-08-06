@@ -31,8 +31,8 @@ interface SelectedStateData {
 }
 
 @Component({
-  selector: 'rdio-scanner-request-api-key-dialog',
-  template: `
+    selector: 'rdio-scanner-request-api-key-dialog',
+    template: `
     <h2 mat-dialog-title>{{ isUpdateMode ? 'Update' : 'Request' }} Push Notification API Key</h2>
     <mat-dialog-content>
       <p style="font-size: 13px; color: #666; line-height: 1.45; margin: 0 0 16px 0;">
@@ -304,7 +304,7 @@ interface SelectedStateData {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .full-width {
       width: 100%;
       margin-bottom: 16px;
@@ -420,7 +420,8 @@ interface SelectedStateData {
       height: 18px;
       color: #2196F3;
     }
-  `]
+  `],
+    standalone: false
 })
 export class RequestAPIKeyDialogComponent implements OnInit {
   apiKeyForm: FormGroup;

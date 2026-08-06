@@ -28,7 +28,8 @@ import { RdioScannerAdminService } from '../../admin.service';
     selector: 'rdio-scanner-admin-systems',
     templateUrl: './systems.component.html',
     styleUrls: ['./systems.component.scss'],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerAdminSystemsComponent {
     @Input() form: FormArray | undefined;

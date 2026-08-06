@@ -23,6 +23,7 @@ import { FormArray, FormControl, FormGroup, Validators } from '@angular/forms';
 @Component({
     selector: 'rdio-scanner-admin-site',
     templateUrl: './site.component.html',
+    standalone: false
 })
 export class RdioScannerAdminSiteComponent {
     @Input() form: FormGroup | undefined;

@@ -104,6 +104,7 @@ interface DialogRow extends Omit<MappingToneSetLocationRow, 'geoLat' | 'geoLon'>
         }
         .c-actions { display: flex; gap: 4px; align-items: center; padding-top: 2px; }
     `],
+    standalone: false
 })
 export class ToneSetLocationDialogComponent {
     rows: DialogRow[] = [];

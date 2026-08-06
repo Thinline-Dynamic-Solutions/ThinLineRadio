@@ -12,5 +12,6 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
     template: `<div class="chassis"><ng-content></ng-content></div>`,
     styleUrls: ['./chassis.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerChassisComponent {}

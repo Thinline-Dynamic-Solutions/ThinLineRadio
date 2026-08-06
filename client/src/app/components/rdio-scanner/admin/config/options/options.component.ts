@@ -285,6 +285,7 @@ export interface UnsavedPanelChanges {
     selector: 'rdio-scanner-admin-options',
     templateUrl: './options.component.html',
     styleUrls: ['./options.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, OnDestroy, OnChanges {
     @Input() form: FormGroup | undefined;

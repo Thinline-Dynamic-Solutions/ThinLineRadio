@@ -5,7 +5,8 @@ import { RdioScannerAdminService } from '../../admin.service';
 @Component({
     selector: 'rdio-scanner-admin-stripe-sync',
     templateUrl: './stripe-sync.component.html',
-    styleUrls: ['./stripe-sync.component.scss']
+    styleUrls: ['./stripe-sync.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminStripeSyncComponent {
     syncing = false;

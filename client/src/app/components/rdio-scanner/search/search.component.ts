@@ -61,6 +61,7 @@ const PLAYBACK_PREFS_STORAGE_KEY = 'rdio-scanner-playback-prefs';
     selector: 'rdio-scanner-search',
     styleUrls: ['./search.component.scss'],
     templateUrl: './search.component.html',
+    standalone: false
 })
 export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
     call: RdioScannerCall | undefined;

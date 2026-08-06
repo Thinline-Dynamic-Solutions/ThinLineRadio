@@ -20,6 +20,7 @@ import { RdioScannerService } from '../rdio-scanner.service';
     selector: 'rdio-scanner-mobile-web-hub',
     templateUrl: './mobile-web-hub.component.html',
     styleUrls: ['./mobile-web-hub.component.scss'],
+    standalone: false
 })
 export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
     @Output() signOut = new EventEmitter<void>();

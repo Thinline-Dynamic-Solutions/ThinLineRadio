@@ -25,6 +25,7 @@ import { CopilotMessage, RdioScannerAdminService } from '../admin.service';
     selector: 'rdio-scanner-admin-assistant',
     styleUrls: ['./assistant.component.scss'],
     templateUrl: './assistant.component.html',
+    standalone: false
 })
 export class RdioScannerAdminAssistantComponent {
     messages: CopilotMessage[] = [];

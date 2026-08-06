@@ -37,6 +37,7 @@ import { AppFontService } from '../app-font.service';
     selector: 'rdio-scanner-settings',
     styleUrls: ['./settings.component.scss'],
     templateUrl: './settings.component.html',
+    standalone: false
 })
 export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
     settings: any = {};

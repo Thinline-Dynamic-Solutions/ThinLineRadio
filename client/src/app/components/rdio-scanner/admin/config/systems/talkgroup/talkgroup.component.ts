@@ -30,6 +30,7 @@ import { RdioScannerToneSet } from '../../../../rdio-scanner';
     templateUrl: './talkgroup.component.html',
     styleUrls: ['./talkgroup.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
     @Input() form: FormGroup | undefined;

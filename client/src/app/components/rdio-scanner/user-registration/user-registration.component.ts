@@ -25,9 +25,10 @@ import { RdioScannerService } from '../rdio-scanner.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'rdio-scanner-user-registration',
-  templateUrl: './user-registration.component.html',
-  styleUrls: ['./user-registration.component.scss']
+    selector: 'rdio-scanner-user-registration',
+    templateUrl: './user-registration.component.html',
+    styleUrls: ['./user-registration.component.scss'],
+    standalone: false
 })
 export class RdioScannerUserRegistrationComponent implements OnInit {
   registrationForm: FormGroup;

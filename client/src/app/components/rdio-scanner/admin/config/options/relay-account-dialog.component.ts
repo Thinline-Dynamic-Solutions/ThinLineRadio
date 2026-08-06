@@ -24,8 +24,8 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 type RelayAccountMode = 'login' | 'create';
 
 @Component({
-  selector: 'rdio-scanner-relay-account-dialog',
-  template: `
+    selector: 'rdio-scanner-relay-account-dialog',
+    template: `
     <h2 mat-dialog-title>Relay Account</h2>
     <mat-dialog-content>
       <p style="font-size: 13px; color: #666; line-height: 1.45; margin: 0 0 16px 0;">
@@ -86,7 +86,7 @@ type RelayAccountMode = 'login' | 'create';
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .full-width { width: 100%; margin-bottom: 8px; display: block; }
     mat-dialog-content { min-width: 420px; max-width: 480px; }
     .error-message {
@@ -105,7 +105,8 @@ type RelayAccountMode = 'login' | 'create';
       margin-top: 12px;
       font-size: 13px;
     }
-  `]
+  `],
+    standalone: false
 })
 export class RelayAccountDialogComponent {
   mode: RelayAccountMode = 'create';

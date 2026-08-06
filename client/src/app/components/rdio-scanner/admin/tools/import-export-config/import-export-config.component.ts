@@ -36,6 +36,7 @@ const ADMIN_IMPORT_DIALOG = {
     selector: 'rdio-scanner-admin-import-export-config',
     styleUrls: ['./import-export-config.component.scss'],
     templateUrl: './import-export-config.component.html',
+    standalone: false
 })
 export class RdioScannerAdminImportExportConfigComponent {
     @Output() config = new EventEmitter<Config & { __isImport?: boolean }>();

@@ -63,6 +63,7 @@ interface StatsData {
     selector: 'rdio-scanner-alerts',
     styleUrls: ['./alerts.component.scss'],
     templateUrl: './alerts.component.html',
+    standalone: false
 })
 export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     /** Compact “recent alerts” rail for the Current tab (no tabs / transcript UI). */

@@ -33,7 +33,8 @@ import { DeleteSystemDialogComponent } from '../delete-system-dialog.component';
     selector: 'rdio-scanner-admin-system',
     templateUrl: './system.component.html',
     styleUrls: ['./system.component.scss'],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDestroy {
     @Input() form = new FormGroup({});

@@ -44,6 +44,7 @@ const emptyConfig = (): TranscriptConfig => ({
     selector: 'rdio-scanner-admin-transcript-parser',
     templateUrl: './transcript-parser.component.html',
     styleUrls: ['./transcript-parser.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminTranscriptParserComponent implements OnInit {
     /**

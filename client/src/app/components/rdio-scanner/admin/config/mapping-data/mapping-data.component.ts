@@ -22,6 +22,7 @@ import { RdioScannerAdminService } from '../../admin.service';
     templateUrl: './mapping-data.component.html',
     styleUrls: ['./mapping-data.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerAdminMappingDataComponent implements OnChanges {
     @Input() systemId: number | null = null;

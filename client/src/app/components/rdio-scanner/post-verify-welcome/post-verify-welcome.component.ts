@@ -22,9 +22,10 @@ import { ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
-  selector: 'rdio-scanner-post-verify-welcome',
-  templateUrl: './post-verify-welcome.component.html',
-  styleUrls: ['./post-verify-welcome.component.scss']
+    selector: 'rdio-scanner-post-verify-welcome',
+    templateUrl: './post-verify-welcome.component.html',
+    styleUrls: ['./post-verify-welcome.component.scss'],
+    standalone: false
 })
 export class RdioScannerPostVerifyWelcomeComponent implements OnInit {
   email = '';

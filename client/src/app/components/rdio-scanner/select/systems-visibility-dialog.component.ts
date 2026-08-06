@@ -30,6 +30,7 @@ export interface SystemVisibilityItem {
     selector: 'rdio-scanner-systems-visibility-dialog',
     templateUrl: './systems-visibility-dialog.component.html',
     styleUrls: ['./systems-visibility-dialog.component.scss'],
+    standalone: false
 })
 export class SystemsVisibilityDialogComponent {
     systems: SystemVisibilityItem[];

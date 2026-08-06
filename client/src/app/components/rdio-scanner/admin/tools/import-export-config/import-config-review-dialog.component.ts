@@ -27,6 +27,7 @@ export interface ImportConfigReviewDialogResult {
     selector: 'rdio-scanner-admin-import-config-review-dialog',
     templateUrl: './import-config-review-dialog.component.html',
     styleUrls: ['./import-config-review-dialog.component.scss'],
+    standalone: false
 })
 export class ImportConfigReviewDialogComponent {
     sections: ConfigImportSection[] = [];

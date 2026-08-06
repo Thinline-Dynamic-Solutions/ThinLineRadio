@@ -65,9 +65,10 @@ interface RegistrationCode {
 }
 
 @Component({
-  selector: 'rdio-scanner-admin-user-groups',
-  templateUrl: './user-groups.component.html',
-  styleUrls: ['./user-groups.component.scss']
+    selector: 'rdio-scanner-admin-user-groups',
+    templateUrl: './user-groups.component.html',
+    styleUrls: ['./user-groups.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   @Input() form?: FormArray;

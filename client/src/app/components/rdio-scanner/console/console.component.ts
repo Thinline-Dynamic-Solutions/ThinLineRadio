@@ -66,6 +66,7 @@ type TransmissionsPanelMode = 'recent' | 'search';
     selector: 'rdio-scanner-console',
     templateUrl: './console.component.html',
     styleUrls: ['./console.component.scss'],
+    standalone: false
 })
 export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit {
 

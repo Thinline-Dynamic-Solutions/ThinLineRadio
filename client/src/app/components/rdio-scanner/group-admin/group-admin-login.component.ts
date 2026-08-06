@@ -24,9 +24,10 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'rdio-scanner-group-admin-login',
-  templateUrl: './group-admin-login.component.html',
-  styleUrls: ['./group-admin-login.component.scss']
+    selector: 'rdio-scanner-group-admin-login',
+    templateUrl: './group-admin-login.component.html',
+    styleUrls: ['./group-admin-login.component.scss'],
+    standalone: false
 })
 export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
   loginForm: FormGroup;

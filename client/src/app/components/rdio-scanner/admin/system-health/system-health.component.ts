@@ -48,6 +48,7 @@ export interface FailedCall {
     selector: 'rdio-scanner-admin-system-health',
     styleUrls: ['./system-health.component.scss'],
     templateUrl: './system-health.component.html',
+    standalone: false
 })
 export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy {
     alerts: SystemAlert[] = [];

@@ -28,6 +28,7 @@ import { RdioScannerAdminService } from '../../admin.service';
     selector: 'rdio-scanner-admin-tags',
     templateUrl: './tags.component.html',
     styleUrls: ['./tags.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminTagsComponent {
     @Input() form: FormArray | undefined;

@@ -57,9 +57,10 @@ interface TransferRequest {
 }
 
 @Component({
-  selector: 'rdio-scanner-group-admin',
-  templateUrl: './group-admin.component.html',
-  styleUrls: ['./group-admin.component.scss']
+    selector: 'rdio-scanner-group-admin',
+    templateUrl: './group-admin.component.html',
+    styleUrls: ['./group-admin.component.scss'],
+    standalone: false
 })
 export class RdioScannerGroupAdminComponent implements OnInit, OnDestroy {
   selectedTab = 0;

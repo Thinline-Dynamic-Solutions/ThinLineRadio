@@ -51,6 +51,7 @@ export interface ChannelSearchResult {
         './select.component.scss',
     ],
     templateUrl: './select.component.html',
+    standalone: false
 })
 export class RdioScannerSelectComponent implements OnDestroy, OnInit {
     categories: RdioScannerCategory[] | undefined;

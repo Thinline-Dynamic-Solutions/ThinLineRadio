@@ -28,6 +28,7 @@ import { RdioScannerAdminComponent } from '../../../components/rdio-scanner/admi
     selector: 'rdio-scanner-admin-page',
     styleUrls: ['./admin.component.scss'],
     templateUrl: './admin.component.html',
+    standalone: false
 })
 export class RdioScannerAdminPageComponent implements OnInit, OnDestroy {
     version = '';

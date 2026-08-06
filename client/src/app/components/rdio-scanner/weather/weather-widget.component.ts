@@ -17,6 +17,7 @@ import { NwsForecastPeriod, NwsService, NwsWeatherBundle } from './nws.service';
     templateUrl: './weather-widget.component.html',
     styleUrls: ['./weather-widget.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerWeatherWidgetComponent implements OnInit, OnDestroy {
     weather: NwsWeatherBundle | null = null;

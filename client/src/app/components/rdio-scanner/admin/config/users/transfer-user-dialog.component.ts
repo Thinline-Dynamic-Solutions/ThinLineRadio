@@ -22,8 +22,8 @@ import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 
 @Component({
-  selector: 'rdio-scanner-transfer-user-dialog',
-  template: `
+    selector: 'rdio-scanner-transfer-user-dialog',
+    template: `
     <h2 mat-dialog-title>Transfer User to Group</h2>
     <mat-dialog-content>
       <p class="mat-body" style="margin-bottom: 16px;">
@@ -53,7 +53,7 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .full-width {
       width: 100%;
       margin-bottom: 16px;
@@ -61,7 +61,8 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
     mat-dialog-content {
       min-width: 400px;
     }
-  `]
+  `],
+    standalone: false
 })
 export class TransferUserDialogComponent implements OnInit {
   transferForm: FormGroup;

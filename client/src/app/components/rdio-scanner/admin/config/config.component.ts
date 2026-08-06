@@ -33,6 +33,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-admin-config',
     styleUrls: ['./config.component.scss'],
     templateUrl: './config.component.html',
+    standalone: false
 })
 export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
     /** When true the sidebar save/reset buttons are hidden (header bar owns them). */

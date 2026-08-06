@@ -40,6 +40,7 @@ interface IncidentFilterOption {
     templateUrl: './incident-map.component.html',
     styleUrls: ['./incident-map.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, AfterViewInit {
     incidents: IncidentRecord[] = [];

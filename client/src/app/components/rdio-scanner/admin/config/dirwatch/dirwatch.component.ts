@@ -37,6 +37,7 @@ const TALKGROUP_SEARCH_RESULT_LIMIT = 200;
     selector: 'rdio-scanner-admin-dirwatch',
     templateUrl: './dirwatch.component.html',
     styleUrls: ['./dirwatch.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminDirwatchComponent implements OnChanges {
     @Input() form: FormArray | undefined;

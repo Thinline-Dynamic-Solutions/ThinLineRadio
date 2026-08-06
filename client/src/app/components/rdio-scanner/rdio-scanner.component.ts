@@ -32,6 +32,7 @@ import { AppFontService } from './app-font.service';
     selector: 'rdio-scanner',
     styleUrls: ['./rdio-scanner.component.scss'],
     templateUrl: './rdio-scanner.component.html',
+    standalone: false
 })
 export class RdioScannerComponent implements OnDestroy, OnInit {
     private eventSubscription;

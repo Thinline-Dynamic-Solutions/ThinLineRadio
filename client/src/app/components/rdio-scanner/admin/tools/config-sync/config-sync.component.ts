@@ -27,6 +27,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-admin-config-sync',
     styleUrls: ['./config-sync.component.scss'],
     templateUrl: './config-sync.component.html',
+    standalone: false
 })
 export class RdioScannerAdminConfigSyncComponent implements OnInit, OnDestroy {
     form: FormGroup;

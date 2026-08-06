@@ -33,6 +33,7 @@ export interface ToolSection {
     selector: 'rdio-scanner-admin-tools',
     templateUrl: './tools.component.html',
     styleUrls: ['./tools.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminToolsComponent {
     @Output() config = new EventEmitter<Config>();

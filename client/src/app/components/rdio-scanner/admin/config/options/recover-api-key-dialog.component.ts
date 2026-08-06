@@ -24,8 +24,8 @@ import { HttpClient } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'rdio-scanner-recover-api-key-dialog',
-  template: `
+    selector: 'rdio-scanner-recover-api-key-dialog',
+    template: `
     <h2 mat-dialog-title>Recover API Key</h2>
     <mat-dialog-content>
       <p style="font-size: 13px; color: #666; line-height: 1.45; margin: 0 0 16px 0;">
@@ -139,7 +139,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .full-width {
       width: 100%;
       margin-bottom: 16px;
@@ -239,7 +239,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       width: 20px;
       height: 20px;
     }
-  `]
+  `],
+    standalone: false
 })
 export class RecoverAPIKeyDialogComponent implements OnInit {
   recoveryForm: FormGroup;

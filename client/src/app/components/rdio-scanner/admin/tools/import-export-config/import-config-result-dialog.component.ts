@@ -27,6 +27,7 @@ export interface ImportConfigResultDialogData {
     selector: 'rdio-scanner-admin-import-config-result-dialog',
     templateUrl: './import-config-result-dialog.component.html',
     styleUrls: ['./import-config-result-dialog.component.scss'],
+    standalone: false
 })
 export class ImportConfigResultDialogComponent {
     phase: ImportConfigDialogPhase = 'loading';

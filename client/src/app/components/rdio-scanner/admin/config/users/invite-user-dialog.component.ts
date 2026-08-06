@@ -23,8 +23,8 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 
 // Results Dialog Component
 @Component({
-  selector: 'rdio-scanner-invitation-results-dialog',
-  template: `
+    selector: 'rdio-scanner-invitation-results-dialog',
+    template: `
     <h2 mat-dialog-title>
       <mat-icon [style.color]="data.failureCount > 0 ? '#f44336' : '#4caf50'">
         {{ data.failureCount > 0 ? 'warning' : 'check_circle' }}
@@ -57,7 +57,7 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
       <button mat-raised-button color="primary" (click)="onClose()">Close</button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     mat-dialog-title {
       display: flex;
       align-items: center;
@@ -166,7 +166,8 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
       padding: 16px 24px;
       justify-content: flex-end;
     }
-  `]
+  `],
+    standalone: false
 })
 export class InvitationResultsDialogComponent {
   constructor(
@@ -184,8 +185,8 @@ export class InvitationResultsDialogComponent {
 }
 
 @Component({
-  selector: 'rdio-scanner-invite-user-dialog',
-  template: `
+    selector: 'rdio-scanner-invite-user-dialog',
+    template: `
     <h2 mat-dialog-title>Invite Users</h2>
     <mat-dialog-content>
       <form [formGroup]="inviteForm">
@@ -232,7 +233,7 @@ export class InvitationResultsDialogComponent {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .full-width {
       width: 100%;
       margin-bottom: 16px;
@@ -282,7 +283,8 @@ export class InvitationResultsDialogComponent {
         margin-top: 4px;
       }
     }
-  `]
+  `],
+    standalone: false
 })
 export class InviteUserDialogComponent implements OnInit {
   inviteForm: FormGroup;
@@ -372,8 +374,8 @@ export class InviteUserDialogComponent implements OnInit {
 
 // Create User Dialog Component
 @Component({
-  selector: 'rdio-scanner-create-user-dialog',
-  template: `
+    selector: 'rdio-scanner-create-user-dialog',
+    template: `
     <h2 mat-dialog-title>
       <mat-icon>person_add</mat-icon>
       Create New User
@@ -439,7 +441,7 @@ export class InviteUserDialogComponent implements OnInit {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     mat-dialog-title {
       display: flex;
       align-items: center;
@@ -469,7 +471,8 @@ export class InviteUserDialogComponent implements OnInit {
       justify-content: flex-end;
       gap: 8px;
     }
-  `]
+  `],
+    standalone: false
 })
 export class CreateUserDialogComponent implements OnInit {
   createForm: FormGroup;
@@ -507,8 +510,8 @@ export class CreateUserDialogComponent implements OnInit {
 
 // Reset Password Dialog Component
 @Component({
-  selector: 'rdio-scanner-reset-password-dialog',
-  template: `
+    selector: 'rdio-scanner-reset-password-dialog',
+    template: `
     <h2 mat-dialog-title>
       <mat-icon>lock_reset</mat-icon>
       Reset User Password
@@ -548,7 +551,7 @@ export class CreateUserDialogComponent implements OnInit {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     mat-dialog-title {
       display: flex;
       align-items: center;
@@ -582,7 +585,8 @@ export class CreateUserDialogComponent implements OnInit {
       justify-content: flex-end;
       gap: 8px;
     }
-  `]
+  `],
+    standalone: false
 })
 export class ResetPasswordDialogComponent implements OnInit {
   resetForm: FormGroup;

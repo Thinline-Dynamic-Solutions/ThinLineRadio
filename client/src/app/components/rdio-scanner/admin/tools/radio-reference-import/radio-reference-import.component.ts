@@ -71,6 +71,7 @@ export interface RadioReferenceSite {
     selector: 'rdio-scanner-admin-radio-reference-import',
     styleUrls: ['./radio-reference-import.component.scss'],
     templateUrl: './radio-reference-import.component.html',
+    standalone: false
 })
 export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     @Output() config = new EventEmitter<Config>();

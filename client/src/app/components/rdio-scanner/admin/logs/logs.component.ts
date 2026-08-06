@@ -28,6 +28,7 @@ import { Log, LogCategory, LogsQuery, LogsQueryOptions, RdioScannerAdminService 
     selector: 'rdio-scanner-admin-logs',
     styleUrls: ['./logs.component.scss'],
     templateUrl: './logs.component.html',
+    standalone: false
 })
 export class RdioScannerAdminLogsComponent implements OnInit {
     /** Rows fetched per paginator page (scroll inside the table to see all of them). */

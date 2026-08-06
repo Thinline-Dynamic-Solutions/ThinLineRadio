@@ -44,7 +44,8 @@ interface TierChoice extends StripeCheckoutTier {
 @Component({
     selector: 'rdio-scanner-stripe-checkout',
     templateUrl: './stripe-checkout.component.html',
-    styleUrls: ['./stripe-checkout.component.scss']
+    styleUrls: ['./stripe-checkout.component.scss'],
+    standalone: false
 })
 export class RdioScannerStripeCheckoutComponent implements OnInit, OnDestroy, OnChanges {
     @Input() config!: RdioScannerConfig;

@@ -38,6 +38,7 @@ type StoredPreference = RdioScannerAlertPreference & {
         './preferences.component.scss',
     ],
     templateUrl: './preferences.component.html',
+    standalone: false
 })
 export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     preferences: Map<string, StoredPreference> = new Map();

@@ -28,6 +28,7 @@ import { RdioScannerAdminService } from '../../admin.service';
     selector: 'rdio-scanner-admin-groups',
     templateUrl: './groups.component.html',
     styleUrls: ['./groups.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminGroupsComponent {
     @Input() form: FormArray | undefined;

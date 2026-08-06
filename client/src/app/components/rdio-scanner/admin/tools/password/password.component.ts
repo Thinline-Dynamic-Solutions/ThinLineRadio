@@ -27,6 +27,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-admin-password',
     styleUrls: ['./password.component.scss'],
     templateUrl: './password.component.html',
+    standalone: false
 })
 export class RdioScannerAdminPasswordComponent implements OnInit, OnDestroy {
     form: FormGroup;

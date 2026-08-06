@@ -23,9 +23,10 @@ import { HttpClient } from '@angular/common/http';
 import { RdioScannerConfig } from '../rdio-scanner';
 
 @Component({
-  selector: 'rdio-scanner-post-verify-plan',
-  templateUrl: './post-verify-plan.component.html',
-  styleUrls: ['./post-verify-plan.component.scss']
+    selector: 'rdio-scanner-post-verify-plan',
+    templateUrl: './post-verify-plan.component.html',
+    styleUrls: ['./post-verify-plan.component.scss'],
+    standalone: false
 })
 export class RdioScannerPostVerifyPlanComponent implements OnInit {
   loading = true;

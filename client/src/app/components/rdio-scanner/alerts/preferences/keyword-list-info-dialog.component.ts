@@ -10,6 +10,7 @@ export interface KeywordListInfoDialogData {
     selector: 'rdio-scanner-keyword-list-info-dialog',
     templateUrl: './keyword-list-info-dialog.component.html',
     styleUrls: ['./keyword-list-info-dialog.component.scss'],
+    standalone: false
 })
 export class KeywordListInfoDialogComponent {
     keywords: string[];

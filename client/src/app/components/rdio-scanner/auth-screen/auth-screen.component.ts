@@ -29,9 +29,10 @@ import { RdioScannerEvent, RdioScannerConfig } from '../rdio-scanner';
 import { Subscription } from 'rxjs';
 
 @Component({
-  selector: 'rdio-scanner-auth-screen',
-  templateUrl: './auth-screen.component.html',
-  styleUrls: ['./auth-screen.component.scss']
+    selector: 'rdio-scanner-auth-screen',
+    templateUrl: './auth-screen.component.html',
+    styleUrls: ['./auth-screen.component.scss'],
+    standalone: false
 })
 export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterViewChecked, AfterViewInit {
   @Output() authenticated = new EventEmitter<void>();

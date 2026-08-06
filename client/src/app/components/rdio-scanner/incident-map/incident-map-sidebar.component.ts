@@ -11,6 +11,7 @@ import { IncidentMapBridgeService } from './incident-map-bridge.service';
     selector: 'rdio-scanner-incident-map-sidebar',
     templateUrl: './incident-map-sidebar.component.html',
     styleUrls: ['./incident-map-sidebar.scss'],
+    standalone: false
 })
 export class RdioScannerIncidentMapSidebarComponent {
     readonly map$: Observable<RdioScannerIncidentMapComponent | null>;

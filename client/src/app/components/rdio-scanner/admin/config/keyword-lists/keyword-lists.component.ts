@@ -26,6 +26,7 @@ import { KeywordList, RdioScannerAdminService } from '../../admin.service';
     selector: 'rdio-scanner-admin-keyword-lists',
     templateUrl: './keyword-lists.component.html',
     styleUrls: ['./keyword-lists.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminKeywordListsComponent implements OnInit, OnDestroy {
     /**

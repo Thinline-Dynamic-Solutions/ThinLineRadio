@@ -36,6 +36,7 @@ export interface ScanListEditDialogData {
     templateUrl: './scan-list-edit-dialog.component.html',
     styleUrls: ['./scan-list-edit-dialog.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class ScanListEditDialogComponent {
     list: ScanList;

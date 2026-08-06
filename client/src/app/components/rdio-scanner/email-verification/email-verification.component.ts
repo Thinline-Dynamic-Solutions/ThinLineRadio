@@ -26,9 +26,10 @@ import { RdioScannerEvent, RdioScannerConfig } from '../rdio-scanner';
 import { Subscription } from 'rxjs';
 
 @Component({
-  selector: 'rdio-scanner-email-verification',
-  templateUrl: './email-verification.component.html',
-  styleUrls: ['./email-verification.component.scss']
+    selector: 'rdio-scanner-email-verification',
+    templateUrl: './email-verification.component.html',
+    styleUrls: ['./email-verification.component.scss'],
+    standalone: false
 })
 export class RdioScannerEmailVerificationComponent implements OnInit, OnDestroy {
   token = '';

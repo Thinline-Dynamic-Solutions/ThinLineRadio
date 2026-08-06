@@ -24,9 +24,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { RdioScannerService } from '../rdio-scanner.service';
 
 @Component({
-  selector: 'rdio-scanner-user-login',
-  templateUrl: './user-login.component.html',
-  styleUrls: ['./user-login.component.scss']
+    selector: 'rdio-scanner-user-login',
+    templateUrl: './user-login.component.html',
+    styleUrls: ['./user-login.component.scss'],
+    standalone: false
 })
 export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
   loginForm: FormGroup;

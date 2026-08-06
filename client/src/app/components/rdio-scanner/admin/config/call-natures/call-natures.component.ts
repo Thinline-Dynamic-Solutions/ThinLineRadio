@@ -31,6 +31,7 @@ import {
     selector: 'rdio-scanner-admin-call-natures',
     templateUrl: './call-natures.component.html',
     styleUrls: ['./call-natures.component.scss'],
+    standalone: false
 })
 export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     callNatures: CallNature[] = [];
