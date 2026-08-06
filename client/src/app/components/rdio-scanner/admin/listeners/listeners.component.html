@@ -1,0 +1,118 @@
+<!--
+* *****************************************************************************
+* Copyright (C) 2025 Thinline Dynamic Solutions
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>
+* ****************************************************************************
+-->
+<div class="listeners-container">
+  <div class="listeners-header">
+    <div class="listeners-title-block">
+      <h2>Live Listeners</h2>
+      <p class="listeners-hint">Who is connected right now. Multi-device sessions are grouped under one user.</p>
+    </div>
+    <button type="button" mat-stroked-button color="primary" (click)="refresh(true)" [disabled]="loading">
+      <mat-icon>refresh</mat-icon>
+      Refresh
+    </button>
+  </div>
+
+  @if (snapshot) {
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h3>Connections</h3>
+        <div class="value">{{ snapshot.totalConnections }}</div>
+      </div>
+      <div class="stat-card">
+        <h3>Users</h3>
+        <div class="value">{{ snapshot.uniqueUsers }}</div>
+      </div>
+      <div class="stat-card">
+        <h3>Anonymous</h3>
+        <div class="value">{{ snapshot.anonymousConnections }}</div>
+      </div>
+    </div>
+  }
+
+  @if (loading && !snapshot) {
+    <div class="state-block">
+      <mat-spinner diameter="36"></mat-spinner>
+      <p>Loading listeners…</p>
+    </div>
+  }
+
+  @if (error) {
+    <div class="state-block error">
+      <mat-icon>error</mat-icon>
+      <p>{{ error }}</p>
+      <button type="button" mat-button color="primary" (click)="refresh(true)">Retry</button>
+    </div>
+  }
+
+  @if (snapshot && !error && snapshot.listeners.length === 0) {
+    <div class="state-block">
+      <mat-icon>headset_off</mat-icon>
+      <p>No listeners connected</p>
+    </div>
+  }
+
+  @if (snapshot && snapshot.listeners.length > 0) {
+    <div class="listeners-list">
+      @for (user of snapshot.listeners; track trackUser($index, user)) {
+        <div class="listener-row" [class.anonymous]="user.anonymous" [class.multi]="user.deviceCount > 1">
+          <button type="button" class="listener-summary" (click)="toggleExpanded(user)">
+            <mat-icon class="expand-icon">{{ isExpanded(user) ? 'expand_more' : 'chevron_right' }}</mat-icon>
+            <div class="listener-identity">
+              <span class="listener-name">{{ displayName(user) }}</span>
+              @if (!user.anonymous && user.email) {
+                <span class="listener-email">{{ user.email }}</span>
+              }
+            </div>
+            <div class="listener-badges">
+              @if (user.deviceCount > 1) {
+                <span class="badge badge-multi">{{ user.deviceCount }} devices</span>
+              } @else {
+                <span class="badge badge-single">1 device</span>
+              }
+              @if (user.anonymous) {
+                <span class="badge badge-anon">Anonymous</span>
+              }
+            </div>
+          </button>
+
+          @if (isExpanded(user)) {
+            <div class="device-list">
+              @for (device of user.devices; track device.ip + device.connectedAt + device.clientKind) {
+                <div class="device-row">
+                  <span class="device-kind" [class.mobile]="device.clientKind === 'mobile'">
+                    <mat-icon>{{ device.clientKind === 'mobile' ? 'smartphone' : 'computer' }}</mat-icon>
+                    {{ kindLabel(device.clientKind) }}
+                  </span>
+                  <span class="device-ip">{{ device.ip || '—' }}</span>
+                  <span class="device-feed" [class.active]="device.livefeedActive">
+                    {{ device.livefeedActive ? 'Livefeed on' : 'Livefeed off' }}
+                  </span>
+                  <span class="device-age">{{ connectedDuration(device.connectedAt) }}</span>
+                  @if (device.pinExpired) {
+                    <span class="device-pin-expired">PIN expired</span>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

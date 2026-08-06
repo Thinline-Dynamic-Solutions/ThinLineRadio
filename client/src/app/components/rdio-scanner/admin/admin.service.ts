@@ -741,6 +741,31 @@ export interface Unit {
     unitTo?: number;
 }
 
+export interface ListenerDeviceSnapshot {
+    ip: string;
+    clientKind: 'web' | 'mobile' | string;
+    livefeedActive: boolean;
+    connectedAt: string;
+    pinExpired: boolean;
+}
+
+export interface ListenerUserSnapshot {
+    userId: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+    anonymous?: boolean;
+    deviceCount: number;
+    devices: ListenerDeviceSnapshot[];
+}
+
+export interface ListenersSnapshot {
+    totalConnections: number;
+    uniqueUsers: number;
+    anonymousConnections: number;
+    listeners: ListenerUserSnapshot[];
+}
+
 enum url {
     alerts = 'alerts',
     alertRetentionDays = 'alert-retention-days',
@@ -756,6 +781,7 @@ enum url {
     password = 'password',
     purge = 'purge',
     systemhealth = 'systemhealth',
+    listeners = 'listeners',
     systemNoAudioSettings = 'system-no-audio-settings',
     systemRetentionSettings = 'system-retention-settings',
     systemDuplicateDetectionSettings = 'system-duplicate-detection-settings',
@@ -1011,6 +1037,19 @@ export class RdioScannerAdminService implements OnDestroy {
         try {
             const res = await firstValueFrom(this.ngHttpClient.get<{ alerts: any[], count: number }>(
                 `${this.getUrl(url.systemhealth)}&limit=${limit}&includeDismissed=${includeDismissed}`,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res;
+        } catch (error) {
+            this.errorHandler(error);
+            throw error;
+        }
+    }
+
+    async getListeners(): Promise<ListenersSnapshot> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.get<ListenersSnapshot>(
+                this.getUrl(url.listeners),
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
             return res;
