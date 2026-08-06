@@ -599,15 +599,15 @@
         }
       </div>
     }
-    <div class="pagination-controls">
-      <button class="btn-nav" (click)="prevTranscriptsPage()" [disabled]="transcriptOffset === 0 || loadingTranscripts">
-        ‹ Prev
-      </button>
-      <span>Showing {{ transcriptOffset + 1 }} - {{ transcriptOffset + transcripts.length }}</span>
-      <button class="btn-nav" (click)="nextTranscriptsPage()" [disabled]="transcripts.length < limit || loadingTranscripts">
-        Next ›
-      </button>
-    </div>
+  </div>
+  <div class="pagination-controls">
+    <button class="btn-nav" (click)="prevTranscriptsPage()" [disabled]="transcriptOffset === 0 || loadingTranscripts">
+      ‹ Prev
+    </button>
+    <span>Showing {{ transcriptOffset + 1 }} - {{ transcriptOffset + transcripts.length }}</span>
+    <button class="btn-nav" (click)="nextTranscriptsPage()" [disabled]="transcripts.length < limit || loadingTranscripts">
+      Next ›
+    </button>
   </div>
 }
 </div>

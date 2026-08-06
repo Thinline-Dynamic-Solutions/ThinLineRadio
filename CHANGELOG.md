@@ -4,6 +4,15 @@
 
 ---
 
+## Version 26.08.7 - Released August 6, 2026
+
+### Fixed
+
+- **Transcripts — pagination clipped**
+  - Prev / Next and the “Showing …” label no longer sit inside the scrollable list; they stay pinned below the list with padding so buttons are not cut off at the panel bottom.
+
+---
+
 ## Version 26.08.6 - Released August 6, 2026
 
 ### Changed
