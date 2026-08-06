@@ -97,7 +97,8 @@ ThinlineRadio-Website/dist/
 ThinlineRadio-Website/*.zip
 ThinlineResponder/
 whisper/
-central-management/
+# Separate CM / AlertPage repo only (not client admin/central-management/)
+/central-management/
 TonesToActive/
 tlr-time-sync/
 

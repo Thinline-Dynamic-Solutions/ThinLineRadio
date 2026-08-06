@@ -1,0 +1,133 @@
+.cm-ops-container {
+  padding: 20px 24px 32px;
+  max-width: 720px;
+}
+
+.admin-section-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #f0f0f0;
+}
+
+.admin-section-hint {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: #9e9e9e;
+  line-height: 1.45;
+}
+
+.cm-ops-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: #9e9e9e;
+  text-align: center;
+
+  mat-icon {
+    font-size: 40px;
+    width: 40px;
+    height: 40px;
+    color: #666;
+  }
+}
+
+.cm-ops-card {
+  border: 1px solid #333;
+  border-radius: 10px;
+  background: #1a1a1a;
+  overflow: hidden;
+}
+
+.cm-ops-status {
+  display: flex;
+  gap: 14px;
+  padding: 20px;
+  border-bottom: 1px solid #2a2a2a;
+
+  h3 {
+    margin: 0 0 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #f0f0f0;
+  }
+
+  p {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: #bbb;
+  }
+
+  .label {
+    display: inline-block;
+    min-width: 96px;
+    color: #777;
+    margin-right: 6px;
+  }
+
+  a {
+    color: #81c784;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.cm-ops-status-icon {
+  color: #e53935;
+  font-size: 32px;
+  width: 32px;
+  height: 32px;
+  margin-top: 2px;
+}
+
+.cm-ops-leave {
+  padding: 20px;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ef9a9a;
+  }
+
+  p {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: #9e9e9e;
+    line-height: 1.5;
+  }
+
+  button[mat-raised-button] {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.cm-ops-code {
+  width: 100%;
+  max-width: 280px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.cm-ops-code-input {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 18px;
+}
+
+.cm-ops-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(229, 57, 53, 0.12);
+  border-left: 3px solid #e53935;
+  color: #ef9a9a;
+  font-size: 13px;
+}
