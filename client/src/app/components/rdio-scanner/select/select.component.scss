@@ -852,26 +852,29 @@
 
 // ── Talkgroup grid ──────────────────────────────────────────────────────────
 //
-// Fixed 4 columns on desktop so each card is wide enough for the label +
-// description without ellipsis clipping ("Forestry Fire…"). Narrower viewports
-// step down to 3 → 2 → 1 column in the channels grid.
-// (both render `<rdio-scanner-select>`).
+// Column count must follow the *container* width, not the viewport. Channels
+// shares the panel with a ~336px systems rail (restored in 26.07.19), so a
+// viewport-based `repeat(4, …)` left each card ~160–220px and ellipsis clipped
+// talkgroup labels/names (#262). `auto-fill` + a readable min width collapses
+// to a single-column list when space is tight (same readability as Scan Lists
+// on a full-width pane) and packs multiple columns only when they fit.
 .talkgroup-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 6px;
   align-items: stretch;
+}
 
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+// Channels detail is narrower than Scan Lists — prefer a list layout so label,
+// secondary name, and TG id stay visible beside the systems rail.
+.channels-detail .talkgroup-list {
+  grid-template-columns: minmax(0, 1fr);
+}
 
-  @media (max-width: 680px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  @media (max-width: 420px) {
-    grid-template-columns: minmax(0, 1fr);
+@media (min-width: 1400px) {
+  // Wide window: allow a second column in channels when the detail pane is roomy.
+  .channels-detail .talkgroup-list {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
 }
 
