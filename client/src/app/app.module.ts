@@ -19,7 +19,7 @@
 
 import { APP_INITIALIZER, NgModule } from '@angular/core';
 import { AppFontService } from './components/rdio-scanner/app-font.service';
-import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { ServiceWorkerModule } from '@angular/service-worker';
@@ -49,6 +49,6 @@ import { routes } from './app.routes';
             deps: [AppFontService],
             multi: true,
         },
-        provideHttpClient(withXhr(), withInterceptorsFromDi()),
+        provideHttpClient(withInterceptorsFromDi()),
     ] })
 export class AppModule { }
