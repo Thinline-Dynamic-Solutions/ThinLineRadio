@@ -252,6 +252,19 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
       // Clean the URL so a refresh does not keep a one-time token in the address bar longer than needed.
       window.history.replaceState({}, document.title, window.location.pathname.split('/reset-password')[0] || '/');
     }
+
+    // AlertPage My Scanners opens this scanner with ?cm_token=<JWT> for auto-login.
+    const cmHandoffToken = (urlParams.get('cm_token') || '').trim();
+    if (cmHandoffToken) {
+      urlParams.delete('cm_token');
+      const cleaned =
+        window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '') + (window.location.hash || '');
+      window.history.replaceState({}, document.title, cleaned);
+      this.loading = true;
+      this.error = '';
+      this.authMode = 'login';
+      this.completeCMSession(cmHandoffToken);
+    }
     
     // Load registration settings first to determine if invite-only
     this.loadRegistrationSettings();
