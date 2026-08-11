@@ -66,6 +66,8 @@ export interface RdioScannerCall {
         siteRef: number;
         systemId: number;
     };
+    /** Audio length in seconds from playback search; 0/missing means unknown. */
+    duration?: number;
     hasTones?: boolean;
     toneSequence?: RdioScannerToneSequence;
     transcript?: string;
@@ -345,6 +347,8 @@ export interface RdioScannerSearchOptions {
     system?: number;
     tag?: string;
     talkgroup?: number;
+    /** Multiple talkgroup refs (same system). Preferred when 2+ are selected. */
+    talkgroups?: number[];
     unit?: number;
 }
 

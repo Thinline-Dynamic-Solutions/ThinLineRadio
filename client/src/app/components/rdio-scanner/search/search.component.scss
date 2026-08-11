@@ -1122,6 +1122,17 @@ input[matInput][style*='opacity: 0'] {
         font-size: inherit;
       }
     }
+
+    .archive-duration-cell {
+      font-family: var(--tlr-font-numeric, monospace);
+      font-variant-numeric: tabular-nums;
+      justify-content: flex-end;
+      min-width: 3.5rem;
+
+      > span {
+        font-family: inherit;
+      }
+    }
   }
 
   /* Pretty up paginator chrome inside the LCD bezel. */

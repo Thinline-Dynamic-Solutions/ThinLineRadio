@@ -1055,9 +1055,18 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 		conditions := []string{
 			fmt.Sprintf(`c."systemRef" = %d`, v),
 		}
-		switch v := searchOptions.Talkgroup.(type) {
-		case uint:
-			conditions = append(conditions, fmt.Sprintf(`c."talkgroupRef" = %d`, v))
+		tgRefs := searchOptions.resolvedTalkgroupRefs()
+		switch len(tgRefs) {
+		case 0:
+			// All talkgroups on this system
+		case 1:
+			conditions = append(conditions, fmt.Sprintf(`c."talkgroupRef" = %d`, tgRefs[0]))
+		default:
+			parts := make([]string, len(tgRefs))
+			for i, id := range tgRefs {
+				parts[i] = fmt.Sprintf("%d", id)
+			}
+			conditions = append(conditions, fmt.Sprintf(`c."talkgroupRef" IN (%s)`, strings.Join(parts, ", ")))
 		}
 		if len(conditions) > 0 {
 			where = append(where, fmt.Sprintf("(%s)", strings.Join(conditions, " AND ")))
@@ -1182,7 +1191,7 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	searchResults.HasMore = false
 
 	queryLimit := limit + 1
-	baseSelect := fmt.Sprintf(`SELECT c."callId", c."timestamp", c."systemRef", c."talkgroupRef", c."frequency", c."siteRef", (SELECT cu."unitRef" FROM "callUnits" cu WHERE cu."callId" = c."callId" ORDER BY cu."offset" LIMIT 1) as "source" FROM "calls" AS c LEFT JOIN "delayed" AS d ON d."callId" = c."callId" %s ORDER BY c."timestamp" %s`, delayWhere, order)
+	baseSelect := fmt.Sprintf(`SELECT c."callId", c."timestamp", c."systemRef", c."talkgroupRef", c."frequency", c."siteRef", (SELECT cu."unitRef" FROM "callUnits" cu WHERE cu."callId" = c."callId" ORDER BY cu."offset" LIMIT 1) as "source", c."audioDuration" FROM "calls" AS c LEFT JOIN "delayed" AS d ON d."callId" = c."callId" %s ORDER BY c."timestamp" %s`, delayWhere, order)
 
 	enforcePlaybackACL := calls.controller.requiresUserAuth() && !client.BypassPlaybackSearchACL
 
@@ -1208,7 +1217,8 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 			var frequency sql.NullInt64
 			var siteRef sql.NullInt64
 			var source sql.NullInt64
-			if err = rows.Scan(&searchResult.Id, &timestamp, &searchResult.System, &searchResult.Talkgroup, &frequency, &siteRef, &source); err != nil {
+			var audioDuration sql.NullFloat64
+			if err = rows.Scan(&searchResult.Id, &timestamp, &searchResult.System, &searchResult.Talkgroup, &frequency, &siteRef, &source, &audioDuration); err != nil {
 				break
 			}
 
@@ -1226,6 +1236,9 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 			}
 			if source.Valid && source.Int64 > 0 {
 				searchResult.Source = uint(source.Int64)
+			}
+			if audioDuration.Valid && audioDuration.Float64 > 0 {
+				searchResult.Duration = audioDuration.Float64
 			}
 			totalCalls++
 
@@ -1266,7 +1279,8 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 			var frequency sql.NullInt64
 			var siteRef sql.NullInt64
 			var source sql.NullInt64
-			if err = chunkRows.Scan(&searchResult.Id, &timestamp, &searchResult.System, &searchResult.Talkgroup, &frequency, &siteRef, &source); err != nil {
+			var audioDuration sql.NullFloat64
+			if err = chunkRows.Scan(&searchResult.Id, &timestamp, &searchResult.System, &searchResult.Talkgroup, &frequency, &siteRef, &source, &audioDuration); err != nil {
 				break
 			}
 
@@ -1284,6 +1298,9 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 			}
 			if source.Valid && source.Int64 > 0 {
 				searchResult.Source = uint(source.Int64)
+			}
+			if audioDuration.Valid && audioDuration.Float64 > 0 {
+				searchResult.Duration = audioDuration.Float64
 			}
 
 			if !calls.playbackSearchRowPlayableNow(client, searchResult) {
@@ -1463,18 +1480,44 @@ func (calls *Calls) writeCall(call *Call, db *Database) (uint64, error) {
 }
 
 type CallsSearchOptions struct {
-	Date      any `json:"date,omitempty"`
-	Group     any `json:"group,omitempty"`
-	Limit     any `json:"limit,omitempty"`
-	Offset    any `json:"offset,omitempty"`
-	Sort      any `json:"sort,omitempty"`
-	System    any `json:"system,omitempty"`
-	Tag       any `json:"tag,omitempty"`
-	Talkgroup any `json:"talkgroup,omitempty"`
+	Date       any    `json:"date,omitempty"`
+	Group      any    `json:"group,omitempty"`
+	Limit      any    `json:"limit,omitempty"`
+	Offset     any    `json:"offset,omitempty"`
+	Sort       any    `json:"sort,omitempty"`
+	System     any    `json:"system,omitempty"`
+	Tag        any    `json:"tag,omitempty"`
+	Talkgroup  any    `json:"talkgroup,omitempty"`
+	Talkgroups []uint `json:"talkgroups,omitempty"`
 }
 
 func NewCallSearchOptions() *CallsSearchOptions {
 	return &CallsSearchOptions{}
+}
+
+func (searchOptions *CallsSearchOptions) resolvedTalkgroupRefs() []uint {
+	if searchOptions == nil {
+		return nil
+	}
+	if len(searchOptions.Talkgroups) > 0 {
+		seen := map[uint]bool{}
+		out := make([]uint, 0, len(searchOptions.Talkgroups))
+		for _, id := range searchOptions.Talkgroups {
+			if id == 0 || seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, id)
+		}
+		return out
+	}
+	switch v := searchOptions.Talkgroup.(type) {
+	case uint:
+		if v > 0 {
+			return []uint{v}
+		}
+	}
+	return nil
 }
 
 func (searchOptions *CallsSearchOptions) fromMap(m map[string]any) *CallsSearchOptions {
@@ -1515,9 +1558,37 @@ func (searchOptions *CallsSearchOptions) fromMap(m map[string]any) *CallsSearchO
 		searchOptions.Tag = v
 	}
 
+	parseTalkgroupList := func(items []any) []uint {
+		out := make([]uint, 0, len(items))
+		seen := map[uint]bool{}
+		for _, item := range items {
+			n, ok := item.(float64)
+			if !ok || n <= 0 {
+				continue
+			}
+			id := uint(n)
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, id)
+		}
+		return out
+	}
+
+	switch v := m["talkgroups"].(type) {
+	case []any:
+		searchOptions.Talkgroups = parseTalkgroupList(v)
+	}
+
 	switch v := m["talkgroup"].(type) {
 	case float64:
 		searchOptions.Talkgroup = uint(v)
+	case []any:
+		// Back-compat: allow talkgroup as an array too.
+		if len(searchOptions.Talkgroups) == 0 {
+			searchOptions.Talkgroups = parseTalkgroupList(v)
+		}
 	}
 
 	return searchOptions
@@ -1531,6 +1602,7 @@ type CallsSearchResult struct {
 	Frequency uint      `json:"frequency,omitempty"`
 	Source    uint      `json:"source,omitempty"`
 	Site      uint      `json:"site,omitempty"`
+	Duration  float64   `json:"duration,omitempty"`
 }
 
 type CallsSearchResults struct {

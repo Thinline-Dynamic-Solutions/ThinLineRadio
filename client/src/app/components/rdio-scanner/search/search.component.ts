@@ -47,6 +47,8 @@ import { TagColorService } from '../tag-color.service';
 interface PlaybackPrefs {
     systemLabel?: string;
     talkgroupLabel?: string;
+    /** Multi-select talkgroup labels (same system). */
+    talkgroupLabels?: string[];
     groupLabel?: string;
     tagLabel?: string;
     favoriteKey?: string;
@@ -78,6 +80,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         'tgid',
         'source',
         'name',
+        'duration',
     ];
     private readonly archiveColumnsAdmin = [
         'control',
@@ -89,6 +92,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         'tgid',
         'source',
         'name',
+        'duration',
     ];
 
     get archiveTableColumns(): string[] {
@@ -121,7 +125,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             sort: this.pendingPrefs?.sort ?? -1,
             system: [-1],
             tag: [-1],
-            talkgroup: [-1],
+            talkgroups: [[] as number[]],
             favorite: [-1],
         });
 
@@ -407,7 +411,9 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         const selectedGroup = this.getSelectedGroup();
         const selectedSystem = this.getSelectedSystem();
         const selectedTag = this.getSelectedTag();
-        const selectedTalkgroup = this.getSelectedTalkgroup();
+        const selectedTalkgroups = this.getSelectedTalkgroups();
+        const selectedTalkgroup = selectedTalkgroups.length === 1 ? selectedTalkgroups[0] : undefined;
+        const selectedTalkgroupLabels = selectedTalkgroups.map((tg) => tg.label);
 
         this.optionsSystem = this.config.systems
             .filter((system) => {
@@ -461,12 +467,17 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             })
             .sort((a, b) => a.localeCompare(b))
 
+        // Remap selected talkgroup indexes after options rebuild.
+        const remappedTalkgroups = selectedTalkgroupLabels
+            .map((label) => this.optionsTalkgroup.findIndex((tg) => tg === label))
+            .filter((idx) => idx >= 0);
+
         // Patch form values WITHOUT emitting events to prevent triggering formChangeHandler
         this.form.patchValue({
             group: selectedGroup ? this.optionsGroup.findIndex((group) => group === selectedGroup) : -1,
             system: selectedSystem ? this.optionsSystem.findIndex((system) => system === selectedSystem.label) : -1,
             tag: selectedTag ? this.optionsTag.findIndex((tag) => tag === selectedTag) : -1,
-            talkgroup: selectedTalkgroup ? this.optionsTalkgroup.findIndex((talkgroup) => talkgroup === selectedTalkgroup.label) : -1,
+            talkgroups: remappedTalkgroups,
         }, { emitEvent: false });
     }
 
@@ -571,6 +582,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         const normalizedOptions: any = {
             system: options.system,
             talkgroup: options.talkgroup,
+            talkgroups: options.talkgroups,
             date: options.date ? (options.date instanceof Date ? options.date.toISOString() : options.date) : undefined,
             limit: options.limit,
             offset: options.offset,
@@ -589,7 +601,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             sort: -1,
             system: -1,
             tag: -1,
-            talkgroup: -1,
+            talkgroups: [],
             favorite: -1,
         });
 
@@ -602,6 +614,9 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
 
     setFavorite(value: number): void {
         this.form.get('favorite')?.setValue(value, { emitEvent: false });
+        if (value >= 0) {
+            this.form.get('talkgroups')?.setValue([], { emitEvent: false });
+        }
         this.savePrefs();
         this.formChangeHandler();
     }
@@ -737,14 +752,45 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
 
     setSystem(value: number): void {
         this.form.get('system')?.setValue(value, { emitEvent: false });
+        this.form.get('talkgroups')?.setValue([], { emitEvent: false });
+        this.form.get('favorite')?.setValue(-1, { emitEvent: false });
         this.savePrefs();
         this.formChangeHandler();
     }
 
-    setTalkgroup(value: number): void {
-        this.form.get('talkgroup')?.setValue(value, { emitEvent: false });
+    clearTalkgroups(): void {
+        this.form.get('talkgroups')?.setValue([], { emitEvent: false });
+        this.form.get('favorite')?.setValue(-1, { emitEvent: false });
         this.savePrefs();
         this.formChangeHandler();
+    }
+
+    toggleTalkgroup(index: number): void {
+        if (index < 0) {
+            this.clearTalkgroups();
+            return;
+        }
+        const current: number[] = Array.isArray(this.form.value.talkgroups)
+            ? [...this.form.value.talkgroups]
+            : [];
+        const pos = current.indexOf(index);
+        if (pos >= 0) {
+            current.splice(pos, 1);
+        } else {
+            current.push(index);
+            current.sort((a, b) => a - b);
+        }
+        this.form.get('talkgroups')?.setValue(current, { emitEvent: false });
+        this.form.get('favorite')?.setValue(-1, { emitEvent: false });
+        this.savePrefs();
+        this.formChangeHandler();
+    }
+
+    isTalkgroupSelected(index: number): boolean {
+        const current: number[] = Array.isArray(this.form.value.talkgroups)
+            ? this.form.value.talkgroups
+            : [];
+        return current.includes(index);
     }
 
     setGroup(value: number): void {
@@ -766,9 +812,10 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
     }
 
     getSelectedTalkgroupLabel(): string {
-        const index = this.form.value.talkgroup;
-        if (index == null || index < 0) return 'All Talkgroups';
-        return this.optionsTalkgroup[index] || 'All Talkgroups';
+        const selected = this.getSelectedTalkgroups();
+        if (selected.length === 0) return 'All Talkgroups';
+        if (selected.length === 1) return selected[0].label;
+        return `${selected.length} talkgroups`;
     }
 
     getSelectedGroupLabel(): string {
@@ -836,11 +883,11 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             }
         }
 
-        if ((this.form.value.talkgroup ?? -1) >= 0) {
-            const talkgroup = this.getSelectedTalkgroup();
-            if (talkgroup) {
-                options.talkgroup = talkgroup.id;
-            }
+        const selectedTalkgroups = this.getSelectedTalkgroups();
+        if (selectedTalkgroups.length === 1) {
+            options.talkgroup = selectedTalkgroups[0].id;
+        } else if (selectedTalkgroups.length > 1) {
+            options.talkgroups = selectedTalkgroups.map((tg) => tg.id);
         }
 
         if ((this.form.value.favorite ?? -1) >= 0) {
@@ -848,6 +895,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             if (favorite) {
                 options.system = favorite.systemId;
                 options.talkgroup = favorite.talkgroupId;
+                delete options.talkgroups;
             }
         }
 
@@ -857,6 +905,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             system: options.system,
             tag: options.tag,
             talkgroup: options.talkgroup,
+            talkgroups: options.talkgroups,
             sort: options.sort,
         };
         const lastFilters = this.lastSearchOptions ? {
@@ -865,6 +914,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             system: this.lastSearchOptions.system,
             tag: this.lastSearchOptions.tag,
             talkgroup: this.lastSearchOptions.talkgroup,
+            talkgroups: this.lastSearchOptions.talkgroups,
             sort: this.lastSearchOptions.sort,
         } : null;
         const optionsChanged = !lastFilters || JSON.stringify(currentFilters) !== JSON.stringify(lastFilters);
@@ -892,6 +942,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         const normalizedOptions: any = {
             system: options.system,
             talkgroup: options.talkgroup,
+            talkgroups: options.talkgroups,
             date: options.date ? (options.date instanceof Date ? options.date.toISOString() : options.date) : undefined,
             limit: options.limit,
             offset: options.offset,
@@ -1066,12 +1117,43 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         return tagIndex != null && tagIndex >= 0 ? this.optionsTag[tagIndex] : undefined;
     }
 
-    private getSelectedTalkgroup(): RdioScannerTalkgroup | undefined {
+    getSelectedTalkgroups(): RdioScannerTalkgroup[] {
         const system = this.getSelectedSystem();
-        if (!system) return undefined;
-        const talkgroupIndex = this.form.value.talkgroup;
-        if (talkgroupIndex == null || talkgroupIndex < 0) return undefined;
-        return system.talkgroups.find((talkgroup) => talkgroup.label === this.optionsTalkgroup[talkgroupIndex]);
+        if (!system) return [];
+        const indexes: number[] = Array.isArray(this.form.value.talkgroups)
+            ? this.form.value.talkgroups
+            : [];
+        const out: RdioScannerTalkgroup[] = [];
+        for (const talkgroupIndex of indexes) {
+            if (talkgroupIndex == null || talkgroupIndex < 0) continue;
+            const label = this.optionsTalkgroup[talkgroupIndex];
+            if (!label) continue;
+            const talkgroup = system.talkgroups.find((tg) => tg.label === label);
+            if (talkgroup) {
+                out.push(talkgroup);
+            }
+        }
+        return out;
+    }
+
+    private getSelectedTalkgroup(): RdioScannerTalkgroup | undefined {
+        const selected = this.getSelectedTalkgroups();
+        return selected.length === 1 ? selected[0] : undefined;
+    }
+
+    /** Format playback row duration; em dash when missing/zero. */
+    formatCallDuration(seconds?: number | null): string {
+        if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) {
+            return '—';
+        }
+        const total = Math.round(seconds);
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const secs = total % 60;
+        if (hours > 0) {
+            return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        return `${minutes}:${String(secs).padStart(2, '0')}`;
     }
 
     // ── Issue #185: persistence ────────────────────────────────────────────────
@@ -1093,7 +1175,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         try {
             if (typeof localStorage === 'undefined') return;
             const system = this.getSelectedSystem();
-            const talkgroup = this.getSelectedTalkgroup();
+            const talkgroups = this.getSelectedTalkgroups();
             const group = this.getSelectedGroup();
             const tag = this.getSelectedTag();
             const favIdx = this.form.value.favorite ?? -1;
@@ -1101,7 +1183,8 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
 
             const prefs: PlaybackPrefs = {
                 systemLabel: system?.label,
-                talkgroupLabel: talkgroup?.label,
+                talkgroupLabel: talkgroups.length === 1 ? talkgroups[0].label : undefined,
+                talkgroupLabels: talkgroups.map((tg) => tg.label),
                 groupLabel: group,
                 tagLabel: tag,
                 favoriteKey: fav ? `${fav.systemId}:${fav.talkgroupId}` : undefined,
@@ -1145,11 +1228,14 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
             this.refreshFilters();
         }
 
-        if (prefs.talkgroupLabel) {
-            const idx = this.optionsTalkgroup.findIndex((label) => label === prefs.talkgroupLabel);
-            if (idx >= 0) {
-                this.form.get('talkgroup')?.setValue(idx, { emitEvent: false });
-            }
+        const savedTalkgroupLabels = (prefs.talkgroupLabels && prefs.talkgroupLabels.length > 0)
+            ? prefs.talkgroupLabels
+            : (prefs.talkgroupLabel ? [prefs.talkgroupLabel] : []);
+        if (savedTalkgroupLabels.length > 0) {
+            const indexes = savedTalkgroupLabels
+                .map((label) => this.optionsTalkgroup.findIndex((tg) => tg === label))
+                .filter((idx) => idx >= 0);
+            this.form.get('talkgroups')?.setValue(indexes, { emitEvent: false });
         }
 
         if (prefs.favoriteKey) {
@@ -1159,9 +1245,12 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
 
         // After config-dependent restoration is in place, kick a search so the
         // table populates without requiring the user to click anything.
+        const restoredTalkgroups: number[] = Array.isArray(this.form.value.talkgroups)
+            ? this.form.value.talkgroups
+            : [];
         if (
             patch['system'] !== undefined ||
-            this.form.value.talkgroup >= 0 ||
+            restoredTalkgroups.length > 0 ||
             this.form.value.favorite >= 0 ||
             this.selectedDate
         ) {
