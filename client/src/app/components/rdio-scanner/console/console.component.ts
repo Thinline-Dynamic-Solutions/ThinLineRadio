@@ -47,7 +47,7 @@ import { RdioScannerSupportComponent } from '../main/support/support.component';
 import { SettingsService } from '../settings/settings.service';
 import { TagColorService } from '../tag-color.service';
 import { TranscriptAnnotation, renderAnnotatedTranscript } from '../transcript-utils';
-import { findUnitLabelForSrc, resolveUnitLabelForSrc as resolveUnitLabel } from '../unit-utils';
+import { formatCallUnitDisplay, formatUnitDisplay, resolveUnitLabelForSrc as resolveUnitLabel } from '../unit-utils';
 
 /** Stable index per board tab. Order MUST match the template's `<mat-tab>` list. */
 const TAB = {
@@ -699,17 +699,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
     }
 
     displayUnitForCall(call: RdioScannerCall | undefined): string {
-        if (!call) return '—';
-        if (Array.isArray(call.sources) && call.sources.length) {
-            const ordered = [...call.sources].sort((a, b) => (a.pos || 0) - (b.pos || 0));
-            for (const s of ordered) {
-                if (typeof s.tag === 'string' && s.tag.length > 0) return s.tag;
-            }
-            const first = ordered[0];
-            if (typeof first?.src === 'number') return resolveUnitLabel(call.systemData?.units, first.src);
-        }
-        if (typeof call.source === 'number') return resolveUnitLabel(call.systemData?.units, call.source);
-        return '—';
+        return formatCallUnitDisplay(call);
     }
 
     /** Now-playing row prefers the live `callUnit` if it matches; otherwise falls back to the static unit. */
@@ -1243,21 +1233,12 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                 (p, v) => (v.pos || 0) <= time ? v : p,
                 {} as { pos?: number; src?: number; tag?: string },
             );
-            const firstAlias = this.call.sources
-                .find(s => typeof s.tag === 'string' && s.tag.trim().length > 0)
-                ?.tag?.trim();
 
             if (typeof source.src === 'number') {
-                if (typeof source.tag === 'string' && source.tag.trim().length > 0) {
-                    this.callUnit = source.tag.trim();
-                } else if (firstAlias) {
-                    this.callUnit = firstAlias;
-                } else {
-                    this.callUnit = findUnitLabelForSrc(this.call.systemData?.units, source.src) ?? `${source.src}`;
-                }
+                this.callUnit = formatUnitDisplay(this.call.systemData?.units, source.src, source.tag);
             }
         } else if (typeof this.call.source === 'number') {
-            this.callUnit = findUnitLabelForSrc(this.call.systemData?.units, this.call.source) ?? `${this.call.source}`;
+            this.callUnit = formatUnitDisplay(this.call.systemData?.units, this.call.source);
         }
 
         this.updateCallFlags();
@@ -1289,12 +1270,15 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                 if (typeof s.src === 'number') {
                     if (norm === String(s.src)) return true;
                     if (norm === resolveUnitLabel(call.systemData?.units, s.src)) return true;
+                    if (norm === formatUnitDisplay(call.systemData?.units, s.src, s.tag)) return true;
                 }
                 if (typeof s.tag === 'string' && s.tag.trim() === norm) return true;
             }
         }
         if (typeof call.source === 'number'
-            && (norm === String(call.source) || norm === resolveUnitLabel(call.systemData?.units, call.source))) {
+            && (norm === String(call.source)
+                || norm === resolveUnitLabel(call.systemData?.units, call.source)
+                || norm === formatUnitDisplay(call.systemData?.units, call.source))) {
             return true;
         }
         return false;
