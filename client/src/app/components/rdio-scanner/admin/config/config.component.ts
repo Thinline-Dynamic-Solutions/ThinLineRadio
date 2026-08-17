@@ -320,17 +320,15 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         this.setSection('systems');
     }
 
-    /** Toggle the systems sub-nav; open first system when available */
+    /** Open the systems list (reorder/search). Does not jump into the first system. */
     toggleSystemsSection(): void {
-        this.systemsNavExpanded = !this.systemsNavExpanded;
-        if (this.systemsList.length > 0) {
-            const stillSelected = this.activeSystemForm
-                && this.systems.controls.includes(this.activeSystemForm);
-            this.selectSystem(stillSelected ? this.activeSystemForm! : this.systemsList[0]);
-            return;
+        if (this.activeSection === 'systems') {
+            this.systemsNavExpanded = !this.systemsNavExpanded;
+        } else {
+            this.systemsNavExpanded = true;
+            this.activeSystemForm = null;
+            this.activeSection = 'systems';
         }
-        this.activeSystemForm = null;
-        this.activeSection = 'systems';
         this.ngChangeDetectorRef.markForCheck();
     }
 
@@ -346,7 +344,9 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
     addNewSystem(): void {
         const system = this.adminService.newSystemForm();
         system.markAsDirty({ onlySelf: false });
-        this.systems.insert(0, system);
+        const maxOrder = this.systemsList.reduce((max, s) => Math.max(max, Number(s.value.order) || 0), 0);
+        system.get('order')?.setValue(maxOrder + 1);
+        this.systems.push(system);
         this.form?.markAsDirty();
         this.systemsNavExpanded = true;
         this.activeSystemForm = system;

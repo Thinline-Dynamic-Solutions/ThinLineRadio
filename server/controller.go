@@ -567,6 +567,14 @@ func (controller *Controller) IngestCall(call *Call) {
 			system.Label = fmt.Sprintf("System %v", systemId)
 		}
 
+		maxOrder := uint(0)
+		for _, existing := range controller.Systems.List {
+			if existing != nil && existing.Order > maxOrder {
+				maxOrder = existing.Order
+			}
+		}
+		system.Order = maxOrder + 1
+
 		controller.Systems.List = append(controller.Systems.List, system)
 	}
 

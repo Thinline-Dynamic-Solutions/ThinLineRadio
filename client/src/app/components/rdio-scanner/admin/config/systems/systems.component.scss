@@ -23,6 +23,46 @@
     min-height: 240px;
 }
 
+.admin-section-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.admin-section-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.search-field {
+    flex: 1 1 220px;
+    max-width: 320px;
+    margin: 0 !important;
+    font-size: 13px;
+
+    ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+
+    ::ng-deep .mat-mdc-text-field-wrapper {
+        background: transparent !important;
+        padding-left: 4px;
+    }
+
+    ::ng-deep .mat-mdc-form-field-flex {
+        height: 36px;
+    }
+}
+
+.order-hint {
+    margin: 0 0 8px;
+    color: #888;
+    font-size: 12px;
+}
+
 .empty-state {
     display: flex;
     flex-direction: column;
@@ -50,10 +90,90 @@
 
     .mat-caption {
         color: #666;
-        max-width: 320px;
+        max-width: 360px;
     }
 
     button {
         margin-top: 8px;
     }
+}
+
+.table-wrapper {
+    overflow: auto;
+}
+
+.systems-table {
+    width: 100%;
+    background: transparent;
+
+    .mat-mdc-header-cell,
+    .mat-mdc-cell {
+        color: rgba(255, 255, 255, 0.82);
+    }
+
+    .mat-column-drag {
+        flex: 0 0 36px;
+        width: 36px;
+        padding-left: 4px !important;
+        padding-right: 0 !important;
+    }
+
+    .mat-column-systemRef {
+        flex: 0 0 88px;
+        width: 88px;
+    }
+
+    .mat-column-type {
+        flex: 0 0 120px;
+        width: 120px;
+    }
+
+    .mat-column-talkgroups,
+    .mat-column-sites {
+        flex: 0 0 110px;
+        width: 110px;
+    }
+
+    .mat-column-actions {
+        flex: 0 0 48px;
+        width: 48px;
+        justify-content: flex-end;
+    }
+}
+
+.system-row {
+    cursor: pointer;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+}
+
+.drag-handle {
+    color: #555;
+    cursor: grab;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+
+    &:hover { color: #888; }
+
+    &.drag-disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+}
+
+.cdk-drag-preview {
+    background: #242424;
+    border: 1px solid #444;
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.cdk-drag-placeholder { opacity: 0.2; }
+
+code {
+    font-size: 12px;
+    color: #9ad;
 }

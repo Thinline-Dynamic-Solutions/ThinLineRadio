@@ -17,21 +17,120 @@
 * ****************************************************************************
 -->
 <div class="systems-landing">
-  @if (!systems?.length) {
+  <div class="admin-section-bar">
+    <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput
+        [ngModel]="searchQuery"
+        (ngModelChange)="onSearch($event)"
+        [ngModelOptions]="{standalone: true}"
+        placeholder="Search systems"
+        autocomplete="off">
+      @if (searchQuery) {
+        <button mat-icon-button matSuffix type="button" (click)="onSearch('')" aria-label="Clear search">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </mat-form-field>
+    <div class="admin-section-actions">
+      <button type="button" mat-stroked-button
+        (click)="sortAlphabetical()"
+        [disabled]="saving || systems.length < 2"
+        matTooltip="Sort all systems A–Z by name and save">
+        <mat-icon>sort_by_alpha</mat-icon>
+        Sort A–Z
+      </button>
+      <button type="button" mat-stroked-button color="primary" (click)="addSystem.emit()">
+        <mat-icon>add</mat-icon>
+        Add System
+      </button>
+    </div>
+  </div>
+
+  @if (!systems.length) {
     <div class="empty-state">
       <mat-icon>podcasts</mat-icon>
       <p class="mat-body">No systems configured</p>
-      <p class="mat-caption">Add a system from the left panel to get started.</p>
+      <p class="mat-caption">Add a system to get started, or let auto-populate create one from incoming traffic.</p>
       <button type="button" mat-raised-button color="primary" (click)="addSystem.emit()">
         <mat-icon>add</mat-icon>
         Add First System
       </button>
     </div>
-  } @else {
+  } @else if (!filteredSystems.length) {
     <div class="empty-state">
-      <mat-icon>podcasts</mat-icon>
-      <p class="mat-body">Select a system</p>
-      <p class="mat-caption">Choose a system from the left panel to edit it.</p>
+      <mat-icon>search_off</mat-icon>
+      <p class="mat-body">No systems match “{{ searchQuery }}”</p>
+    </div>
+  } @else {
+    <p class="order-hint">
+      Drag the handle to set scanner list order. Clear search to reorder.
+      @if (saving) {
+        <span>Saving…</span>
+      }
+    </p>
+    <div class="table-wrapper">
+      <mat-table [dataSource]="filteredSystems"
+        cdkDropList
+        [cdkDropListData]="filteredSystems"
+        [cdkDropListDisabled]="!!searchQuery.trim()"
+        (cdkDropListDropped)="drop($event)"
+        class="systems-table">
+        <ng-container matColumnDef="drag">
+          <th mat-header-cell *matHeaderCellDef class="drag-col"></th>
+          <td mat-cell *matCellDef="let system" class="drag-col" (click)="$event.stopPropagation()">
+            <mat-icon cdkDragHandle class="drag-handle"
+              [class.drag-disabled]="!!searchQuery.trim()"
+              [matTooltip]="searchQuery.trim() ? 'Clear search to reorder' : 'Drag to reorder'">
+              drag_indicator
+            </mat-icon>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="label">
+          <th mat-header-cell *matHeaderCellDef>System</th>
+          <td mat-cell *matCellDef="let system">
+            <span>{{ system.value.label?.trim() || ('Sys ' + system.value.systemRef) || 'New System' }}</span>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="systemRef">
+          <th mat-header-cell *matHeaderCellDef>ID</th>
+          <td mat-cell *matCellDef="let system">
+            <code>{{ system.value.systemRef || '—' }}</code>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Type</th>
+          <td mat-cell *matCellDef="let system">
+            <span>{{ system.value.type || '—' }}</span>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="talkgroups">
+          <th mat-header-cell *matHeaderCellDef>Talkgroups</th>
+          <td mat-cell *matCellDef="let system">{{ talkgroupCount(system) }}</td>
+        </ng-container>
+        <ng-container matColumnDef="sites">
+          <th mat-header-cell *matHeaderCellDef>Sites</th>
+          <td mat-cell *matCellDef="let system">{{ siteCount(system) }}</td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
+          <td mat-cell *matCellDef="let system" class="actions-col">
+            <button type="button" mat-icon-button
+              matTooltip="Edit system"
+              (click)="selectSystem.emit(system); $event.stopPropagation()">
+              <mat-icon>edit</mat-icon>
+            </button>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+          class="system-row"
+          cdkDrag
+          [cdkDragDisabled]="!!searchQuery.trim()"
+          [cdkDragData]="row"
+          (click)="selectSystem.emit(row)">
+        </tr>
+      </mat-table>
     </div>
   }
 </div>
