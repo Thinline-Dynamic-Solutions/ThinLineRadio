@@ -105,8 +105,12 @@ export class RdioScannerAdminSystemsComponent {
     }
 
     private async persistOrder(ordered: FormGroup[]): Promise<void> {
+        const previousOrders = ordered.map((system) => ({
+            system,
+            order: system.get('order')?.value,
+        }));
+
         ordered.forEach((system, idx) => system.get('order')?.setValue(idx + 1, { emitEvent: false }));
-        this.form?.markAsDirty();
 
         const orders = ordered
             .map((system, idx) => ({ id: Number(system.get('id')?.value), order: idx + 1 }))
@@ -122,7 +126,9 @@ export class RdioScannerAdminSystemsComponent {
         this.saving = false;
 
         if (saved) {
-            this.form?.markAsPristine();
+            // Order-only save: do not markAsPristine. Admin config rebuilds from
+            // EmitConfig when the form is pristine, which would wipe unsaved
+            // system field edits after a reorder.
             if (this.rawSystems) {
                 for (const item of orders) {
                     const raw = this.rawSystems.find((s) => s.id === item.id);
@@ -133,6 +139,9 @@ export class RdioScannerAdminSystemsComponent {
             }
             this.snackBar.open('System order saved', 'Close', { duration: 1500 });
         } else {
+            for (const item of previousOrders) {
+                item.system.get('order')?.setValue(item.order, { emitEvent: false });
+            }
             this.snackBar.open('Failed to save system order. Please try again.', 'Close', { duration: 4000 });
         }
         this.cdr.markForCheck();
