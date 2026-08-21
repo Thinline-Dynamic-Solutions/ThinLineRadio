@@ -66,71 +66,29 @@
           </div>
         </mat-menu>
 
-        <button type="button" class="compact-button" [matMenuTriggerFor]="systemMenu"
+        <button type="button" class="compact-button" (click)="openSystemPicker()"
           [matTooltip]="getSelectedSystemLabel()">
           <mat-icon>router</mat-icon>
           <span>{{ getSelectedSystemLabel() }}</span>
         </button>
-        <mat-menu #systemMenu="matMenu" class="tlr-lcd-menu">
-          <button mat-menu-item (click)="setSystem(-1)">
-            <span>All Systems</span>
-          </button>
-          @for (system of optionsSystem; track system; let i = $index) {
-            <button mat-menu-item (click)="setSystem(i)">
-              <span>{{ system }}</span>
-            </button>
-          }
-        </mat-menu>
 
-        <button type="button" class="compact-button" [matMenuTriggerFor]="talkgroupMenu" [disabled]="form.value.system < 0"
+        <button type="button" class="compact-button" (click)="openTalkgroupPicker()" [disabled]="form.value.system < 0"
           [matTooltip]="getSelectedTalkgroupLabel()">
           <mat-icon>group</mat-icon>
           <span>{{ getSelectedTalkgroupLabel() }}</span>
         </button>
-        <mat-menu #talkgroupMenu="matMenu" class="tlr-lcd-menu talkgroup-multi-menu">
-          <button type="button" mat-menu-item (click)="$event.stopPropagation(); clearTalkgroups()">
-            <mat-checkbox [checked]="getSelectedTalkgroups().length === 0" [disableRipple]="true"></mat-checkbox>
-            <span>All Talkgroups</span>
-          </button>
-          @for (talkgroup of optionsTalkgroup; track talkgroup; let i = $index) {
-            <button type="button" mat-menu-item (click)="$event.stopPropagation(); toggleTalkgroup(i)">
-              <mat-checkbox [checked]="isTalkgroupSelected(i)" [disableRipple]="true"></mat-checkbox>
-              <span>{{ talkgroup }}</span>
-            </button>
-          }
-        </mat-menu>
 
-        <button type="button" class="compact-button" [matMenuTriggerFor]="groupMenu"
+        <button type="button" class="compact-button" (click)="openGroupPicker()"
           [matTooltip]="getSelectedGroupLabel()">
           <mat-icon>category</mat-icon>
           <span>{{ getSelectedGroupLabel() }}</span>
         </button>
-        <mat-menu #groupMenu="matMenu" class="tlr-lcd-menu">
-          <button mat-menu-item (click)="setGroup(-1)">
-            <span>All Groups</span>
-          </button>
-          @for (group of optionsGroup; track group; let i = $index) {
-            <button mat-menu-item (click)="setGroup(i)">
-              <span>{{ group }}</span>
-            </button>
-          }
-        </mat-menu>
 
-        <button type="button" class="compact-button" [matMenuTriggerFor]="tagMenu"
+        <button type="button" class="compact-button" (click)="openTagPicker()"
           [matTooltip]="getSelectedTagLabel()">
           <mat-icon>local_offer</mat-icon>
           <span>{{ getSelectedTagLabel() }}</span>
         </button>
-        <mat-menu #tagMenu="matMenu" class="tlr-lcd-menu">
-          <button mat-menu-item (click)="setTag(-1)">
-            <span>All Tags</span>
-          </button>
-          @for (tag of optionsTag; track tag; let i = $index) {
-            <button mat-menu-item (click)="setTag(i)">
-              <span>{{ tag }}</span>
-            </button>
-          }
-        </mat-menu>
 
         <button type="button" class="compact-button" [matMenuTriggerFor]="favoriteMenu"
           [matTooltip]="getSelectedFavoriteLabel()">

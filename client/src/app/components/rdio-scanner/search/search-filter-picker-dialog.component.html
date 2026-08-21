@@ -1,0 +1,57 @@
+<h2 mat-dialog-title>{{ title }}</h2>
+
+<mat-dialog-content>
+  <div class="picker-toolbar">
+    <mat-form-field appearance="outline" class="picker-search" subscriptSizing="dynamic">
+      <mat-label>Filter list</mat-label>
+      <input matInput [(ngModel)]="query" placeholder="Type to filter…" autocomplete="off">
+      <mat-icon matPrefix>search</mat-icon>
+      @if (query) {
+        <button mat-icon-button matSuffix type="button" (click)="query = ''" aria-label="Clear filter">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </mat-form-field>
+    @if (mode === 'multi') {
+      <div class="picker-summary">{{ selectedCountLabel }}</div>
+    }
+  </div>
+
+  <div class="picker-list" role="listbox" [attr.aria-multiselectable]="mode === 'multi'">
+    <button type="button" class="picker-row" [class.picker-row--active]="isAllSelected"
+      (click)="selectAll()">
+      @if (mode === 'multi') {
+        <mat-checkbox [checked]="isAllSelected" [disableRipple]="true"
+          (click)="$event.preventDefault()"></mat-checkbox>
+      } @else {
+        <mat-icon class="picker-radio">{{ isAllSelected ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+      }
+      <span class="picker-label">{{ allLabel }}</span>
+    </button>
+
+    @for (item of filteredItems; track item.index) {
+      <button type="button" class="picker-row"
+        [class.picker-row--active]="isSelected(item.index)"
+        (click)="mode === 'multi' ? toggleMulti(item.index) : pickSingle(item.index)">
+        @if (mode === 'multi') {
+          <mat-checkbox [checked]="isSelected(item.index)" [disableRipple]="true"
+            (click)="$event.preventDefault()"></mat-checkbox>
+        } @else {
+          <mat-icon class="picker-radio">{{ isSelected(item.index) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+        }
+        <span class="picker-label">{{ item.label }}</span>
+      </button>
+    }
+
+    @if (filteredItems.length === 0) {
+      <div class="picker-empty">No matches for “{{ query }}”</div>
+    }
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Cancel</button>
+  @if (mode === 'multi') {
+    <button mat-flat-button color="primary" type="button" (click)="apply()">Apply</button>
+  }
+</mat-dialog-actions>

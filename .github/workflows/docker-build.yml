@@ -23,8 +23,8 @@ env:
   # Change these to your Docker Hub username and image name
   DOCKER_USERNAME: thinlinedynamicsolutions
   IMAGE_NAME: thinline-radio
-  # Angular CLI requires Node >=20.19 or >=22.12
-  NODE_VERSION: '22.12'
+  # Angular CLI 22 requires Node >=22.22.3
+  NODE_VERSION: '22.23'
 
 jobs:
   build:

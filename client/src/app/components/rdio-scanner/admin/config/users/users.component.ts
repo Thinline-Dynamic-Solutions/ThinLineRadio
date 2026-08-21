@@ -61,6 +61,8 @@ export interface User {
     userGroupId?: number;
     /** All groups this user belongs to (access is the union); always contains userGroupId. */
     userGroupIds?: number[];
+    /** Primary group display name from GET /api/admin/users (avoids waiting on /groups). */
+    userGroupName?: string;
     isGroupAdmin?: boolean;
     systemAdmin?: boolean;
     pushSystemNoAudioAlerts?: boolean;
@@ -1171,11 +1173,21 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         return `${limit} concurrent connection${limit === 1 ? '' : 's'}`;
     }
 
-    getGroupName(userGroupId?: number): string | null {
-        if (!userGroupId || userGroupId === 0) {
+    getGroupName(userOrGroupId?: User | number): string | null {
+        if (userOrGroupId == null) {
             return null;
         }
-        const group = this.availableGroups.find(g => g.id === userGroupId);
+        if (typeof userOrGroupId === 'object') {
+            const fromApi = (userOrGroupId.userGroupName || '').trim();
+            if (fromApi) {
+                return fromApi;
+            }
+            return this.getGroupName(userOrGroupId.userGroupId);
+        }
+        if (!userOrGroupId || userOrGroupId === 0) {
+            return null;
+        }
+        const group = this.availableGroups.find(g => g.id === userOrGroupId);
         return group ? group.name : null;
     }
 
@@ -1340,7 +1352,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             if (searchLower) {
                 const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
                 const email = (user.email || '').toLowerCase();
-                const groupName = this.getGroupName(user.userGroupId)?.toLowerCase() || '';
+                const groupName = this.getGroupName(user)?.toLowerCase() || '';
                 if (!fullName.includes(searchLower)
                     && !email.includes(searchLower)
                     && !groupName.includes(searchLower)) {

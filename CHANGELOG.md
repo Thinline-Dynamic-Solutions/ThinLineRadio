@@ -4,6 +4,48 @@
 
 ---
 
+## Version 26.08.9 - Released August 21, 2026
+
+### Added
+
+- **Admin — live listeners roster (#270)**
+  - Operations → **Listeners** shows live WebSocket sessions grouped by user (anonymous bucket included), with multi-device counts and ~5s refresh.
+  - Users table shows a **Listening** chip when an account is online.
+
+- **Admin — Systems list and reorder (#282)**
+  - **Systems** opens a searchable list instead of jumping into the first system.
+  - Drag-and-drop and Sort A–Z persist via `PUT /api/admin/systems/order`; order-only saves no longer clear unsaved system field edits.
+
+- **Playback — multi-talkgroup filters and duration (#275)**
+  - Archive search can multi-select talkgroups on one system; results include a **Duration** column.
+  - System / talkgroup / group / tag pickers use a scrollable LCD dialog with filter (replacing viewport-clipped menus).
+
+- **Playback — unit alias display (#280)**
+  - Now-playing, recent, and archive show units as `alias | radio ID` (or ID alone) and keep live unit updates in sync across multi-source calls.
+
+### Changed
+
+- **Admin Users — status chips and group column (#269)**
+  - PIN column removed from the table; PIN / account expiry and other states show as status chips.
+  - Group column sits closer to User so Status has room; group name comes from `GET /api/admin/users` as `userGroupName` (no wait on a second `/groups` call); redundant Group **Admin** badge removed.
+
+- **Ingest — per-system Auto Populate (#277)**
+  - Talkgroups auto-create only when that system’s Auto Populate is on; global Auto Populate still creates unknown systems only.
+
+### Fixed
+
+- **Docker / CI — Node pin for Angular 22**
+  - Client build stage and workflow now use Node **22.23** (Angular CLI requires ≥22.22.3); `node:22.12` was failing `npm run build` with exit code 3.
+
+- **Duplicate detection — arrival-time cache (#278)**
+  - Keeps arrival-time-only dedup (no PCM hash / radio timestamp restore).
+  - Cache no longer slides its 1s window on hits; similar audio duration is required so busy talkgroups are not sticky-blocked.
+
+- **Alert preferences — tone alerts stuck on “Admin must enable” (#272)**
+  - With bulk tone detection off, leftover bulk tag IDs no longer force-clear per-talkgroup `toneDetectionEnabled` on every system save.
+
+---
+
 ## Version 26.08.8 - Released August 6, 2026
 
 ### Fixed

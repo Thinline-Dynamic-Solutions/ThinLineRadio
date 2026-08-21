@@ -5,8 +5,8 @@
 # =============================================================================
 # Stage 1: Build Angular Client
 # =============================================================================
-# Angular CLI requires Node >=20.19 or >=22.12; pin so Docker builds stay compatible.
-ARG NODE_VERSION=22.12
+# Angular CLI 22 requires Node >=22.22.3 (or >=24.15 / >=26); pin so Docker builds stay compatible.
+ARG NODE_VERSION=22.23
 FROM node:${NODE_VERSION}-alpine AS client-builder
 
 WORKDIR /build

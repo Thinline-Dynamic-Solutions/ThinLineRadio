@@ -189,16 +189,12 @@
         <ng-container matColumnDef="group">
           <th mat-header-cell *matHeaderCellDef>Group</th>
           <td mat-cell *matCellDef="let user">
-            @if (getGroupName(user.userGroupId)) {
+            @if (getGroupName(user); as groupName) {
               <div class="group-tag">
                 <mat-icon class="group-icon">group</mat-icon>
-                <span>{{ getGroupName(user.userGroupId) }}</span>
-                @if (user.isGroupAdmin) {
-                  <span class="badge badge-admin">Admin</span>
-                }
+                <span>{{ groupName }}</span>
               </div>
-            }
-            @if (!getGroupName(user.userGroupId)) {
+            } @else {
               <span class="muted">—</span>
             }
           </td>

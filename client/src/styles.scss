@@ -1017,6 +1017,39 @@ $admin-dark-theme: mat.m2-define-dark-theme((
   background: transparent;
 }
 
+/* Archive search filter picker — white checkbox borders + filter field text */
+.tlr-lcd-dialog rdio-scanner-search-filter-picker-dialog {
+  .picker-search {
+    .mdc-notched-outline__leading,
+    .mdc-notched-outline__notch,
+    .mdc-notched-outline__trailing {
+      border-color: #ffffff !important;
+    }
+
+    input,
+    .mat-mdc-form-field-label,
+    .mdc-floating-label,
+    mat-icon {
+      color: #ffffff !important;
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.7) !important;
+      opacity: 1;
+    }
+  }
+
+  .mdc-checkbox__background {
+    border-color: #ffffff !important;
+    border-width: 2px;
+  }
+
+  .mat-mdc-checkbox-checked .mdc-checkbox__background,
+  .mdc-checkbox--selected .mdc-checkbox__background {
+    border-color: var(--tlr-primary, #39ff14) !important;
+  }
+}
+
 .tlr-lcd-dialog .tlr-dialog-btn.mat-mdc-button {
   font-family: var(--tlr-font-primary) !important;
   font-size: 12px !important;

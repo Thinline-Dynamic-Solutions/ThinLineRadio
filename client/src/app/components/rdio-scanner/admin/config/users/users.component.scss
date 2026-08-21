@@ -249,21 +249,28 @@
         }
 
         .mat-column-user {
-            flex: 3 1 0%;
-            min-width: 0;
+            // Keep name/email compact so Group sits nearby and Status gets room for chips.
+            flex: 1.35 1 0%;
+            min-width: 140px;
+            max-width: 260px;
             width: auto;
+            padding-right: 8px !important;
         }
 
         .mat-column-group {
-            flex: 2 1 0%;
-            min-width: 0;
+            flex: 1.1 1 0%;
+            min-width: 120px;
+            max-width: 220px;
             width: auto;
+            padding-left: 4px !important;
+            padding-right: 8px !important;
         }
 
         .mat-column-status {
-            flex: 2 1 0%;
-            min-width: 0;
+            flex: 3.4 1 0%;
+            min-width: 180px;
             width: auto;
+            padding-left: 4px !important;
         }
 
         .mat-column-pin {
@@ -471,10 +478,11 @@
     // Status chips
     .status-chips {
         display: flex;
-        flex-wrap: nowrap;
-        gap: 4px;
-        overflow: hidden;
+        flex-wrap: wrap;
+        gap: 4px 6px;
+        overflow: visible;
         max-width: 100%;
+        align-items: center;
     }
 
     .chip {

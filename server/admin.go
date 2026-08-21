@@ -6305,10 +6305,14 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Get effective connection limit (group limit if user is in a group, otherwise user limit)
 		effectiveConnectionLimit := user.ConnectionLimit
+		userGroupName := ""
 		if user.UserGroupId > 0 {
 			group := admin.Controller.UserGroups.Get(user.UserGroupId)
-			if group != nil && group.ConnectionLimit > 0 {
-				effectiveConnectionLimit = group.ConnectionLimit
+			if group != nil {
+				userGroupName = group.Name
+				if group.ConnectionLimit > 0 {
+					effectiveConnectionLimit = group.ConnectionLimit
+				}
 			}
 		}
 
@@ -6352,6 +6356,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"effectiveConnectionLimit": effectiveConnectionLimit,
 			"userGroupId":              user.UserGroupId,
 			"userGroupIds":             user.GroupIds(),
+			"userGroupName":            userGroupName,
 			"isGroupAdmin":             user.IsGroupAdmin,
 			"systemAdmin":              user.SystemAdmin,
 			"pushSystemNoAudioAlerts": user.PushSystemNoAudioAlerts,

@@ -6,9 +6,14 @@ import (
 	"encoding/json"
 )
 
-// applyBulkToneDetection enables or disables tone detection on talkgroups matching
-// the system's bulk rollout tag selection. Called before talkgroups are persisted.
-// Production tone matching stays on until bulk rollout is turned off manually.
+// applyBulkToneDetection enables tone detection on talkgroups matching the
+// system's bulk rollout tag selection when bulk mode is on. Called before
+// talkgroups are persisted.
+//
+// When bulk rollout is off, per-talkgroup toneDetectionEnabled is left alone.
+// Previously, leftover BulkToneDetectionTagIds with bulk off force-cleared
+// those flags on every system save (issue #272), so admin toggles never stuck
+// and clients kept showing "Admin must enable".
 func (system *System) applyBulkToneDetection() {
 	if system == nil || system.Talkgroups == nil {
 		return
@@ -22,19 +27,13 @@ func (system *System) applyBulkToneDetection() {
 	system.BulkToneDetectionAutoOffDays = 0
 	system.BulkToneDetectionExpiresAt = 0
 
-	if system.BulkToneDetectionEnabled {
-		for _, tg := range system.Talkgroups.List {
-			if tagSet[tg.TagId] {
-				tg.ToneDetectionEnabled = true
-			}
-		}
+	if !system.BulkToneDetectionEnabled {
 		return
 	}
 
-	// Bulk rollout off — disable tone detection on talkgroups in the configured tags only.
 	for _, tg := range system.Talkgroups.List {
 		if tagSet[tg.TagId] {
-			tg.ToneDetectionEnabled = false
+			tg.ToneDetectionEnabled = true
 		}
 	}
 }

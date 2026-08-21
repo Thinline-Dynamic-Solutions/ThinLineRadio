@@ -20,6 +20,7 @@
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { MatDatepicker } from '@angular/material/datepicker';
+import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject } from 'rxjs';
 import { formatCallUnitDisplay } from '../unit-utils';
 import {
@@ -35,6 +36,10 @@ import {
 import { RdioScannerService } from '../rdio-scanner.service';
 import { FavoritesService } from '../favorites.service';
 import { TagColorService } from '../tag-color.service';
+import {
+    SearchFilterPickerDialogComponent,
+    SearchFilterPickerItem,
+} from './search-filter-picker-dialog.component';
 
 /**
  * Cross-session persistence for Archive (Playback) filters and pagination.
@@ -116,6 +121,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         private ngFormBuilder: FormBuilder,
         private favoritesService: FavoritesService,
         private tagColorService: TagColorService,
+        private dialog: MatDialog,
     ) {
         this.pendingPrefs = this.loadPrefs();
 
@@ -756,6 +762,121 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         this.form.get('favorite')?.setValue(-1, { emitEvent: false });
         this.savePrefs();
         this.formChangeHandler();
+    }
+
+    openSystemPicker(): void {
+        const items: SearchFilterPickerItem[] = this.optionsSystem.map((label, index) => ({ index, label }));
+        const current = typeof this.form.value.system === 'number' ? this.form.value.system : -1;
+        const ref = this.dialog.open(SearchFilterPickerDialogComponent, {
+            width: 'min(520px, 94vw)',
+            maxWidth: '94vw',
+            maxHeight: '90vh',
+            autoFocus: 'first-heading',
+            panelClass: 'tlr-lcd-dialog',
+            backdropClass: 'tlr-lcd-dialog-backdrop',
+            data: {
+                title: 'Select system',
+                mode: 'single',
+                items,
+                selectedIndexes: [current],
+                allLabel: 'All Systems',
+                allIndex: -1,
+            },
+        });
+        ref.afterClosed().subscribe((result) => {
+            if (!result?.selectedIndexes?.length) {
+                return;
+            }
+            this.setSystem(result.selectedIndexes[0]);
+        });
+    }
+
+    openTalkgroupPicker(): void {
+        if (this.form.value.system < 0) {
+            return;
+        }
+        const items: SearchFilterPickerItem[] = this.optionsTalkgroup.map((label, index) => ({ index, label }));
+        const selected: number[] = Array.isArray(this.form.value.talkgroups)
+            ? [...this.form.value.talkgroups]
+            : [];
+        const ref = this.dialog.open(SearchFilterPickerDialogComponent, {
+            width: 'min(520px, 94vw)',
+            maxWidth: '94vw',
+            maxHeight: '90vh',
+            autoFocus: 'first-heading',
+            panelClass: 'tlr-lcd-dialog',
+            backdropClass: 'tlr-lcd-dialog-backdrop',
+            data: {
+                title: 'Select talkgroups',
+                mode: 'multi',
+                items,
+                selectedIndexes: selected,
+                allLabel: 'All Talkgroups',
+            },
+        });
+        ref.afterClosed().subscribe((result) => {
+            if (!result) {
+                return;
+            }
+            this.form.get('talkgroups')?.setValue(result.selectedIndexes || [], { emitEvent: false });
+            this.form.get('favorite')?.setValue(-1, { emitEvent: false });
+            this.savePrefs();
+            this.formChangeHandler();
+        });
+    }
+
+    openGroupPicker(): void {
+        const items: SearchFilterPickerItem[] = this.optionsGroup.map((label, index) => ({ index, label }));
+        const current = typeof this.form.value.group === 'number' ? this.form.value.group : -1;
+        const ref = this.dialog.open(SearchFilterPickerDialogComponent, {
+            width: 'min(520px, 94vw)',
+            maxWidth: '94vw',
+            maxHeight: '90vh',
+            autoFocus: 'first-heading',
+            panelClass: 'tlr-lcd-dialog',
+            backdropClass: 'tlr-lcd-dialog-backdrop',
+            data: {
+                title: 'Select group',
+                mode: 'single',
+                items,
+                selectedIndexes: [current],
+                allLabel: 'All Groups',
+                allIndex: -1,
+            },
+        });
+        ref.afterClosed().subscribe((result) => {
+            if (!result?.selectedIndexes?.length) {
+                return;
+            }
+            this.setGroup(result.selectedIndexes[0]);
+        });
+    }
+
+    openTagPicker(): void {
+        const items: SearchFilterPickerItem[] = this.optionsTag.map((label, index) => ({ index, label }));
+        const current = typeof this.form.value.tag === 'number' ? this.form.value.tag : -1;
+        const ref = this.dialog.open(SearchFilterPickerDialogComponent, {
+            width: 'min(520px, 94vw)',
+            maxWidth: '94vw',
+            maxHeight: '90vh',
+            autoFocus: 'first-heading',
+            panelClass: 'tlr-lcd-dialog',
+            backdropClass: 'tlr-lcd-dialog-backdrop',
+            data: {
+                title: 'Select tag',
+                mode: 'single',
+                items,
+                selectedIndexes: [current],
+                allLabel: 'All Tags',
+                allIndex: -1,
+            },
+        });
+        ref.afterClosed().subscribe((result) => {
+            if (!result?.selectedIndexes?.length) {
+                return;
+            }
+            this.setTag(result.selectedIndexes[0]);
+        });
     }
 
     clearTalkgroups(): void {

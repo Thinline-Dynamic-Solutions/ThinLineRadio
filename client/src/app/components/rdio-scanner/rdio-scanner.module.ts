@@ -30,6 +30,7 @@ import { IncidentMapBridgeService } from './incident-map/incident-map-bridge.ser
 import { RdioScannerSupportComponent } from './main/support/support.component';
 import { RdioScannerNativeModule } from './native/native.module';
 import { RdioScannerSearchComponent } from './search/search.component';
+import { SearchFilterPickerDialogComponent } from './search/search-filter-picker-dialog.component';
 import { RdioScannerSelectComponent } from './select/select.component';
 import { SystemsVisibilityDialogComponent } from './select/systems-visibility-dialog.component';
 import { ScanListEditDialogComponent } from './select/scan-list-edit-dialog.component';
@@ -70,6 +71,7 @@ import { WeatherAlertTtsService } from './weather/weather-alert-tts.service';
         RdioScannerIncidentMapComponent,
         RdioScannerIncidentMapSidebarComponent,
         RdioScannerSearchComponent,
+        SearchFilterPickerDialogComponent,
         RdioScannerSelectComponent,
         SystemsVisibilityDialogComponent,
         ScanListEditDialogComponent,
