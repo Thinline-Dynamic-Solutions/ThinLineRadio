@@ -24,9 +24,8 @@ import (
 // DedupEntry caches metadata for a recently seen call to catch simultaneous
 // duplicate arrivals before either has been written to the DB.
 type DedupEntry struct {
-	Duration      float64   // Audio duration in seconds (for ratio guard)
-	CallTimestamp int64     // P25 call timestamp in milliseconds
-	SeenAt        time.Time
+	Duration float64   // Audio duration in seconds (for similarity guard)
+	SeenAt   time.Time // First arrival time for this system+talkgroup key
 }
 
 // DedupCache is a mutex-protected in-memory cache that closes the race window
@@ -34,9 +33,7 @@ type DedupEntry struct {
 // before either has been written.
 //
 // Key prefixes:
-//   "ep:systemId:talkgroupId" — energy profile entry
-//   "ah:systemId:talkgroupId:hash" — PCM content hash entry
-//   "ts:systemId:talkgroupId" — timestamp fallback entry
+//   "ra:systemId:talkgroupId" — server arrival-time duplicate entry
 //
 // A background goroutine evicts stale entries every 30 seconds.
 type DedupCache struct {
@@ -60,25 +57,23 @@ func NewDedupCache(timeframeMs uint) *DedupCache {
 	return dc
 }
 
-
-// CheckAndMarkReceivedAt checks whether a call for the given system+talkgroup
-// was already seen within receivedAtDuplicateWindow (1 second) of now.
-// Returns true (duplicate) if so. Always records the current arrival time so
-// back-to-back simultaneous uploads are caught before either hits the database.
-func (dc *DedupCache) CheckAndMarkReceivedAt(systemId, talkgroupId uint64) bool {
+// CheckAndMarkReceivedAt returns true when a call for the given system+talkgroup
+// was already seen within receivedAtDuplicateWindow and the durations match.
+// SeenAt is not refreshed on a hit so a busy talkgroup cannot slide the window
+// forever and drop consecutive real traffic.
+func (dc *DedupCache) CheckAndMarkReceivedAt(systemId, talkgroupId uint64, duration float64) bool {
 	key := fmt.Sprintf("ra:%d:%d", systemId, talkgroupId)
 	now := time.Now()
 	dc.mutex.Lock()
 	defer dc.mutex.Unlock()
 
 	if entry, ok := dc.entries[key]; ok {
-		if now.Sub(entry.SeenAt) <= receivedAtDuplicateWindow {
-			// Update SeenAt so we keep blocking additional arrivals within the window.
-			entry.SeenAt = now
+		if now.Sub(entry.SeenAt) <= receivedAtDuplicateWindow &&
+			audioDurationsSimilarForReceivedAtDup(duration, entry.Duration) {
 			return true
 		}
 	}
-	dc.entries[key] = &DedupEntry{SeenAt: now}
+	dc.entries[key] = &DedupEntry{SeenAt: now, Duration: duration}
 	return false
 }
 

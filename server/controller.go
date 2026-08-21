@@ -847,8 +847,11 @@ func (controller *Controller) IngestCall(call *Call) {
 
 		// Pass 1: in-memory cache — catches simultaneous arrivals before either
 		// has been written to the database (closes the race window).
-		if !call.IsDuplicate && controller.DedupCache != nil {
-			if controller.DedupCache.CheckAndMarkReceivedAt(call.System.Id, call.Talkgroup.Id) {
+		if !call.IsDuplicate && controller.DedupCache != nil && call.System != nil && call.Talkgroup != nil {
+			if _, err := controller.getCallDuration(call); err != nil {
+				controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("duplicate check: duration: %v", err))
+			}
+			if controller.DedupCache.CheckAndMarkReceivedAt(call.System.Id, call.Talkgroup.Id, call.Duration) {
 				logCall(call, LogLevelWarn, "duplicate (receivedAt cache)")
 				call.IsDuplicate = true
 			}

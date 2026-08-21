@@ -560,7 +560,11 @@ func (calls *Calls) CheckDuplicateByReceivedAt(call *Call, db *Database) (bool, 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	windowStart := time.Now().Add(-receivedAtDuplicateWindow)
+	arrivedAt := time.Now()
+	if !call.ReceivedAt.IsZero() {
+		arrivedAt = call.ReceivedAt
+	}
+	windowStart := arrivedAt.Add(-receivedAtDuplicateWindow)
 
 	// Look for the most recent call on this system+talkgroup that arrived within
 	// the window. The duration guard prevents false positives from genuinely
@@ -571,7 +575,12 @@ func (calls *Calls) CheckDuplicateByReceivedAt(call *Call, db *Database) (bool, 
 	)
 
 	var priorDur sql.NullFloat64
-	_ = db.Sql.QueryRowContext(ctx, query, windowStart).Scan(&priorDur)
+	if err := db.Sql.QueryRowContext(ctx, query, windowStart).Scan(&priorDur); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
 
 	if !priorDur.Valid {
 		return false, nil
