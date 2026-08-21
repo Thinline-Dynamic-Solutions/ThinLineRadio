@@ -267,7 +267,9 @@
             @case ('systems') {
               <rdio-scanner-admin-systems
                 [form]="systems"
-                (addSystem)="addNewSystem()">
+                [rawSystems]="originalConfig.systems"
+                (addSystem)="addNewSystem()"
+                (selectSystem)="selectSystem($event)">
               </rdio-scanner-admin-systems>
             }
             <!-- Individual system detail view -->
