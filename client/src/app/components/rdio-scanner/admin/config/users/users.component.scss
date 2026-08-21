@@ -523,6 +523,13 @@
             border: 1px solid #333;
         }
 
+        &.chip-listening {
+            background: rgba(59, 130, 246, 0.16);
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            font-weight: 600;
+        }
+
         &.chip-pin-expired {
             background: rgba(244, 67, 54, 0.18);
             color: #f44336;

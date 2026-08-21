@@ -144,6 +144,13 @@
     </button>
 
     <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'listeners'"
+      (click)="setSection('listeners')">
+      <mat-icon>headset</mat-icon>
+      <span>Listeners</span>
+    </button>
+
+    <button type="button" class="sidebar-item"
       [class.active]="activeSection === 'system-health'"
       (click)="setSection('system-health')">
       <mat-icon>health_and_safety</mat-icon>
@@ -180,6 +187,8 @@
 
     @if (activeSection === 'logs') {
       <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
+    } @else if (activeSection === 'listeners') {
+      <rdio-scanner-admin-listeners></rdio-scanner-admin-listeners>
     } @else if (activeSection === 'system-health') {
       <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
     } @else if (activeSection === 'tools') {

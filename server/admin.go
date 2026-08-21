@@ -224,6 +224,33 @@ func (admin *Admin) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (admin *Admin) ListenersHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		t := admin.GetAuthorization(r)
+		if !admin.ValidateToken(t) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		snapshot := ListenersSnapshot{}
+		if admin.Controller != nil && admin.Controller.Clients != nil {
+			snapshot = admin.Controller.Clients.SnapshotListeners()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(snapshot); err != nil {
+			w.WriteHeader(http.StatusExpectationFailed)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "failed to marshal listeners snapshot",
+			})
+		}
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (admin *Admin) SystemHealthHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:

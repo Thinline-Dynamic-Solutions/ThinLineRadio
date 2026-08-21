@@ -116,6 +116,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     paginatedUsers: User[] = [];
     pageSize = 25;
     pageIndex = 0;
+
+    /** userId -> live device count from /api/admin/listeners */
+    listeningDeviceCounts = new Map<number, number>();
+    private listenersPollTimer: ReturnType<typeof setInterval> | null = null;
     
     // Editing functionality
     editingUser: User | null = null;
@@ -234,6 +238,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         this.loadGroups();
         this.loadSystems();
         this.loadApikeys();
+        void this.refreshListeningCounts();
+        this.listenersPollTimer = setInterval(() => {
+            void this.refreshListeningCounts();
+        }, 10000);
     }
 
     ngOnChanges(changes: SimpleChanges): void {
@@ -631,7 +639,34 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     }
 
     ngOnDestroy(): void {
-        // Cleanup if needed
+        if (this.listenersPollTimer) {
+            clearInterval(this.listenersPollTimer);
+            this.listenersPollTimer = null;
+        }
+    }
+
+    private async refreshListeningCounts(): Promise<void> {
+        try {
+            const snapshot = await this.adminService.getListeners();
+            const next = new Map<number, number>();
+            for (const listener of snapshot?.listeners || []) {
+                if (listener.anonymous || !listener.userId) {
+                    continue;
+                }
+                next.set(listener.userId, listener.deviceCount || listener.devices?.length || 0);
+            }
+            this.listeningDeviceCounts = next;
+            this.cdr.detectChanges();
+        } catch {
+            // Non-fatal: Users table still works without live listening chips.
+        }
+    }
+
+    listeningDeviceCount(user: User): number {
+        if (!user?.id) {
+            return 0;
+        }
+        return this.listeningDeviceCounts.get(user.id) || 0;
     }
 
     async loadUsers(forceReload: boolean = false): Promise<void> {

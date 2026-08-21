@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -49,6 +50,8 @@ type Client struct {
 	SystemsMap  SystemsMap
 	request     *http.Request
 	FCMToken    string // Set via the "FCM" WS command; links this session to a push token.
+	// ConnectedAt is set when the client is registered in Clients.Map.
+	ConnectedAt time.Time
 
 	// DownloadTimestamps tracks when each audio download was requested by this
 	// client, used for sliding-window rate limiting.
@@ -469,6 +472,9 @@ func (clients *Clients) Add(client *Client) {
 	clients.mutex.Lock()
 	defer clients.mutex.Unlock()
 
+	if client != nil && client.ConnectedAt.IsZero() {
+		client.ConnectedAt = time.Now().UTC()
+	}
 	clients.Map[client] = true
 }
 
@@ -573,6 +579,141 @@ func (clients *Clients) EmitListenersCount() {
 
 	for c := range clients.Map {
 		c.SendListenersCount(count)
+	}
+}
+
+// ListenerDeviceSnapshot is one live WebSocket session for the admin roster.
+type ListenerDeviceSnapshot struct {
+	IP             string    `json:"ip"`
+	ClientKind     string    `json:"clientKind"` // "web" | "mobile"
+	LivefeedActive bool      `json:"livefeedActive"`
+	ConnectedAt    time.Time `json:"connectedAt"`
+	PinExpired     bool      `json:"pinExpired"`
+}
+
+// ListenerUserSnapshot groups one user's live sessions (or anonymous sockets).
+type ListenerUserSnapshot struct {
+	UserId      uint64                   `json:"userId"`
+	Email       string                   `json:"email"`
+	FirstName   string                   `json:"firstName"`
+	LastName    string                   `json:"lastName"`
+	Anonymous   bool                     `json:"anonymous,omitempty"`
+	DeviceCount int                      `json:"deviceCount"`
+	Devices     []ListenerDeviceSnapshot `json:"devices"`
+}
+
+// ListenersSnapshot is the admin-facing live listeners roster.
+type ListenersSnapshot struct {
+	TotalConnections     int                    `json:"totalConnections"`
+	UniqueUsers          int                    `json:"uniqueUsers"`
+	AnonymousConnections int                    `json:"anonymousConnections"`
+	Listeners            []ListenerUserSnapshot `json:"listeners"`
+}
+
+// SnapshotListeners builds a grouped roster of live WebSocket clients.
+// PIN and FCM tokens are never included.
+func (clients *Clients) SnapshotListeners() ListenersSnapshot {
+	clients.mutex.Lock()
+	defer clients.mutex.Unlock()
+
+	type group struct {
+		user    *User
+		anon    bool
+		devices []ListenerDeviceSnapshot
+	}
+
+	byUser := map[uint64]*group{}
+	var anonGroup *group
+	total := 0
+	anonCount := 0
+
+	for c := range clients.Map {
+		if c == nil {
+			continue
+		}
+		total++
+
+		ip := ""
+		if c.request != nil {
+			ip = GetRemoteAddr(c.request)
+		}
+		kind := "web"
+		if c.FCMToken != "" {
+			kind = "mobile"
+		}
+		live := c.Livefeed != nil && !c.Livefeed.IsAllOff()
+		connectedAt := c.ConnectedAt
+		if connectedAt.IsZero() {
+			connectedAt = time.Now().UTC()
+		}
+		dev := ListenerDeviceSnapshot{
+			IP:             ip,
+			ClientKind:     kind,
+			LivefeedActive: live,
+			ConnectedAt:    connectedAt.UTC(),
+			PinExpired:     c.PinExpired,
+		}
+
+		if c.User != nil && c.User.Id > 0 {
+			g := byUser[c.User.Id]
+			if g == nil {
+				g = &group{user: c.User}
+				byUser[c.User.Id] = g
+			}
+			g.devices = append(g.devices, dev)
+			continue
+		}
+
+		anonCount++
+		if anonGroup == nil {
+			anonGroup = &group{anon: true}
+		}
+		anonGroup.devices = append(anonGroup.devices, dev)
+	}
+
+	sortDevices := func(devs []ListenerDeviceSnapshot) {
+		sort.Slice(devs, func(i, j int) bool {
+			return devs[i].ConnectedAt.After(devs[j].ConnectedAt)
+		})
+	}
+
+	listeners := make([]ListenerUserSnapshot, 0, len(byUser)+1)
+	for _, g := range byUser {
+		sortDevices(g.devices)
+		u := g.user
+		listeners = append(listeners, ListenerUserSnapshot{
+			UserId:      u.Id,
+			Email:       u.Email,
+			FirstName:   u.FirstName,
+			LastName:    u.LastName,
+			DeviceCount: len(g.devices),
+			Devices:     g.devices,
+		})
+	}
+
+	sort.Slice(listeners, func(i, j int) bool {
+		ai := strings.ToLower(strings.TrimSpace(listeners[i].LastName + " " + listeners[i].FirstName + " " + listeners[i].Email))
+		aj := strings.ToLower(strings.TrimSpace(listeners[j].LastName + " " + listeners[j].FirstName + " " + listeners[j].Email))
+		if ai == aj {
+			return listeners[i].UserId < listeners[j].UserId
+		}
+		return ai < aj
+	})
+
+	if anonGroup != nil && len(anonGroup.devices) > 0 {
+		sortDevices(anonGroup.devices)
+		listeners = append(listeners, ListenerUserSnapshot{
+			Anonymous:   true,
+			DeviceCount: len(anonGroup.devices),
+			Devices:     anonGroup.devices,
+		})
+	}
+
+	return ListenersSnapshot{
+		TotalConnections:     total,
+		UniqueUsers:          len(byUser),
+		AnonymousConnections: anonCount,
+		Listeners:            listeners,
 	}
 }
 

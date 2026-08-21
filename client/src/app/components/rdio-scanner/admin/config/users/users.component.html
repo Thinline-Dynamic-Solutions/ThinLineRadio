@@ -244,6 +244,16 @@
                   {{ formatSubscriptionStatus(user.subscriptionStatus) }}
                 </span>
               }
+              @if (listeningDeviceCount(user) > 0) {
+                <span class="chip chip-listening">
+                  <mat-icon>headset</mat-icon>
+                  @if (listeningDeviceCount(user) > 1) {
+                    Listening · {{ listeningDeviceCount(user) }} devices
+                  } @else {
+                    Listening
+                  }
+                </span>
+              }
               @if (isPinExpired(user)) {
                 <span class="chip chip-pin-expired">
                   PIN EXPIRED

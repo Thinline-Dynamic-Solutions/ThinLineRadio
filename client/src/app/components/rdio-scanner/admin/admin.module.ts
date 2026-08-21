@@ -71,6 +71,7 @@ import { RdioScannerAdminRadioReferenceImportComponent } from './tools/radio-ref
 import { RdioScannerAdminStripeSyncComponent } from './tools/stripe-sync/stripe-sync.component';
 import { RdioScannerAdminPurgeDataComponent } from './tools/purge-data/purge-data.component';
 import { RdioScannerAdminSystemHealthComponent } from './system-health/system-health.component';
+import { RdioScannerAdminListenersComponent } from './listeners/listeners.component';
 import { RdioScannerAdminCentralManagementComponent } from './central-management/central-management.component';
 import { RdioScannerAdminAssistantComponent } from './assistant/assistant.component';
 import { RdioScannerAdminMappingDataComponent } from './config/mapping-data/mapping-data.component';
@@ -122,6 +123,7 @@ import { TalkgroupLocationDialogComponent } from './config/systems/system/talkgr
         RdioScannerAdminStripeSyncComponent,
         RdioScannerAdminPurgeDataComponent,
         RdioScannerAdminSystemHealthComponent,
+        RdioScannerAdminListenersComponent,
         RdioScannerAdminCentralManagementComponent,
         RdioScannerAdminAssistantComponent,
         RdioScannerAdminMappingDataComponent,
