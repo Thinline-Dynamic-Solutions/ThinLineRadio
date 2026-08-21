@@ -1218,7 +1218,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             case 'trialing':
                 return status === 'trialing';
             case 'problem':
-                return this.isSubscriptionProblem(status);
+                // Keep Problem distinct from Canceled: include incomplete billing
+                // states here; canceled users are filtered via the Canceled option.
+                return status === 'past_due' || status === 'unpaid'
+                    || status === 'incomplete' || status === 'incomplete_expired';
             case 'canceled':
                 return status === 'canceled' || status === 'cancelled';
             case 'none':
