@@ -570,8 +570,11 @@ func (controller *Controller) IngestCall(call *Call) {
 		controller.Systems.List = append(controller.Systems.List, system)
 	}
 
-	if controller.Options.AutoPopulate || (system != nil && system.AutoPopulate) {
-		if system != nil && talkgroup == nil && talkgroupId > 0 {
+	// Per-system AutoPopulate is authoritative for talkgroups. Global AutoPopulate
+	// only creates unknown systems (above); it must not keep adding TGs after the
+	// system switch is turned off.
+	if system != nil && system.AutoPopulate {
+		if talkgroup == nil && talkgroupId > 0 {
 			populated = true
 
 			groupLabels := []string{"Unknown"}
