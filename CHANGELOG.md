@@ -25,6 +25,10 @@
 
 ### Changed
 
+- **Client — Angular application builder**
+  - Migrated from deprecated `@angular-devkit/build-angular:browser` (Webpack) to `@angular/build:application` (esbuild).
+  - Kept `outputPath.browser` empty so production assets still land in `server/webapp` for Go embed/Docker.
+
 - **Admin Users — status chips and group column (#269)**
   - PIN column removed from the table; PIN / account expiry and other states show as status chips.
   - Group column sits closer to User so Status has room; group name comes from `GET /api/admin/users` as `userGroupName` (no wait on a second `/groups` call); redundant Group **Admin** badge removed.
