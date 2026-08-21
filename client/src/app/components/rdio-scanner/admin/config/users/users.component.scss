@@ -529,48 +529,13 @@
             border: 1px solid rgba(59, 130, 246, 0.4);
             font-weight: 600;
         }
-    }
 
-    // PIN cell
-    .pin-cell {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-width: 0;
-
-        .pin-code {
-            font-family: 'Roboto Mono', 'Courier New', monospace;
-            font-size: 12px;
-            color: #e0e0e0;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 1px 6px;
-            border-radius: 4px;
-            border: 1px solid #333;
-            letter-spacing: 0.5px;
-            display: inline-block;
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .pin-expired {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-            font-size: 11px;
+        &.chip-pin-expired {
+            background: rgba(244, 67, 54, 0.18);
             color: #f44336;
-            font-weight: 500;
-
-            mat-icon {
-                font-size: 12px;
-                width: 12px;
-                height: 12px;
-            }
-        }
-
-        .pin-expiry {
-            font-size: 10px;
+            border: 1px solid rgba(244, 67, 54, 0.55);
+            font-weight: 700;
+            letter-spacing: 0.04em;
         }
     }
 

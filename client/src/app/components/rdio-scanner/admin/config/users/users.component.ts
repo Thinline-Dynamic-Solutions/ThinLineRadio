@@ -93,7 +93,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     error: string | null = null;
 
     // Table columns
-    displayedColumns: string[] = ['select', 'avatar', 'user', 'group', 'status', 'pin', 'lastLogin', 'actions'];
+    displayedColumns: string[] = ['select', 'avatar', 'user', 'group', 'status', 'lastLogin', 'actions'];
 
     // Expanded row for inline editing
     expandedUser: User | null = null;
@@ -286,7 +286,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 stripeSubscriptionId: user.stripeSubscriptionId || '',
                 subscriptionStatus: user.subscriptionStatus || '',
                 accountExpiresAt: user.accountExpiresAt || 0,
-                pinExpired: false // Will be calculated if needed
+                pinExpired: !!user.pinExpired,
+            })).map((user: User) => ({
+                ...user,
+                pinExpired: this.isPinExpired(user),
             }));
             this.sortUsers();
             this.applyFilter();
@@ -678,7 +681,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
 
         try {
             const users = await this.adminService.getAllUsers();
-            this.users = users;
+            this.users = users.map((user: User) => ({
+                ...user,
+                pinExpired: this.isPinExpired(user),
+            }));
             this.sortUsers();
 
             // Also update the parent form if it exists
@@ -1247,6 +1253,8 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             case 'trialing':
                 return status === 'trialing';
             case 'problem':
+                // Keep Problem distinct from Canceled: include incomplete billing
+                // states here; canceled users are filtered via the Canceled option.
                 return status === 'past_due' || status === 'unpaid'
                     || status === 'incomplete' || status === 'incomplete_expired';
             case 'canceled':
@@ -1259,12 +1267,11 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     }
 
     private matchesStatusFilter(user: User): boolean {
-        const now = Math.floor(Date.now() / 1000);
         switch (this.statusFilter) {
             case 'pin_expired':
-                return !!user.pinExpired;
+                return this.isPinExpired(user);
             case 'account_expired':
-                return !!(user.accountExpiresAt && user.accountExpiresAt > 0 && user.accountExpiresAt < now);
+                return this.isAccountExpired(user);
             case 'suspended':
                 return !!user.suspended;
             case 'verified':
@@ -1274,6 +1281,46 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             default:
                 return true;
         }
+    }
+
+    /** True when the listener PIN expiration timestamp is in the past. */
+    isPinExpired(user: User): boolean {
+        if (user?.pinExpired) {
+            return true;
+        }
+        const expiresAt = Number(user?.pinExpiresAt) || 0;
+        return expiresAt > 0 && Math.floor(Date.now() / 1000) > expiresAt;
+    }
+
+    /** True when the account expiration timestamp is in the past. */
+    isAccountExpired(user: User): boolean {
+        const expiresAt = Number(user?.accountExpiresAt) || 0;
+        return expiresAt > 0 && Math.floor(Date.now() / 1000) > expiresAt;
+    }
+
+    isSubscriptionOk(status: string): boolean {
+        const s = (status || '').toLowerCase();
+        return s === 'active' || s === 'trialing';
+    }
+
+    isSubscriptionProblem(status: string): boolean {
+        const s = (status || '').toLowerCase();
+        return s === 'past_due' || s === 'unpaid'
+            || s === 'canceled' || s === 'cancelled'
+            || s === 'incomplete_expired';
+    }
+
+    isSubscriptionWarn(status: string): boolean {
+        const s = (status || '').toLowerCase();
+        return s === 'incomplete' || s === 'paused';
+    }
+
+    formatSubscriptionStatus(status: string): string {
+        const s = (status || '').trim();
+        if (!s) {
+            return '';
+        }
+        return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     private matchesGroupFilter(user: User): boolean {

@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { RdioScannerUnit } from './rdio-scanner';
+import { RdioScannerCall, RdioScannerUnit } from './rdio-scanner';
 
 /** True when a configured unit row matches a call source / radio ID. */
 export function unitMatchesSrc(unit: RdioScannerUnit, src: number): boolean {
@@ -50,4 +50,48 @@ export function findUnitLabelForSrc(units: RdioScannerUnit[] | undefined, src: n
 
 export function resolveUnitLabelForSrc(units: RdioScannerUnit[] | undefined, src: number): string {
     return findUnitLabelForSrc(units, src) ?? String(src);
+}
+
+/** Alias plus radio ID, e.g. `Engine 3 | 1234567`, or just the ID when unaliased. */
+export function formatUnitDisplay(units: RdioScannerUnit[] | undefined, src: number, tag?: string): string {
+    if (!(typeof src === 'number') || src <= 0) {
+        const t = tag?.trim();
+        return t && t.length > 0 ? t : '—';
+    }
+    const fromTag = tag?.trim();
+    const alias = fromTag && fromTag !== String(src) ? fromTag : findUnitLabelForSrc(units, src);
+    if (alias && alias !== String(src)) {
+        return `${alias} | ${src}`;
+    }
+    return String(src);
+}
+
+export function formatCallUnitDisplay(call: RdioScannerCall | undefined | null): string {
+    if (!call) {
+        return '—';
+    }
+    if (Array.isArray(call.sources) && call.sources.length) {
+        const ordered = [...call.sources].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+        const parts: string[] = [];
+        const seen = new Set<number>();
+        for (const s of ordered) {
+            if (typeof s.src !== 'number' || s.src <= 0 || seen.has(s.src)) {
+                continue;
+            }
+            seen.add(s.src);
+            parts.push(formatUnitDisplay(call.systemData?.units, s.src, s.tag));
+        }
+        if (parts.length) {
+            return parts.join(', ');
+        }
+        for (const s of ordered) {
+            if (typeof s.tag === 'string' && s.tag.trim().length > 0) {
+                return s.tag.trim();
+            }
+        }
+    }
+    if (typeof call.source === 'number' && call.source > 0) {
+        return formatUnitDisplay(call.systemData?.units, call.source);
+    }
+    return '—';
 }

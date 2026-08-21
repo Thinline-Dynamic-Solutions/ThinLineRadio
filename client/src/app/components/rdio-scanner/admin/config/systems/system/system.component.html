@@ -170,7 +170,7 @@
           <label class="field-label">Auto Populate</label>
           <mat-slide-toggle color="primary" formControlName="autoPopulate"></mat-slide-toggle>
         </div>
-        <span class="field-hint">Auto-create unconfigured talkgroups</span>
+        <span class="field-hint">Auto-create unconfigured talkgroups on this system. Global Auto Populate does not override this.</span>
       </div>
 
       @if (form.get('autoPopulate')?.value) {
