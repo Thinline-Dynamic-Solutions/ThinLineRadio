@@ -220,7 +220,7 @@
             }
             @case ('users') {
               <rdio-scanner-admin-users
-                [userRegistrationEnabled]="options.get('userRegistrationEnabled')?.value"
+                [userRegistrationEnabled]="$safeNavigationMigration(options.get('userRegistrationEnabled')?.value)"
                 [form]="users">
               </rdio-scanner-admin-users>
             }
@@ -259,7 +259,7 @@
               <rdio-scanner-admin-options
                 [form]="options"
                 [systemsForm]="systems"
-                [transcriptParserConfig]="originalConfig.options?.transcriptParserConfig"
+                [transcriptParserConfig]="$safeNavigationMigration(originalConfig.options?.transcriptParserConfig)"
                 [keywordLists]="originalConfig.keywordLists">
               </rdio-scanner-admin-options>
             }

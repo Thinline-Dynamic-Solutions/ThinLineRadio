@@ -5,7 +5,9 @@
 # =============================================================================
 # Stage 1: Build Angular Client
 # =============================================================================
-FROM node:18-alpine AS client-builder
+# Angular CLI requires Node >=20.19 or >=22.12; pin so Docker builds stay compatible.
+ARG NODE_VERSION=22.12
+FROM node:${NODE_VERSION}-alpine AS client-builder
 
 WORKDIR /build
 
@@ -14,7 +16,7 @@ COPY client/package*.json ./client/
 
 # Install dependencies
 WORKDIR /build/client
-RUN npm install --legacy-peer-deps
+RUN node -v && npm install --legacy-peer-deps
 
 # Copy client source code
 COPY client/ ./

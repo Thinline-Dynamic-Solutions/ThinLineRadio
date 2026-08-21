@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http';
 import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ErrorStateMatcher, ShowOnDirtyErrorStateMatcher } from '@angular/material/core';
@@ -140,6 +140,6 @@ import { TalkgroupLocationDialogComponent } from './config/systems/system/talkgr
         // The CDK overlay is rendered outside .admin-dark-theme, so panel colours
         // must be driven by a global panelClass rather than the scoped theme.
         { provide: MAT_SELECT_CONFIG, useValue: { panelClass: 'admin-select-panel' } },
-        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClient(withXhr(), withInterceptorsFromDi()),
     ] })
 export class RdioScannerAdminModule { }

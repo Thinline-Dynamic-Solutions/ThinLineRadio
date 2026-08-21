@@ -114,8 +114,8 @@
               </mat-header-cell>
               <mat-cell *matCellDef="let log">
                 <mat-checkbox
-                  [checked]="isLogSelected(log?.id)"
-                  (change)="toggleLogSelection(log?.id)"
+                  [checked]="isLogSelected($safeNavigationMigration(log?.id))"
+                  (change)="toggleLogSelection($safeNavigationMigration(log?.id))"
                   [disabled]="!log || logsQueryPending">
                 </mat-checkbox>
               </mat-cell>
@@ -137,13 +137,13 @@
             <ng-container matColumnDef="date">
               <mat-header-cell *matHeaderCellDef>Date</mat-header-cell>
               <mat-cell *matCellDef="let log">
-                <span>{{ log?.dateTime | date:'MM/dd' }}</span>
+                <span>{{ $safeNavigationMigration(log?.dateTime) | date:'MM/dd' }}</span>
               </mat-cell>
             </ng-container>
             <ng-container matColumnDef="time">
               <mat-header-cell *matHeaderCellDef>Time</mat-header-cell>
               <mat-cell *matCellDef="let log">
-                <span>{{ log?.dateTime | date:'HH:mm' }}</span>
+                <span>{{ $safeNavigationMigration(log?.dateTime) | date:'HH:mm' }}</span>
               </mat-cell>
             </ng-container>
             <ng-container matColumnDef="message">
@@ -244,8 +244,8 @@
               </mat-header-cell>
               <mat-cell *matCellDef="let call">
                 <mat-checkbox
-                  [checked]="isCallSelected(call?.id)"
-                  (change)="toggleCallSelection(call?.id)"
+                  [checked]="isCallSelected($safeNavigationMigration(call?.id))"
+                  (change)="toggleCallSelection($safeNavigationMigration(call?.id))"
                   [disabled]="!call || callsQueryPending">
                 </mat-checkbox>
               </mat-cell>
@@ -259,13 +259,13 @@
             <ng-container matColumnDef="date">
               <mat-header-cell *matHeaderCellDef>Date</mat-header-cell>
               <mat-cell *matCellDef="let call">
-                <span>{{ call?.dateTime | date:'MM/dd' }}</span>
+                <span>{{ $safeNavigationMigration(call?.dateTime) | date:'MM/dd' }}</span>
               </mat-cell>
             </ng-container>
             <ng-container matColumnDef="time">
               <mat-header-cell *matHeaderCellDef>Time</mat-header-cell>
               <mat-cell *matCellDef="let call">
-                <span>{{ call?.dateTime | date:'HH:mm' }}</span>
+                <span>{{ $safeNavigationMigration(call?.dateTime) | date:'HH:mm' }}</span>
               </mat-cell>
             </ng-container>
             <ng-container matColumnDef="system">
@@ -325,7 +325,7 @@
                 <mat-label>Talkgroup</mat-label>
                 <mat-select formControlName="talkgroup" (selectionChange)="reloadCalls()">
                   <mat-option [value]="null">All Talkgroups</mat-option>
-                  @for (talkgroup of getTalkgroups(callsForm.get('system')?.value); track talkgroup) {
+                  @for (talkgroup of getTalkgroups($safeNavigationMigration(callsForm.get('system')?.value)); track talkgroup) {
                     <mat-option [value]="talkgroup.id">
                       {{ talkgroup.label }}
                     </mat-option>

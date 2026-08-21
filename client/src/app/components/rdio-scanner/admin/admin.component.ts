@@ -126,7 +126,7 @@ const SETTINGS_INDEX: SearchResult[] = [
     selector: 'rdio-scanner-admin',
     styleUrls: ['./admin.component.scss'],
     templateUrl: './admin.component.html',
-    changeDetection: ChangeDetectionStrategy.Default,
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAdminComponent implements OnDestroy {
