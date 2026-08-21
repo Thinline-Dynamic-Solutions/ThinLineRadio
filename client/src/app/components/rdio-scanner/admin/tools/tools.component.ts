@@ -43,7 +43,7 @@ export const ADMIN_TOOL_SECTIONS: ToolSection[] = [
     selector: 'rdio-scanner-admin-tools',
     templateUrl: './tools.component.html',
     styleUrls: ['./tools.component.scss'],
-    changeDetection: ChangeDetectionStrategy.Default,
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAdminToolsComponent {
