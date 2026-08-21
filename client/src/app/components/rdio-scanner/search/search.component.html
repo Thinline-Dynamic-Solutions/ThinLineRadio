@@ -87,12 +87,14 @@
           <mat-icon>group</mat-icon>
           <span>{{ getSelectedTalkgroupLabel() }}</span>
         </button>
-        <mat-menu #talkgroupMenu="matMenu" class="tlr-lcd-menu">
-          <button mat-menu-item (click)="setTalkgroup(-1)">
+        <mat-menu #talkgroupMenu="matMenu" class="tlr-lcd-menu talkgroup-multi-menu">
+          <button type="button" mat-menu-item (click)="$event.stopPropagation(); clearTalkgroups()">
+            <mat-checkbox [checked]="getSelectedTalkgroups().length === 0" [disableRipple]="true"></mat-checkbox>
             <span>All Talkgroups</span>
           </button>
           @for (talkgroup of optionsTalkgroup; track talkgroup; let i = $index) {
-            <button mat-menu-item (click)="setTalkgroup(i)">
+            <button type="button" mat-menu-item (click)="$event.stopPropagation(); toggleTalkgroup(i)">
+              <mat-checkbox [checked]="isTalkgroupSelected(i)" [disableRipple]="true"></mat-checkbox>
               <span>{{ talkgroup }}</span>
             </button>
           }
@@ -277,6 +279,14 @@
             </mat-header-cell>
             <mat-cell *matCellDef="let row">
               <span>{{ row?.talkgroupData?.name }}</span>
+            </mat-cell>
+          </ng-container>
+          <ng-container matColumnDef="duration">
+            <mat-header-cell *matHeaderCellDef>
+              <span>Duration</span>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row" class="archive-duration-cell">
+              <span>{{ formatCallDuration(row?.duration) }}</span>
             </mat-cell>
           </ng-container>
           <mat-header-row *matHeaderRowDef="archiveTableColumns; sticky: true">
