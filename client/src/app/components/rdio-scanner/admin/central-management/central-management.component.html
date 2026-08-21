@@ -1,0 +1,66 @@
+<div class="cm-ops-container">
+  <div class="admin-section-bar">
+    <h2 class="admin-section-title">Central Management</h2>
+    <p class="admin-section-hint">
+      This scanner is paired with AlertPage Central Management. User access and billing are controlled from the portal.
+    </p>
+  </div>
+
+  @if (!isCentrallyManaged) {
+    <div class="cm-ops-empty">
+      <mat-icon>hub</mat-icon>
+      <p>This server is not currently in Central Management mode.</p>
+    </div>
+  } @else {
+    <div class="cm-ops-card">
+      <div class="cm-ops-status">
+        <mat-icon class="cm-ops-status-icon">hub</mat-icon>
+        <div>
+          <h3>Paired with Central Management</h3>
+          @if (serverName) {
+            <p><span class="label">Server name</span> {{ serverName }}</p>
+          }
+          @if (serverId) {
+            <p><span class="label">Server ID</span> {{ serverId }}</p>
+          }
+          @if (portalUrl) {
+            <p>
+              <span class="label">Portal</span>
+              <a [href]="portalUrl" target="_blank" rel="noopener noreferrer">{{ portalUrl }}</a>
+            </p>
+          }
+        </div>
+      </div>
+
+      <div class="cm-ops-leave">
+        <h3>Leave Central Management</h3>
+        <p>
+          To unlink this server, ask a Central Management admin to generate a removal code from the server's
+          actions menu in the CM panel. Enter that code below. This restores local user registration control.
+        </p>
+
+        <mat-form-field appearance="outline" class="cm-ops-code">
+          <mat-label>Removal Code</mat-label>
+          <input matInput [(ngModel)]="leaveCMCode" [ngModelOptions]="{standalone: true}"
+            placeholder="e.g. X4K9M2" maxlength="16" autocomplete="off"
+            class="cm-ops-code-input">
+        </mat-form-field>
+
+        @if (leaveCMError) {
+          <div class="cm-ops-error">{{ leaveCMError }}</div>
+        }
+
+        <button mat-raised-button color="warn" type="button"
+          (click)="leaveCentralManagement()"
+          [disabled]="!leaveCMCode.trim() || leavingCM">
+          @if (leavingCM) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            <mat-icon>link_off</mat-icon>
+          }
+          {{ leavingCM ? 'Unlinking…' : 'Confirm &amp; Leave Central Management' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>

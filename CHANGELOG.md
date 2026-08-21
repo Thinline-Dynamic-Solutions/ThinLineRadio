@@ -4,6 +4,16 @@
 
 ---
 
+## Version 26.08.8 - Released August 6, 2026
+
+### Fixed
+
+- **Docker / CI client build — missing admin Central Management panel**
+  - `.gitignore` was matching any `central-management/` folder, so the admin Operations “leave CM” component was never published to git and Docker `npm run build` failed with a misleading NgModule error.
+  - Ignore is now rooted at `/central-management/` (the separate CM repo only); the admin component is tracked.
+
+---
+
 ## Version 26.08.7 - Released August 6, 2026
 
 ### Fixed
