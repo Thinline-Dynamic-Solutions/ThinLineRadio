@@ -2880,6 +2880,13 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 	if message.Command == MessageCommandVersion {
 		controller.ProcessMessageCommandVersion(client)
 
+	} else if message.Command == MessageCommandPing {
+		// Keep-alive; allowed before auth so PNG does not look like a failed PIN.
+		select {
+		case client.Send <- &Message{Command: MessageCommandPing}:
+		default:
+		}
+
 	} else if restricted && client.User == nil && message.Command != MessageCommandPin {
 		msg := &Message{Command: MessageCommandPin}
 		select {
@@ -2887,8 +2894,8 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		default:
 		}
 
-	} else if client.PinExpired && message.Command != MessageCommandPin && message.Command != MessageCommandVersion {
-		// PIN is expired - ignore all messages except PIN (for re-authentication) and Version
+	} else if client.PinExpired && message.Command != MessageCommandPin && message.Command != MessageCommandVersion && message.Command != MessageCommandPing {
+		// PIN is expired - ignore all messages except PIN (for re-authentication), Version, and Ping
 		// This prevents the client from interacting with the scanner when their subscription is expired
 		return nil
 

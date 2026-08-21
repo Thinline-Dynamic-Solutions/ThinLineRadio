@@ -552,21 +552,12 @@ func (clients *Clients) EmitConfig(controller *Controller) {
 	showListenersCount := controller.Options.ShowListenersCount
 
 	for c := range clients.Map {
-		if restricted {
-			if c.User == nil {
-				msg := &Message{Command: MessageCommandPin}
-				// Non-blocking send to prevent deadlock
-				select {
-				case c.Send <- msg:
-				default:
-					// Skip if channel full
-				}
-			} else {
-				c.SendConfig(controller.Groups, controller.Options, controller.Systems, controller.Tags)
-			}
-		} else {
-			c.SendConfig(controller.Groups, controller.Options, controller.Systems, controller.Tags)
+		if restricted && c.User == nil {
+			// Don't PIN-poke unauthenticated clients on every config broadcast
+			// (incoming calls). They already get a PIN challenge from CFG.
+			continue
 		}
+		c.SendConfig(controller.Groups, controller.Options, controller.Systems, controller.Tags)
 
 		if showListenersCount {
 			c.SendListenersCount(count)

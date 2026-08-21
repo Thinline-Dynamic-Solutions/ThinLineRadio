@@ -27,7 +27,7 @@ import { Subscription } from 'rxjs';
     selector: 'rdio-scanner-admin-password',
     styleUrls: ['./password.component.scss'],
     templateUrl: './password.component.html',
-    changeDetection: ChangeDetectionStrategy.Default,
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class RdioScannerAdminPasswordComponent implements OnInit, OnDestroy {
