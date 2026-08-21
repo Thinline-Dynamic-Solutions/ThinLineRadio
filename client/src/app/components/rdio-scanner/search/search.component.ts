@@ -21,7 +21,7 @@ import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, Vie
 import { FormBuilder } from '@angular/forms';
 import { MatDatepicker } from '@angular/material/datepicker';
 import { BehaviorSubject } from 'rxjs';
-import { resolveUnitLabelForSrc } from '../unit-utils';
+import { formatCallUnitDisplay } from '../unit-utils';
 import {
     RdioScannerCall,
     RdioScannerConfig,
@@ -1223,27 +1223,7 @@ export class RdioScannerSearchComponent implements AfterViewInit, OnDestroy {
         return call.systemData?.type === 'provoice' || call.talkgroupData?.type === 'provoice';
     }
 
-    private resolveUnitLabelForSrc(call: RdioScannerCall, src: number): string {
-        return resolveUnitLabelForSrc(call.systemData?.units, src);
-    }
-
     displayUnitForCall(call: RdioScannerCall | undefined | null): string {
-        if (!call) return '—';
-        if (Array.isArray(call.sources) && call.sources.length) {
-            const ordered = [...call.sources].sort((a, b) => (a.pos || 0) - (b.pos || 0));
-            for (const s of ordered) {
-                if (typeof s.tag === 'string' && s.tag.length > 0) {
-                    return s.tag;
-                }
-            }
-            const first = ordered[0];
-            if (typeof first?.src === 'number') {
-                return this.resolveUnitLabelForSrc(call, first.src);
-            }
-        }
-        if (typeof call.source === 'number') {
-            return this.resolveUnitLabelForSrc(call, call.source);
-        }
-        return '—';
+        return formatCallUnitDisplay(call);
     }
 }
