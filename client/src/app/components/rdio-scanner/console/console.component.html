@@ -292,7 +292,7 @@
                               [class.row-playing]="isRowPlaying(c)"
                               [class.row-selected]="selectedHistoryCall?.id === c?.id"
                               [style.background-color]="getTransmissionHistoryBackgroundColor(c)">
-                              <td>{{ c?.dateTime | date:timeFormat }}</td>
+                              <td>{{ $safeNavigationMigration(c?.dateTime) | date:timeFormat }}</td>
                               @if (isSystemAdmin) {
                                 <td class="call-id-cell">{{ c?.id ?? '—' }}</td>
                               }
@@ -300,7 +300,7 @@
                               <td>{{ c?.talkgroupData?.label || c?.talkgroup || '0' }}</td>
                               <td>{{ displayTgidForCall(c) }}</td>
                               <td class="src-cell">{{ displayUnitForCall(c) }}</td>
-                              <td>{{ formatFrequencyMHz(c?.frequency) || '—' }}</td>
+                              <td>{{ formatFrequencyMHz($safeNavigationMigration(c?.frequency)) || '—' }}</td>
                             </tr>
                           }
                           @if (callsLastHour.length === 0) {

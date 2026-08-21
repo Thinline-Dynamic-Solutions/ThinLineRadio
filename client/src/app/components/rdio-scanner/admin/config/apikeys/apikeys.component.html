@@ -126,7 +126,7 @@
                 <mat-icon>{{ isKeyVisible(apikey) ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
               <button mat-icon-button matSuffix type="button"
-                (click)="copyKey(apikey.get('key')?.value)"
+                (click)="copyKey($safeNavigationMigration(apikey.get('key')?.value))"
                 matTooltip="Copy to clipboard">
                 <mat-icon>content_copy</mat-icon>
               </button>

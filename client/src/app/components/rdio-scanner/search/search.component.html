@@ -218,7 +218,7 @@
               <span>Date</span>
             </mat-header-cell>
             <mat-cell *matCellDef="let row">
-              <span>{{ row?.dateTime | date:'MM/dd' }}</span>
+              <span>{{ $safeNavigationMigration(row?.dateTime) | date:'MM/dd' }}</span>
             </mat-cell>
           </ng-container>
           <ng-container matColumnDef="time">
@@ -226,7 +226,7 @@
               <span>Time</span>
             </mat-header-cell>
             <mat-cell *matCellDef="let row" [ngClass]="{'time12h': time12h}">
-              <span>{{ row?.dateTime | date: time12h ? 'h:mm a' : 'HH:mm' }}</span>
+              <span>{{ $safeNavigationMigration(row?.dateTime) | date: time12h ? 'h:mm a' : 'HH:mm' }}</span>
             </mat-cell>
           </ng-container>
           <ng-container matColumnDef="callid">
