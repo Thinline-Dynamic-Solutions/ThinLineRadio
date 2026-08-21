@@ -12,8 +12,6 @@
  *     instead of stacking columns (split-screen, small laptops, etc.).
  */
 
-@import "../../../../styles/thinline-mixins";
-
 :host {
   box-sizing: border-box;
   display: flex;

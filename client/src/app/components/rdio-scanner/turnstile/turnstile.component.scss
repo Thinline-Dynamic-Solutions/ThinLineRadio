@@ -1,0 +1,31 @@
+.turnstile-wrap {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 65px;
+}
+
+.turnstile-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(0, 0, 0, 0.55);
+  font-size: 13px;
+}
+
+.turnstile-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #c62828;
+  font-size: 13px;
+  text-align: center;
+  max-width: 280px;
+}
+
+.turnstile-host--hidden {
+  display: none;
+}

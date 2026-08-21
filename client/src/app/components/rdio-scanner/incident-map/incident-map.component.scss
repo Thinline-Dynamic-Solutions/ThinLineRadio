@@ -1,3 +1,5 @@
+@use './incident-map-sidebar.scss';
+
 :host {
     display: flex;
     flex-direction: column;
@@ -438,8 +440,6 @@ select.toolbar-control {
         visibility: hidden;
     }
 }
-
-@import './incident-map-sidebar.scss';
 
 :host ::ng-deep rdio-scanner-incident-map-sidebar {
     display: flex;

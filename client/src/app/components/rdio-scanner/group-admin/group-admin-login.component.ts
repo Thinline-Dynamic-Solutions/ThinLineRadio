@@ -17,11 +17,12 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ViewChild, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { RdioScannerTurnstileComponent } from '../turnstile/turnstile.component';
 
 @Component({
     selector: 'rdio-scanner-group-admin-login',
@@ -31,6 +32,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     standalone: false
 })
 export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
+  @ViewChild('groupAdminTurnstile') groupAdminTurnstile?: RdioScannerTurnstileComponent;
+
   loginForm: FormGroup;
   loading = false;
   error = '';
@@ -40,9 +43,8 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
   countdownSeconds = 0;
   private countdownInterval: any;
   
-  // Turnstile CAPTCHA
+  // Turnstile CAPTCHA — owned by RdioScannerTurnstileComponent (issue #259)
   turnstileToken: string = '';
-  turnstileWidgetId: any = null;
   turnstileSiteKey: string = '';
   turnstileEnabled: boolean = false;
 
@@ -51,7 +53,8 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private router: Router,
     private route: ActivatedRoute,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private cdr: ChangeDetectorRef
   ) {
     this.loginForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
@@ -81,11 +84,6 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
       this.turnstileEnabled = initialConfig.options.turnstileEnabled || false;
       this.turnstileSiteKey = initialConfig.options.turnstileSiteKey || '';
     }
-    
-    // Load Turnstile if enabled
-    if (this.turnstileEnabled && this.turnstileSiteKey) {
-      this.loadTurnstileScript();
-    }
   }
   
   ngOnDestroy(): void {
@@ -105,7 +103,8 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
         clearInterval(this.countdownInterval);
         this.isBlocked = false;
         this.loading = false;
-        // Clear query params
+        this.turnstileToken = '';
+        // Clear query params — form remounts with a fresh Turnstile widget
         this.router.navigate([], {
           relativeTo: this.route,
           queryParams: {},
@@ -119,6 +118,22 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
     const minutes = Math.floor(this.countdownSeconds / 60);
     const seconds = this.countdownSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  onTurnstileToken(token: string): void {
+    this.turnstileToken = token || '';
+    if (token) {
+      this.error = '';
+    }
+    this.cdr.markForCheck();
+  }
+
+  onTurnstileFailed(message: string): void {
+    this.turnstileToken = '';
+    if (message) {
+      this.error = message;
+    }
+    this.cdr.markForCheck();
   }
 
   onSubmit(): void {
@@ -195,84 +210,12 @@ export class RdioScannerGroupAdminLoginComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Clear used token and force a new Turnstile challenge (issue #239). */
+  /** Clear used token and force a new Turnstile challenge (issue #239 / #259). */
   refreshTurnstile(): void {
     if (!this.turnstileEnabled) {
       return;
     }
     this.turnstileToken = '';
-    if (this.turnstileWidgetId !== null && (window as any).turnstile) {
-      try {
-        (window as any).turnstile.reset(this.turnstileWidgetId);
-        return;
-      } catch {
-        // Fall through to re-init
-      }
-    }
-    this.initTurnstileWidget();
-  }
-  
-  loadTurnstileScript(): void {
-    // Check if script is already loaded
-    if ((window as any).turnstile) {
-      this.initTurnstileWidget();
-      return;
-    }
-
-    // Load Turnstile script (latest version)
-    const script = document.createElement('script');
-    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      this.initTurnstileWidget();
-    };
-    document.head.appendChild(script);
-  }
-
-  initTurnstileWidget(): void {
-    // Wait for DOM to be ready
-    setTimeout(() => {
-      const widgetContainer = document.getElementById('turnstile-widget-group-admin');
-      if (widgetContainer && (window as any).turnstile && this.turnstileSiteKey) {
-        // Remove existing widget if any
-        if (this.turnstileWidgetId !== null) {
-          try {
-            (window as any).turnstile.remove(this.turnstileWidgetId);
-          } catch (e) {
-            // Ignore errors
-          }
-          this.turnstileWidgetId = null;
-        }
-        
-        // Clear container
-        widgetContainer.innerHTML = '';
-        
-        // Reset token
-        this.turnstileToken = '';
-        
-        try {
-          this.turnstileWidgetId = (window as any).turnstile.render(widgetContainer, {
-            sitekey: this.turnstileSiteKey,
-            callback: (token: string) => {
-              this.turnstileToken = token;
-              this.error = ''; // Clear error when token is received
-            },
-            'error-callback': () => {
-              this.turnstileToken = '';
-              this.error = 'CAPTCHA verification failed. Please try again.';
-            },
-            'expired-callback': () => {
-              this.turnstileToken = '';
-            },
-            theme: 'light',
-            size: 'normal'
-          });
-        } catch (e) {
-          console.error('Error rendering Turnstile widget:', e);
-        }
-      }
-    }, 300);
+    setTimeout(() => this.groupAdminTurnstile?.refresh(), 0);
   }
 }
-

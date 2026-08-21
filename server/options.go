@@ -995,6 +995,13 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.TurnstileSecretKey = ""
 	}
 
+	// Enabling Turnstile requires both keys (issue #259).
+	if options.TurnstileEnabled {
+		if strings.TrimSpace(options.TurnstileSiteKey) == "" || strings.TrimSpace(options.TurnstileSecretKey) == "" {
+			options.TurnstileEnabled = false
+		}
+	}
+
 	switch v := m["reconnectionEnabled"].(type) {
 	case bool:
 		options.ReconnectionEnabled = v

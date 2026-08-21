@@ -43,9 +43,13 @@
           </mat-form-field>
           <!-- Cloudflare Turnstile Widget -->
           @if (turnstileEnabled && turnstileSiteKey) {
-            <div style="margin: 20px 0; display: flex; justify-content: center;">
-              <div id="turnstile-widget-group-admin"></div>
-            </div>
+            <rdio-scanner-turnstile
+              #groupAdminTurnstile
+              [siteKey]="turnstileSiteKey"
+              action="group_admin_login"
+              (tokenChange)="onTurnstileToken($event)"
+              (failed)="onTurnstileFailed($event)"
+            />
           }
           @if (error) {
             <div class="error-message">

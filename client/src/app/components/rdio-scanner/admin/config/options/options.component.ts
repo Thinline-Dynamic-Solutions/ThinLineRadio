@@ -720,6 +720,17 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             return;
         }
 
+        if (panelId === 'userRegistration' && this.form.get('turnstileEnabled')?.value) {
+            const site = (this.form.get('turnstileSiteKey')?.value || '').toString().trim();
+            const secret = (this.form.get('turnstileSecretKey')?.value || '').toString().trim();
+            if (!site || !secret) {
+                this.form.get('turnstileSiteKey')?.markAsTouched();
+                this.form.get('turnstileSecretKey')?.markAsTouched();
+                this.snackBar.open('Turnstile requires both a site key and a secret key', 'OK', { duration: 4000 });
+                return;
+            }
+        }
+
         const def = OPTIONS_PANEL_DEFS[panelId];
         const payload = this.buildPayloadForKeys(def.keys);
         this.appendSharedGeminiApiKeyPayload(panelId, payload);
@@ -1402,6 +1413,8 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         if (changes['form'] && this.form) {
             this.setupRadioReferenceValidation();
             this.setInitialRadioReferenceValidation();
+            this.setupTurnstileValidation();
+            this.setInitialTurnstileValidation();
             this.storeOriginalCredentials();
             this.setupRelayServerFormListeners();
             this.setupRateLimitingToggle();
@@ -1495,6 +1508,51 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             usernameControl.updateValueAndValidity();
             passwordControl.updateValueAndValidity();
         }
+    }
+
+    private setupTurnstileValidation(): void {
+        if (!this.form) return;
+
+        const enabledControl = this.form.get('turnstileEnabled');
+        const siteKeyControl = this.form.get('turnstileSiteKey');
+        const secretKeyControl = this.form.get('turnstileSecretKey');
+        if (!enabledControl || !siteKeyControl || !secretKeyControl) {
+            return;
+        }
+
+        enabledControl.valueChanges.subscribe(enabled => {
+            if (enabled) {
+                siteKeyControl.setValidators([Validators.required]);
+                secretKeyControl.setValidators([Validators.required]);
+            } else {
+                siteKeyControl.clearValidators();
+                secretKeyControl.clearValidators();
+            }
+            siteKeyControl.updateValueAndValidity({ emitEvent: false });
+            secretKeyControl.updateValueAndValidity({ emitEvent: false });
+            this.form?.updateValueAndValidity({ emitEvent: false });
+        });
+    }
+
+    private setInitialTurnstileValidation(): void {
+        if (!this.form) return;
+
+        const enabled = !!this.form.get('turnstileEnabled')?.value;
+        const siteKeyControl = this.form.get('turnstileSiteKey');
+        const secretKeyControl = this.form.get('turnstileSecretKey');
+        if (!siteKeyControl || !secretKeyControl) {
+            return;
+        }
+
+        if (enabled) {
+            siteKeyControl.setValidators([Validators.required]);
+            secretKeyControl.setValidators([Validators.required]);
+        } else {
+            siteKeyControl.clearValidators();
+            secretKeyControl.clearValidators();
+        }
+        siteKeyControl.updateValueAndValidity({ emitEvent: false });
+        secretKeyControl.updateValueAndValidity({ emitEvent: false });
     }
 
     private storeOriginalCredentials(): void {

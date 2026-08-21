@@ -1,0 +1,15 @@
+<div class="turnstile-wrap">
+  @if (pending && !loadError) {
+    <div class="turnstile-placeholder">
+      <mat-spinner diameter="20"></mat-spinner>
+      <span>Loading security check…</span>
+    </div>
+  }
+  @if (loadError) {
+    <div class="turnstile-error">
+      <span>{{ loadError }}</span>
+      <button mat-stroked-button type="button" (click)="retry()">Retry</button>
+    </div>
+  }
+  <div #host class="turnstile-host" [class.turnstile-host--hidden]="!!loadError"></div>
+</div>

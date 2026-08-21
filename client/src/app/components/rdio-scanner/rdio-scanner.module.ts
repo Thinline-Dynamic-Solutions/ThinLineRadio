@@ -63,6 +63,7 @@ import { RdioScannerWeatherAlertTickerComponent } from './weather/weather-alert-
 import { WeatherAlertTickerBridgeService } from './weather/weather-alert-ticker-bridge.service';
 import { NwsService } from './weather/nws.service';
 import { WeatherAlertTtsService } from './weather/weather-alert-tts.service';
+import { RdioScannerTurnstileComponent } from './turnstile/turnstile.component';
 
 @NgModule({
     declarations: [
@@ -104,6 +105,7 @@ import { WeatherAlertTtsService } from './weather/weather-alert-tts.service';
     imports: [
         AppSharedModule,
         RdioScannerNativeModule,
+        RdioScannerTurnstileComponent,
     ],
     providers: [
         RdioScannerService,

@@ -2041,7 +2041,10 @@
                 <span class="mat-caption">Your Cloudflare Turnstile site key (visible widget key).</span>
               </p>
               <mat-form-field floatLabel="auto">
-                <input type="text" matInput formControlName="turnstileSiteKey" placeholder="0x4xxxxxxxxxxxxxxxx" autocomplete="off">
+                <input type="text" matInput formControlName="turnstileSiteKey" placeholder="0x4xxxxxxxxxxxxxxxx" autocomplete="off" required>
+                @if (form?.get('turnstileSiteKey')?.hasError('required')) {
+                  <mat-error>Site key is required when Turnstile is enabled</mat-error>
+                }
               </mat-form-field>
             </div>
           }
@@ -2052,7 +2055,10 @@
                 <span class="mat-caption">Your Cloudflare Turnstile secret key (server-side validation key).</span>
               </p>
               <mat-form-field floatLabel="auto">
-                <input type="text" class="masked-pw" autocomplete="new-password" matInput formControlName="turnstileSecretKey" placeholder="0x4xxxxxxxxxxxxxxxx">
+                <input type="text" class="masked-pw" autocomplete="new-password" matInput formControlName="turnstileSecretKey" placeholder="0x4xxxxxxxxxxxxxxxx" required>
+                @if (form?.get('turnstileSecretKey')?.hasError('required')) {
+                  <mat-error>Secret key is required when Turnstile is enabled</mat-error>
+                }
               </mat-form-field>
             </div>
           }

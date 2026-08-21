@@ -2581,6 +2581,25 @@ func (admin *Admin) OptionsPatchHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	// Guard: Turnstile cannot be enabled without both site and secret keys (issue #259).
+	if enabled, ok := partial["turnstileEnabled"].(bool); ok && enabled {
+		siteKey := strings.TrimSpace(admin.Controller.Options.TurnstileSiteKey)
+		secretKey := strings.TrimSpace(admin.Controller.Options.TurnstileSecretKey)
+		if v, ok := partial["turnstileSiteKey"].(string); ok {
+			siteKey = strings.TrimSpace(v)
+		}
+		if v, ok := partial["turnstileSecretKey"].(string); ok {
+			secretKey = strings.TrimSpace(v)
+		}
+		if siteKey == "" || secretKey == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Cloudflare Turnstile requires both a site key and a secret key",
+			})
+			return
+		}
+	}
+
 	admin.mutex.Lock()
 	err := admin.Controller.Options.ApplyPartial(admin.Controller.Database, partial)
 	admin.mutex.Unlock()

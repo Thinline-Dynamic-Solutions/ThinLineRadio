@@ -1,4 +1,4 @@
-@import "../../../../styles/thinline-mixins";
+@use "../../../../styles/thinline-mixins" as *;
 
 :host {
     display: block;

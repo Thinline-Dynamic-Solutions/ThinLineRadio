@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, Output, EventEmitter, OnDestroy, AfterViewChecked, AfterViewInit, ChangeDetectorRef, NgZone, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, Output, EventEmitter, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -27,6 +27,7 @@ import packageInfo from '../../../../../package.json';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { RdioScannerEvent, RdioScannerConfig } from '../rdio-scanner';
 import { Subscription } from 'rxjs';
+import { RdioScannerTurnstileComponent } from '../turnstile/turnstile.component';
 
 @Component({
     selector: 'rdio-scanner-auth-screen',
@@ -35,8 +36,12 @@ import { Subscription } from 'rxjs';
     changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
-export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterViewChecked, AfterViewInit {
+export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy {
   @Output() authenticated = new EventEmitter<void>();
+
+  @ViewChild('loginTurnstile') loginTurnstile?: RdioScannerTurnstileComponent;
+  @ViewChild('registerTurnstile') registerTurnstile?: RdioScannerTurnstileComponent;
+  @ViewChild('groupAdminTurnstile') groupAdminTurnstile?: RdioScannerTurnstileComponent;
 
   authMode: 'login' | 'register' | 'group-admin' = 'login';
   loginForm: FormGroup;
@@ -131,18 +136,15 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   countdownSeconds = 0;
   private countdownInterval: any;
   
-  // Turnstile CAPTCHA — tokens are single-use; never persist across attempts (issue #239).
+  // Turnstile CAPTCHA — tokens are single-use; each form owns its own widget (issue #259).
   turnstileToken = '';
-  turnstileWidgetId: any = null;
   turnstileSiteKey: string = '';
   turnstileEnabled: boolean = false;
-  private turnstileInitAttempted = false;
-  /** True while the Turnstile script/widget is being set up (shown as placeholder). */
-  turnstileInitializing = false;
+  /** Authoritative type from /api/user/validate-access-code (not format guessing). */
+  accessCodeType: 'invitation' | 'registration' | null = null;
 
-  /** True when CAPTCHA is required but the widget has not finished rendering yet. */
-  get turnstilePending(): boolean {
-    return !!(this.turnstileEnabled && this.turnstileSiteKey && !this.turnstileToken && this.turnstileWidgetId === null);
+  get isInvitationAccessCode(): boolean {
+    return this.accessCodeType === 'invitation';
   }
 
   constructor(
@@ -153,8 +155,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
     private rdioScannerService: RdioScannerService,
-    private cdr: ChangeDetectorRef,
-    private ngZone: NgZone
+    private cdr: ChangeDetectorRef
   ) {
     // Initialize login form
     this.loginForm = this.fb.group({
@@ -225,11 +226,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     
     // Drop any leftover single-use token from older builds (issue #239).
     try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
-
-    // Load Turnstile if enabled
-    if (this.turnstileEnabled && this.turnstileSiteKey) {
-      this.loadTurnstileScript();
-    }
+    this.turnstileToken = '';
   }
 
   ngOnInit(): void {
@@ -554,8 +551,8 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.showResetPassword = false;
     this.resetEmail = '';
     
-    // New mode gets a fresh Turnstile challenge (tokens are single-use).
-    this.refreshTurnstile();
+    // New mode gets a fresh Turnstile widget via *ngIf remount (issue #259).
+    this.turnstileToken = '';
   }
 
   onForgotPassword(): void {
@@ -1039,10 +1036,8 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
 
       console.log('Registration form data being sent:', formData);
 
-      // Check Turnstile if enabled (but skip if using access code that looks like invitation - it's already validated via email)
-      // Invitation codes are 16 chars and alphanumeric, registration codes are 12 chars with special chars
-      const isLikelyInvitation = hasAccessCode && accessCode.length === 16 && /^[A-Z0-9]+$/.test(accessCode);
-      if (this.turnstileEnabled && !this.turnstileToken && !isLikelyInvitation) {
+      // Check Turnstile if enabled (skip only for server-confirmed invitations)
+      if (this.turnstileEnabled && !this.turnstileToken && !this.isInvitationAccessCode) {
         this.error = 'Please complete the CAPTCHA verification';
         this.loading = false;
         return;
@@ -1173,6 +1168,8 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.signupEmailCodeConfirmed = true;
     this.emailLockedAfterVerify = !!this.pendingEmail;
     this.registerForm.patchValue({ email: this.pendingEmail });
+    // Full registration form (and its Turnstile widget) mounts via *ngIf.
+    this.turnstileToken = '';
     this.cdr.markForCheck();
     this.snackBar.open('Code accepted. Complete your registration below.', 'Close', {
       duration: 4000,
@@ -1187,6 +1184,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.pendingEmail = '';
     this.signupEmailCodeConfirmed = false;
     this.emailLockedAfterVerify = false;
+    this.turnstileToken = '';
     this.cdr.markForCheck();
   }
 
@@ -1229,13 +1227,29 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
   }
 
   shouldShowTurnstile(): boolean {
-    // Don't show Turnstile if user has an access code that looks like an invitation
-    // Invitation codes are 16 chars and alphanumeric only
-    const accessCode = this.registerForm.get('accessCode')?.value;
-    if (accessCode && accessCode.length === 16 && /^[A-Z0-9]+$/.test(accessCode)) {
-      return false; // Likely an invitation code, skip Turnstile
+    // Skip only when the server identified the access code as an invitation.
+    return !this.isInvitationAccessCode;
+  }
+
+  onTurnstileToken(token: string): void {
+    this.turnstileToken = token || '';
+    if (token) {
+      this.error = '';
+      this.groupAdminError = '';
     }
-    return true; // Show Turnstile for registration codes or no code
+    this.cdr.markForCheck();
+  }
+
+  onTurnstileFailed(message: string): void {
+    this.turnstileToken = '';
+    if (message) {
+      if (this.authMode === 'group-admin') {
+        this.groupAdminError = message;
+      } else {
+        this.error = message;
+      }
+    }
+    this.cdr.markForCheck();
   }
 
   handleSubscriptionRequired(): void {
@@ -1535,6 +1549,10 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
           this.codeValidated = true;
           // A validated access/invitation code counts as email verification — skip the email code step
           this.signupEmailCodeConfirmed = true;
+          this.accessCodeType =
+            response.type === 'invitation' ? 'invitation' :
+            response.type === 'registration' ? 'registration' :
+            null;
           
           // Set the code in the form
           this.registerForm.patchValue({
@@ -1553,6 +1571,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
             this.emailLockedAfterVerify = false;
           }
           
+          this.turnstileToken = '';
           this.snackBar.open('Code validated successfully!', 'Close', {
             duration: 3000
           });
@@ -1616,95 +1635,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     }
   }
   
-  loadTurnstileScript(): void {
-    // Check if script is already loaded
-    if ((window as any).turnstile) {
-      this.initTurnstileWidget();
-      return;
-    }
-
-    // Load Turnstile script (latest version)
-    const script = document.createElement('script');
-    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      this.initTurnstileWidget();
-    };
-    document.head.appendChild(script);
-  }
-
-  initTurnstileWidget(): void {
-    // Prevent multiple simultaneous initializations - set flag IMMEDIATELY
-    if (this.turnstileInitAttempted || this.turnstileInitializing) {
-      return;
-    }
-    
-    this.turnstileInitAttempted = true;
-    this.turnstileInitializing = true;
-    this.turnstileToken = '';
-    try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
-    
-    // Wait for DOM to be ready
-    setTimeout(() => {
-      const widgetContainer = document.getElementById('turnstile-widget-auth');
-      if (widgetContainer && (window as any).turnstile && this.turnstileSiteKey) {
-        // Remove existing widget if any
-        if (this.turnstileWidgetId !== null) {
-          try {
-            (window as any).turnstile.remove(this.turnstileWidgetId);
-          } catch (e) {
-            // Ignore errors
-          }
-          this.turnstileWidgetId = null;
-        }
-        
-        // Clear container
-        widgetContainer.innerHTML = '';
-        
-        try {
-          this.turnstileWidgetId = (window as any).turnstile.render(widgetContainer, {
-            sitekey: this.turnstileSiteKey,
-            callback: (token: string) => {
-              // Wrap in ngZone to ensure Angular detects the change
-              this.ngZone.run(() => {
-                this.turnstileToken = token;
-                this.error = ''; // Clear error when token is received
-                this.cdr.detectChanges();
-              });
-            },
-            'error-callback': (_errorCode: string) => {
-              this.ngZone.run(() => {
-                this.turnstileToken = '';
-                this.error = 'CAPTCHA verification failed. Please try again.';
-                this.cdr.detectChanges();
-              });
-            },
-            'expired-callback': () => {
-              this.ngZone.run(() => {
-                this.turnstileToken = '';
-                this.cdr.detectChanges();
-              });
-            },
-            theme: 'light',
-            size: 'normal'
-          });
-          this.turnstileInitializing = false;
-          this.ngZone.run(() => this.cdr.detectChanges());
-        } catch (e) {
-          // If rendering fails, reset the flags so we can try again
-          this.turnstileInitAttempted = false;
-          this.turnstileInitializing = false;
-          this.ngZone.run(() => this.cdr.detectChanges());
-        }
-      } else {
-        this.turnstileInitializing = false;
-        this.ngZone.run(() => this.cdr.detectChanges());
-      }
-    }, 300);
-  }
-
-  /** Clear the used token and force a new Turnstile challenge (issue #239). */
+  /** Clear the used token and remount the active form's Turnstile widget (issue #239 / #259). */
   refreshTurnstile(): void {
     if (!this.turnstileEnabled) {
       return;
@@ -1712,57 +1643,22 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy, AfterV
     this.turnstileToken = '';
     try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
 
-    if (this.turnstileWidgetId !== null && (window as any).turnstile) {
-      try {
-        (window as any).turnstile.reset(this.turnstileWidgetId);
-        this.cdr.detectChanges();
-        return;
-      } catch {
-        // Fall through to full re-render
-      }
-    }
+    // Defer so ViewChild is available after Angular recreates the view.
+    setTimeout(() => this.activeTurnstile()?.refresh(), 0);
+    this.cdr.markForCheck();
+  }
 
-    this.resetTurnstile();
-    this.turnstileInitAttempted = false;
-    this.turnstileInitializing = false;
-    setTimeout(() => this.initTurnstileWidget(), 100);
-  }
-  
-  resetTurnstile(): void {
-    if (this.turnstileWidgetId !== null && (window as any).turnstile) {
-      try {
-        (window as any).turnstile.remove(this.turnstileWidgetId);
-      } catch (e) {
-        // Ignore errors
-      }
-      this.turnstileWidgetId = null;
+  private activeTurnstile(): RdioScannerTurnstileComponent | undefined {
+    if (this.authMode === 'login') {
+      return this.loginTurnstile;
     }
-    // Clear the container
-    const widgetContainer = document.getElementById('turnstile-widget-auth');
-    if (widgetContainer) {
-      widgetContainer.innerHTML = '';
+    if (this.authMode === 'register') {
+      return this.registerTurnstile;
     }
-    this.turnstileToken = '';
-    try { sessionStorage.removeItem('turnstile_token'); } catch { /* ignore */ }
-  }
-  
-  private autofillCheckAttempts = 0;
-  private maxAutofillChecks = 20; // Check for 10 seconds (20 * 500ms)
-  
-  ngAfterViewInit(): void {
-    // No special autofill handling needed - we read values directly from inputs on submit
-  }
-  
-  ngAfterViewChecked(): void {
-    // Check if we need to initialize Turnstile widget
-    // Only initialize once per auth mode change
-    if (this.turnstileEnabled && this.turnstileSiteKey && !this.turnstileInitAttempted) {
-      const widgetContainer = document.getElementById('turnstile-widget-auth');
-      if (widgetContainer && (window as any).turnstile && widgetContainer.children.length === 0) {
-        // Only initialize if container is empty (no widget already rendered)
-        this.initTurnstileWidget();
-      }
+    if (this.authMode === 'group-admin') {
+      return this.groupAdminTurnstile;
     }
+    return undefined;
   }
 }
 

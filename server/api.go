@@ -28,6 +28,7 @@ import (
 	"math/big"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -170,9 +171,10 @@ func (api *Api) isMobileAppRequest(r *http.Request) bool {
 	return false
 }
 
-// verifyTurnstile verifies a Cloudflare Turnstile token using the scanner server's configured keys
-// Mobile apps are exempt from Turnstile verification
-func (api *Api) verifyTurnstile(token, clientIP string, r *http.Request) (bool, error) {
+// verifyTurnstile verifies a Cloudflare Turnstile token using the scanner server's configured keys.
+// Mobile apps are exempt from Turnstile verification.
+// expectedAction, when non-empty, must match the action returned by siteverify (issue #259).
+func (api *Api) verifyTurnstile(token, clientIP string, r *http.Request, expectedAction string) (bool, error) {
 	if !api.Controller.Options.TurnstileEnabled {
 		return true, nil // Turnstile is disabled, so always succeed
 	}
@@ -180,6 +182,10 @@ func (api *Api) verifyTurnstile(token, clientIP string, r *http.Request) (bool, 
 	// Exempt mobile apps from Turnstile verification
 	if api.isMobileAppRequest(r) {
 		return true, nil // Mobile apps are exempt
+	}
+
+	if strings.TrimSpace(token) == "" {
+		return false, nil
 	}
 
 	if api.Controller.Options.TurnstileSecretKey == "" {
@@ -193,15 +199,18 @@ func (api *Api) verifyTurnstile(token, clientIP string, r *http.Request) (bool, 
 		data.Set("remoteip", clientIP)
 	}
 
-	resp, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", data)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", data)
 	if err != nil {
 		return false, fmt.Errorf("failed to verify Turnstile token: %w", err)
 	}
 	defer resp.Body.Close()
 
 	var result struct {
-		Success bool     `json:"success"`
-		Errors  []string `json:"error-codes"`
+		Success  bool     `json:"success"`
+		Errors   []string `json:"error-codes"`
+		Action   string   `json:"action"`
+		Hostname string   `json:"hostname"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -211,6 +220,23 @@ func (api *Api) verifyTurnstile(token, clientIP string, r *http.Request) (bool, 
 	if !result.Success {
 		log.Printf("Turnstile verification failed: %v", result.Errors)
 		return false, nil
+	}
+
+	if expectedAction != "" && result.Action != "" && result.Action != expectedAction {
+		log.Printf("Turnstile action mismatch: got %q want %q", result.Action, expectedAction)
+		return false, nil
+	}
+
+	if result.Hostname != "" {
+		_, host := getSchemeAndHost(r)
+		expectedHost := host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			expectedHost = h
+		}
+		if !strings.EqualFold(result.Hostname, expectedHost) {
+			log.Printf("Turnstile hostname mismatch: got %q want %q", result.Hostname, expectedHost)
+			return false, nil
+		}
 	}
 
 	return true, nil
@@ -601,8 +627,10 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 		request.Email = NormalizeEmail(request.Email)
 	}
 
-	// If email verification is required, validate the verification code
-	// Skip this check if an access/invitation code was provided — the code itself proves identity
+	// If email verification is required, validate the verification code.
+	// Do NOT delete the code yet — CAPTCHA or later validation failures must not
+	// consume a valid OTP (issue #259). Delete only after account creation succeeds.
+	emailOTPValidated := false
 	if api.Controller.Options.EmailVerificationRequired && request.AccessCode == "" {
 		if request.VerificationCode == "" {
 			api.exitWithError(w, http.StatusBadRequest, "Email verification code is required")
@@ -621,9 +649,7 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 			api.exitWithError(w, http.StatusBadRequest, "Incorrect verification code")
 			return
 		}
-
-		// Code is valid - delete it from cache
-		signupVerifications.Delete(request.Email)
+		emailOTPValidated = true
 	}
 
 	// Backward compatibility: if accessCode is provided, it takes precedence
@@ -655,7 +681,7 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Invitation codes are already validated via email, so CAPTCHA is redundant
 	if api.Controller.Options.TurnstileEnabled && request.InvitationCode == "" {
 		clientIP := GetRemoteAddr(r)
-		valid, err := api.verifyTurnstile(request.TurnstileToken, clientIP, r)
+		valid, err := api.verifyTurnstile(request.TurnstileToken, clientIP, r, "user_registration")
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("CAPTCHA verification error: %v", err))
 			return
@@ -1037,6 +1063,11 @@ func (api *Api) UserRegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	verifiedBySignupCode := api.Controller.Options.EmailVerificationRequired && request.AccessCode == ""
 
+	// Consume the signup OTP only after the account exists (issue #259).
+	if emailOTPValidated {
+		signupVerifications.Delete(request.Email)
+	}
+
 	// If user registered via an access/invitation code, mark them as already verified
 	if request.AccessCode != "" {
 		user.Verified = true
@@ -1196,7 +1227,7 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Turnstile verification (mobile apps are exempt)
 	if api.Controller.Options.TurnstileEnabled {
-		valid, err := api.verifyTurnstile(request.TurnstileToken, clientIP, r)
+		valid, err := api.verifyTurnstile(request.TurnstileToken, clientIP, r, "user_login")
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("CAPTCHA verification error: %v", err))
 			return
@@ -5843,7 +5874,7 @@ func (api *Api) GroupAdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Turnstile verification (mobile apps are exempt)
 	if api.Controller.Options.TurnstileEnabled {
-		valid, err := api.verifyTurnstile(request.TurnstileToken, clientIP, r)
+		valid, err := api.verifyTurnstile(request.TurnstileToken, clientIP, r, "group_admin_login")
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("CAPTCHA verification error: %v", err))
 			return

@@ -24,6 +24,7 @@ import { FormsModule } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import { RdioScannerGroupAdminLoginComponent } from './group-admin-login.component';
 import { RdioScannerGroupAdminComponent } from './group-admin.component';
+import { RdioScannerTurnstileComponent } from '../turnstile/turnstile.component';
 
 const routes: Routes = [
     { path: 'login', component: RdioScannerGroupAdminLoginComponent },
@@ -39,6 +40,7 @@ const routes: Routes = [
         AppSharedModule,
         FormsModule,
         MatTabsModule,
+        RdioScannerTurnstileComponent,
         RouterModule.forChild(routes)
     ],
     exports: [

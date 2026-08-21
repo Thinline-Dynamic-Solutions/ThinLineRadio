@@ -4,7 +4,7 @@
 
 ---
 
-## Version 26.08.9 - Released August 21, 2026
+## Version 26.08.21 - Released August 21, 2026
 
 ### Added
 
@@ -29,6 +29,9 @@
   - Migrated from deprecated `@angular-devkit/build-angular:browser` (Webpack) to `@angular/build:application` (esbuild).
   - Kept `outputPath.browser` empty so production assets still land in `server/webapp` for Go embed/Docker.
 
+- **Client — Sass module imports**
+  - Replaced deprecated Sass `@import` with `@use` / `@forward` for shared tokens, mixins, and global styles; Google Fonts load via `index.html` instead of Sass `@import url`.
+
 - **Admin Users — status chips and group column (#269)**
   - PIN column removed from the table; PIN / account expiry and other states show as status chips.
   - Group column sits closer to User so Status has room; group name comes from `GET /api/admin/users` as `userGroupName` (no wait on a second `/groups` call); redundant Group **Admin** badge removed.
@@ -37,6 +40,13 @@
   - Talkgroups auto-create only when that system’s Auto Populate is on; global Auto Populate still creates unknown systems only.
 
 ### Fixed
+
+- **Auth — Turnstile widget lifecycle (#259)**
+  - Shared `RdioScannerTurnstileComponent` + script service; login, registration, and group-admin each own a widget with distinct actions (`user_login`, `user_registration`, `group_admin_login`).
+  - Email-verification → full registration form remounts Turnstile so Sign Up is no longer stuck disabled.
+  - Invitation CAPTCHA skip uses server access-code `type` (not format guessing); Sign Up no longer checks a nonexistent `invitationCode` control.
+  - Signup email OTP is consumed only after account creation succeeds (CAPTCHA failure no longer burns the code).
+  - Siteverify uses an HTTP timeout and checks action/hostname; enabling Turnstile without both keys is rejected.
 
 - **Docker / CI — Node pin for Angular 22**
   - Client build stage and workflow now use Node **22.23** (Angular CLI requires ≥22.22.3); `node:22.12` was failing `npm run build` with exit code 3.

@@ -93,7 +93,7 @@ Create a new user account.
   "password": "...",
   "firstName": "Jane",
   "lastName": "Doe",
-  "turnstileToken": "..."   // required if Turnstile is enabled on the server
+  "turnstile_token": "..."   // required if Turnstile is enabled on the server
 }
 ```
 

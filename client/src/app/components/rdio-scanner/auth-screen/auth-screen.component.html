@@ -212,17 +212,14 @@
                     {{ error }}
                   </div>
                 }
-                <!-- Cloudflare Turnstile Widget -->
                 @if (turnstileEnabled && turnstileSiteKey) {
-                  <div class="turnstile-wrap">
-                    @if (turnstilePending) {
-                      <div class="turnstile-placeholder">
-                        <mat-spinner diameter="20"></mat-spinner>
-                        <span>Loading security check…</span>
-                      </div>
-                    }
-                    <div id="turnstile-widget-auth"></div>
-                  </div>
+                  <rdio-scanner-turnstile
+                    #loginTurnstile
+                    [siteKey]="turnstileSiteKey"
+                    action="user_login"
+                    (tokenChange)="onTurnstileToken($event)"
+                    (failed)="onTurnstileFailed($event)"
+                  />
                 }
                 <div class="auth-link-row">
                   <a href="#" class="auth-text-link" (click)="onForgotPassword(); $event.preventDefault()">
@@ -772,19 +769,16 @@
                       </button>
                     </div>
                   }
-                  <!-- Cloudflare Turnstile Widget (hidden when using invitation code) -->
+                  <!-- Cloudflare Turnstile (skipped only for server-confirmed invitations) -->
                   @if (!cmMode && turnstileEnabled && turnstileSiteKey && shouldShowTurnstile()) {
-                    <div class="turnstile-wrap">
-                      @if (turnstilePending) {
-                        <div class="turnstile-placeholder">
-                          <mat-spinner diameter="20"></mat-spinner>
-                          <span>Loading security check…</span>
-                        </div>
-                      }
-                      <div id="turnstile-widget-auth"></div>
-                    </div>
+                    <rdio-scanner-turnstile
+                      #registerTurnstile
+                      [siteKey]="turnstileSiteKey"
+                      action="user_registration"
+                      (tokenChange)="onTurnstileToken($event)"
+                      (failed)="onTurnstileFailed($event)"
+                    />
                   }
-                  <!-- Info message when Turnstile is skipped for invitations -->
                   @if (turnstileEnabled && !shouldShowTurnstile()) {
                     <div style="margin: 20px 0; padding: 12px; background: #1a2a1a; border-left: 4px solid #4caf50; border-radius: 4px;">
                       <div style="display: flex; align-items: center; gap: 8px; color: #81c784;">
@@ -794,7 +788,7 @@
                     </div>
                   }
                   <button mat-raised-button color="primary" type="submit"
-                    [disabled]="(cmMode ? (registerForm.get('firstName')?.invalid || registerForm.get('lastName')?.invalid || registerForm.get('email')?.invalid || registerForm.get('password')?.invalid || registerForm.get('confirmPassword')?.invalid) : registerForm.invalid) || loading || (!cmMode && turnstileEnabled && !turnstileToken && !registerForm.get('invitationCode')?.value)" class="full-width">
+                    [disabled]="(cmMode ? (registerForm.get('firstName')?.invalid || registerForm.get('lastName')?.invalid || registerForm.get('email')?.invalid || registerForm.get('password')?.invalid || registerForm.get('confirmPassword')?.invalid) : registerForm.invalid) || loading || (!cmMode && turnstileEnabled && !turnstileToken && !isInvitationAccessCode)" class="full-width">
                     @if (loading) {
                       <mat-spinner diameter="20"></mat-spinner>
                     }
@@ -946,17 +940,14 @@
                   </mat-error>
                 }
               </mat-form-field>
-              <!-- Cloudflare Turnstile Widget -->
               @if (turnstileEnabled && turnstileSiteKey) {
-                <div class="turnstile-wrap">
-                  @if (turnstilePending) {
-                    <div class="turnstile-placeholder">
-                      <mat-spinner diameter="20"></mat-spinner>
-                      <span>Loading security check…</span>
-                    </div>
-                  }
-                  <div id="turnstile-widget-auth"></div>
-                </div>
+                <rdio-scanner-turnstile
+                  #groupAdminTurnstile
+                  [siteKey]="turnstileSiteKey"
+                  action="group_admin_login"
+                  (tokenChange)="onTurnstileToken($event)"
+                  (failed)="onTurnstileFailed($event)"
+                />
               }
               @if (groupAdminError) {
                 <div class="error-message">
