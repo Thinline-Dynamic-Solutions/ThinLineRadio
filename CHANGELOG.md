@@ -1,5 +1,51 @@
 # Change log
 
+## Version 26.09.15 - Released September 15, 2026
+
+### Added
+
+- **Profanity filter on transcripts and alerts**
+  - After transcription (local STT and Hydra), foul language is masked before the transcript is saved and before alert/push notifications are sent.
+  - Whole-word matching so dispatch terms such as assault, assignment, passenger, and street names are not changed.
+  - On by default. Admin → Transcription → Quality can turn it off or add extra blocked words.
+- **Backup transcription provider**
+  - Admin → Transcription → Provider can set a backup STT engine. When the primary call fails (Cloudflare GPU OOM, API 5xx, timeouts), the same audio is sent to the backup. Truncated/invalid audio is not retried. Credentials for both providers show on that page.
+- **Configurable web UI accent color**
+  - Ember red is still the default. Admins can change the public scanner primary color under Options → Branding (presets or custom hex). Listeners can override it for themselves in Settings → Appearance, or follow the site default.
+  - Volume slider, listeners, queue, Transmissions/Channels tabs, weather card, and other scanner chrome follow the chosen color.
+
+### Changed
+
+- **Radio Reference credentials moved to Tools**
+  - Username, password, and enable toggle now live under Admin → Tools → Radio Reference, with the import flow. Removed from Options → Integrations.
+
+### Fixed
+
+- **Scanner LCD — keypad jumps when a talkgroup comes up**
+  - Scanning row, transcript box, talkgroup card, and LIVE/DELAYED slot now keep a reserved height. Going from SCANNING to a live talkgroup (and back) no longer shoves the keypad and weather widget.
+  - Alert cards: keyword chip no longer overlaps the date/time on narrow screens; channel sits on the next line and the play control stays on the right.
+  - Search results table fills the remaining Transmissions panel instead of stopping at a 20-row viewport.
+
+---
+
+## Version 26.09.07 - Released September 6, 2026
+
+### Added
+
+- **Profanity filter on transcripts and alerts**
+  - After transcription (local STT and Hydra), foul language is masked before the transcript is saved and before alert/push notifications are sent.
+  - Whole-word matching so dispatch terms such as assault, assignment, passenger, and street names are not changed.
+  - On by default. Admin → Transcription → Quality can turn it off or add extra blocked words.
+
+### Fixed
+
+- **Scanner LCD — keypad jumps when a talkgroup comes up**
+  - Scanning row, transcript box, talkgroup card, and LIVE/DELAYED slot now keep a reserved height. Going from SCANNING to a live talkgroup (and back) no longer shoves the keypad and weather widget.
+  - Alert cards: keyword chip no longer overlaps the date/time on narrow screens; channel sits on the next line and the play control stays on the right.
+  - Search results table fills the remaining Transmissions panel instead of stopping at a 20-row viewport.
+
+---
+
 ## Version 26.09.06 - Released September 5, 2026
 
 ### Fixed

@@ -150,14 +150,14 @@
   }
 
   .header-btn--admin {
-    background: rgba(255, 91, 46, 0.14);
+    background: rgba(var(--tlr-accent-rgb), 0.14);
     color: #ffffff;
-    border-color: rgba(255, 91, 46, 0.45);
+    border-color: rgba(var(--tlr-accent-rgb), 0.45);
 
     mat-icon { color: var(--tlr-ember, #ff5b2e); }
 
     &:hover {
-      background: rgba(255, 91, 46, 0.24);
+      background: rgba(var(--tlr-accent-rgb), 0.24);
       border-color: var(--tlr-ember, #ff5b2e);
       box-shadow: var(--tlr-glow-ember, none);
     }
@@ -332,8 +332,8 @@
   }
 
   &--latched {
-    border-color: rgba(255, 91, 46, 0.55);
-    background: rgba(255, 91, 46, 0.10);
+    border-color: rgba(var(--tlr-accent-rgb), 0.55);
+    background: rgba(var(--tlr-accent-rgb), 0.10);
   }
 }
 
@@ -421,13 +421,13 @@
     flex: 1 1 auto;
     min-width: 0;
     --mat-slider-active-track-color: var(--tlr-primary);
-    --mat-slider-inactive-track-color: rgba(255, 91, 46, 0.18);
+    --mat-slider-inactive-track-color: rgba(var(--tlr-accent-rgb), 0.18);
     --mat-slider-handle-color: var(--tlr-primary);
     --mat-slider-hover-handle-color: var(--tlr-primary);
     --mat-slider-focus-handle-color: var(--tlr-primary);
     --mat-slider-label-container-color: var(--tlr-primary);
     --mat-slider-label-label-text-color: #1a0a08;
-    --mat-mdc-slider-ripple-color: rgba(255, 91, 46, 0.32);
+    --mat-mdc-slider-ripple-color: rgba(var(--tlr-accent-rgb), 0.32);
 
     ::ng-deep .mat-mdc-slider { width: 100%; min-width: 0; margin: 0; }
     ::ng-deep .mdc-slider__track--inactive { opacity: 1; }
@@ -470,9 +470,11 @@
 
 .lcd-status {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px 14px;
+  gap: 6px 10px;
+  min-height: 22px;
+  overflow: hidden;
   font-family: var(--tlr-font-numeric);
   font-size: 11px;
   letter-spacing: 0.05em;
@@ -508,6 +510,8 @@
     color: #ffab40;
     font-weight: 700;
     text-shadow: 0 0 8px rgba(255, 171, 64, 0.5);
+    min-width: 7.5ch;
+    flex: 0 0 auto;
 
     &.is-placeholder {
       visibility: hidden;
@@ -528,25 +532,26 @@
     line-height: 1.4;
   }
   .flag--avoid { background: rgba(255, 171, 64, 0.15); color: #ffab40; border: 1px solid rgba(255, 171, 64, 0.5); }
-  .flag--patch { background: rgba(255, 91, 46, 0.12); color: var(--tlr-accent); border: 1px solid rgba(255, 91, 46, 0.5); }
+  .flag--patch { background: rgba(var(--tlr-accent-rgb), 0.12); color: var(--tlr-accent); border: 1px solid rgba(var(--tlr-accent-rgb), 0.5); }
 }
 
 .lcd-scan {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 0;
-  padding: 0;
+  box-sizing: border-box;
+  min-height: 28px;
+  height: 28px;
+  padding: 4px 8px;
   border: 1px dashed transparent;
   border-radius: 4px;
   font-size: 12px;
+  visibility: hidden;
 
-  /* Only reserve space while scanning — was leaving a blank band above now-playing. */
+  /* Keep this row in flow while a talkgroup is up so the keypad does not jump. */
   &.is-active {
-    display: flex;
-    min-height: 28px;
-    padding: 4px 8px;
-    border-color: rgba(255, 91, 46, 0.35);
+    visibility: visible;
+    border-color: rgba(var(--tlr-accent-rgb), 0.35);
   }
 
   .scan-label {
@@ -554,7 +559,7 @@
     letter-spacing: 0.12em;
     color: var(--tlr-primary);
     animation: pulse 2s ease-in-out infinite;
-    text-shadow: 0 0 8px rgba(255, 91, 46, 0.55);
+    text-shadow: 0 0 8px rgba(var(--tlr-accent-rgb), 0.55);
   }
 
   .scan-sys {
@@ -596,13 +601,6 @@
 
     &.now-cell--system {
       grid-column: 1 / -1;
-
-      .cell-v {
-        white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
-        line-height: 1.25;
-      }
     }
 
     &.now-cell--end {
@@ -638,8 +636,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     text-align: center;
     gap: 4px;
+    min-height: 58px;
     padding: 10px 12px;
     border-radius: 8px;
     background: rgba(7, 12, 16, 0.72);
@@ -725,11 +725,6 @@
       .transcript-label {
         opacity: 0.45;
       }
-
-      .transcript-text {
-        min-height: 0;
-        max-height: none;
-      }
     }
 
     .transcript-label {
@@ -749,7 +744,8 @@
       line-height: 1.5;
       color: var(--tlr-text);
       white-space: pre-wrap;
-      min-height: 2.5em;
+      min-height: 4.5em;
+      height: 4.5em;
       max-height: 4.5em;
       overflow: hidden;
 
@@ -765,10 +761,6 @@
 
   .now-tg-card .cell-v.hero {
     font-size: 16px;
-  }
-
-  .now-transcript {
-    min-height: 0;
   }
 }
 
@@ -833,13 +825,13 @@
     }
 
     .mat-mdc-tab.mdc-tab--active {
-      background: rgba(255, 91, 46, 0.08);
+      background: rgba(var(--tlr-accent-rgb), 0.08);
     }
 
     .mdc-tab-indicator .mdc-tab-indicator__content--underline {
       border-color: var(--tlr-primary);
       border-top-width: 2px;
-      box-shadow: 0 0 10px rgba(255, 91, 46, 0.55);
+      box-shadow: 0 0 10px rgba(var(--tlr-accent-rgb), 0.55);
     }
 
     .mat-mdc-tab-body-wrapper { flex: 1 1 auto; min-height: 0; overflow: hidden; }
@@ -930,6 +922,8 @@
 
 .calls-panel {
   position: relative;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   flex: 1 1 auto;
   min-height: 0;
@@ -975,9 +969,9 @@
   }
 
   &.active {
-    background: rgba(255, 91, 46, 0.1);
+    background: rgba(var(--tlr-accent-rgb), 0.1);
     color: var(--tlr-primary);
-    box-shadow: inset 0 0 0 1px rgba(255, 91, 46, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(var(--tlr-accent-rgb), 0.28);
   }
 }
 
@@ -1079,16 +1073,16 @@
     cursor: pointer;
     transition: background 0.15s ease;
 
-    &:hover { background: rgba(255, 91, 46, 0.07) !important; }
+    &:hover { background: rgba(var(--tlr-accent-rgb), 0.07) !important; }
 
     &.row-playing {
-      background: rgba(255, 91, 46, 0.08) !important;
+      background: rgba(var(--tlr-accent-rgb), 0.08) !important;
       box-shadow: inset 3px 0 0 var(--tlr-primary);
       td { color: var(--tlr-primary); }
     }
 
     &.row-selected:not(.row-playing) {
-      background: rgba(255, 91, 46, 0.05) !important;
+      background: rgba(var(--tlr-accent-rgb), 0.05) !important;
       box-shadow: inset 3px 0 0 var(--tlr-accent, #ff5b2e);
     }
 

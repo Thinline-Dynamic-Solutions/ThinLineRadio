@@ -252,6 +252,8 @@ export interface RdioScannerConfig {
             trialDays?: number;
         }>;
         baseUrl?: string;
+        /** Site-wide public scanner accent (#rrggbb). Users may override in Settings. */
+        uiAccentColor?: string;
         turnstileEnabled?: boolean;
         turnstileSiteKey?: string;
         transcriptionEnabled?: boolean;

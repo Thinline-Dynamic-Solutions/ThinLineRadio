@@ -60,7 +60,7 @@
         background: linear-gradient(
             to right,
             transparent,
-            rgba(255, 91, 46, 0.45),
+            rgba(var(--tlr-accent-rgb), 0.45),
             transparent
         );
         z-index: 2;

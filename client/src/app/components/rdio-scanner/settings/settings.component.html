@@ -339,6 +339,53 @@
           </mat-form-field>
         </div>
       </div>
+
+      <div class="font-setting accent-setting">
+        <h4>Accent Color</h4>
+        <p class="setting-description">
+          Color for tabs, buttons, links, and focus. Site default follows the administrator setting.
+        </p>
+        <div class="accent-picker">
+          <div class="accent-picker-row">
+            <input
+              type="color"
+              class="accent-native"
+              [value]="uiAccentColor"
+              (input)="onAccentPickerInput($event)"
+              aria-label="Accent color">
+            <mat-form-field appearance="outline" class="accent-hex">
+              <mat-label>Hex</mat-label>
+              <input
+                matInput
+                maxlength="7"
+                [value]="uiAccentColor"
+                (blur)="onAccentHexBlur($event)"
+                autocomplete="off">
+            </mat-form-field>
+          </div>
+          <div class="accent-presets" role="group" aria-label="Accent color presets">
+            <button
+              type="button"
+              mat-stroked-button
+              class="accent-default-btn"
+              [class.selected]="accentUsesSiteDefault"
+              (click)="useSiteAccent()">
+              Site default
+            </button>
+            @for (preset of accentPresets; track preset.id) {
+              <button
+                type="button"
+                class="accent-swatch"
+                [class.selected]="!accentUsesSiteDefault && uiAccentColor === preset.value"
+                [style.background-color]="preset.value"
+                [attr.aria-label]="preset.name"
+                [matTooltip]="preset.name"
+                (click)="setAccentColor(preset.value)">
+              </button>
+            }
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="section tag-colors-section">

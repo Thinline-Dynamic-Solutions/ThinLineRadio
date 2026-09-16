@@ -98,6 +98,7 @@ func writeInjectedWebappIndexHTML(w http.ResponseWriter, r *http.Request, contro
 		branding = "Thinline Radio"
 	}
 	email := controller.Options.Email
+	uiAccentColor := normalizeUIAccentColor(controller.Options.UIAccentColor)
 
 	configScript := fmt.Sprintf(`
 <script>
@@ -115,10 +116,11 @@ window.initialConfig = {
 		"emailLogoFilename": %q,
 		"emailLogoBorderRadius": %q,
 		"turnstileEnabled": %t,
-		"turnstileSiteKey": %q
+		"turnstileSiteKey": %q,
+		"uiAccentColor": %q
 	}
 };
-</script>`, branding, email, controller.Options.UserRegistrationEnabled, controller.Options.StripePaywallEnabled, controller.Options.StripePublishableKey, controller.Options.StripePriceId, controller.Options.BaseUrl, controller.Options.EffectiveIOSAppStoreURL(), controller.Options.EffectiveAndroidPlayStoreURL(), controller.Options.EmailLogoFilename, controller.Options.EmailLogoBorderRadius, controller.Options.TurnstileEnabled, controller.Options.TurnstileSiteKey)
+</script>`, branding, email, controller.Options.UserRegistrationEnabled, controller.Options.StripePaywallEnabled, controller.Options.StripePublishableKey, controller.Options.StripePriceId, controller.Options.BaseUrl, controller.Options.EffectiveIOSAppStoreURL(), controller.Options.EffectiveAndroidPlayStoreURL(), controller.Options.EmailLogoFilename, controller.Options.EmailLogoBorderRadius, controller.Options.TurnstileEnabled, controller.Options.TurnstileSiteKey, uiAccentColor)
 
 	injected := false
 	if strings.Contains(html, "</head>") {

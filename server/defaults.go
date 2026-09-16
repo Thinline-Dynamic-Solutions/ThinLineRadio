@@ -48,6 +48,7 @@ type DefaultOptions struct {
 	autoPopulate                bool
 	audioConversion             uint
 	branding                    string
+	uiAccentColor               string
 	defaultSystemDelay          uint
 	disableDuplicateDetection   bool
 	duplicateDetectionTimeFrame   uint
@@ -167,6 +168,7 @@ var defaults = Defaults{
 		autoPopulate:                true,
 		audioConversion:             AUDIO_CONVERSION_ENABLED, // match rdio-scanner: on by default
 		branding:                    "",
+		uiAccentColor:               defaultUIAccentColor,
 		defaultSystemDelay:          0,
 		disableDuplicateDetection:   false,
 		duplicateDetectionTimeFrame:   30000,

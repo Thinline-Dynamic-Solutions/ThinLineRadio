@@ -420,6 +420,7 @@ export interface Options {
 	audioConversion?: 0 | 1 | 2 | 3;
 	autoPopulate?: boolean;
 	branding?: string;
+	uiAccentColor?: string;
 	defaultSystemDelay?: number;
 	disableDuplicateDetection?: boolean;
 	duplicateDetectionTimeFrame?: number;
@@ -471,9 +472,10 @@ export interface Options {
     baseUrl?: string;
     transcriptionEnabled?: boolean;
     transcriptionEnhancement?: boolean;
-    transcriptionConfig?: {
+        transcriptionConfig?: {
         enabled?: boolean;
         provider?: string;
+        backupProvider?: string;
         language?: string;
         prompt?: string;
         workerPoolSize?: number;
@@ -500,6 +502,8 @@ export interface Options {
         timeoutSeconds?: number;
         collectorURL?: string;
         collectorAPIKey?: string;
+        profanityFilterEnabled?: boolean;
+        profanityFilterExtraWords?: string[];
     };
     alertRetentionDays?: number;
     systemHealthAlertsEnabled?: boolean;
@@ -2143,6 +2147,7 @@ export class RdioScannerAdminService implements OnDestroy {
         const transcriptionConfig = options?.transcriptionConfig || {
             enabled: false,
             provider: 'whisper-api',
+            backupProvider: '',
             language: 'en',
             prompt: '',
             workerPoolSize: 1, // Default 1 for safety; users with adequate VRAM can increase
@@ -2168,6 +2173,7 @@ export class RdioScannerAdminService implements OnDestroy {
 		audioConversion: this.ngFormBuilder.control(options?.audioConversion),
 		autoPopulate: this.ngFormBuilder.control(options?.autoPopulate),
 		branding: this.ngFormBuilder.control(options?.branding),
+			uiAccentColor: this.ngFormBuilder.control(options?.uiAccentColor || '#ff5b2e'),
 			defaultSystemDelay: this.ngFormBuilder.control(options?.defaultSystemDelay ?? 0, [Validators.required, Validators.min(0)]),
             disableDuplicateDetection: this.ngFormBuilder.control(options?.disableDuplicateDetection ?? false),
             duplicateDetectionTimeFrame: this.ngFormBuilder.control(
@@ -2194,10 +2200,8 @@ export class RdioScannerAdminService implements OnDestroy {
             sortTalkgroups: this.ngFormBuilder.control(options?.sortTalkgroups),
             time12hFormat: this.ngFormBuilder.control(options?.time12hFormat),
             radioReferenceEnabled: this.ngFormBuilder.control(options?.radioReferenceEnabled),
-            radioReferenceUsername: this.ngFormBuilder.control(options?.radioReferenceUsername, 
-                options?.radioReferenceEnabled ? [Validators.required] : []),
-            radioReferencePassword: this.ngFormBuilder.control(options?.radioReferencePassword, 
-                options?.radioReferenceEnabled ? [Validators.required] : []),
+            radioReferenceUsername: this.ngFormBuilder.control(options?.radioReferenceUsername || ''),
+            radioReferencePassword: this.ngFormBuilder.control(options?.radioReferencePassword || ''),
             radioReferenceAPIKey: this.ngFormBuilder.control(options?.radioReferenceAPIKey || ''),
             userRegistrationEnabled: this.ngFormBuilder.control(options?.userRegistrationEnabled),
             publicRegistrationEnabled: this.ngFormBuilder.control(options?.publicRegistrationEnabled ?? true),
@@ -2234,6 +2238,7 @@ export class RdioScannerAdminService implements OnDestroy {
             transcriptionConfig: this.ngFormBuilder.group({
                 enabled: this.ngFormBuilder.control(transcriptionConfig?.enabled || false),
                 provider: this.ngFormBuilder.control(transcriptionConfig?.provider || 'whisper-api'),
+                backupProvider: this.ngFormBuilder.control(transcriptionConfig?.backupProvider || ''),
                 language: this.ngFormBuilder.control(transcriptionConfig?.language || 'en'),
                 prompt: this.ngFormBuilder.control(transcriptionConfig?.prompt || ''),
                 workerPoolSize: this.ngFormBuilder.control(transcriptionConfig?.workerPoolSize || 1, [Validators.min(1), Validators.max(10)]), // Default 1 for safety; configurable by user
@@ -2269,6 +2274,10 @@ export class RdioScannerAdminService implements OnDestroy {
                 hallucinationConfidenceThreshold: this.ngFormBuilder.control(
                     transcriptionConfig?.hallucinationConfidenceThreshold ?? 0.6,
                     [Validators.min(0), Validators.max(1)],
+                ),
+                profanityFilterEnabled: this.ngFormBuilder.control(transcriptionConfig?.profanityFilterEnabled ?? true),
+                profanityFilterExtraWords: this.ngFormBuilder.control(
+                    (transcriptionConfig?.profanityFilterExtraWords || []).join('\n')
                 ),
             }),
             alertRetentionDays: this.ngFormBuilder.control(options?.alertRetentionDays || 30, [Validators.min(0)]),
@@ -2697,7 +2706,7 @@ export class RdioScannerAdminService implements OnDestroy {
             return;
         }
 
-        const webSocketUrl = new URL(this.getUrl(url.config), window.location.href).href.replace(/^http/, 'ws');
+        const webSocketUrl = this.getConfigWebSocketUrl();
 
         this.configWebSocket = new WebSocket(webSocketUrl);
 
@@ -2756,6 +2765,19 @@ export class RdioScannerAdminService implements OnDestroy {
             result[key] = headers.get(key) || '';
         });
         return result;
+    }
+
+    /** Admin config WebSocket URL. On ng serve (port 42xx) connect to the Go
+     *  server on :3000 — Vite does not reliably upgrade /api WebSockets. */
+    private getConfigWebSocketUrl(): string {
+        const httpUrl = this.getUrl(url.config);
+        const { protocol, hostname, port } = window.location;
+        if (/^42\d{2}$/.test(port)) {
+            const parsed = new URL(httpUrl);
+            const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${wsProtocol}//${hostname}:3000${parsed.pathname}${parsed.search}`;
+        }
+        return httpUrl.replace(/^http/, 'ws');
     }
 
     private getUrl(path: string): string {

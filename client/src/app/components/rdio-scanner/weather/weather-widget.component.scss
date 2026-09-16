@@ -28,7 +28,7 @@
     width: 16px;
     height: 16px;
     font-size: 16px;
-    color: #ff5b2e;
+    color: var(--tlr-accent);
 }
 
 .weather-widget__title {
@@ -47,9 +47,9 @@
     padding: 0 8px;
     font-size: 10px;
     font-weight: 600;
-    color: #ff5b2e;
+    color: var(--tlr-accent);
     background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 91, 46, 0.35);
+    border: 1px solid rgba(var(--tlr-accent-rgb), 0.35);
     border-radius: 4px;
 }
 
@@ -153,7 +153,7 @@
 
 .weather-widget__hour-pop {
     font-size: 8px;
-    color: #ff5b2e;
+    color: var(--tlr-accent);
 }
 
 .weather-widget__daily {
@@ -184,7 +184,7 @@
 
 .weather-widget__day-temp {
     font-weight: 700;
-    color: #ff5b2e;
+    color: var(--tlr-accent);
 }
 
 .weather-widget__day-desc {

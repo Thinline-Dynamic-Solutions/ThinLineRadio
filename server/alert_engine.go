@@ -588,7 +588,7 @@ func (engine *AlertEngine) UpsertKeywordAlert(callId, systemId, talkgroupId uint
 
 	transcriptSnippet := ""
 	if transcript != nil && transcript.Transcript != "" {
-		transcriptSnippet = transcript.Transcript
+		transcriptSnippet = engine.controller.applyTranscriptProfanityFilter(transcript.Transcript)
 		if len(transcriptSnippet) > 200 {
 			transcriptSnippet = transcriptSnippet[:200] + "..."
 		}
@@ -750,7 +750,7 @@ func (engine *AlertEngine) TriggerToneAndKeywordAlerts(call *Call, userId uint64
 	// Get transcript snippet
 	transcriptSnippet := ""
 	if transcript != nil && transcript.Transcript != "" {
-		transcriptSnippet = transcript.Transcript
+		transcriptSnippet = engine.controller.applyTranscriptProfanityFilter(transcript.Transcript)
 		if len(transcriptSnippet) > 200 {
 			transcriptSnippet = transcriptSnippet[:200] + "..."
 		}

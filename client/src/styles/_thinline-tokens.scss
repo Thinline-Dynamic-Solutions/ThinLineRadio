@@ -39,6 +39,7 @@
     --tlr-rose: #ff4d6d;
 
     --tlr-accent: var(--tlr-ember);
+    --tlr-accent-rgb: 255, 91, 46;
     --tlr-primary: var(--tlr-accent);
     --primary-color: var(--tlr-accent);
     --tlr-error: var(--tlr-rose);
@@ -56,7 +57,7 @@
     --tlr-chassis-stop-2: #06080c;
     --tlr-chassis-stop-3: #05070a;
     --tlr-chassis-gradient:
-        radial-gradient(58% 44% at 12% -6%, rgba(255, 91, 46, 0.16), transparent 62%),
+        radial-gradient(58% 44% at 12% -6%, color-mix(in srgb, var(--tlr-accent) 16%, transparent), transparent 62%),
         radial-gradient(46% 40% at 96% 4%, rgba(95, 208, 255, 0.10), transparent 66%),
         linear-gradient(180deg, var(--tlr-chassis-stop-1) 0%, var(--tlr-chassis-stop-2) 40%, var(--tlr-chassis-stop-3) 100%);
 
@@ -84,12 +85,12 @@
 
     --tlr-nav-active: var(--tlr-accent);
     --tlr-nav-inactive: var(--tlr-text-secondary);
-    --tlr-nav-active-glow: 0 0 0 1px rgba(255, 91, 46, 0.35);
+    --tlr-nav-active-glow: 0 0 0 1px color-mix(in srgb, var(--tlr-accent) 35%, transparent);
 
     --tlr-meta-glow: none;
     --tlr-hero-glow: none;
 
-    --tlr-glow-ember: 0 0 0 1px rgba(255, 91, 46, 0.35), 0 12px 40px -12px rgba(255, 91, 46, 0.45);
+    --tlr-glow-ember: 0 0 0 1px color-mix(in srgb, var(--tlr-accent) 35%, transparent), 0 12px 40px -12px color-mix(in srgb, var(--tlr-accent) 45%, transparent);
     --tlr-radius: 16px;
     --tlr-radius-sm: 10px;
     --tlr-ease: cubic-bezier(0.22, 1, 0.36, 1);

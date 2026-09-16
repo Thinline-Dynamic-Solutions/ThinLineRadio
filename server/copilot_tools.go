@@ -247,6 +247,7 @@ func (admin *Admin) copilotToolServerStatus() (string, error) {
 		"openaiModel":        opts.OpenAIIntegration.resolvedChatModel(),
 		"transcriptionEnabled":  opts.TranscriptionConfig.Enabled,
 		"transcriptionProvider": opts.TranscriptionConfig.Provider,
+		"transcriptionBackupProvider": opts.TranscriptionConfig.BackupProvider,
 		"stripeEnabled":      opts.StripePaywallEnabled,
 		"emailEnabled":       opts.EmailServiceEnabled,
 		"centralManagement":  opts.CentralManagementEnabled,

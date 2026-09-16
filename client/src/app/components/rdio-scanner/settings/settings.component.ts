@@ -32,6 +32,8 @@ import { AlertsService } from '../alerts/alerts.service';
 import { RdioScannerAlertPreference } from '../rdio-scanner';
 import { APP_FONTS } from '../app-font.util';
 import { AppFontService } from '../app-font.service';
+import { AppAccentService } from '../app-accent.service';
+import { DEFAULT_UI_ACCENT, UI_ACCENT_PRESETS, normalizeUIAccentColor } from '../app-accent.util';
 
 export type SettingsTab = 'audio' | 'appearance' | 'account';
 export type AudioSection = 'livefeed' | 'alerts';
@@ -66,6 +68,10 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
     // Font selection
     appFont: string = 'Roboto';
     availableFonts = APP_FONTS;
+
+    accentUsesSiteDefault = true;
+    uiAccentColor = DEFAULT_UI_ACCENT;
+    readonly accentPresets = UI_ACCENT_PRESETS;
 
     // Per-channel sounds
     channelPreferences: RdioScannerAlertPreference[] = [];
@@ -119,6 +125,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         private alertSoundService: AlertSoundService,
         private alertsService: AlertsService,
         private appFontService: AppFontService,
+        private appAccentService: AppAccentService,
         private http: HttpClient,
         private fb: FormBuilder,
         private snackBar: MatSnackBar,
@@ -514,6 +521,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
                 // Load font setting
                 this.appFont = this.settings.appFont || 'Roboto';
                 this.appFontService.apply(this.appFont);
+                this.loadAccentFromSettings();
             },
             error: (error) => {
                 console.error('Error loading settings:', error);
@@ -595,6 +603,7 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
         this.settings.weatherAlertSound = this.weatherAlertSound;
         this.settings.weatherAlertTtsEnabled = this.weatherAlertTtsEnabled;
         this.settings.appFont = this.appFont;
+        this.settings.uiAccentColor = this.accentUsesSiteDefault ? '' : this.uiAccentColor;
         this.settingsService.saveSettings(this.settings).subscribe({
             next: () => {
                 console.log('Settings saved successfully');
@@ -668,6 +677,45 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
 
     getFontDisplayName(fontName: string): string {
         return this.availableFonts.find(f => f.name === fontName)?.displayName ?? fontName;
+    }
+
+    private loadAccentFromSettings(): void {
+        const saved = typeof this.settings.uiAccentColor === 'string' ? this.settings.uiAccentColor.trim() : '';
+        if (saved) {
+            this.accentUsesSiteDefault = false;
+            this.uiAccentColor = normalizeUIAccentColor(saved);
+            this.appAccentService.setUserColor(this.uiAccentColor);
+        } else {
+            this.accentUsesSiteDefault = true;
+            this.uiAccentColor = this.appAccentService.getSiteColor();
+            this.appAccentService.setUserColor('');
+        }
+    }
+
+    useSiteAccent(): void {
+        this.accentUsesSiteDefault = true;
+        this.uiAccentColor = this.appAccentService.getSiteColor();
+        this.appAccentService.setUserColor('');
+        this.saveSettings();
+    }
+
+    setAccentColor(value: string): void {
+        this.accentUsesSiteDefault = false;
+        this.uiAccentColor = normalizeUIAccentColor(value);
+        this.appAccentService.setUserColor(this.uiAccentColor);
+        this.saveSettings();
+    }
+
+    onAccentPickerInput(event: Event): void {
+        const value = (event.target as HTMLInputElement | null)?.value;
+        if (value) {
+            this.setAccentColor(value);
+        }
+    }
+
+    onAccentHexBlur(event: Event): void {
+        const value = (event.target as HTMLInputElement | null)?.value;
+        this.setAccentColor(value || this.appAccentService.getSiteColor());
     }
 
     private getAuthHeaders(): HttpHeaders {

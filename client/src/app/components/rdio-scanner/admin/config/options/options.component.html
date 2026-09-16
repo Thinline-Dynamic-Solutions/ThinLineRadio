@@ -568,6 +568,46 @@
         </div>
         <div class="row">
           <p>
+            <span class="mat-body">UI Accent Color</span><br>
+            <span class="mat-caption">Primary color for the public scanner (tabs, buttons, links, and focus). Ember red is the default and can be hard to read; choose a higher-contrast color for all listeners. Users can still pick their own color in Settings → Appearance.</span>
+          </p>
+          <div class="ui-accent-picker">
+            <div class="ui-accent-picker-row">
+              <input
+                type="color"
+                class="ui-accent-native"
+                [value]="uiAccentColorValue"
+                (input)="onUiAccentPickerInput($event)"
+                aria-label="UI accent color">
+              <mat-form-field floatLabel="auto" class="ui-accent-hex">
+                <input
+                  type="text"
+                  matInput
+                  formControlName="uiAccentColor"
+                  maxlength="7"
+                  (blur)="onUiAccentHexBlur($event)"
+                  placeholder="#ff5b2e"
+                  autocomplete="off">
+              </mat-form-field>
+              <button mat-button type="button" (click)="setUiAccentColor(defaultUiAccent)">Reset</button>
+            </div>
+            <div class="ui-accent-presets" role="group" aria-label="Accent color presets">
+              @for (preset of uiAccentPresets; track preset.id) {
+                <button
+                  type="button"
+                  class="ui-accent-swatch"
+                  [class.selected]="uiAccentColorValue === preset.value"
+                  [style.background-color]="preset.value"
+                  [attr.aria-label]="preset.name"
+                  [matTooltip]="preset.name"
+                  (click)="setUiAccentColor(preset.value)">
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <p>
             <span class="mat-body">Base URL</span><br>
             <span class="mat-caption">The public base URL of your Thinline Radio server (e.g., https://radio.example.com). Used for generating links in emails.</span>
           </p>
@@ -1159,83 +1199,6 @@
             </mat-form-field>
           </div>
         </ng-container>
-        <!-- Radio Reference Integration -->
-        <div class="row">
-          <p>
-            <span class="mat-body">Radio Reference Integration</span><br>
-            <span class="mat-caption">Enable Radio Reference database integration for automatic talkgroup and system information.</span>
-          </p>
-          <div>
-            <mat-slide-toggle color="primary" formControlName="radioReferenceEnabled"></mat-slide-toggle>
-          </div>
-        </div>
-        @if (form?.get('radioReferenceEnabled')?.value) {
-          @if (!isRadioReferenceLoggedIn || isEditingRadioReference) {
-            <div class="row">
-              <p>
-                <span class="mat-body">Radio Reference Username</span><br>
-                <span class="mat-caption">Your Radio Reference premium account username.</span>
-              </p>
-              <mat-form-field floatLabel="auto">
-                <input type="text" matInput formControlName="radioReferenceUsername" placeholder="Username" autocomplete="off">
-                @if (form?.get('radioReferenceUsername')?.hasError('required')) {
-                  <mat-error>
-                    Username is required when Radio Reference is enabled
-                  </mat-error>
-                }
-              </mat-form-field>
-            </div>
-          }
-          @if (!isRadioReferenceLoggedIn || isEditingRadioReference) {
-            <div class="row">
-              <p>
-                <span class="mat-body">Radio Reference Password</span><br>
-                <span class="mat-caption">Your Radio Reference premium account password.</span>
-              </p>
-              <mat-form-field floatLabel="auto">
-                <input type="text" class="masked-pw" autocomplete="new-password" matInput formControlName="radioReferencePassword" placeholder="Password">
-                @if (form?.get('radioReferencePassword')?.hasError('required')) {
-                  <mat-error>
-                    Password is required when Radio Reference is enabled
-                  </mat-error>
-                }
-              </mat-form-field>
-            </div>
-          }
-          @if (isRadioReferenceLoggedIn && !isEditingRadioReference) {
-            <div class="row">
-              <p>
-                <span class="mat-body">Radio Reference Account</span><br>
-                <span class="mat-caption">You are currently logged in to Radio Reference.</span>
-              </p>
-              <div style="display: flex; gap: 8px;">
-                <button mat-stroked-button type="button" (click)="editRadioReferenceLogin()">
-                  <mat-icon>edit</mat-icon>
-                  Change Account
-                </button>
-                <button mat-stroked-button type="button" color="warn" (click)="removeRadioReferenceAccount()">
-                  <mat-icon>delete</mat-icon>
-                  Remove
-                </button>
-              </div>
-            </div>
-          }
-          @if (isEditingRadioReference) {
-            <div class="row">
-              <p></p>
-              <div style="display: flex; gap: 8px;">
-                <button mat-raised-button type="button" color="primary" (click)="isEditingRadioReference = false">
-                  <mat-icon>save</mat-icon>
-                  Save Changes
-                </button>
-                <button mat-stroked-button type="button" (click)="cancelEditRadioReference()">
-                  <mat-icon>cancel</mat-icon>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          }
-        }
       </div>
         </section>
     }
@@ -1601,7 +1564,7 @@
                 <span class="mat-caption">Select the transcription provider to use. OpenAI-compatible API supports Whisper or official OpenAI servers.</span>
               </p>
               <mat-form-field floatLabel="auto">
-                <mat-select formControlName="provider" placeholder="Provider">
+                <mat-select formControlName="provider" placeholder="Provider" (selectionChange)="onPrimaryTranscriptionProviderChange()">
                   <mat-option value="whisper-api">OpenAI-Compatible API (Whisper / OpenAI)</mat-option>
                   <mat-option value="azure">Azure Speech Services</mat-option>
                   <mat-option value="gemini">Gemini 3.1 Flash-Lite</mat-option>
@@ -1613,8 +1576,37 @@
                 </mat-select>
               </mat-form-field>
             </div>
+            <div class="row">
+              <p>
+                <span class="mat-body">Backup Provider</span><br>
+                <span class="mat-caption">Optional. Used only when the primary provider fails after its own retries (API errors, GPU OOM, timeouts). Invalid or truncated audio is not sent to the backup. Configure credentials for both providers below.</span>
+              </p>
+              <mat-form-field floatLabel="auto">
+                <mat-select formControlName="backupProvider" placeholder="None">
+                  <mat-option value="">None</mat-option>
+                  @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'whisper-api') {
+                    <mat-option value="whisper-api">OpenAI-Compatible API (Whisper / OpenAI)</mat-option>
+                  }
+                  @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'azure') {
+                    <mat-option value="azure">Azure Speech Services</mat-option>
+                  }
+                  @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'gemini') {
+                    <mat-option value="gemini">Gemini 3.1 Flash-Lite</mat-option>
+                  }
+                  @if (transcriptionUsesProvider('google') && form?.get('transcriptionConfig')?.get('provider')?.value !== 'google') {
+                    <mat-option value="google">Google Speech-to-Text (legacy)</mat-option>
+                  }
+                  @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'assemblyai') {
+                    <mat-option value="assemblyai">AssemblyAI</mat-option>
+                  }
+                  @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'cloudflare') {
+                    <mat-option value="cloudflare">Cloudflare Workers AI</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
             <!-- Gemini Configuration -->
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'gemini') {
+            @if (transcriptionUsesProvider('gemini')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Gemini API Key</span><br>
@@ -1638,7 +1630,7 @@
               </div>
             }
             <!-- Whisper API Configuration -->
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api') {
+            @if (transcriptionUsesProvider('whisper-api')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Whisper API URL</span><br>
@@ -1649,7 +1641,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api') {
+            @if (transcriptionUsesProvider('whisper-api')) {
               <div class="row">
                 <p>
                   <span class="mat-body">API Key</span><br>
@@ -1660,7 +1652,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api') {
+            @if (transcriptionUsesProvider('whisper-api')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Model Name</span><br>
@@ -1685,7 +1677,7 @@
               </div>
             }
             <!-- Azure Configuration -->
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'azure') {
+            @if (transcriptionUsesProvider('azure')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Azure Subscription Key</span><br>
@@ -1696,7 +1688,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'azure') {
+            @if (transcriptionUsesProvider('azure')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Azure Region</span><br>
@@ -1708,7 +1700,7 @@
               </div>
             }
             <!-- Google Configuration -->
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'google') {
+            @if (transcriptionUsesProvider('google')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Google API Key</span><br>
@@ -1719,7 +1711,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'google') {
+            @if (transcriptionUsesProvider('google')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Google Credentials JSON</span><br>
@@ -1731,7 +1723,7 @@
               </div>
             }
             <!-- AssemblyAI Configuration -->
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai') {
+            @if (transcriptionUsesProvider('assemblyai')) {
               <div class="row">
                 <p>
                   <span class="mat-body">AssemblyAI API Key</span><br>
@@ -1742,7 +1734,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai') {
+            @if (transcriptionUsesProvider('assemblyai')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Speech Model</span><br>
@@ -1758,7 +1750,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai') {
+            @if (transcriptionUsesProvider('assemblyai')) {
               <div class="row">
                 <p>
                   <span class="mat-body">Keyterms</span><br>
@@ -1772,7 +1764,7 @@
               </div>
             }
             <!-- Cloudflare Workers AI Configuration -->
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'cloudflare') {
+            @if (transcriptionUsesProvider('cloudflare')) {
               <div style="background:#1a237e;border:1px solid #5c6bc0;border-radius:8px;padding:16px;margin:8px 0 16px 0;color:#e8eaf6;">
                 <div style="display:flex;align-items:flex-start;gap:12px;">
                   <mat-icon style="color:#90caf9;">cloud</mat-icon>
@@ -1841,7 +1833,7 @@
                 <input type="text" matInput formControlName="language" placeholder="en" autocomplete="off">
               </mat-form-field>
             </div>
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value) {
+            @if (transcriptionUsesProvider('whisper-api') || !form?.get('transcriptionConfig')?.get('provider')?.value) {
               <div class="row">
                 <p>
                   <span class="mat-body">Custom Prompt</span><br>
@@ -1852,7 +1844,7 @@
                 </mat-form-field>
               </div>
             }
-            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value) {
+            @if (transcriptionUsesProvider('whisper-api') || !form?.get('transcriptionConfig')?.get('provider')?.value) {
               <div class="row">
                 <p>
                   <span class="mat-body">Transcription Timeout (seconds)</span><br>
@@ -1890,7 +1882,7 @@
               </p>
               <mat-form-field>
                 <input type="number" min="1" max="16" step="1" matInput formControlName="workerPoolSize" placeholder="1" autocomplete="off">
-                @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'whisper-api' || !form?.get('transcriptionConfig')?.get('provider')?.value) {
+                @if (transcriptionUsesProvider('whisper-api') || !form?.get('transcriptionConfig')?.get('provider')?.value) {
                   <mat-hint>
                     Whisper API: 1 worker recommended (increase only if you have sufficient VRAM)
                   </mat-hint>
@@ -1910,7 +1902,30 @@
         @if (activeSubPanel === 'quality') {
           @if (form?.get('transcriptionEnabled')?.value) {
             <ng-container formGroupName="transcriptionConfig">
-<div class="row">
+            <div class="row">
+              <p>
+                <span class="mat-body">Profanity Filter</span><br>
+                <span class="mat-caption">Mask foul language in saved transcripts and alert notifications. Whole-word matching so dispatch terms such as assault, assignment, and street names are not changed. Applied after transcription, before the transcript is stored or a push is sent.</span>
+              </p>
+              <div>
+                <mat-slide-toggle color="primary" formControlName="profanityFilterEnabled"></mat-slide-toggle>
+              </div>
+            </div>
+            @if (form?.get('transcriptionConfig')?.get('profanityFilterEnabled')?.value) {
+              <div class="row">
+                <p>
+                  <span class="mat-body">Extra Blocked Words</span><br>
+                  <span class="mat-caption">Optional extra words to mask, one per line (case-insensitive, whole word). Use this for local slang that is not in the built-in list.</span>
+                </p>
+                <mat-form-field floatLabel="auto">
+                  <textarea matInput
+                    formControlName="profanityFilterExtraWords"
+                    placeholder="Enter extra words to mask, one per line"
+                  rows="3"></textarea>
+                </mat-form-field>
+              </div>
+            }
+            <div class="row">
               <p>
                 <span class="mat-body">Hallucination Removal Patterns</span><br>
                 <span class="mat-caption">Phrases that should be removed from transcripts (case-insensitive). Whisper may hallucinate common phrases from tone-only audio. Add one pattern per line. Example: "THE BELL IS INVITED TO SOUND THREE TIMES"</span>

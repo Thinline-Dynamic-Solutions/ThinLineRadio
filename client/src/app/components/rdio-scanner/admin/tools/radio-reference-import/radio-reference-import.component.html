@@ -16,28 +16,90 @@
 </section>
 
 <section>
+  <h4 class="mat-h4">Account</h4>
+  <p class="mat-body">Premium RadioReference.com username and password. Saved on this server and used for imports below.</p>
+  <div class="credentials-form">
+    <div class="credentials-toggle">
+      <span class="mat-body">Enable Radio Reference</span>
+      <mat-slide-toggle color="primary" [(ngModel)]="rrEnabled"
+        [disabled]="rrSaving" (ngModelChange)="onRrEnabledChange($event)"></mat-slide-toggle>
+    </div>
+
+    @if (rrEnabled && hasRadioReferenceCredentials && !rrEditing) {
+      <div class="connection-status connected">
+        <mat-icon>check_circle</mat-icon>
+        <span>Logged in as <strong>{{ rrUsername }}</strong></span>
+      </div>
+      <div class="button-row">
+        <button mat-stroked-button type="button" (click)="editRadioReferenceAccount()" [disabled]="rrSaving">
+          <mat-icon>edit</mat-icon>
+          Change Account
+        </button>
+        <button mat-stroked-button type="button" color="warn" (click)="removeRadioReferenceAccount()" [disabled]="rrSaving">
+          <mat-icon>delete</mat-icon>
+          Remove
+        </button>
+      </div>
+    }
+
+    @if (rrEnabled && (!hasRadioReferenceCredentials || rrEditing)) {
+      <mat-form-field floatLabel="auto" appearance="outline">
+        <mat-label>Username</mat-label>
+        <input matInput [(ngModel)]="rrUsername" placeholder="RadioReference username" autocomplete="off">
+      </mat-form-field>
+      <mat-form-field floatLabel="auto" appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput type="password" class="masked-pw" [(ngModel)]="rrPassword" placeholder="Password" autocomplete="new-password">
+      </mat-form-field>
+      <div class="button-row">
+        <button mat-raised-button color="primary" type="button" (click)="saveRadioReferenceAccount()" [disabled]="rrSaving">
+          <mat-icon>save</mat-icon>
+          Save Account
+        </button>
+        @if (rrEditing) {
+          <button mat-stroked-button type="button" (click)="cancelEditRadioReferenceAccount()" [disabled]="rrSaving">
+            <mat-icon>cancel</mat-icon>
+            Cancel
+          </button>
+        }
+      </div>
+    }
+
+    @if (!rrEnabled && hasRadioReferenceCredentials) {
+      <p class="mat-caption">Radio Reference is turned off. Flip the switch to use this account again.</p>
+    }
+  </div>
+</section>
+
+<section>
   <h4 class="mat-h4">Step 1: Test Radio Reference Connection</h4>
   <p class="mat-body" style="margin-bottom: 12px;">
     If you see "Connection failed", confirm you used your RadioReference username (not email), reset your RadioReference password on RadioReference.com, and try again.
   </p>
   <div class="connection-form">
     <div class="button-row">
-      <button mat-raised-button color="primary" (click)="testConnection()" [disabled]="!hasRadioReferenceCredentials">
-        <mat-icon>wifi</mat-icon>
-        Test Connection
+      <button mat-raised-button color="primary" (click)="testConnection()"
+        [disabled]="!hasRadioReferenceCredentials || !rrEnabled || testingConnection">
+        <mat-icon>{{ testingConnection ? 'hourglass_empty' : 'wifi' }}</mat-icon>
+        {{ testingConnection ? 'Testing…' : 'Test Connection' }}
       </button>
     </div>
 
     @if (!hasRadioReferenceCredentials) {
       <div class="connection-status error">
         <mat-icon>error</mat-icon>
-        <span>Radio Reference credentials not configured. Please configure them at Config → Options first.</span>
+        <span>Save Radio Reference credentials above before testing the connection.</span>
+      </div>
+    } @else if (!rrEnabled) {
+      <div class="connection-status error">
+        <mat-icon>error</mat-icon>
+        <span>Turn on Enable Radio Reference above to test the connection.</span>
       </div>
     }
 
     @if (connectionStatus) {
-      <div class="connection-status" [class.connected]="isConnected">
-        <mat-icon>{{ isConnected ? 'check_circle' : 'error' }}</mat-icon>
+      <div class="connection-status" [class.connected]="isConnected || testingConnection">
+        <mat-icon>{{ testingConnection ? 'hourglass_empty' : (isConnected ? 'check_circle' : 'error') }}</mat-icon>
         <span>{{ connectionStatus }}</span>
       </div>
     }

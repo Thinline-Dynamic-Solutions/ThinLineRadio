@@ -361,6 +361,8 @@ func (admin *Admin) copilotConfigSummary() map[string]any {
 		"userCount":             len(ctrl.Users.GetAllUsers()),
 		"openaiConfigured":      strings.TrimSpace(opts.OpenAIIntegration.APIKey) != "",
 		"transcriptionEnabled":  opts.TranscriptionConfig.Enabled,
+		"transcriptionProvider": opts.TranscriptionConfig.Provider,
+		"transcriptionBackupProvider": opts.TranscriptionConfig.BackupProvider,
 		"stripeEnabled":         opts.StripePaywallEnabled,
 		"emailEnabled":          opts.EmailServiceEnabled,
 		"centralManagement":     opts.CentralManagementEnabled,

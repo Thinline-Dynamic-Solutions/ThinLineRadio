@@ -31,7 +31,7 @@ export interface ToolSection {
 export const ADMIN_TOOL_SECTIONS: ToolSection[] = [
     { id: 'import-talkgroups',    label: 'Import Talkgroups',     icon: 'description',    description: 'Import talkgroup definitions from a CSV or JSON file' },
     { id: 'import-units',         label: 'Import Units',          icon: 'description',    description: 'Import unit definitions from a CSV or JSON file' },
-    { id: 'radio-reference',      label: 'Radio Reference',       icon: 'cloud_download', description: 'Import system data directly from RadioReference.com' },
+    { id: 'radio-reference',      label: 'Radio Reference',       icon: 'cloud_download', description: 'Account credentials and import from RadioReference.com' },
     { id: 'admin-password',       label: 'Admin Password',        icon: 'password',       description: 'Change the admin panel password' },
         { id: 'import-export-config', label: 'Import/Export Config',  icon: 'sync_alt',       description: 'Backup or restore the full configuration' },
         { id: 'stripe-sync',          label: 'Stripe Customer Sync',  icon: 'payment',        description: 'Sync subscriber access with Stripe customers' },

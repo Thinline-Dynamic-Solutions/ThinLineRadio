@@ -34,5 +34,6 @@ module.exports = [
         secure: false,
         target: server,
         changeOrigin: true,
+        ws: true,
     },
 ];

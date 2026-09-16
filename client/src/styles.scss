@@ -497,7 +497,7 @@ $admin-dark-theme: mat.m2-define-dark-theme((
     &:hover:not([disabled]),
     &.cdk-program-focused,
     &.cdk-keyboard-focused {
-      background: rgba(255, 91, 46, 0.10) !important;
+      background: rgba(var(--tlr-accent-rgb), 0.10) !important;
       color: var(--tlr-text) !important;
 
       .mdc-list-item__primary-text,
@@ -515,7 +515,7 @@ $admin-dark-theme: mat.m2-define-dark-theme((
     .mat-mdc-focus-indicator,
     .mdc-list-item__ripple::before,
     .mdc-list-item__ripple::after {
-      background-color: rgba(255, 91, 46, 0.16) !important;
+      background-color: rgba(var(--tlr-accent-rgb), 0.16) !important;
     }
   }
 
@@ -529,15 +529,15 @@ $admin-dark-theme: mat.m2-define-dark-theme((
   /* Custom scrollbar so the dropdown still feels like an LCD readout */
   .mat-mdc-menu-content {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 91, 46, 0.35) transparent;
+    scrollbar-color: rgba(var(--tlr-accent-rgb), 0.35) transparent;
 
     &::-webkit-scrollbar { width: 6px; }
     &::-webkit-scrollbar-track { background: transparent; }
     &::-webkit-scrollbar-thumb {
-      background: rgba(255, 91, 46, 0.35);
+      background: rgba(var(--tlr-accent-rgb), 0.35);
       border-radius: 3px;
     }
-    &::-webkit-scrollbar-thumb:hover { background: rgba(255, 91, 46, 0.55); }
+    &::-webkit-scrollbar-thumb:hover { background: rgba(var(--tlr-accent-rgb), 0.55); }
   }
 }
 
@@ -591,8 +591,8 @@ $admin-dark-theme: mat.m2-define-dark-theme((
     width: 32px;
     height: 22px;
     padding: 0;
-    background: rgba(255, 91, 46, 0.06);
-    border: 1px solid rgba(255, 91, 46, 0.25);
+    background: rgba(var(--tlr-accent-rgb), 0.06);
+    border: 1px solid rgba(var(--tlr-accent-rgb), 0.25);
     border-radius: 4px;
     color: var(--tlr-primary);
     cursor: pointer;
@@ -606,8 +606,8 @@ $admin-dark-theme: mat.m2-define-dark-theme((
     }
 
     &:hover {
-      background: rgba(255, 91, 46, 0.16);
-      border-color: rgba(255, 91, 46, 0.6);
+      background: rgba(var(--tlr-accent-rgb), 0.16);
+      border-color: rgba(var(--tlr-accent-rgb), 0.6);
     }
   }
 
@@ -666,12 +666,12 @@ $admin-dark-theme: mat.m2-define-dark-theme((
   }
 
   .tlr-time-action--primary {
-    background: rgba(255, 91, 46, 0.12);
-    border-color: rgba(255, 91, 46, 0.55);
+    background: rgba(var(--tlr-accent-rgb), 0.12);
+    border-color: rgba(var(--tlr-accent-rgb), 0.55);
     color: var(--tlr-primary);
 
     &:hover {
-      background: rgba(255, 91, 46, 0.22);
+      background: rgba(var(--tlr-accent-rgb), 0.22);
       border-color: var(--tlr-primary);
       color: var(--tlr-primary);
     }
@@ -866,7 +866,7 @@ $admin-dark-theme: mat.m2-define-dark-theme((
   .mat-calendar-period-button:hover,
   .mat-calendar-previous-button:hover,
   .mat-calendar-next-button:hover {
-    background: rgba(255, 91, 46, 0.1) !important;
+    background: rgba(var(--tlr-accent-rgb), 0.1) !important;
   }
 
   .mat-calendar-arrow {
@@ -892,12 +892,12 @@ $admin-dark-theme: mat.m2-define-dark-theme((
 
   .mat-calendar-body-cell:not(.mat-calendar-body-disabled):hover
     .mat-calendar-body-cell-content:not(.mat-calendar-body-selected) {
-    background: rgba(255, 91, 46, 0.12) !important;
+    background: rgba(var(--tlr-accent-rgb), 0.12) !important;
     color: var(--tlr-primary) !important;
   }
 
   .mat-calendar-body-cell-content.mat-focus-indicator {
-    border-color: rgba(255, 91, 46, 0.4) !important;
+    border-color: rgba(var(--tlr-accent-rgb), 0.4) !important;
   }
 
   .mat-calendar-body-selected {
@@ -1053,12 +1053,12 @@ $admin-dark-theme: mat.m2-define-dark-theme((
 
 .tlr-lcd-dialog .tlr-dialog-btn--primary.mat-mdc-button {
   color: var(--tlr-primary) !important;
-  background: rgba(255, 91, 46, 0.08) !important;
-  border: 1px solid rgba(255, 91, 46, 0.55) !important;
+  background: rgba(var(--tlr-accent-rgb), 0.08) !important;
+  border: 1px solid rgba(var(--tlr-accent-rgb), 0.55) !important;
   text-shadow: none;
 
   &:hover {
-    background: rgba(255, 91, 46, 0.16) !important;
+    background: rgba(var(--tlr-accent-rgb), 0.16) !important;
     box-shadow: none;
   }
 }

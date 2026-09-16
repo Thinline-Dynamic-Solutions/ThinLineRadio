@@ -92,6 +92,7 @@ type Options struct {
 	AudioConversion             uint   `json:"audioConversion"`
 	AutoPopulate                bool   `json:"autoPopulate"`
 	Branding                    string `json:"branding"`
+	UIAccentColor               string `json:"uiAccentColor"`
 	DefaultSystemDelay          uint   `json:"defaultSystemDelay"`
 	DisableDuplicateDetection   bool   `json:"disableDuplicateDetection"`
 	DuplicateDetectionTimeFrame   uint `json:"duplicateDetectionTimeFrame"`   // in-memory arrival-cache retention TTL (ms)
@@ -254,7 +255,8 @@ type Options struct {
 // TranscriptionConfig contains configuration for transcription
 type TranscriptionConfig struct {
 	Enabled                     bool     `json:"enabled"`
-	Provider                    string   `json:"provider"` // "whisper-api", "azure", "google", "assemblyai", "cloudflare", "gemini"
+	Provider                    string   `json:"provider"`       // "whisper-api", "azure", "google", "assemblyai", "cloudflare", "gemini"
+	BackupProvider              string   `json:"backupProvider"` // same ids as Provider; empty = none. Used only after primary Transcribe fails.
 	Language                    string   `json:"language"` // "en", "auto"
 	Prompt                      string   `json:"prompt"`   // Custom prompt for Whisper to guide transcription (e.g., terminology, formatting)
 	WorkerPoolSize              int      `json:"workerPoolSize"`
@@ -290,6 +292,11 @@ type TranscriptionConfig struct {
 	// Whisper training export — reviewed transcripts sent to transcript-collector on approve.
 	CollectorURL    string `json:"collectorURL"`
 	CollectorAPIKey string `json:"collectorAPIKey"`
+	// ProfanityFilterEnabled masks foul language in saved transcripts and alert
+	// notifications. Nil (unset) means enabled so existing servers get the filter
+	// without an admin save.
+	ProfanityFilterEnabled    *bool    `json:"profanityFilterEnabled"`
+	ProfanityFilterExtraWords []string `json:"profanityFilterExtraWords"`
 }
 
 // OpenAIIntegration holds server-wide OpenAI API credentials for TLR features
@@ -385,6 +392,13 @@ func (options *Options) FromMap(m map[string]any) *Options {
 	switch v := m["branding"].(type) {
 	case string:
 		options.Branding = v
+	}
+
+	switch v := m["uiAccentColor"].(type) {
+	case string:
+		options.UIAccentColor = normalizeUIAccentColor(v)
+	default:
+		options.UIAccentColor = defaults.options.uiAccentColor
 	}
 
 	switch v := m["disableDuplicateDetection"].(type) {
@@ -1082,6 +1096,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		if v, ok := tc["provider"].(string); ok && v != "" {
 			options.TranscriptionConfig.Provider = v
 		}
+		if v, ok := tc["backupProvider"].(string); ok {
+			options.TranscriptionConfig.BackupProvider = strings.TrimSpace(v)
+		}
 		if v, ok := tc["language"].(string); ok && v != "" {
 			options.TranscriptionConfig.Language = v
 		}
@@ -1170,6 +1187,18 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		}
 		if v, ok := tc["timeoutSeconds"].(float64); ok && v > 0 {
 			options.TranscriptionConfig.TimeoutSeconds = int(v)
+		}
+		if v, ok := anyToBool(tc["profanityFilterEnabled"]); ok {
+			options.TranscriptionConfig.ProfanityFilterEnabled = &v
+		}
+		if v, ok := tc["profanityFilterExtraWords"].([]interface{}); ok {
+			extra := make([]string, 0, len(v))
+			for _, p := range v {
+				if str, ok := p.(string); ok && str != "" {
+					extra = append(extra, str)
+				}
+			}
+			options.TranscriptionConfig.ProfanityFilterExtraWords = extra
 		}
 		// Legacy: sendLocationContext used to live under transcriptionConfig.
 		// Prefer mappingIntegration when present; otherwise migrate from here.
@@ -1326,6 +1355,7 @@ func (options *Options) Read(db *Database) error {
 	options.AudioConversion = defaults.options.audioConversion
 	options.AutoPopulate = defaults.options.autoPopulate
 	options.Branding = defaults.options.branding
+	options.UIAccentColor = defaults.options.uiAccentColor
 	options.DefaultSystemDelay = defaults.options.defaultSystemDelay
 	options.DisableDuplicateDetection = defaults.options.disableDuplicateDetection
 	options.DuplicateDetectionTimeFrame = defaults.options.duplicateDetectionTimeFrame
@@ -1420,6 +1450,13 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case string:
 					options.Branding = v
+				}
+			}
+		case "uiAccentColor":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					options.UIAccentColor = normalizeUIAccentColor(v)
 				}
 			}
 		case "defaultSystemDelay":
@@ -2244,6 +2281,7 @@ func (options *Options) Write(db *Database) error {
 	set("audioConversion", options.AudioConversion)
 	set("autoPopulate", options.AutoPopulate)
 	set("branding", options.Branding)
+	set("uiAccentColor", options.UIAccentColor)
 	set("defaultSystemDelay", options.DefaultSystemDelay)
 	set("disableDuplicateDetection", options.DisableDuplicateDetection)
 	set("duplicateDetectionTimeFrame", options.DuplicateDetectionTimeFrame)
@@ -2455,8 +2493,11 @@ func OptionsPatchTouchesTranscriptionWithCurrent(partial map[string]any, current
 		if current == nil {
 			return false
 		}
-		return current.TranscriptionConfig.Enabled &&
-			strings.EqualFold(strings.TrimSpace(current.TranscriptionConfig.Provider), "gemini")
+		if !current.TranscriptionConfig.Enabled {
+			return false
+		}
+		return strings.EqualFold(strings.TrimSpace(current.TranscriptionConfig.Provider), "gemini") ||
+			strings.EqualFold(strings.TrimSpace(current.TranscriptionConfig.BackupProvider), "gemini")
 	}
 	return true
 }

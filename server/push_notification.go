@@ -155,7 +155,7 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 	// Message: use summary if available and not generic "RADIO TRAFFIC", otherwise use transcript
 	message := ""
 	if call != nil && call.Transcript != "" {
-		message = strings.ToUpper(call.Transcript)
+		message = controller.applyTranscriptProfanityFilter(strings.ToUpper(call.Transcript))
 	} else {
 		// Fallback to alert type info if no transcript
 		if alertType == "pre-alert" {
@@ -742,7 +742,7 @@ func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []u
 	// Message: use summary if available and not generic "RADIO TRAFFIC", otherwise use transcript
 	message := ""
 	if call != nil && call.Transcript != "" {
-		message = strings.ToUpper(call.Transcript)
+		message = controller.applyTranscriptProfanityFilter(strings.ToUpper(call.Transcript))
 	} else {
 		// Fallback to alert type info if no transcript
 		if alertType == "pre-alert" {

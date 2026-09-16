@@ -8,12 +8,10 @@
   width: 100%;
 }
 
-/* Console Transmissions → Search — filters stay fixed; results scroll in a fixed viewport. */
+/* Console Transmissions → Search — filters stay put; results fill leftover height. */
 :host-context(.archive-panel),
 :host-context(.calls-search) {
   --archive-row-height: 30px;
-  --archive-visible-rows: 20;
-  --archive-viewport-height: calc(var(--archive-row-height) * (var(--archive-visible-rows) + 1));
 
   display: flex;
   flex-direction: column;
@@ -34,7 +32,8 @@
   }
 
   .rdio-list {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -49,8 +48,7 @@
 
   .archive-scroll-frame {
     position: relative;
-    flex: 0 0 auto;
-    height: var(--archive-viewport-height, auto);
+    flex: 1 1 auto;
     min-height: 0;
     width: 100%;
     overflow: hidden;
@@ -58,8 +56,8 @@
 
   .archive-table-scroll {
     width: 100%;
-    height: var(--archive-viewport-height);
-    max-height: var(--archive-viewport-height);
+    height: 100%;
+    max-height: none;
     overflow-y: auto;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -250,7 +248,7 @@
       }
 
       &:active {
-        background: rgba(255, 91, 46, 0.08);
+        background: rgba(var(--tlr-accent-rgb), 0.08);
       }
 
       &.reset-button {
@@ -784,7 +782,7 @@
         }
 
         .mdc-switch--selected .mdc-switch__track {
-          background-color: rgba(255, 91, 46, 0.55) !important;
+          background-color: rgba(var(--tlr-accent-rgb), 0.55) !important;
         }
 
         .mdc-switch__handle-track {
@@ -1036,12 +1034,12 @@ input[matInput][style*='opacity: 0'] {
     }
 
     &:hover {
-      background: rgba(255, 91, 46, 0.06);
+      background: rgba(var(--tlr-accent-rgb), 0.06);
       border-color: var(--tlr-accent);
     }
 
     &:active {
-      background: rgba(255, 91, 46, 0.08);
+      background: rgba(var(--tlr-accent-rgb), 0.08);
     }
 
     &.reset-button {
@@ -1096,13 +1094,13 @@ input[matInput][style*='opacity: 0'] {
 
     .mat-mdc-row:hover,
     .mat-row:hover {
-      background: rgba(255, 91, 46, 0.07) !important;
+      background: rgba(var(--tlr-accent-rgb), 0.07) !important;
     }
 
     .mat-mdc-row.archive-row-playing,
     .mat-row.archive-row-playing {
       outline: none;
-      background: rgba(255, 91, 46, 0.08) !important;
+      background: rgba(var(--tlr-accent-rgb), 0.08) !important;
       box-shadow: inset 3px 0 0 var(--tlr-primary);
 
       .mat-mdc-cell,
@@ -1156,7 +1154,7 @@ input[matInput][style*='opacity: 0'] {
         color: var(--tlr-accent);
 
         &:hover:not([disabled]) {
-          background: rgba(255, 91, 46, 0.1);
+          background: rgba(var(--tlr-accent-rgb), 0.1);
           border-color: var(--tlr-accent);
           color: var(--tlr-text);
         }

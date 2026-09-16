@@ -19,6 +19,7 @@
 
 import { APP_INITIALIZER, NgModule } from '@angular/core';
 import { AppFontService } from './components/rdio-scanner/app-font.service';
+import { AppAccentService } from './components/rdio-scanner/app-accent.service';
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
@@ -43,10 +44,11 @@ import { routes } from './app.routes';
         })], providers: [
         {
             provide: APP_INITIALIZER,
-            useFactory: (appFontService: AppFontService) => () => {
+            useFactory: (appFontService: AppFontService, appAccentService: AppAccentService) => () => {
                 appFontService.init();
+                appAccentService.init();
             },
-            deps: [AppFontService],
+            deps: [AppFontService, AppAccentService],
             multi: true,
         },
         provideHttpClient(withXhr(), withInterceptorsFromDi()),

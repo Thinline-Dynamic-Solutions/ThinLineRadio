@@ -236,6 +236,7 @@ func (hs *HealthService) gather() (map[string]interface{}, bool) {
 
 	payload["transcription_enabled"] = opts.TranscriptionConfig.Enabled
 	payload["transcription_provider"] = opts.TranscriptionConfig.Provider
+	payload["transcription_backup_provider"] = opts.TranscriptionConfig.BackupProvider
 	if ctrl.TranscriptionQueue != nil {
 		payload["transcription_queue_depth"] = ctrl.TranscriptionQueue.QueueDepth()
 	}

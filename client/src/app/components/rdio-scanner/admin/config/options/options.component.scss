@@ -506,3 +506,52 @@
 .auto-learn-tone-field .mat-form-field {
     width: 100%;
 }
+
+.ui-accent-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 220px;
+}
+
+.ui-accent-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ui-accent-native {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.ui-accent-hex {
+    width: 120px;
+}
+
+.ui-accent-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ui-accent-swatch {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+
+    &.selected {
+        border-color: #fff;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+    }
+}

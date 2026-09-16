@@ -443,6 +443,11 @@ func (queue *HydraTranscriptionRetrievalQueue) retrieveTranscription(job HydraTr
 
 	// Store transcription in the call (plain-text normalized like Whisper path)
 	transcript := mapping.NormalizeTranscriptPlainText(transcriptionText)
+	filtered := queue.controller.applyTranscriptProfanityFilter(transcript)
+	if filtered != transcript {
+		log.Printf("Hydra retrieval: profanity filter applied to call %d transcript", job.CallId)
+		transcript = filtered
+	}
 	var query string
 	if queue.controller.Database.Config.DbType == DbTypePostgresql {
 		query = `UPDATE "calls" SET "transcript" = $1, "transcriptConfidence" = $2, "transcriptionStatus" = $3 WHERE "callId" = $4 AND "transmissionId" = $5`

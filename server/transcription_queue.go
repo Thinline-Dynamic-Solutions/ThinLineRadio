@@ -43,6 +43,8 @@ type TranscriptionQueue struct {
 	jobs            chan TranscriptionJob
 	workers         int
 	provider        TranscriptionProvider
+	backupProvider  TranscriptionProvider
+	backupName      string
 	controller      *Controller
 	mutex           sync.Mutex
 	running         bool
@@ -68,83 +70,48 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 		running:    true,
 	}
 
-	// Initialize provider based on config
-	switch config.Provider {
-	case "whisper-api":
-		// External OpenAI-compatible Whisper API server
-		queue.provider = NewWhisperAPITranscription(&WhisperAPIConfig{
-			BaseURL:        config.WhisperAPIURL,
-			APIKey:         config.WhisperAPIKey,
-			Model:          config.WhisperAPIModel,
-			TimeoutSeconds: config.TimeoutSeconds,
-		})
-	case "azure":
-		// Azure Speech Services
-		queue.provider = NewAzureTranscription(&AzureConfig{
-			APIKey: config.AzureKey,
-			Region: config.AzureRegion,
-		})
-	case "google":
-		// Google Cloud Speech-to-Text
-		queue.provider = NewGoogleTranscription(&GoogleConfig{
-			APIKey:      config.GoogleAPIKey,
-			Credentials: config.GoogleCredentials,
-		})
-	case "gemini":
-		apiKey := strings.TrimSpace(config.GeminiAPIKey)
-		if apiKey == "" {
-			// Convenience: reuse Google API key when Gemini key is unset.
-			apiKey = strings.TrimSpace(config.GoogleAPIKey)
+	// Initialize providers from config
+	primaryName := resolvePrimaryProvider(config.Provider)
+	if primaryName == "hydra" {
+		// Hydra transcription uses a separate retrieval queue, not the transcription queue.
+		queue.provider = NewWhisperAPITranscription(&WhisperAPIConfig{})
+	} else {
+		queue.provider = newTranscriptionProvider(config, primaryName)
+		if queue.provider == nil {
+			queue.provider = newTranscriptionProvider(config, "whisper-api")
 		}
-		queue.provider = NewGeminiTranscription(&GeminiConfig{
-			APIKey:         apiKey,
-			Model:          config.GeminiModel,
-			TimeoutSeconds: config.TimeoutSeconds,
-		})
-	case "assemblyai":
-		// AssemblyAI
-		queue.provider = NewAssemblyAITranscription(&AssemblyAIConfig{
-			APIKey: config.AssemblyAIKey,
-		})
-	case "cloudflare":
-		// Cloudflare Workers AI Whisper
-		queue.provider = NewCloudflareTranscription(&CloudflareConfig{
-			AccountID:      config.CloudflareAccountID,
-			APIToken:       config.CloudflareAPIToken,
-			Model:          config.CloudflareModel,
-			TimeoutSeconds: config.TimeoutSeconds,
-		})
-	case "hydra":
-		// Hydra transcription uses a separate retrieval queue, not the transcription queue
-		// This provider case should not be used, but we handle it gracefully
-		// Hydra transcriptions are retrieved via HydraTranscriptionRetrievalQueue
-		// For now, use a no-op provider that will mark itself as unavailable
-		queue.provider = NewWhisperAPITranscription(&WhisperAPIConfig{
-			BaseURL: "",
-			APIKey:  "",
-			Model:   "",
-		})
-	default:
-		// Default to whisper-api
-		if config.WhisperAPIURL == "" {
-			config.WhisperAPIURL = "http://localhost:8000"
-		}
-		queue.provider = NewWhisperAPITranscription(&WhisperAPIConfig{
-			BaseURL:        config.WhisperAPIURL,
-			APIKey:         config.WhisperAPIKey,
-			Model:          config.WhisperAPIModel,
-			TimeoutSeconds: config.TimeoutSeconds,
-		})
 	}
 
-	// Start worker pool
-	if queue.provider.IsAvailable() {
+	if backupName := resolveBackupProvider(config.Provider, config.BackupProvider); backupName != "" {
+		if bp := newTranscriptionProvider(config, backupName); bp != nil && bp.IsAvailable() {
+			queue.backupProvider = bp
+			queue.backupName = backupName
+		} else {
+			name := backupName
+			if bp != nil {
+				name = bp.GetName()
+			}
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription backup provider '%s' is not available", name))
+		}
+	}
+
+	// Start worker pool when primary or backup can run jobs
+	primaryOK := queue.provider != nil && queue.provider.IsAvailable()
+	backupOK := queue.backupProvider != nil && queue.backupProvider.IsAvailable()
+	if primaryOK || backupOK {
 		for i := 0; i < queue.workers; i++ {
 			go queue.worker(i)
 		}
-		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription queue started with %d workers using provider: %s", queue.workers, queue.provider.GetName()))
+		msg := fmt.Sprintf("transcription queue started with %d workers using provider: %s", queue.workers, queue.provider.GetName())
+		if queue.backupProvider != nil {
+			msg += fmt.Sprintf(" (backup: %s)", queue.backupProvider.GetName())
+		}
+		controller.Logs.LogEvent(LogLevelInfo, msg)
 	} else {
-		providerName := queue.provider.GetName()
+		providerName := "unknown"
+		if queue.provider != nil {
+			providerName = queue.provider.GetName()
+		}
 		controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription provider '%s' not available, queue will not process jobs", providerName))
 		controller.Logs.LogEvent(LogLevelWarn, "Make sure your transcription provider is properly configured and accessible")
 	}
@@ -166,6 +133,31 @@ func (queue *TranscriptionQueue) QueueJob(job TranscriptionJob) {
 		// Queue is full, log warning
 		queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription queue full, dropping call %d", job.CallId))
 	}
+}
+
+func (queue *TranscriptionQueue) optionsForProvider(provider string, base TranscriptionOptions, resolvedPrompt string, promptSystem *System, promptTalkgroup *Talkgroup) TranscriptionOptions {
+	opts := base
+	switch provider {
+	case "gemini":
+		// Gemini has its own short base prompt + JSON schema. Do not also send
+		// the Whisper-style "Transcribe…" custom prompt (duplicate / conflicting).
+		opts.InitialPrompt = geminiExtraContext(resolvedPrompt)
+		opts.ExtractAddress = false
+		if promptSystem != nil {
+			mapCfg := resolveIncidentMappingConfig(promptSystem, promptTalkgroup)
+			opts.ExtractAddress = mapCfg.Enabled && mapCfg.ExtractAddressWithGemini
+		}
+	case "assemblyai":
+		opts.SpeechModel = queue.controller.Options.TranscriptionConfig.AssemblyAISpeechModel
+		wordBoost := append([]string{}, queue.controller.Options.TranscriptionConfig.AssemblyAIWordBoost...)
+		if resolvedPrompt != queue.controller.Options.TranscriptionConfig.Prompt && resolvedPrompt != "" {
+			for _, term := range strings.Fields(resolvedPrompt) {
+				wordBoost = append(wordBoost, term)
+			}
+		}
+		opts.WordBoost = wordBoost
+	}
+	return opts
 }
 
 // worker processes transcription jobs
@@ -357,7 +349,7 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 		}
 
 		// Transcribe audio (filtered if tones were present, original otherwise)
-		transcriptionOpts := TranscriptionOptions{
+		baseOpts := TranscriptionOptions{
 			Language:       queue.controller.Options.TranscriptionConfig.Language,
 			InitialPrompt:  resolvedPrompt,
 			AudioMime:      audioMimeType,
@@ -365,33 +357,20 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 			TalkgroupLabel: talkgroupLabel,
 			CallID:         job.CallId,
 		}
-		// Gemini has its own short base prompt + JSON schema. Do not also send
-		// the Whisper-style "Transcribe…" custom prompt (duplicate / conflicting).
-		// Keep only the location line when SendLocationContext appended one.
-		if queue.controller.Options.TranscriptionConfig.Provider == "gemini" {
-			transcriptionOpts.InitialPrompt = geminiExtraContext(resolvedPrompt)
-			if promptSystem != nil {
-				mapCfg := resolveIncidentMappingConfig(promptSystem, promptTalkgroup)
-				transcriptionOpts.ExtractAddress = mapCfg.Enabled && mapCfg.ExtractAddressWithGemini
-			}
+		primaryName := resolvePrimaryProvider(queue.controller.Options.TranscriptionConfig.Provider)
+		primaryOpts := queue.optionsForProvider(primaryName, baseOpts, resolvedPrompt, promptSystem, promptTalkgroup)
+		backupOpts := baseOpts
+		if queue.backupName != "" {
+			backupOpts = queue.optionsForProvider(queue.backupName, baseOpts, resolvedPrompt, promptSystem, promptTalkgroup)
 		}
 
-		// Add AssemblyAI-specific options if configured
-		if queue.controller.Options.TranscriptionConfig.Provider == "assemblyai" {
-			transcriptionOpts.SpeechModel = queue.controller.Options.TranscriptionConfig.AssemblyAISpeechModel
-
-			// Merge global word boost with any per-channel prompt terms.
-			// Per-channel prompts are split into individual words for AssemblyAI word boost.
-			wordBoost := append([]string{}, queue.controller.Options.TranscriptionConfig.AssemblyAIWordBoost...)
-			if resolvedPrompt != queue.controller.Options.TranscriptionConfig.Prompt && resolvedPrompt != "" {
-				for _, term := range strings.Fields(resolvedPrompt) {
-					wordBoost = append(wordBoost, term)
-				}
-			}
-			transcriptionOpts.WordBoost = wordBoost
+		result, usedBackup, err := transcribeWithBackup(queue.provider, queue.backupProvider, audioToTranscribe, primaryOpts, backupOpts)
+		if usedBackup {
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"transcription worker %d used backup provider %s for call %d after primary failure",
+				workerId, queue.backupName, job.CallId,
+			))
 		}
-
-		result, err := queue.provider.Transcribe(audioToTranscribe, transcriptionOpts)
 
 		if err != nil {
 			errorMsg := err.Error()
@@ -399,6 +378,8 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 			provider := queue.controller.Options.TranscriptionConfig.Provider
 			if provider == "whisper-api" || provider == "" {
 				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, apiURL=%s, usedFilteredAudio=%v, error=%s", provider, queue.controller.Options.TranscriptionConfig.WhisperAPIURL, usedFilteredAudio, errorMsg))
+			} else if queue.backupName != "" {
+				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, backup=%s, usedFilteredAudio=%v, error=%s", provider, queue.backupName, usedFilteredAudio, errorMsg))
 			} else {
 				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, usedFilteredAudio=%v, error=%s", provider, usedFilteredAudio, errorMsg))
 			}
@@ -435,6 +416,12 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 		// keywords/geocoding so every consumer sees the same shape.
 		cleanedTranscript, hadHallucinations := queue.controller.cleanTranscript(result.Transcript, job.CallId)
 		cleanedTranscript = mapping.NormalizeTranscriptPlainText(cleanedTranscript)
+		filteredTranscript := queue.controller.applyTranscriptProfanityFilter(cleanedTranscript)
+		if filteredTranscript != cleanedTranscript {
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("profanity filter applied to call %d transcript", job.CallId))
+			cleanedTranscript = filteredTranscript
+		}
+		alertSummary := queue.controller.applyTranscriptProfanityFilter(strings.TrimSpace(result.AlertSummary))
 
 		// Store cleaned transcription result (include optional summary from Whisper server when present)
 		extractedAddr := mapping.NormalizeTranscriptPlainText(strings.TrimSpace(result.ExtractedAddress))
@@ -442,7 +429,7 @@ func (queue *TranscriptionQueue) worker(workerId int) {
 			Transcript:       cleanedTranscript,
 			Confidence:       result.Confidence,
 			Language:         result.Language,
-			AlertSummary:     strings.TrimSpace(result.AlertSummary),
+			AlertSummary:     alertSummary,
 			ExtractedAddress: extractedAddr,
 		}
 		go queue.storeTranscription(job.CallId, cleanedResult)

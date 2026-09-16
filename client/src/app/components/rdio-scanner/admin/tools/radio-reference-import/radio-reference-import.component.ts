@@ -17,7 +17,8 @@
  * ****************************************************************************
  */
 
-import { Component, EventEmitter, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
 
 export interface Config {
@@ -86,6 +87,14 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     connectionStatus: string = '';
     websocketStatus: string = '';
     hasRadioReferenceCredentials: boolean = false;
+    rrEnabled = false;
+    rrUsername = '';
+    rrPassword = '';
+    rrEditing = false;
+    rrSaving = false;
+    testingConnection = false;
+    private storedRrUsername = '';
+    private storedRrPassword = '';
 
     // Import
     selectedSystem: RadioReferenceSystem | null = null;
@@ -155,7 +164,11 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
     allSites: RadioReferenceSite[] = [];
     filteredSites: RadioReferenceSite[] = [];
 
-    constructor(private adminService: RdioScannerAdminService) { }
+    constructor(
+        private adminService: RdioScannerAdminService,
+        private snackBar: MatSnackBar,
+        private cdr: ChangeDetectorRef,
+    ) { }
 
     // State persistence key
     private readonly STORAGE_KEY = 'rdio-scanner-rr-import-state';
@@ -278,13 +291,12 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
             // Try to restore previous state first
             const stateRestored = this.restoreState();
             
-            this.loadConfig(); // Load configuration including RadioReference credentials
+            this.loadConfig();
             this.checkWebSocketStatus();
-            
-            // Set up periodic WebSocket status check
+
             setInterval(() => {
                 this.checkWebSocketStatus();
-            }, 10000); // Check every 10 seconds
+            }, 2000);
 
             if (stateRestored) {
                 console.log('Radio Reference state restored from previous session');
@@ -299,12 +311,7 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
 
     async loadConfig(): Promise<void> {
         this.baseConfig = await this.adminService.getConfig();
-        
-        if (this.baseConfig.options?.radioReferenceEnabled && this.baseConfig.options?.radioReferenceUsername) {
-            this.hasRadioReferenceCredentials = true;
-        } else {
-            this.hasRadioReferenceCredentials = false;
-        }
+        this.applyRadioReferenceOptions(this.baseConfig.options);
 
         this.localSystems = Array.isArray(this.baseConfig.systems) ? this.baseConfig.systems : [];
         if (this.localSystems.length > 0) {
@@ -315,7 +322,10 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
             this.targetSystemId = null;
         }
 
-        // Countries will be loaded when connection is tested successfully
+        this.cdr.markForCheck();
+        if (this.hasRadioReferenceCredentials && this.rrEnabled) {
+            await this.testConnection();
+        }
     }
 
     checkWebSocketStatus(): void {
@@ -329,39 +339,172 @@ export class RdioScannerAdminRadioReferenceImportComponent implements OnInit {
         } else {
             this.websocketStatus = 'Disconnected';
         }
+        this.cdr.markForCheck();
     }
 
-    // RadioReference credentials are now managed in the main admin settings
-    // This component automatically uses the saved credentials from options
+    private applyRadioReferenceOptions(options?: { radioReferenceEnabled?: boolean; radioReferenceUsername?: string; radioReferencePassword?: string }): void {
+        this.rrUsername = (options?.radioReferenceUsername || '').trim();
+        this.rrPassword = options?.radioReferencePassword || '';
+        this.storedRrUsername = this.rrUsername;
+        this.storedRrPassword = this.rrPassword;
+        this.hasRadioReferenceCredentials = !!this.rrUsername;
+        this.rrEnabled = !!options?.radioReferenceEnabled;
+        this.rrEditing = this.rrEnabled && !this.hasRadioReferenceCredentials;
+    }
+
+    async onRrEnabledChange(enabled: boolean): Promise<void> {
+        this.rrEnabled = enabled;
+        if (!this.hasRadioReferenceCredentials) {
+            this.cdr.markForCheck();
+            return;
+        }
+        if (!enabled) {
+            if (!confirm('Disable Radio Reference on this server?')) {
+                this.rrEnabled = true;
+                this.cdr.markForCheck();
+                return;
+            }
+        }
+        await this.persistRadioReferenceEnabled(enabled);
+    }
+
+    private async persistRadioReferenceEnabled(enabled: boolean): Promise<void> {
+        this.rrSaving = true;
+        this.cdr.markForCheck();
+        const updated = await this.adminService.updateOptions({ radioReferenceEnabled: enabled });
+        this.rrSaving = false;
+        if (!updated) {
+            this.rrEnabled = !enabled;
+            this.snackBar.open('Failed to save Radio Reference setting', 'OK', { duration: 4000 });
+            this.cdr.markForCheck();
+            return;
+        }
+        this.baseConfig = updated;
+        this.rrEnabled = enabled;
+        this.hasRadioReferenceCredentials = !!this.rrUsername;
+        if (!enabled) {
+            this.isConnected = false;
+            this.connectionStatus = '';
+            this.cdr.markForCheck();
+            return;
+        }
+        this.cdr.markForCheck();
+        await this.testConnection();
+    }
+
+    editRadioReferenceAccount(): void {
+        this.storedRrUsername = this.rrUsername;
+        this.storedRrPassword = this.rrPassword;
+        this.rrPassword = '';
+        this.rrEditing = true;
+        this.cdr.markForCheck();
+    }
+
+    cancelEditRadioReferenceAccount(): void {
+        this.rrUsername = this.storedRrUsername;
+        this.rrPassword = this.storedRrPassword;
+        this.rrEnabled = this.hasRadioReferenceCredentials;
+        this.rrEditing = false;
+        this.cdr.markForCheck();
+    }
+
+    async removeRadioReferenceAccount(): Promise<void> {
+        if (!confirm('Remove the Radio Reference account from this server?')) {
+            return;
+        }
+        this.rrEnabled = false;
+        this.rrUsername = '';
+        this.rrPassword = '';
+        await this.saveRadioReferenceAccount();
+    }
+
+    async saveRadioReferenceAccount(): Promise<void> {
+        const username = (this.rrUsername || '').trim();
+        const password = this.rrPassword || '';
+        if (this.rrEnabled) {
+            if (!username) {
+                this.snackBar.open('Username is required', 'OK', { duration: 3000 });
+                return;
+            }
+            if (!password && !this.hasRadioReferenceCredentials) {
+                this.snackBar.open('Password is required', 'OK', { duration: 3000 });
+                return;
+            }
+        }
+
+        this.rrSaving = true;
+        const partial: { [key: string]: any } = {
+            radioReferenceEnabled: this.rrEnabled,
+            radioReferenceUsername: this.rrEnabled ? username : '',
+        };
+        if (!this.rrEnabled) {
+            partial['radioReferencePassword'] = '';
+        } else if (password) {
+            partial['radioReferencePassword'] = password;
+        }
+
+        const updated = await this.adminService.updateOptions(partial);
+        this.rrSaving = false;
+        if (!updated) {
+            this.snackBar.open('Failed to save Radio Reference account', 'OK', { duration: 4000 });
+            return;
+        }
+
+        this.baseConfig = updated;
+        this.applyRadioReferenceOptions(updated.options);
+        this.isConnected = false;
+        this.connectionStatus = '';
+        this.snackBar.open(this.rrEnabled ? 'Radio Reference account saved' : 'Radio Reference account removed', 'Close', { duration: 2000 });
+        this.cdr.markForCheck();
+        if (this.rrEnabled && this.hasRadioReferenceCredentials) {
+            await this.testConnection();
+        }
+    }
 
     async testConnection(): Promise<void> {
+        if (this.testingConnection) {
+            return;
+        }
         if (!this.hasRadioReferenceCredentials) {
-            this.connectionStatus = 'Radio Reference credentials not configured. Please configure them in the main admin settings first.';
+            this.connectionStatus = 'Save Radio Reference credentials above before testing the connection.';
+            this.cdr.markForCheck();
+            return;
+        }
+        if (!this.rrEnabled) {
+            this.connectionStatus = 'Turn on Enable Radio Reference above to test the connection.';
+            this.cdr.markForCheck();
             return;
         }
 
-        const username = this.baseConfig.options?.radioReferenceUsername;
+        const username = this.rrUsername || this.baseConfig.options?.radioReferenceUsername;
 
         if (!username) {
-            this.connectionStatus = 'Radio Reference username is missing. Please check the admin settings.';
+            this.connectionStatus = 'Radio Reference username is missing. Save credentials above and try again.';
+            this.cdr.markForCheck();
             return;
         }
+
+        this.testingConnection = true;
+        this.connectionStatus = 'Testing connection…';
+        this.isConnected = false;
+        this.cdr.markForCheck();
 
         try {
             const response = await this.adminService.testRadioReferenceConnection(username);
             if (response.success) {
                 this.isConnected = true;
                 this.connectionStatus = `Connected successfully! Account expires: ${response.userInfo.expirationDate}`;
-                
-                // Now load countries since we're connected
                 await this.loadCountries();
             } else {
                 this.isConnected = false;
-                this.connectionStatus = 'Connection failed';
+                this.connectionStatus = response.error || 'Connection failed';
             }
         } catch (error: any) {
             this.isConnected = false;
             this.connectionStatus = `Connection failed: ${error.error || error.message}`;
+        } finally {
+            this.testingConnection = false;
+            this.cdr.markForCheck();
         }
     }
 

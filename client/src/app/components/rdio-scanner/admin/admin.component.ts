@@ -44,6 +44,7 @@ const SETTINGS_INDEX: SearchResult[] = [
     { label: 'Auto Populate', keywords: 'auto populate talkgroup system', breadcrumb: 'Options → General', icon: 'auto_fix_high', configSection: 'options', optionPanel: 'generalExpanded' },
     // ── Branding ─────────────────────────────────────────────────────────────
     { label: 'Branding Label', keywords: 'branding label name title', breadcrumb: 'Options → Branding', icon: 'label', configSection: 'options', optionPanel: 'brandingExpanded' },
+    { label: 'UI Accent Color', keywords: 'accent color font color primary ember red theme appearance accessibility', breadcrumb: 'Options → Branding', icon: 'palette', configSection: 'options', optionPanel: 'brandingExpanded' },
     { label: 'Base URL', keywords: 'base url domain address server', breadcrumb: 'Options → Branding', icon: 'link', configSection: 'options', optionPanel: 'brandingExpanded' },
     { label: 'Server Logo', keywords: 'server logo image email logo upload', breadcrumb: 'Options → Branding', icon: 'image', configSection: 'options', optionPanel: 'brandingExpanded' },
     { label: 'Favicon', keywords: 'favicon icon browser tab logo generate', breadcrumb: 'Options → Branding', icon: 'web', configSection: 'options', optionPanel: 'brandingExpanded' },
@@ -55,6 +56,7 @@ const SETTINGS_INDEX: SearchResult[] = [
     { label: 'Transcription Language', keywords: 'language locale transcription', breadcrumb: 'Options → Transcription', icon: 'language', configSection: 'options', optionPanel: 'transcriptionExpanded' },
     { label: 'Worker Pool Size', keywords: 'worker pool threads concurrent transcription', breadcrumb: 'Options → Transcription', icon: 'memory', configSection: 'options', optionPanel: 'transcriptionExpanded' },
     { label: 'Hallucination Detection', keywords: 'hallucination detect filter transcription', breadcrumb: 'Options → Transcription', icon: 'psychology', configSection: 'options', optionPanel: 'transcriptionExpanded' },
+    { label: 'Profanity Filter', keywords: 'profanity foul language swear filter transcript alert notification censor mask', breadcrumb: 'Options → Transcription → Quality', icon: 'block', configSection: 'options', optionPanel: 'transcriptionExpanded' },
     // ── Alerts ────────────────────────────────────────────────────────────────
     { label: 'System Health Alerts', keywords: 'system health alerts enable monitoring', breadcrumb: 'Options → Alert & Health', icon: 'health_and_safety', configSection: 'options', optionPanel: 'alertsExpanded' },
     { label: 'No Audio Alerts', keywords: 'no audio alert silence threshold minutes', breadcrumb: 'Options → Alert & Health', icon: 'volume_off', configSection: 'options', optionPanel: 'alertsExpanded' },
@@ -88,7 +90,6 @@ const SETTINGS_INDEX: SearchResult[] = [
     // ── Integrations ─────────────────────────────────────────────────────────
     { label: 'OpenAI', keywords: 'openai api key chat model integration mapping', breadcrumb: 'Options → Integrations', icon: 'smart_toy', configSection: 'options', optionPanel: 'integrationsExpanded' },
     { label: 'Gemini API Key', keywords: 'gemini google ai studio api key integration mapping suggest', breadcrumb: 'Options → Integrations', icon: 'auto_awesome', configSection: 'options', optionPanel: 'integrationsExpanded' },
-    { label: 'Radio Reference', keywords: 'radio reference rr login username password premium account', breadcrumb: 'Options → Integrations', icon: 'cloud_download', configSection: 'options', optionPanel: 'integrationsExpanded' },
     { label: 'Config Sync', keywords: 'config sync filesystem backup gitops path', breadcrumb: 'Options → General → Config sync', icon: 'cloud_sync', configSection: 'options', optionPanel: 'general:sync' },
     // ── Audio Settings ────────────────────────────────────────────────────────
     { label: 'Audio Conversion', keywords: 'audio conversion enable convert format', breadcrumb: 'Options → Audio Settings', icon: 'graphic_eq', configSection: 'options', optionPanel: 'securityExpanded' },
@@ -112,7 +113,7 @@ const SETTINGS_INDEX: SearchResult[] = [
     { label: 'System Health', keywords: 'system health status disk cpu memory alerts', breadcrumb: 'System Health', icon: 'health_and_safety', configSection: 'system-health' },
     { label: 'Import Talkgroups', keywords: 'import talkgroups csv json file upload', breadcrumb: 'Tools → Import Talkgroups', icon: 'description', configSection: 'tools', toolSection: 'import-talkgroups' },
     { label: 'Import Units', keywords: 'import units csv json file upload', breadcrumb: 'Tools → Import Units', icon: 'description', configSection: 'tools', toolSection: 'import-units' },
-    { label: 'Radio Reference Import', keywords: 'radio reference import download rr', breadcrumb: 'Tools → Radio Reference', icon: 'cloud_download', configSection: 'tools', toolSection: 'radio-reference' },
+    { label: 'Radio Reference', keywords: 'radio reference rr login username password premium account import download talkgroups sites', breadcrumb: 'Tools → Radio Reference', icon: 'cloud_download', configSection: 'tools', toolSection: 'radio-reference' },
     { label: 'Admin Password', keywords: 'admin password change reset', breadcrumb: 'Tools → Admin Password', icon: 'password', configSection: 'tools', toolSection: 'admin-password' },
     { label: 'Import / Export Config', keywords: 'import export backup restore config json', breadcrumb: 'Tools → Import/Export Config', icon: 'sync_alt', configSection: 'tools', toolSection: 'import-export-config' },
     { label: 'Stripe Customer Sync', keywords: 'stripe customer sync subscription billing', breadcrumb: 'Tools → Stripe Sync', icon: 'payment', configSection: 'tools', toolSection: 'stripe-sync' },

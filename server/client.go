@@ -348,6 +348,7 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 			"stripePublishableKey":    options.StripePublishableKey,
 			"pricingOptions":          pricingOptions,
 			"baseUrl":                 options.BaseUrl,
+			"uiAccentColor":           options.UIAccentColor,
 			"transcriptionEnabled":    options.TranscriptionConfig.Enabled,
 			"incidentMappingEnabled":  options.MappingIntegration.IncidentMappingEnabled,
 			// Audio encryption: clients need the relay URL and client token to

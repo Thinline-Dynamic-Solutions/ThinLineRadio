@@ -31,6 +31,7 @@ import { LocationDataService } from 'src/app/services/location-data.service';
 import { OPENAI_CHAT_MODEL_OPTIONS, OpenAIChatModelOption, RELAY_SERVER_URL, RdioScannerAdminService } from '../../admin.service';
 import { MappingBoundaryStats, US_STATE_FIPS_OPTIONS } from '../../../mapping/mapping.types';
 import { TranscriptConfig } from '../transcript-parser/transcript-parser.types';
+import { DEFAULT_UI_ACCENT, UI_ACCENT_PRESETS, normalizeUIAccentColor } from '../../../app-accent.util';
 
 export type OptionsPanelId =
     | 'alerts' | 'security' | 'branding' | 'notifications'
@@ -117,7 +118,7 @@ const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
         systemsDuplicateDetection: true,
     },
     branding: {
-        keys: ['branding', 'baseUrl', 'email', 'emailLogoBorderRadius', 'faviconFilename', 'emailLogoFilename'],
+        keys: ['branding', 'uiAccentColor', 'baseUrl', 'email', 'emailLogoBorderRadius', 'faviconFilename', 'emailLogoFilename'],
     },
     notifications: {
         keys: [
@@ -132,8 +133,7 @@ const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
     },
     integrations: {
         keys: [
-            'openAIIntegration', 'radioReferenceEnabled', 'radioReferenceUsername',
-            'radioReferencePassword',
+            'openAIIntegration',
         ],
         sharedGeminiApiKey: true,
     },
@@ -182,10 +182,10 @@ const OPTIONS_PANEL_LABELS: Record<OptionsPanelId, string> = {
 const OPTIONS_NAV: OptionsNavItem[] = [
     { id: 'alerts', label: 'Alerts', icon: 'notifications_active', description: 'System health alerts, transcription failures, tone detection, no audio monitoring' },
     { id: 'security', label: 'Audio', icon: 'graphic_eq', description: 'Audio conversion, encryption, duplicate detection, download rate limits' },
-    { id: 'branding', label: 'Branding', icon: 'palette', description: 'App name, logos, favicon, support email, public base URL' },
+    { id: 'branding', label: 'Branding', icon: 'palette', description: 'App name, accent color, logos, favicon, support email, public base URL' },
     { id: 'notifications', label: 'Email', icon: 'email', description: 'Outbound email provider, SMTP/SendGrid/Mailgun, delivery settings' },
     { id: 'thinlineServices', label: 'Thinline Services', icon: 'cloud', description: 'Relay API key, account status, push billing, suspension controls' },
-    { id: 'integrations', label: 'Integrations', icon: 'extension', description: 'OpenAI, Radio Reference, and other external service credentials' },
+    { id: 'integrations', label: 'Integrations', icon: 'extension', description: 'OpenAI, Gemini, and other external service credentials' },
     { id: 'general', label: 'General', icon: 'settings', description: 'Listener counts, pruning, time zones, and other server-wide options' },
     { id: 'stripe', label: 'Stripe', icon: 'payments', description: 'Stripe keys, webhooks, and subscription payment settings' },
     { id: 'transcription', label: 'Transcription', icon: 'record_voice_over', description: 'Transcription engine, models, processing options, and transcript parser' },
@@ -252,6 +252,7 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     maxDownloadsPerWindow: 'Max downloads per window',
     downloadWindowMinutes: 'Download window (minutes)',
     branding: 'Branding label',
+    uiAccentColor: 'UI accent color',
     baseUrl: 'Base URL',
     email: 'Support email',
     emailLogoBorderRadius: 'Logo border radius',
@@ -301,6 +302,7 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     transcriptionEnabled: 'Transcription enabled',
     transcriptionEnhancement: 'Transcription audio enhancement',
     'transcriptionConfig.provider': 'Transcription provider',
+    'transcriptionConfig.backupProvider': 'Backup transcription provider',
     'transcriptionConfig.whisperAPIURL': 'Whisper API URL',
     'transcriptionConfig.whisperAPIKey': 'Whisper API key',
     'transcriptionConfig.whisperAPIModel': 'Whisper model',
@@ -325,6 +327,8 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     'transcriptionConfig.hallucinationDetectionMode': 'Hallucination detection mode',
     'transcriptionConfig.hallucinationMinOccurrences': 'Hallucination min occurrences',
     'transcriptionConfig.hallucinationConfidenceThreshold': 'Hallucination confidence threshold',
+    'transcriptionConfig.profanityFilterEnabled': 'Profanity filter',
+    'transcriptionConfig.profanityFilterExtraWords': 'Extra blocked words',
     userRegistrationEnabled: 'User registration',
     publicRegistrationEnabled: 'Public registration',
     publicRegistrationMode: 'Public registration mode',
@@ -354,19 +358,15 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     @Input() transcriptParserConfig: TranscriptConfig | null | undefined;
     /** Keyword lists for transcript alerting (saved via their own API). */
     @Input() keywordLists: any[] | null | undefined;
-    private radioReferenceSubscription?: Subscription;
     private formChangeSubscription?: Subscription;
     private systemsChangeSubscription?: Subscription;
     private initialLoadComplete = false;
     private panelBaselines: Partial<Record<OptionsPanelId, string>> = {};
-    public isEditingRadioReference = false;
     panelsReady = false;
     activePanel: OptionsNavId = 'alerts';
     activeSubPanel: string | null = OPTIONS_SUB_NAV.alerts?.[0]?.id ?? null;
     readonly optionsNav = OPTIONS_NAV;
     readonly optionsSubNav = OPTIONS_SUB_NAV;
-    private originalRadioReferenceUsername = '';
-    private originalRadioReferencePassword = '';
     faviconUrl: string = '';
     window = window;
 
@@ -375,6 +375,8 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     centralConnectionMessage: string = '';
     showExternalAPIKey: boolean = false;
     readonly openAIChatModels = OPENAI_CHAT_MODEL_OPTIONS;
+    readonly uiAccentPresets = UI_ACCENT_PRESETS;
+    readonly defaultUiAccent = DEFAULT_UI_ACCENT;
 
     get selectedOpenAIModel(): OpenAIChatModelOption | undefined {
         const id = this.form?.get('openAIIntegration')?.get('model')?.value || 'gpt-5.4-mini';
@@ -393,6 +395,27 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
     get isCentrallyManaged(): boolean {
         return this.form?.get('centralManagementEnabled')?.value === true;
+    }
+
+    get uiAccentColorValue(): string {
+        return normalizeUIAccentColor(this.form?.get('uiAccentColor')?.value);
+    }
+
+    setUiAccentColor(value: string): void {
+        this.form?.get('uiAccentColor')?.setValue(normalizeUIAccentColor(value));
+        this.form?.get('uiAccentColor')?.markAsDirty();
+    }
+
+    onUiAccentPickerInput(event: Event): void {
+        const value = (event.target as HTMLInputElement | null)?.value;
+        if (value) {
+            this.setUiAccentColor(value);
+        }
+    }
+
+    onUiAccentHexBlur(event: Event): void {
+        const value = (event.target as HTMLInputElement | null)?.value;
+        this.setUiAccentColor(value || this.defaultUiAccent);
     }
 
     /** Populated from GET /api/admin/relay-suspension when relay has fully suspended this scanner. */
@@ -834,6 +857,11 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                 result['transcriptionConfig'].assemblyAIWordBoost = wordBoost
                     .split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
             }
+            const extraProfanity = result['transcriptionConfig'].profanityFilterExtraWords;
+            if (typeof extraProfanity === 'string') {
+                result['transcriptionConfig'].profanityFilterExtraWords = extraProfanity
+                    .split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+            }
         }
 
         if ('relayServerAPIKey' in result) {
@@ -1235,7 +1263,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         'systemHealthAlertsEnabled', 'transcriptionFailureAlertsEnabled', 'toneDetectionAlertsEnabled',
         'noAudioAlertsEnabled', 'disableDuplicateDetection', 'audioEncryptionEnabled', 'rateLimitingEnabled',
         'time12hFormat', 'autoPopulate', 'playbackGoesLive', 'showListenersCount', 'sortTalkgroups',
-        'emailServiceEnabled', 'emailSmtpUseTLS', 'emailSmtpSkipVerify', 'radioReferenceEnabled',
+        'emailServiceEnabled', 'emailSmtpUseTLS', 'emailSmtpSkipVerify',
         'stripePaywallEnabled', 'transcriptionEnabled', 'transcriptionEnhancement', 'userRegistrationEnabled',
         'publicRegistrationEnabled', 'emailVerificationRequired', 'turnstileEnabled', 'configSyncEnabled',
         'adminLocalhostOnly', 'adminPasswordLoginDisabled',
@@ -1338,14 +1366,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         }
     }
 
-    get isRadioReferenceLoggedIn(): boolean {
-        return this.hasStoredRadioReferenceCredentials();
-    }
-
-    get shouldShowLoginForm(): boolean {
-        return this.isEditingRadioReference || !this.isRadioReferenceLoggedIn;
-    }
-
     ngOnInit(): void {
         this.mappingForm = this.formBuilder.group({
             incidentMappingEnabled: [false],
@@ -1363,9 +1383,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         this.loadMappingConfig();
         this.setupMappingToggleAutoSave();
         this.refreshBoundaryStats();
-        this.setupRadioReferenceValidation();
-        this.setInitialRadioReferenceValidation();
-        this.storeOriginalCredentials();
         this.setupRelayServerFormListeners();
         this.setupRateLimitingToggle();
         this.setupAudioEncryptionToggle();
@@ -1393,7 +1410,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     }
 
     ngOnDestroy(): void {
-        this.radioReferenceSubscription?.unsubscribe();
         this.formChangeSubscription?.unsubscribe();
         this.systemsChangeSubscription?.unsubscribe();
         this.toggleSubscriptions.forEach(s => s.unsubscribe());
@@ -1412,18 +1428,14 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
     ngOnChanges(changes: SimpleChanges): void {
         if (changes['form'] && this.form) {
-            this.setupRadioReferenceValidation();
-            this.setInitialRadioReferenceValidation();
             this.setupTurnstileValidation();
             this.setInitialTurnstileValidation();
-            this.storeOriginalCredentials();
             this.setupRelayServerFormListeners();
             this.setupRateLimitingToggle();
             this.setupAudioEncryptionToggle();
             this.setHardcodedRelayServerURL();
             this.setupToggleAutoSave();
             this.setupFormChangeTracking();
-            this.isEditingRadioReference = false;
             this.updateEmailLogoUrl();
 
             setTimeout(() => {
@@ -1438,76 +1450,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             if (this.initialLoadComplete) {
                 this.refreshPanelBaseline('alerts');
             }
-        }
-    }
-
-    private setupRadioReferenceValidation(): void {
-        if (!this.form) return;
-
-        const radioReferenceEnabledControl = this.form.get('radioReferenceEnabled');
-        const usernameControl = this.form.get('radioReferenceUsername');
-        const passwordControl = this.form.get('radioReferencePassword');
-
-        if (radioReferenceEnabledControl && usernameControl && passwordControl) {
-            // Listen to enabled toggle changes
-            this.radioReferenceSubscription = radioReferenceEnabledControl.valueChanges.subscribe(enabled => {
-                if (enabled) {
-                    usernameControl.setValidators([Validators.required]);
-                    passwordControl.setValidators([Validators.required]);
-                } else {
-                    usernameControl.clearValidators();
-                    passwordControl.clearValidators();
-                }
-                
-                usernameControl.updateValueAndValidity();
-                passwordControl.updateValueAndValidity();
-                
-                // Force form to detect changes
-                if (this.form) {
-                    this.form.markAsDirty();
-                    this.form.updateValueAndValidity();
-                }
-            });
-
-            // Listen to username changes (only after initial load to avoid marking form dirty on auto-populate)
-            usernameControl.valueChanges.subscribe(() => {
-                if (this.initialLoadComplete) {
-                    if (this.form) {
-                        this.form.markAsDirty();
-                    }
-                }
-            });
-
-            // Listen to password changes (only after initial load to avoid marking form dirty on auto-populate)
-            passwordControl.valueChanges.subscribe(() => {
-                if (this.initialLoadComplete) {
-                    if (this.form) {
-                        this.form.markAsDirty();
-                    }
-                }
-            });
-        }
-    }
-
-    private setInitialRadioReferenceValidation(): void {
-        if (!this.form) return;
-
-        const radioReferenceEnabledControl = this.form.get('radioReferenceEnabled');
-        const usernameControl = this.form.get('radioReferenceUsername');
-        const passwordControl = this.form.get('radioReferencePassword');
-
-        if (radioReferenceEnabledControl && usernameControl && passwordControl) {
-            const enabled = radioReferenceEnabledControl.value;
-            if (enabled) {
-                usernameControl.setValidators([Validators.required]);
-                passwordControl.setValidators([Validators.required]);
-            } else {
-                usernameControl.clearValidators();
-                passwordControl.clearValidators();
-            }
-            
-            usernameControl.updateValueAndValidity();
-            passwordControl.updateValueAndValidity();
         }
     }
 
@@ -1554,64 +1496,6 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         }
         siteKeyControl.updateValueAndValidity({ emitEvent: false });
         secretKeyControl.updateValueAndValidity({ emitEvent: false });
-    }
-
-    private storeOriginalCredentials(): void {
-        if (!this.form) return;
-        
-        // Store the current values as original values
-        this.originalRadioReferenceUsername = this.form.get('radioReferenceUsername')?.value || '';
-        this.originalRadioReferencePassword = this.form.get('radioReferencePassword')?.value || '';
-    }
-
-    editRadioReferenceLogin(): void {
-        if (!this.form) return;
-        
-        // Store current values as original before editing
-        this.storeOriginalCredentials();
-        
-        // Enter edit mode
-        this.isEditingRadioReference = true;
-        
-        // Keep the username but clear the password for editing
-        this.form.get('radioReferencePassword')?.setValue('');
-        this.form.markAsDirty();
-    }
-
-    cancelEditRadioReference(): void {
-        if (!this.form) return;
-        
-        // Restore the original username and password values
-        this.form.get('radioReferenceUsername')?.setValue(this.originalRadioReferenceUsername);
-        this.form.get('radioReferencePassword')?.setValue(this.originalRadioReferencePassword);
-        
-        // Exit edit mode
-        this.isEditingRadioReference = false;
-        
-        // Mark form as pristine since we've restored original values
-        this.form.markAsPristine();
-    }
-
-    removeRadioReferenceAccount(): void {
-        if (!this.form) return;
-        if (!confirm('Are you sure you want to remove the Radio Reference account from this server?')) {
-            return;
-        }
-
-        // Exit edit mode if we were editing
-        this.isEditingRadioReference = false;
-
-        // Clear credentials and disable Radio Reference
-        this.form.get('radioReferenceEnabled')?.setValue(false);
-        this.form.get('radioReferenceUsername')?.setValue('');
-        this.form.get('radioReferencePassword')?.setValue('');
-        this.originalRadioReferenceUsername = '';
-        this.originalRadioReferencePassword = '';
-        this.form.markAsDirty();
-    }
-
-    private hasStoredRadioReferenceCredentials(): boolean {
-        return !!(this.originalRadioReferenceUsername && this.originalRadioReferencePassword);
     }
 
     private setHardcodedRelayServerURL(): void {
@@ -2686,6 +2570,24 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     }
 
     // Helper methods for array handling in templates
+    transcriptionUsesProvider(id: string): boolean {
+        const group = this.form?.get('transcriptionConfig');
+        if (!group) {
+            return false;
+        }
+        return group.get('provider')?.value === id || group.get('backupProvider')?.value === id;
+    }
+
+    onPrimaryTranscriptionProviderChange(): void {
+        const group = this.form?.get('transcriptionConfig');
+        if (!group) {
+            return;
+        }
+        if (group.get('backupProvider')?.value === group.get('provider')?.value) {
+            group.get('backupProvider')?.setValue('');
+        }
+    }
+
     getAssemblyAIWordBoostDisplay(): string {
         const wordBoost = this.form?.get('transcriptionConfig')?.get('assemblyAIWordBoost')?.value;
         return Array.isArray(wordBoost) ? wordBoost.join(',') : '';

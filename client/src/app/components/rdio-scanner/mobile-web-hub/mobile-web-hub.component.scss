@@ -115,8 +115,8 @@
 }
 
 .tier-row--selected {
-  border-color: rgba(255, 91, 46, 0.5);
-  background: rgba(255, 91, 46, 0.08);
+  border-color: rgba(var(--tlr-accent-rgb), 0.5);
+  background: rgba(var(--tlr-accent-rgb), 0.08);
 }
 
 .tier-radio {
@@ -188,7 +188,7 @@
 }
 
 .tier-badge--primary {
-  background: rgba(255, 91, 46, 0.2);
+  background: rgba(var(--tlr-accent-rgb), 0.2);
   color: #ff5b2e;
 }
 

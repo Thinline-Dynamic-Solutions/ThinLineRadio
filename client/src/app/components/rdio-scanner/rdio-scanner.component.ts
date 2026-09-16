@@ -27,6 +27,7 @@ import { SettingsService } from './settings/settings.service';
 import { RdioScannerNativeComponent } from './native/native.component';
 import { isMobileRestrictedBrowser } from './mobile-browser.util';
 import { AppFontService } from './app-font.service';
+import { AppAccentService } from './app-accent.service';
 
 @Component({
     selector: 'rdio-scanner',
@@ -55,6 +56,7 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
         private settingsService: SettingsService,
         private route: ActivatedRoute,
         private appFontService: AppFontService,
+        private appAccentService: AppAccentService,
     ) {
         this.eventSubscription = this.rdioScannerService.event.subscribe((event: RdioScannerEvent) => this.eventHandler(event));
 
@@ -112,6 +114,7 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
     ngOnInit(): void {
         // Re-apply after .scanner-shell exists (APP_INITIALIZER may run before it mounts).
         this.appFontService.apply(this.appFontService.getCurrentFont());
+        this.appAccentService.setSiteColor(this.appAccentService.getSiteColor());
 
         /*
          * BEGIN OF RED TAPE:
@@ -246,6 +249,15 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
         }
         
         if ('config' in event) {
+            const siteAccent = event.config?.options?.uiAccentColor;
+            if (typeof siteAccent === 'string' && siteAccent) {
+                this.appAccentService.setSiteColor(siteAccent);
+            }
+            const userSettings = event.config?.userSettings;
+            if (userSettings && 'uiAccentColor' in userSettings) {
+                const userAccent = userSettings['uiAccentColor'];
+                this.appAccentService.setUserColor(typeof userAccent === 'string' ? userAccent : '');
+            }
             // VER-only updates omit options — don't clobber registration state with false.
             if (event.config?.options && 'userRegistrationEnabled' in event.config.options) {
                 this.userRegistrationEnabled = !!event.config.options.userRegistrationEnabled;

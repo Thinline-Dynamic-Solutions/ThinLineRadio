@@ -53,7 +53,7 @@ func (engine *AlertEngine) TriggerTranscriptAlerts(call *Call) {
 		return
 	}
 
-	transcriptSnippet := call.Transcript
+	transcriptSnippet := engine.controller.applyTranscriptProfanityFilter(call.Transcript)
 	if len(transcriptSnippet) > 200 {
 		transcriptSnippet = transcriptSnippet[:200] + "..."
 	}

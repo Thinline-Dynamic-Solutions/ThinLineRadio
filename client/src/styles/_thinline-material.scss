@@ -10,6 +10,18 @@
  */
 
 .thinline-skin {
+    --mat-slider-active-track-color: var(--tlr-accent);
+    --mat-slider-inactive-track-color: rgba(var(--tlr-accent-rgb), 0.18);
+    --mat-slider-handle-color: var(--tlr-accent);
+    --mat-slider-hover-handle-color: var(--tlr-accent);
+    --mat-slider-focus-handle-color: var(--tlr-accent);
+    --mat-slider-label-container-color: var(--tlr-accent);
+    --mdc-slider-handle-color: var(--tlr-accent);
+    --mdc-slider-focus-handle-color: var(--tlr-accent);
+    --mdc-slider-hover-handle-color: var(--tlr-accent);
+    --mdc-slider-active-track-color: var(--tlr-accent);
+    --mdc-slider-inactive-track-color: rgba(var(--tlr-accent-rgb), 0.18);
+
     /* ── Tab bodies / board canvas ───────────────────────────────────── */
     .mat-mdc-tab-body,
     .mat-mdc-tab-body-active,
@@ -48,7 +60,7 @@
     }
 
     .mat-mdc-tab.mdc-tab--active {
-        background: rgba(255, 91, 46, 0.12) !important;
+        background: rgba(var(--tlr-accent-rgb), 0.12) !important;
     }
 
     .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
@@ -78,7 +90,7 @@
     }
 
     .mat-mdc-outlined-button {
-        --mdc-outlined-button-outline-color: rgba(255, 91, 46, 0.4);
+        --mdc-outlined-button-outline-color: rgba(var(--tlr-accent-rgb), 0.4);
         --mdc-outlined-button-label-text-color: var(--tlr-accent);
     }
 
@@ -93,7 +105,7 @@
     .mat-mdc-form-field {
         --mdc-outlined-text-field-container-shape: 8px;
         --mdc-outlined-text-field-outline-color: rgba(255, 255, 255, 0.18);
-        --mdc-outlined-text-field-hover-outline-color: rgba(255, 91, 46, 0.45);
+        --mdc-outlined-text-field-hover-outline-color: rgba(var(--tlr-accent-rgb), 0.45);
         --mdc-outlined-text-field-focus-outline-color: var(--tlr-accent);
         --mdc-outlined-text-field-label-text-color: var(--tlr-text-secondary);
         --mdc-outlined-text-field-input-text-color: var(--tlr-text);
@@ -160,7 +172,7 @@
     }
 
     .mat-mdc-row:hover {
-        background: rgba(255, 91, 46, 0.06) !important;
+        background: rgba(var(--tlr-accent-rgb), 0.06) !important;
     }
 
     /* ── Checkbox / slide-toggle accents ─────────────────────────────── */
@@ -173,7 +185,7 @@
     }
 
     .mat-mdc-slide-toggle.mat-primary {
-        --mdc-switch-selected-track-color: rgba(255, 91, 46, 0.45);
+        --mdc-switch-selected-track-color: rgba(var(--tlr-accent-rgb), 0.45);
         --mdc-switch-selected-handle-color: var(--tlr-accent);
         --mdc-switch-selected-hover-handle-color: var(--tlr-accent);
         --mdc-switch-selected-pressed-handle-color: var(--tlr-accent);
