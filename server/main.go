@@ -649,6 +649,7 @@ func main() {
 	http.HandleFunc("/api/webhook/central-set-hydra-config", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.CentralWebhookSetHydraConfigHandler))).ServeHTTP)
 	http.HandleFunc("/api/webhook/relay-suspension", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.RelaySuspensionWebhookHandler))).ServeHTTP)
 	http.HandleFunc("/api/webhook/relay-billing", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.RelayBillingWebhookHandler))).ServeHTTP)
+	http.HandleFunc("/api/relay/billing-roster", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.RelayBillingRosterHandler))).ServeHTTP)
 	http.HandleFunc("/api/webhook/relay-listener-pin", securityHeadersWrapper(recoveryMiddleware(http.HandlerFunc(controller.Api.RelayListenerPinWebhookHandler))).ServeHTTP)
 
 	// Central Management pairing endpoint — called by the CM backend to push the API key and

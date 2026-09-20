@@ -1053,8 +1053,8 @@
             <p>
               <span class="mat-body">Relay Add-On Plans</span><br>
               <span class="mat-caption">
-                <strong>Geocoding and Push</strong> includes geocoding plus push notifications.
-                <strong>Push Notifications</strong> is push only.
+                <strong>Ad-free</strong> removes ads in the official app for this server ($25/mo minimum; every roster account at the rate for that server’s size).
+                <strong>Geocoding and Push</strong> and <strong>Push Notifications</strong> are separate add-ons.
                 Subscribe here or on
                 <a [href]="relayPortalURL" target="_blank" rel="noopener noreferrer" class="options-inline-link">app.thinlineradio.com</a>
                 after signing in — status refreshes automatically.
@@ -1082,12 +1082,15 @@
                   @if (plan.description) {
                     <p class="mat-caption relay-billing-plan-desc">{{ plan.description }}</p>
                   }
+                  @if (plan.convertNotice) {
+                    <p class="mat-caption relay-billing-convert-notice">{{ plan.convertNotice }}</p>
+                  }
                 </div>
                 <div class="relay-billing-plan-actions">
                   <mat-chip-set>
                     <mat-chip [color]="planStatusColor(plan.status)" highlighted>
-                      <mat-icon>{{ plan.subscribed ? 'check_circle' : (plan.status === 'past_due' ? 'error' : 'radio_button_unchecked') }}</mat-icon>
-                      {{ planStatusLabel(plan.status, plan.includedWithGeocoding) }}
+                      <mat-icon>{{ (plan.subscribed || plan.complimentary) ? 'check_circle' : (plan.status === 'past_due' ? 'error' : 'radio_button_unchecked') }}</mat-icon>
+                      {{ planStatusLabel(plan.status, plan.includedWithGeocoding, plan.complimentary, plan.houseLocked) }}
                     </mat-chip>
                   </mat-chip-set>
                   @if (plan.billable && !plan.subscribed) {

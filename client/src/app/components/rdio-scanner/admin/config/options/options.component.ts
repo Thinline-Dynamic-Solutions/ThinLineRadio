@@ -70,6 +70,11 @@ interface RelayBillingPlanRow {
     billable: boolean;
     /** Push is covered by an active Geocoding and Push subscription. */
     includedWithGeocoding?: boolean;
+    /** Admin override — ads stay off, paid checkout is still offered. */
+    complimentary?: boolean;
+    /** AlertPage / Ohio RSN — complimentary forever, no checkout. */
+    houseLocked?: boolean;
+    convertNotice?: string;
 }
 
 interface RelayBillingCatalogResponse {
@@ -84,10 +89,16 @@ interface RelayBillingCatalogResponse {
     entitlements?: Array<{
         plan_slug?: string;
         status?: string;
+        source?: string;
     }>;
     push_plan_enforcement?: {
         date?: string;
         active?: boolean;
+        notice?: string;
+    };
+    ad_free_convert?: {
+        house_locked?: boolean;
+        convert_by?: string;
         notice?: string;
     };
     error?: string;
@@ -2431,14 +2442,17 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     }
 
     private buildRelayBillingPlanRows(catalog: RelayBillingCatalogResponse): RelayBillingPlanRow[] {
-        const entBySlug = new Map<string, string>();
+        const entBySlug = new Map<string, { status: string; source: string }>();
         for (const ent of catalog?.entitlements || []) {
             const slug = (ent.plan_slug || '').trim().toLowerCase();
             if (slug) {
-                entBySlug.set(slug, (ent.status || 'none').trim().toLowerCase());
+                entBySlug.set(slug, {
+                    status: (ent.status || 'none').trim().toLowerCase(),
+                    source: (ent.source || '').trim().toLowerCase(),
+                });
             }
         }
-        const nominatimStatus = entBySlug.get('nominatim') || 'none';
+        const nominatimStatus = entBySlug.get('nominatim')?.status || 'none';
         const geocodingActive = nominatimStatus === 'active' || nominatimStatus === 'trialing';
         const rows: RelayBillingPlanRow[] = [];
         for (const plan of catalog?.plans || []) {
@@ -2446,16 +2460,32 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             if (!slug || plan.active === false) {
                 continue;
             }
-            let status = entBySlug.get(slug) || 'none';
+            const ent = entBySlug.get(slug);
+            let status = ent?.status || 'none';
             let subscribed = status === 'active' || status === 'trialing';
             let billable = !!(plan.stripe_price_id || '').trim();
             let includedWithGeocoding = false;
+            let complimentary = false;
+            let houseLocked = false;
+            let convertNotice = '';
             // Geocoding and Push already covers push — don't offer a second checkout.
             if (slug === 'push_relay' && geocodingActive) {
                 includedWithGeocoding = true;
                 subscribed = true;
                 status = nominatimStatus;
                 billable = false;
+            }
+            // Existing admin-overridden ad-free stays complimentary and can convert
+            // unless the server is house-locked (AlertPage / Ohio RSN).
+            if (slug === 'ad_free' && subscribed && ent?.source !== 'stripe') {
+                complimentary = true;
+                subscribed = false;
+                if (catalog.ad_free_convert?.house_locked) {
+                    houseLocked = true;
+                    billable = false;
+                } else if (catalog.ad_free_convert?.notice) {
+                    convertNotice = catalog.ad_free_convert.notice;
+                }
             }
             rows.push({
                 slug,
@@ -2466,14 +2496,23 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                 subscribed,
                 billable,
                 includedWithGeocoding,
+                complimentary,
+                houseLocked,
+                convertNotice,
             });
         }
         return rows;
     }
 
-    planStatusLabel(status: string, includedWithGeocoding = false): string {
+    planStatusLabel(status: string, includedWithGeocoding = false, complimentary = false, houseLocked = false): string {
         if (includedWithGeocoding) {
             return 'Included with Geocoding and Push';
+        }
+        if (houseLocked) {
+            return 'Included';
+        }
+        if (complimentary) {
+            return 'Complimentary';
         }
         switch ((status || '').toLowerCase()) {
             case 'active': return 'Active';

@@ -1,5 +1,18 @@
 # Change log
 
+## Version 26.09.20 - Released September 20, 2026
+
+### Added
+
+- **Relay billing roster** (`GET /api/relay/billing-roster`)
+  - Authenticated with the relay API key. Returns opaque user ids plus subscription, suspended, expired, and billing-required flags so the relay can bill ad-free seats. Count is calculated on the relay, not here.
+  - Ad-free is a separate relay plan. It does not include push or geocoding.
+  - Existing admin-overridden ad-free servers keep ads off and can still start a paid Ad-free checkout to convert, except AlertPage and Ohio Radio Scanner Network which stay complimentary with no convert-by date.
+  - Other complimentary Ad-free operators are asked to convert by September 30, 2026. Ads are not auto-cut on that date.
+  - Ad-free roster billing is $25/mo minimum. Every seat is billed at the Volume rate for that roster size ($0.50 down to $0.20).
+
+---
+
 ## Version 26.09.15 - Released September 15, 2026
 
 ### Added

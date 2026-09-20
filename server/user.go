@@ -751,6 +751,14 @@ func (u *User) IsSuspended() bool {
 	return u != nil && u.Suspended
 }
 
+// AccountExpired reports whether AccountExpiresAt is set and in the past.
+func (u *User) AccountExpired() bool {
+	if u == nil || u.AccountExpiresAt == 0 {
+		return false
+	}
+	return uint64(time.Now().Unix()) > u.AccountExpiresAt
+}
+
 func (u *User) EffectiveDelay(call *Call, defaultDelay uint) uint {
 	if u == nil || call == nil || call.System == nil || call.Talkgroup == nil {
 		return defaultDelay
