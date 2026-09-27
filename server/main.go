@@ -153,6 +153,38 @@ window.initialConfig = {
 	return true
 }
 
+// writeStaleBundleRecovery is executed in place of a missing hashed JS file so
+// a stale service worker can clear itself. See the webapp 404 branch in main.
+func writeStaleBundleRecovery(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	// Version the one-shot so a Chromebox that already recovered onto an
+	// older build will recover again after this deploy. A boolean flag left
+	// those clients executing a no-op "chunk" forever (black screen).
+	script := fmt.Sprintf(`(function(){
+var v = %q;
+try {
+  if (sessionStorage.getItem('tlr-sw-recover-v') === v) { return; }
+  sessionStorage.setItem('tlr-sw-recover-v', v);
+} catch (e) {}
+function go() {
+  var u = new URL(location.href);
+  u.searchParams.set('ngsw-bypass', '1');
+  location.replace(u.toString());
+}
+if (!('serviceWorker' in navigator)) { go(); return; }
+navigator.serviceWorker.getRegistrations().then(function(rs) {
+  return Promise.all(rs.map(function(r) { return r.unregister(); }));
+}).then(function() {
+  if (!('caches' in window)) { return; }
+  return caches.keys().then(function(keys) {
+    return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+  });
+}).then(go).catch(go);
+})();`, Version)
+	w.Write([]byte(script))
+}
+
 func main() {
 	// Record process start time as early as possible so /api/health can report
 	// accurate uptime regardless of how long initialization takes.
@@ -1041,6 +1073,15 @@ func main() {
 				w.Write(b)
 
 			} else if ext := path.Ext(url); ext != "" {
+				// After a deploy the embedded hashed bundles change. Chrome OS
+				// PWAs / Chromebox kiosks often still have a service worker
+				// holding the previous index.html, which then 404s main-*.js
+				// and paints a white screen. Serve a one-shot recovery script
+				// so those clients unregister the worker and reload.
+				if ext == ".js" && url != "ngsw-worker.js" && url != "safety-worker.js" {
+					writeStaleBundleRecovery(w)
+					return
+				}
 				w.WriteHeader(http.StatusNotFound)
 
 			} else if len(url) > 0 && !strings.HasSuffix(url, "/") {

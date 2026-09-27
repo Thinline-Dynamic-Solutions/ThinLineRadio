@@ -1,5 +1,46 @@
 # Change log
 
+## Version 26.09.24 - Released September 21, 2026
+
+### Changed
+
+- **Scanner boot message stays hidden**
+  - "Loading ThinLine Radio…" no longer flashes above the scanner while the client starts. The message only appears if the page still has not started after recovery.
+
+---
+
+## Version 26.09.23 - Released September 21, 2026
+
+### Fixed
+
+- **Chrome OS / Chromebox blank screen (`Object.hasOwn is not a function`)**
+  - Angular 22 chunks call `Object.hasOwn`, which older Chrome OS does not have. The scanner never boots (white, then black after 26.09.22). A small polyfill now runs in `index.html` before those chunks.
+  - Stale-bundle recovery is keyed to this version so a Chromebox that already ran 26.09.22 recovery is not left executing a no-op JS chunk.
+
+---
+
+## Version 26.09.22 - Released September 21, 2026
+
+### Fixed
+
+- **Chrome OS / Chromebox white screen on the public scanner**
+  - Chrome OS often installs the scanner as a PWA. After a deploy the service worker still had the previous `index.html`, which requested hashed JS files that no longer exist, so Angular never booted and Material's light canvas stayed white. Missing JS now returns a recovery script that unregisters the worker and reloads.
+  - Manifest orientation is `any` instead of `portrait` so landscape Chromeboxes are not locked.
+  - Chrome OS is never treated as the mobile-only hub, even when the UA also says Android.
+  - `html`/`body` use the dark scanner background so a failed boot is not a white page.
+
+---
+
+## Version 26.09.21 - Released September 21, 2026
+
+### Changed
+
+- **Cloudflare and AssemblyAI transcription send without a worker pool**
+  - Those cloud STT jobs are dispatched as calls arrive instead of waiting on local transcription threads. Local Whisper still uses the worker pool because of VRAM limits.
+  - Fixes morning backlog on busy servers where two workers sat behind 2–5 minute Cloudflare hangs.
+
+---
+
 ## Version 26.09.20 - Released September 20, 2026
 
 ### Added

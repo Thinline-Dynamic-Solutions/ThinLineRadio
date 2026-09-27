@@ -52,9 +52,12 @@ export class SettingsService {
     }
 
     private getPin(): string | undefined {
-        // Get PIN from localStorage (same way RdioScannerService does it)
-        const pin = window?.localStorage?.getItem('rdio-scanner-pin');
-        return pin ? window.atob(pin) : undefined;
+        try {
+            const pin = window?.localStorage?.getItem('rdio-scanner-pin');
+            return pin ? window.atob(pin) : undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     getSettings(): Observable<any> {

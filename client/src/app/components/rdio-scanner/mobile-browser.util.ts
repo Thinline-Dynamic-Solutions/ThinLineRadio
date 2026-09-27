@@ -7,6 +7,11 @@ export function isMobileRestrictedBrowser(): boolean {
         return false;
     }
     const ua = navigator.userAgent || '';
+    // Chrome OS / Chromebox is a desktop scanner client. Some Chromebooks also
+    // put "Android" in the UA, which must not send them to the mobile hub.
+    if (/\bCrOS\b|Chromebook|Chromebox/i.test(ua)) {
+        return false;
+    }
     if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
         return true;
     }

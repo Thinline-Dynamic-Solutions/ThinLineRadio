@@ -1873,6 +1873,17 @@
                 <input type="number" min="0" step="0.1" matInput formControlName="minCallDuration" placeholder="0" autocomplete="off">
               </mat-form-field>
             </div>
+            @if (form?.get('transcriptionConfig')?.get('provider')?.value === 'cloudflare' || form?.get('transcriptionConfig')?.get('provider')?.value === 'assemblyai') {
+              <div class="row">
+                <p>
+                  <span class="mat-body">Sending</span><br>
+                  <span class="mat-caption">
+                    Cloudflare and AssemblyAI jobs are sent as calls arrive. There is no local worker pool, so transcripts are not held behind a thread limit.
+                  </span>
+                </p>
+              </div>
+            }
+            @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'cloudflare' && form?.get('transcriptionConfig')?.get('provider')?.value !== 'assemblyai') {
             <div class="row">
               <p>
                 <span class="mat-body">Worker Pool Size (Transcription Threads)</span><br>
@@ -1897,6 +1908,7 @@
                 }
               </mat-form-field>
             </div>
+            }
                         </ng-container>
           } @else {
           <p class="options-subpanel-hint">Enable <strong>Transcription</strong> under Provider to configure this section.</p>

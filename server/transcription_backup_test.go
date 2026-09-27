@@ -51,6 +51,24 @@ func TestResolveBackupProvider(t *testing.T) {
 	}
 }
 
+func TestSttDispatchesWithoutWorkerPool(t *testing.T) {
+	if !sttDispatchesWithoutWorkerPool("cloudflare") {
+		t.Fatal("cloudflare should send without a worker pool")
+	}
+	if !sttDispatchesWithoutWorkerPool("assemblyai") {
+		t.Fatal("assemblyai should send without a worker pool")
+	}
+	if sttDispatchesWithoutWorkerPool("whisper-api") {
+		t.Fatal("local whisper should keep a worker pool")
+	}
+	if sttDispatchesWithoutWorkerPool("gemini") {
+		t.Fatal("gemini still uses the worker pool")
+	}
+	if sttDispatchesWithoutWorkerPool("") {
+		t.Fatal("default provider is whisper-api and should keep a worker pool")
+	}
+}
+
 func TestTranscribeWithBackupPrimarySucceeds(t *testing.T) {
 	primary := &mockSTT{name: "primary", available: true, result: &TranscriptionResult{Transcript: "PRIMARY"}}
 	backup := &mockSTT{name: "backup", available: true, result: &TranscriptionResult{Transcript: "BACKUP"}}

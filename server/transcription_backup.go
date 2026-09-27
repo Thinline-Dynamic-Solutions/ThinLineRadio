@@ -39,6 +39,17 @@ func resolvePrimaryProvider(name string) string {
 	return "whisper-api"
 }
 
+// sttDispatchesWithoutWorkerPool is true for cloud STT APIs with no local VRAM
+// constraint. Those jobs are sent as they arrive instead of waiting on a pool.
+func sttDispatchesWithoutWorkerPool(provider string) bool {
+	switch resolvePrimaryProvider(provider) {
+	case "cloudflare", "assemblyai":
+		return true
+	default:
+		return false
+	}
+}
+
 func resolveBackupProvider(primary, backup string) string {
 	b := supportedSTTProvider(backup)
 	if b == "" {

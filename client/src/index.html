@@ -8,6 +8,32 @@
     <link rel="icon" type="image/png" sizes="16x16" id="favicon-16" href="assets/icons/favicon-16x16.png">
     <link rel="manifest" href="manifest.webmanifest">
     <meta charset="utf-8">
+    <script>
+        (function () {
+            if (typeof Object.hasOwn !== 'function') {
+                Object.defineProperty(Object, 'hasOwn', {
+                    configurable: true,
+                    writable: true,
+                    value: function (obj, prop) {
+                        return Object.prototype.hasOwnProperty.call(Object(obj), prop);
+                    }
+                });
+            }
+            if (typeof Array.prototype.at !== 'function') {
+                Object.defineProperty(Array.prototype, 'at', {
+                    configurable: true,
+                    writable: true,
+                    value: function (n) {
+                        var len = this.length >>> 0;
+                        var i = Math.trunc(n) || 0;
+                        if (i < 0) { i += len; }
+                        if (i < 0 || i >= len) { return undefined; }
+                        return this[i];
+                    }
+                });
+            }
+        })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>ThinLine Radio</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -105,10 +131,65 @@
 </head>
 
 <body>
+    <div id="tlr-boot" hidden></div>
     <app-root></app-root>
     <noscript>
         Please enable JavaScript to continue using this application.
     </noscript>
+    <script>
+        (function () {
+            var BOOT_VERSION = '26.09.24';
+            var started = Date.now();
+            var boot = document.getElementById('tlr-boot');
+            function hasApp() {
+                var root = document.querySelector('app-root');
+                return !!(root && root.children && root.children.length);
+            }
+            function hideBoot() {
+                if (boot && boot.parentNode) { boot.parentNode.removeChild(boot); }
+            }
+            function paintStuck() {
+                if (!boot) { return; }
+                boot.hidden = false;
+                boot.textContent = 'ThinLine Radio could not start. Close this window and open the site again.';
+            }
+            function recover() {
+                var already;
+                try { already = sessionStorage.getItem('tlr-sw-recover-v') === BOOT_VERSION; } catch (e) {}
+                if (already) {
+                    paintStuck();
+                    return;
+                }
+                try { sessionStorage.setItem('tlr-sw-recover-v', BOOT_VERSION); } catch (e) {}
+                function go() {
+                    var u = new URL(location.href);
+                    u.searchParams.set('ngsw-bypass', '1');
+                    location.replace(u.toString());
+                }
+                if (!('serviceWorker' in navigator)) { go(); return; }
+                navigator.serviceWorker.getRegistrations().then(function (rs) {
+                    return Promise.all(rs.map(function (r) { return r.unregister(); }));
+                }).then(function () {
+                    if (!('caches' in window)) { return; }
+                    return caches.keys().then(function (keys) {
+                        return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                    });
+                }).then(go).catch(go);
+            }
+            function tick() {
+                if (hasApp()) {
+                    hideBoot();
+                    return;
+                }
+                if (Date.now() - started < 8000) {
+                    setTimeout(tick, 400);
+                    return;
+                }
+                recover();
+            }
+            setTimeout(tick, 2500);
+        })();
+    </script>
 </body>
 
 </html>

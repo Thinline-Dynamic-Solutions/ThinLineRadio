@@ -18,6 +18,19 @@
  * BROWSER POLYFILLS
  */
 
+// Angular 22 chunks call Object.hasOwn (Chrome 93+). Managed Chromeboxes often
+// freeze on older Chrome OS, which throws "Object.hasOwn is not a function"
+// and leaves a blank scanner. index.html also installs this before any module.
+if (typeof Object.hasOwn !== 'function') {
+    Object.defineProperty(Object, 'hasOwn', {
+        configurable: true,
+        writable: true,
+        value: function (obj: object, prop: PropertyKey) {
+            return Object.prototype.hasOwnProperty.call(Object(obj), prop);
+        },
+    });
+}
+
 /**
  * By default, zone.js will patch all possible macroTask and DomEvents
  * user can disable parts of macroTask/DomEvents patch by setting following flags

@@ -40,34 +40,39 @@ type TranscriptionJob struct {
 
 // TranscriptionQueue manages transcription jobs with a worker pool
 type TranscriptionQueue struct {
-	jobs            chan TranscriptionJob
-	workers         int
-	provider        TranscriptionProvider
-	backupProvider  TranscriptionProvider
-	backupName      string
-	controller      *Controller
-	mutex           sync.Mutex
-	running         bool
-	processedCount  atomic.Uint64 // total transcriptions completed since startup
+	jobs           chan TranscriptionJob
+	workers        int
+	directDispatch bool // Cloudflare / AssemblyAI: send each job without a worker pool
+	inFlight       atomic.Int64
+	provider       TranscriptionProvider
+	backupProvider TranscriptionProvider
+	backupName     string
+	controller     *Controller
+	mutex          sync.Mutex
+	running        bool
+	processedCount atomic.Uint64 // total transcriptions completed since startup
 }
 
-// NewTranscriptionQueue creates a new transcription queue with worker pool
+// NewTranscriptionQueue creates a new transcription queue.
+// Local Whisper uses a worker pool (VRAM-limited). Cloudflare and AssemblyAI
+// send each job as it arrives with no local thread cap.
 func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *TranscriptionQueue {
-	// Use configured worker pool size for all providers
-	// WARNING: For Whisper API (local Whisper), using more than 1 worker may cause
-	// transcription failures if insufficient VRAM is available. Users should start
-	// with 1 worker and increase only if they have adequate resources (8GB+ VRAM).
 	workerCount := config.WorkerPoolSize
 	if workerCount == 0 {
-		// Default to 1 for safety (can be increased by users with adequate resources)
 		workerCount = 1
 	}
 
+	directDispatch := sttDispatchesWithoutWorkerPool(config.Provider)
+	if directDispatch {
+		workerCount = 0
+	}
+
 	queue := &TranscriptionQueue{
-		jobs:       make(chan TranscriptionJob, 100), // Buffer 100 jobs
-		workers:    workerCount,
-		controller: controller,
-		running:    true,
+		jobs:           make(chan TranscriptionJob, 100), // Buffer 100 jobs (local Whisper pool only)
+		workers:        workerCount,
+		directDispatch: directDispatch,
+		controller:     controller,
+		running:        true,
 	}
 
 	// Initialize providers from config
@@ -95,18 +100,27 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 		}
 	}
 
-	// Start worker pool when primary or backup can run jobs
+	// Start worker pool when primary or backup can run jobs.
+	// Cloudflare and AssemblyAI skip the pool and send each job as it arrives.
 	primaryOK := queue.provider != nil && queue.provider.IsAvailable()
 	backupOK := queue.backupProvider != nil && queue.backupProvider.IsAvailable()
 	if primaryOK || backupOK {
-		for i := 0; i < queue.workers; i++ {
-			go queue.worker(i)
+		if queue.directDispatch {
+			msg := fmt.Sprintf("transcription dispatch started without worker pool using provider: %s", queue.provider.GetName())
+			if queue.backupProvider != nil {
+				msg += fmt.Sprintf(" (backup: %s)", queue.backupProvider.GetName())
+			}
+			controller.Logs.LogEvent(LogLevelInfo, msg)
+		} else {
+			for i := 0; i < queue.workers; i++ {
+				go queue.worker(i)
+			}
+			msg := fmt.Sprintf("transcription queue started with %d workers using provider: %s", queue.workers, queue.provider.GetName())
+			if queue.backupProvider != nil {
+				msg += fmt.Sprintf(" (backup: %s)", queue.backupProvider.GetName())
+			}
+			controller.Logs.LogEvent(LogLevelInfo, msg)
 		}
-		msg := fmt.Sprintf("transcription queue started with %d workers using provider: %s", queue.workers, queue.provider.GetName())
-		if queue.backupProvider != nil {
-			msg += fmt.Sprintf(" (backup: %s)", queue.backupProvider.GetName())
-		}
-		controller.Logs.LogEvent(LogLevelInfo, msg)
 	} else {
 		providerName := "unknown"
 		if queue.provider != nil {
@@ -119,9 +133,26 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 	return queue
 }
 
+func transcriptionDispatchLabel(workerId int) string {
+	if workerId < 0 {
+		return "send"
+	}
+	return fmt.Sprintf("worker %d", workerId)
+}
+
 // QueueJob adds a job to the transcription queue
 func (queue *TranscriptionQueue) QueueJob(job TranscriptionJob) {
 	if !queue.running {
+		return
+	}
+
+	if queue.directDispatch {
+		queue.inFlight.Add(1)
+		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription job sending for call %d (priority: %d)", job.CallId, job.Priority))
+		go func() {
+			defer queue.inFlight.Add(-1)
+			queue.processJob(-1, job)
+		}()
 		return
 	}
 
@@ -160,480 +191,484 @@ func (queue *TranscriptionQueue) optionsForProvider(provider string, base Transc
 	return opts
 }
 
-// worker processes transcription jobs
+// worker processes transcription jobs from the bounded pool (local Whisper).
 func (queue *TranscriptionQueue) worker(workerId int) {
 	for job := range queue.jobs {
 		if !queue.running {
 			return
 		}
+		queue.processJob(workerId, job)
+	}
+}
 
-		startTime := time.Now()
+func (queue *TranscriptionQueue) processJob(workerId int, job TranscriptionJob) {
+	startTime := time.Now()
+	who := transcriptionDispatchLabel(workerId)
 
-		// Resolve system and talkgroup labels for richer log lines
-		systemLabel := fmt.Sprintf("sys:%d", job.SystemId)
-		talkgroupLabel := fmt.Sprintf("tg:%d", job.TalkgroupId)
-		if sys, ok := queue.controller.Systems.GetSystemById(job.SystemId); ok {
-			systemLabel = sys.Label
-			if tg, ok := sys.Talkgroups.GetTalkgroupById(job.TalkgroupId); ok {
-				talkgroupLabel = tg.Label
+	// Resolve system and talkgroup labels for richer log lines
+	systemLabel := fmt.Sprintf("sys:%d", job.SystemId)
+	talkgroupLabel := fmt.Sprintf("tg:%d", job.TalkgroupId)
+	if sys, ok := queue.controller.Systems.GetSystemById(job.SystemId); ok {
+		systemLabel = sys.Label
+		if tg, ok := sys.Talkgroups.GetTalkgroupById(job.TalkgroupId); ok {
+			talkgroupLabel = tg.Label
+		}
+	}
+
+	queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+		"[transcription] %s | call %d | %s / %s | sending",
+		who, job.CallId, systemLabel, talkgroupLabel,
+	))
+
+	// Get the call to check if it has detected tones
+	call, err := queue.controller.Calls.GetCall(job.CallId)
+
+	// Re-check MinCallDuration here — tone detection may have finished after
+	// the job was queued, so remaining-after-tones can now fall below the floor.
+	if call != nil {
+		if len(job.OriginalAudio) > 0 {
+			call.OriginalAudio = job.OriginalAudio
+			call.OriginalAudioMime = job.OriginalMime
+		} else if len(job.Audio) > 0 {
+			call.Audio = job.Audio
+			call.AudioMime = job.AudioMime
+		}
+		minDuration := queue.controller.Options.TranscriptionConfig.MinCallDuration
+		if skip, reason, _, derr := queue.controller.transcriptionDurationDecision(call, minDuration); derr == nil && skip {
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"[transcription] %s | call %d | skipped before STT: %s",
+				who, job.CallId, reason,
+			))
+			if strings.HasPrefix(reason, "tone_only_remaining") {
+				queue.updateCallTranscriptionStatus(job.CallId, "completed")
+			} else {
+				queue.controller.markTranscriptionSkipped(job.CallId, reason)
+				queue.updateCallTranscriptionStatus(job.CallId, "skipped")
+			}
+			return
+		}
+	}
+
+	// Update call status to processing
+	queue.updateCallTranscriptionStatus(job.CallId, "processing")
+
+	// Use original audio for transcription (avoids double lossy conversion MP3->AAC->WAV)
+	// Falls back to converted audio if original is not available
+	audioToTranscribe := job.OriginalAudio
+	audioMimeType := job.OriginalMime
+	if len(audioToTranscribe) == 0 {
+		// Fallback to converted audio if original not available
+		audioToTranscribe = job.Audio
+		audioMimeType = job.AudioMime
+	}
+	usedFilteredAudio := false
+
+	// LOCK PENDING TONES: Prevent new tones from merging while this call transcribes
+	// This prevents unrelated tones (from a different incident) from being attached to this voice call
+	unlockPendingTones := func() {
+		if call == nil || call.System == nil || call.Talkgroup == nil {
+			return
+		}
+		key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
+		queue.controller.pendingTonesMutex.Lock()
+		if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && pending.Locked {
+			pending.Locked = false
+		}
+		queue.controller.pendingTonesMutex.Unlock()
+	}
+	if call != nil && call.System != nil && call.Talkgroup != nil {
+		key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
+		queue.controller.pendingTonesMutex.Lock()
+		if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && !pending.Locked {
+			pending.Locked = true
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: locked pending tones for talkgroup %d (call %d transcribing)", workerId, call.Talkgroup.TalkgroupRef, job.CallId))
+		}
+		queue.controller.pendingTonesMutex.Unlock()
+	}
+
+	// UNIVERSAL TONE REMOVAL: detect and cut ALL sustained dispatch tones before STT
+	// so Whisper/Gemini do not hallucinate on beeps. Skip STT when almost nothing remains.
+	queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: scanning call %d for dispatch tones to remove", workerId, job.CallId))
+	detectedTones, detectErr := queue.controller.ToneDetector.DetectAllTonesForTranscription(audioToTranscribe, audioMimeType)
+	if detectErr != nil {
+		queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d: tone detection failed for call %d: %v, proceeding with original audio", workerId, job.CallId, detectErr))
+	} else if len(detectedTones) > 0 {
+		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: call %d has %d dispatch tones, filtering before transcription", workerId, job.CallId, len(detectedTones)))
+
+		totalAudioDuration, durationErr := queue.controller.getAudioDuration(audioToTranscribe, audioMimeType)
+		var toneEnd float64
+		totalToneDuration := 0.0
+		for _, tone := range detectedTones {
+			totalToneDuration += tone.Duration
+			if tone.EndTime > toneEnd {
+				toneEnd = tone.EndTime
 			}
 		}
+		remainingDuration := totalAudioDuration - totalToneDuration
+		if toneEnd > 0 {
+			remainingDuration = totalAudioDuration - toneEnd
+		}
 
-		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-			"[transcription] worker %d | call %d | %s / %s | queued",
-			workerId, job.CallId, systemLabel, talkgroupLabel,
-		))
+		const minRemainingDuration = 2.0
+		if durationErr == nil && remainingDuration < minRemainingDuration {
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: call %d is mostly tones (%.1fs tones, %.1fs remaining < %.1fs minimum), skipping transcription",
+				workerId, job.CallId, totalToneDuration, remainingDuration, minRemainingDuration))
+			queue.updateCallTranscriptionStatus(job.CallId, "completed")
+			emptyResult := &TranscriptionResult{
+				Transcript: "",
+				Confidence: 0.0,
+				Language:   queue.controller.Options.TranscriptionConfig.Language,
+			}
+			go queue.storeTranscription(job.CallId, emptyResult)
+			unlockPendingTones()
+			duration := time.Since(startTime)
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"[transcription] %s | call %d | %s / %s | skipped tone-only in %.2fs | total #%d",
+				who, job.CallId, systemLabel, talkgroupLabel, duration.Seconds(), queue.processedCount.Add(1),
+			))
+			return
+		}
 
-		// Get the call to check if it has detected tones
-		call, err := queue.controller.Calls.GetCall(job.CallId)
+		filteredAudio, filterErr := queue.controller.ToneDetector.RemoveTonesFromAudio(audioToTranscribe, audioMimeType, detectedTones)
+		if filterErr != nil {
+			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d: audio filtering failed for call %d: %v, using original audio", workerId, job.CallId, filterErr))
+		} else if len(filteredAudio) >= 1000 {
+			audioToTranscribe = filteredAudio
+			audioMimeType = "audio/wav"
+			usedFilteredAudio = true
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: using filtered audio for call %d (removed %.1fs of tones, %.1fs voice remaining)",
+				workerId, job.CallId, totalToneDuration, remainingDuration))
+		} else {
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: filtered audio too small for call %d (tone-only), skipping transcription", workerId, job.CallId))
+			queue.updateCallTranscriptionStatus(job.CallId, "completed")
+			emptyResult := &TranscriptionResult{
+				Transcript: "",
+				Confidence: 0.0,
+				Language:   queue.controller.Options.TranscriptionConfig.Language,
+			}
+			go queue.storeTranscription(job.CallId, emptyResult)
+			unlockPendingTones()
+			duration := time.Since(startTime)
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"[transcription] %s | call %d | %s / %s | skipped tone-only filter in %.2fs | total #%d",
+				who, job.CallId, systemLabel, talkgroupLabel, duration.Seconds(), queue.processedCount.Add(1),
+			))
+			return
+		}
+	} else {
+		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: no dispatch tones detected in call %d, using original audio", workerId, job.CallId))
+	}
 
-		// Re-check MinCallDuration here — tone detection may have finished after
-		// the job was queued, so remaining-after-tones can now fall below the floor.
+	// Resolve transcription prompt: talkgroup overrides system which overrides global.
+	// An empty string at any level means "fall through to the next level".
+	resolvedPrompt := queue.controller.Options.TranscriptionConfig.Prompt
+	var promptSystem *System
+	var promptTalkgroup *Talkgroup
+	if system, ok := queue.controller.Systems.GetSystemById(job.SystemId); ok {
+		promptSystem = system
+		if system.TranscriptionPrompt != "" {
+			resolvedPrompt = system.TranscriptionPrompt
+		}
+		if talkgroup, ok := system.Talkgroups.GetTalkgroupById(job.TalkgroupId); ok {
+			promptTalkgroup = talkgroup
+			if talkgroup.TranscriptionPrompt != "" {
+				resolvedPrompt = talkgroup.TranscriptionPrompt
+			}
+		}
+	}
+	if queue.controller.Options.MappingIntegration.SendLocationContext && promptSystem != nil {
+		var toneSeq *ToneSequence
 		if call != nil {
-			if len(job.OriginalAudio) > 0 {
-				call.OriginalAudio = job.OriginalAudio
-				call.OriginalAudioMime = job.OriginalMime
-			} else if len(job.Audio) > 0 {
-				call.Audio = job.Audio
-				call.AudioMime = job.AudioMime
-			}
-			minDuration := queue.controller.Options.TranscriptionConfig.MinCallDuration
-			if skip, reason, _, derr := queue.controller.transcriptionDurationDecision(call, minDuration); derr == nil && skip {
-				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-					"[transcription] worker %d | call %d | skipped before STT: %s",
-					workerId, job.CallId, reason,
-				))
-				if strings.HasPrefix(reason, "tone_only_remaining") {
-					queue.updateCallTranscriptionStatus(job.CallId, "completed")
-				} else {
-					queue.controller.markTranscriptionSkipped(job.CallId, reason)
-					queue.updateCallTranscriptionStatus(job.CallId, "skipped")
-				}
-				continue
+			toneSeq = call.ToneSequence
+		}
+		resolvedPrompt = appendTranscriptionLocationContext(resolvedPrompt, promptSystem, promptTalkgroup, toneSeq)
+	}
+
+	// Transcribe audio (filtered if tones were present, original otherwise)
+	baseOpts := TranscriptionOptions{
+		Language:       queue.controller.Options.TranscriptionConfig.Language,
+		InitialPrompt:  resolvedPrompt,
+		AudioMime:      audioMimeType,
+		SystemLabel:    systemLabel,
+		TalkgroupLabel: talkgroupLabel,
+		CallID:         job.CallId,
+	}
+	primaryName := resolvePrimaryProvider(queue.controller.Options.TranscriptionConfig.Provider)
+	primaryOpts := queue.optionsForProvider(primaryName, baseOpts, resolvedPrompt, promptSystem, promptTalkgroup)
+	backupOpts := baseOpts
+	if queue.backupName != "" {
+		backupOpts = queue.optionsForProvider(queue.backupName, baseOpts, resolvedPrompt, promptSystem, promptTalkgroup)
+	}
+
+	result, usedBackup, err := transcribeWithBackup(queue.provider, queue.backupProvider, audioToTranscribe, primaryOpts, backupOpts)
+	if usedBackup {
+		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+			"transcription worker %d used backup provider %s for call %d after primary failure",
+			workerId, queue.backupName, job.CallId,
+		))
+	}
+
+	if err != nil {
+		errorMsg := err.Error()
+		queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d failed for call %d after retries: %v", workerId, job.CallId, err))
+		provider := queue.controller.Options.TranscriptionConfig.Provider
+		if provider == "whisper-api" || provider == "" {
+			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, apiURL=%s, usedFilteredAudio=%v, error=%s", provider, queue.controller.Options.TranscriptionConfig.WhisperAPIURL, usedFilteredAudio, errorMsg))
+		} else if queue.backupName != "" {
+			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, backup=%s, usedFilteredAudio=%v, error=%s", provider, queue.backupName, usedFilteredAudio, errorMsg))
+		} else {
+			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, usedFilteredAudio=%v, error=%s", provider, usedFilteredAudio, errorMsg))
+		}
+
+		// Check if this is a connection-related error that might indicate server issues
+		if strings.Contains(strings.ToLower(errorMsg), "connection") ||
+			strings.Contains(strings.ToLower(errorMsg), "eof") {
+			if provider == "whisper-api" || provider == "" {
+				queue.controller.Logs.LogEvent(LogLevelWarn, "Connection error detected. Check if Whisper API server is overloaded or network is unstable")
+			} else {
+				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("Connection error detected with %s provider. Check network connectivity or API service status", provider))
 			}
 		}
 
-		// Update call status to processing
-		queue.updateCallTranscriptionStatus(job.CallId, "processing")
+		queue.updateCallTranscriptionStatus(job.CallId, "failed", errorMsg)
 
-		// Use original audio for transcription (avoids double lossy conversion MP3->AAC->WAV)
-		// Falls back to converted audio if original is not available
-		audioToTranscribe := job.OriginalAudio
-		audioMimeType := job.OriginalMime
-		if len(audioToTranscribe) == 0 {
-			// Fallback to converted audio if original not available
-			audioToTranscribe = job.Audio
-			audioMimeType = job.AudioMime
-		}
-		usedFilteredAudio := false
-
-		// LOCK PENDING TONES: Prevent new tones from merging while this call transcribes
-		// This prevents unrelated tones (from a different incident) from being attached to this voice call
-		unlockPendingTones := func() {
-			if call == nil || call.System == nil || call.Talkgroup == nil {
-				return
-			}
+		// Release the pending-tones lock so future voice calls can still attach tones.
+		// Without this, a transcription failure would permanently lock the talkgroup's
+		// pending tones until the server restarts.
+		if call != nil && call.System != nil && call.Talkgroup != nil {
 			key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
 			queue.controller.pendingTonesMutex.Lock()
 			if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && pending.Locked {
 				pending.Locked = false
-			}
-			queue.controller.pendingTonesMutex.Unlock()
-		}
-		if call != nil && call.System != nil && call.Talkgroup != nil {
-			key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
-			queue.controller.pendingTonesMutex.Lock()
-			if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && !pending.Locked {
-				pending.Locked = true
-				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: locked pending tones for talkgroup %d (call %d transcribing)", workerId, call.Talkgroup.TalkgroupRef, job.CallId))
+				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for talkgroup %d after transcription failure (call %d)", workerId, call.Talkgroup.TalkgroupRef, job.CallId))
 			}
 			queue.controller.pendingTonesMutex.Unlock()
 		}
 
-		// UNIVERSAL TONE REMOVAL: detect and cut ALL sustained dispatch tones before STT
-		// so Whisper/Gemini do not hallucinate on beeps. Skip STT when almost nothing remains.
-		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: scanning call %d for dispatch tones to remove", workerId, job.CallId))
-		detectedTones, detectErr := queue.controller.ToneDetector.DetectAllTonesForTranscription(audioToTranscribe, audioMimeType)
-		if detectErr != nil {
-			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d: tone detection failed for call %d: %v, proceeding with original audio", workerId, job.CallId, detectErr))
-		} else if len(detectedTones) > 0 {
-			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: call %d has %d dispatch tones, filtering before transcription", workerId, job.CallId, len(detectedTones)))
+		return
+	}
 
-			totalAudioDuration, durationErr := queue.controller.getAudioDuration(audioToTranscribe, audioMimeType)
-			var toneEnd float64
-			totalToneDuration := 0.0
-			for _, tone := range detectedTones {
-				totalToneDuration += tone.Duration
-				if tone.EndTime > toneEnd {
-					toneEnd = tone.EndTime
-				}
-			}
-			remainingDuration := totalAudioDuration - totalToneDuration
-			if toneEnd > 0 {
-				remainingDuration = totalAudioDuration - toneEnd
-			}
+	// Clean hallucinations, then plain-text normalize before store/alerts/
+	// keywords/geocoding so every consumer sees the same shape.
+	cleanedTranscript, hadHallucinations := queue.controller.cleanTranscript(result.Transcript, job.CallId)
+	cleanedTranscript = mapping.NormalizeTranscriptPlainText(cleanedTranscript)
+	filteredTranscript := queue.controller.applyTranscriptProfanityFilter(cleanedTranscript)
+	if filteredTranscript != cleanedTranscript {
+		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("profanity filter applied to call %d transcript", job.CallId))
+		cleanedTranscript = filteredTranscript
+	}
+	alertSummary := queue.controller.applyTranscriptProfanityFilter(strings.TrimSpace(result.AlertSummary))
 
-			const minRemainingDuration = 2.0
-			if durationErr == nil && remainingDuration < minRemainingDuration {
-				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: call %d is mostly tones (%.1fs tones, %.1fs remaining < %.1fs minimum), skipping transcription",
-					workerId, job.CallId, totalToneDuration, remainingDuration, minRemainingDuration))
-				queue.updateCallTranscriptionStatus(job.CallId, "completed")
-				emptyResult := &TranscriptionResult{
-					Transcript: "",
-					Confidence: 0.0,
-					Language:   queue.controller.Options.TranscriptionConfig.Language,
-				}
-				go queue.storeTranscription(job.CallId, emptyResult)
-				unlockPendingTones()
-				duration := time.Since(startTime)
+	// Store cleaned transcription result (include optional summary from Whisper server when present)
+	extractedAddr := mapping.NormalizeTranscriptPlainText(strings.TrimSpace(result.ExtractedAddress))
+	cleanedResult := &TranscriptionResult{
+		Transcript:       cleanedTranscript,
+		Confidence:       result.Confidence,
+		Language:         result.Language,
+		AlertSummary:     alertSummary,
+		ExtractedAddress: extractedAddr,
+	}
+	go queue.storeTranscription(job.CallId, cleanedResult)
+
+	// Capture the pre-transcription call for the post-transcription goroutine.
+	// Tone detection has almost certainly completed by the time transcription finishes,
+	// so we re-fetch HasTones from DB only once (at the HasTones check below) rather
+	// than fetching the entire call a second time here.
+	postCall := call
+
+	// After transcription completes, check if we should attach pending tones to this call
+	// or if this call has its own tones with voice (trigger alert)
+	go func() {
+		// CRITICAL: Always unlock pending tones, even if we can't load the call from DB
+		// Store job data to ensure unlock happens regardless of DB load success
+		jobSystemId := job.SystemId
+		jobTalkgroupId := job.TalkgroupId
+
+		if postCall != nil {
+			call := postCall
+			// Update call with cleaned transcript
+			call.Transcript = cleanedTranscript
+			call.TranscriptionStatus = "completed"
+
+			// Tone attach uses a lenient check (short dispatch); keywords keep isActualVoice.
+			hasVoiceForTones := queue.controller.isVoiceForToneAlerts(cleanedTranscript)
+			hasVoiceForKeywords := queue.controller.isActualVoice(cleanedTranscript)
+
+			if hasVoiceForTones && !hasVoiceForKeywords {
 				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-					"[transcription] worker %d | call %d | %s / %s | skipped tone-only in %.2fs | total #%d",
-					workerId, job.CallId, systemLabel, talkgroupLabel, duration.Seconds(), queue.processedCount.Add(1),
+					"call %d: short dispatch transcript accepted for tone alerts (%d words, %d chars)",
+					job.CallId, len(strings.Fields(strings.TrimSpace(cleanedTranscript))), len(strings.TrimSpace(cleanedTranscript)),
 				))
-				continue
 			}
 
-			filteredAudio, filterErr := queue.controller.ToneDetector.RemoveTonesFromAudio(audioToTranscribe, audioMimeType, detectedTones)
-			if filterErr != nil {
-				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d: audio filtering failed for call %d: %v, using original audio", workerId, job.CallId, filterErr))
-			} else if len(filteredAudio) >= 1000 {
-				audioToTranscribe = filteredAudio
-				audioMimeType = "audio/wav"
-				usedFilteredAudio = true
-				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: using filtered audio for call %d (removed %.1fs of tones, %.1fs voice remaining)",
-					workerId, job.CallId, totalToneDuration, remainingDuration))
-			} else {
-				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: filtered audio too small for call %d (tone-only), skipping transcription", workerId, job.CallId))
-				queue.updateCallTranscriptionStatus(job.CallId, "completed")
-				emptyResult := &TranscriptionResult{
-					Transcript: "",
-					Confidence: 0.0,
-					Language:   queue.controller.Options.TranscriptionConfig.Language,
+			// Track this phrase for hallucination detection (if enabled)
+			// Track with the original transcript before cleaning to catch hallucinations
+			if call.System != nil && queue.controller.HallucinationDetector != nil {
+				queue.controller.HallucinationDetector.TrackPhrase(result.Transcript, hasVoiceForKeywords, call.System.Id)
+			}
+
+			// Debug log voice check result with call ID - ONLY for tone-enabled talkgroups
+			if queue.controller.DebugLogger != nil && call.Talkgroup != nil && call.Talkgroup.ToneDetectionEnabled {
+				logMsg := "Transcription completed - voice detected for tone alerts"
+				if hadHallucinations {
+					logMsg += " (after cleaning hallucinations)"
 				}
-				go queue.storeTranscription(job.CallId, emptyResult)
-				unlockPendingTones()
-				duration := time.Since(startTime)
-				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-					"[transcription] worker %d | call %d | %s / %s | skipped tone-only filter in %.2fs | total #%d",
-					workerId, job.CallId, systemLabel, talkgroupLabel, duration.Seconds(), queue.processedCount.Add(1),
-				))
-				continue
-			}
-		} else {
-			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: no dispatch tones detected in call %d, using original audio", workerId, job.CallId))
-		}
 
-		// Resolve transcription prompt: talkgroup overrides system which overrides global.
-		// An empty string at any level means "fall through to the next level".
-		resolvedPrompt := queue.controller.Options.TranscriptionConfig.Prompt
-		var promptSystem *System
-		var promptTalkgroup *Talkgroup
-		if system, ok := queue.controller.Systems.GetSystemById(job.SystemId); ok {
-			promptSystem = system
-			if system.TranscriptionPrompt != "" {
-				resolvedPrompt = system.TranscriptionPrompt
-			}
-			if talkgroup, ok := system.Talkgroups.GetTalkgroupById(job.TalkgroupId); ok {
-				promptTalkgroup = talkgroup
-				if talkgroup.TranscriptionPrompt != "" {
-					resolvedPrompt = talkgroup.TranscriptionPrompt
-				}
-			}
-		}
-		if queue.controller.Options.MappingIntegration.SendLocationContext && promptSystem != nil {
-			var toneSeq *ToneSequence
-			if call != nil {
-				toneSeq = call.ToneSequence
-			}
-			resolvedPrompt = appendTranscriptionLocationContext(resolvedPrompt, promptSystem, promptTalkgroup, toneSeq)
-		}
-
-		// Transcribe audio (filtered if tones were present, original otherwise)
-		baseOpts := TranscriptionOptions{
-			Language:       queue.controller.Options.TranscriptionConfig.Language,
-			InitialPrompt:  resolvedPrompt,
-			AudioMime:      audioMimeType,
-			SystemLabel:    systemLabel,
-			TalkgroupLabel: talkgroupLabel,
-			CallID:         job.CallId,
-		}
-		primaryName := resolvePrimaryProvider(queue.controller.Options.TranscriptionConfig.Provider)
-		primaryOpts := queue.optionsForProvider(primaryName, baseOpts, resolvedPrompt, promptSystem, promptTalkgroup)
-		backupOpts := baseOpts
-		if queue.backupName != "" {
-			backupOpts = queue.optionsForProvider(queue.backupName, baseOpts, resolvedPrompt, promptSystem, promptTalkgroup)
-		}
-
-		result, usedBackup, err := transcribeWithBackup(queue.provider, queue.backupProvider, audioToTranscribe, primaryOpts, backupOpts)
-		if usedBackup {
-			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-				"transcription worker %d used backup provider %s for call %d after primary failure",
-				workerId, queue.backupName, job.CallId,
-			))
-		}
-
-		if err != nil {
-			errorMsg := err.Error()
-			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d failed for call %d after retries: %v", workerId, job.CallId, err))
-			provider := queue.controller.Options.TranscriptionConfig.Provider
-			if provider == "whisper-api" || provider == "" {
-				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, apiURL=%s, usedFilteredAudio=%v, error=%s", provider, queue.controller.Options.TranscriptionConfig.WhisperAPIURL, usedFilteredAudio, errorMsg))
-			} else if queue.backupName != "" {
-				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, backup=%s, usedFilteredAudio=%v, error=%s", provider, queue.backupName, usedFilteredAudio, errorMsg))
-			} else {
-				queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription debug: provider=%s, usedFilteredAudio=%v, error=%s", provider, usedFilteredAudio, errorMsg))
-			}
-
-			// Check if this is a connection-related error that might indicate server issues
-			if strings.Contains(strings.ToLower(errorMsg), "connection") ||
-				strings.Contains(strings.ToLower(errorMsg), "eof") {
-				if provider == "whisper-api" || provider == "" {
-					queue.controller.Logs.LogEvent(LogLevelWarn, "Connection error detected. Check if Whisper API server is overloaded or network is unstable")
+				if hasVoiceForTones {
+					queue.controller.DebugLogger.LogVoiceDetection(job.CallId, cleanedTranscript, true, logMsg)
+					// Save audio file labeled as voice
+					go queue.controller.DebugLogger.SaveAudioFile(job.CallId, job.Audio, job.AudioMime, "voice")
 				} else {
-					queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("Connection error detected with %s provider. Check network connectivity or API service status", provider))
+					queue.controller.DebugLogger.LogVoiceDetection(job.CallId, cleanedTranscript, false, "Transcription completed - rejected as not voice for tone alerts")
 				}
 			}
 
-			queue.updateCallTranscriptionStatus(job.CallId, "failed", errorMsg)
+			if hasVoiceForTones {
+				// Reload call from DB to get latest HasTones state
+				// (may have been updated by tone detection earlier)
+				dbCall, err := queue.controller.Calls.GetCall(job.CallId)
+				if err == nil && dbCall != nil {
+					call = dbCall
+					call.Transcript = cleanedTranscript
+					call.TranscriptionStatus = "completed"
+				}
 
-			// Release the pending-tones lock so future voice calls can still attach tones.
-			// Without this, a transcription failure would permanently lock the talkgroup's
-			// pending tones until the server restarts.
-			if call != nil && call.System != nil && call.Talkgroup != nil {
+				if call.Talkgroup != nil && call.Talkgroup.AlertingTalkgroup {
+					go queue.controller.AlertEngine.TriggerTranscriptAlerts(call)
+				} else {
+					// Check for pending tones from previous tone-only calls (from other calls)
+					attachedPending := queue.controller.checkAndAttachPendingTones(call)
+
+					if attachedPending {
+						go queue.controller.AlertEngine.TriggerToneAlerts(call)
+					} else if call.HasTones {
+						go queue.controller.AlertEngine.TriggerToneAlerts(call)
+					}
+				}
+			} else {
+				// No voice on this clip — matched tones are stored as pending; DB alerts fire when a
+				// later voice call attaches them or when the orphan timer fires (~60s).
+				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription completed for call %d: no voice detected (tone-only), no alert created", job.CallId))
+
+				if dbCall, err := queue.controller.Calls.GetCall(job.CallId); err == nil && dbCall != nil && dbCall.HasTones {
+					matched := 0
+					if dbCall.ToneSequence != nil {
+						matched = len(dbCall.ToneSequence.MatchedToneSets)
+						if matched == 0 && dbCall.ToneSequence.MatchedToneSet != nil {
+							matched = 1
+						}
+					}
+					if matched > 0 {
+						queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d tone-only with %d matched tone set(s) on talkgroup %d — pending until voice or orphan alert", job.CallId, matched, call.Talkgroup.TalkgroupRef))
+					}
+				}
+			}
+
+			// UNLOCK PENDING TONES: Transcription is complete, allow new tones to merge
+			// This is critical - if we don't unlock, the next voice call won't be able to attach pending tones
+			if call.System != nil && call.Talkgroup != nil {
 				key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
 				queue.controller.pendingTonesMutex.Lock()
 				if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && pending.Locked {
 					pending.Locked = false
-					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for talkgroup %d after transcription failure (call %d)", workerId, call.Talkgroup.TalkgroupRef, job.CallId))
+					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for talkgroup %d (call %d transcription complete, hasVoiceForTones=%t)", workerId, call.Talkgroup.TalkgroupRef, job.CallId, hasVoiceForTones))
+
+					// If there are "next pending" tones that arrived during the lock, merge them now
+					nextKey := key + ":next"
+					if nextPending, nextExists := queue.controller.pendingTones[nextKey]; nextExists && nextPending != nil {
+						queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("merging next pending tones into current pending for talkgroup %d (lock cleared after call %d)", call.Talkgroup.TalkgroupRef, job.CallId))
+
+						queue.controller.mergeNextPendingIntoCurrent(key, pending, nextPending)
+
+						// Clear next pending slot
+						delete(queue.controller.pendingTones, nextKey)
+					}
 				}
 				queue.controller.pendingTonesMutex.Unlock()
 			}
+		} else {
+			// FALLBACK: If we couldn't load the call from DB, still unlock using job data
+			// This prevents pending tones from being permanently locked
+			if jobSystemId > 0 && jobTalkgroupId > 0 {
+				key := fmt.Sprintf("%d:%d", jobSystemId, jobTalkgroupId)
+				queue.controller.pendingTonesMutex.Lock()
+				if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && pending.Locked {
+					pending.Locked = false
+					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for system:talkgroup %d:%d (call %d transcription complete, fallback unlock)", workerId, jobSystemId, jobTalkgroupId, job.CallId))
 
-			continue
+					// If there are "next pending" tones that arrived during the lock, merge them now
+					nextKey := key + ":next"
+					if nextPending, nextExists := queue.controller.pendingTones[nextKey]; nextExists && nextPending != nil {
+						queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("merging next pending tones into current pending for system:talkgroup %d:%d (lock cleared after call %d, fallback)", jobSystemId, jobTalkgroupId, job.CallId))
+
+						queue.controller.mergeNextPendingIntoCurrent(key, pending, nextPending)
+
+						// Clear next pending slot
+						delete(queue.controller.pendingTones, nextKey)
+					}
+				}
+				queue.controller.pendingTonesMutex.Unlock()
+			}
 		}
+	}()
 
-		// Clean hallucinations, then plain-text normalize before store/alerts/
-		// keywords/geocoding so every consumer sees the same shape.
-		cleanedTranscript, hadHallucinations := queue.controller.cleanTranscript(result.Transcript, job.CallId)
-		cleanedTranscript = mapping.NormalizeTranscriptPlainText(cleanedTranscript)
-		filteredTranscript := queue.controller.applyTranscriptProfanityFilter(cleanedTranscript)
-		if filteredTranscript != cleanedTranscript {
-			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("profanity filter applied to call %d transcript", job.CallId))
-			cleanedTranscript = filteredTranscript
+	// Process keywords if needed - use cleaned transcript
+	go queue.processKeywords(job.CallId, job.SystemId, job.TalkgroupId, cleanedResult)
+
+	go func() {
+		if queue.controller.IncidentMappingQueue == nil {
+			return
 		}
-		alertSummary := queue.controller.applyTranscriptProfanityFilter(strings.TrimSpace(result.AlertSummary))
-
-		// Store cleaned transcription result (include optional summary from Whisper server when present)
-		extractedAddr := mapping.NormalizeTranscriptPlainText(strings.TrimSpace(result.ExtractedAddress))
-		cleanedResult := &TranscriptionResult{
-			Transcript:       cleanedTranscript,
-			Confidence:       result.Confidence,
-			Language:         result.Language,
-			AlertSummary:     alertSummary,
-			ExtractedAddress: extractedAddr,
+		toneWaitStart := time.Now()
+		mappingCall := queue.controller.callForIncidentMapping(job.CallId, cleanedTranscript)
+		if mappingCall == nil {
+			return
 		}
-		go queue.storeTranscription(job.CallId, cleanedResult)
+		if extractedAddr != "" {
+			mappingCall.ExtractedAddress = extractedAddr
+		}
+		if toneWait := time.Since(toneWaitStart); toneWait > 2*time.Second {
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"incident mapping call %d: waited %.1fs for tone match before mapping started", job.CallId, toneWait.Seconds()))
+		}
+		queue.controller.IncidentMappingQueue.ProcessCall(mappingCall, cleanedTranscript)
+	}()
 
-		// Capture the pre-transcription call for the post-transcription goroutine.
-		// Tone detection has almost certainly completed by the time transcription finishes,
-		// so we re-fetch HasTones from DB only once (at the HasTones check below) rather
-		// than fetching the entire call a second time here.
-		postCall := call
+	// Auto-learn tone sets (observe patterns, auto-add or log after N voiced calls)
+	go func() {
+		if postCall != nil {
+			call := postCall
+			call.Transcript = cleanedTranscript
+			queue.controller.processToneAutoLearn(call, cleanedTranscript)
+			return
+		}
+		if dbCall, err := queue.controller.Calls.GetCall(job.CallId); err == nil && dbCall != nil {
+			dbCall.Transcript = cleanedTranscript
+			queue.controller.processToneAutoLearn(dbCall, cleanedTranscript)
+		}
+	}()
 
-		// After transcription completes, check if we should attach pending tones to this call
-		// or if this call has its own tones with voice (trigger alert)
-		go func() {
-			// CRITICAL: Always unlock pending tones, even if we can't load the call from DB
-			// Store job data to ensure unlock happens regardless of DB load success
-			jobSystemId := job.SystemId
-			jobTalkgroupId := job.TalkgroupId
+	// Auto-learn unit aliases (radio unitRef → human label)
+	go func() {
+		if postCall != nil {
+			call := postCall
+			call.Transcript = cleanedTranscript
+			queue.controller.processUnitAutoLearn(call, cleanedTranscript)
+			return
+		}
+		if dbCall, err := queue.controller.Calls.GetCall(job.CallId); err == nil && dbCall != nil {
+			dbCall.Transcript = cleanedTranscript
+			queue.controller.processUnitAutoLearn(dbCall, cleanedTranscript)
+		}
+	}()
 
-			if postCall != nil {
-				call := postCall
-				// Update call with cleaned transcript
-				call.Transcript = cleanedTranscript
-				call.TranscriptionStatus = "completed"
-
-				// Tone attach uses a lenient check (short dispatch); keywords keep isActualVoice.
-				hasVoiceForTones := queue.controller.isVoiceForToneAlerts(cleanedTranscript)
-				hasVoiceForKeywords := queue.controller.isActualVoice(cleanedTranscript)
-
-				if hasVoiceForTones && !hasVoiceForKeywords {
-					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-						"call %d: short dispatch transcript accepted for tone alerts (%d words, %d chars)",
-						job.CallId, len(strings.Fields(strings.TrimSpace(cleanedTranscript))), len(strings.TrimSpace(cleanedTranscript)),
-					))
-				}
-
-				// Track this phrase for hallucination detection (if enabled)
-				// Track with the original transcript before cleaning to catch hallucinations
-				if call.System != nil && queue.controller.HallucinationDetector != nil {
-					queue.controller.HallucinationDetector.TrackPhrase(result.Transcript, hasVoiceForKeywords, call.System.Id)
-				}
-
-				// Debug log voice check result with call ID - ONLY for tone-enabled talkgroups
-				if queue.controller.DebugLogger != nil && call.Talkgroup != nil && call.Talkgroup.ToneDetectionEnabled {
-					logMsg := "Transcription completed - voice detected for tone alerts"
-					if hadHallucinations {
-						logMsg += " (after cleaning hallucinations)"
-					}
-
-					if hasVoiceForTones {
-						queue.controller.DebugLogger.LogVoiceDetection(job.CallId, cleanedTranscript, true, logMsg)
-						// Save audio file labeled as voice
-						go queue.controller.DebugLogger.SaveAudioFile(job.CallId, job.Audio, job.AudioMime, "voice")
-					} else {
-						queue.controller.DebugLogger.LogVoiceDetection(job.CallId, cleanedTranscript, false, "Transcription completed - rejected as not voice for tone alerts")
-					}
-				}
-
-				if hasVoiceForTones {
-					// Reload call from DB to get latest HasTones state
-					// (may have been updated by tone detection earlier)
-					dbCall, err := queue.controller.Calls.GetCall(job.CallId)
-					if err == nil && dbCall != nil {
-						call = dbCall
-						call.Transcript = cleanedTranscript
-						call.TranscriptionStatus = "completed"
-					}
-
-					if call.Talkgroup != nil && call.Talkgroup.AlertingTalkgroup {
-						go queue.controller.AlertEngine.TriggerTranscriptAlerts(call)
-					} else {
-						// Check for pending tones from previous tone-only calls (from other calls)
-						attachedPending := queue.controller.checkAndAttachPendingTones(call)
-
-						if attachedPending {
-							go queue.controller.AlertEngine.TriggerToneAlerts(call)
-						} else if call.HasTones {
-							go queue.controller.AlertEngine.TriggerToneAlerts(call)
-						}
-					}
-				} else {
-					// No voice on this clip — matched tones are stored as pending; DB alerts fire when a
-					// later voice call attaches them or when the orphan timer fires (~60s).
-					queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription completed for call %d: no voice detected (tone-only), no alert created", job.CallId))
-
-					if dbCall, err := queue.controller.Calls.GetCall(job.CallId); err == nil && dbCall != nil && dbCall.HasTones {
-						matched := 0
-						if dbCall.ToneSequence != nil {
-							matched = len(dbCall.ToneSequence.MatchedToneSets)
-							if matched == 0 && dbCall.ToneSequence.MatchedToneSet != nil {
-								matched = 1
-							}
-						}
-						if matched > 0 {
-							queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("call %d tone-only with %d matched tone set(s) on talkgroup %d — pending until voice or orphan alert", job.CallId, matched, call.Talkgroup.TalkgroupRef))
-						}
-					}
-				}
-
-				// UNLOCK PENDING TONES: Transcription is complete, allow new tones to merge
-				// This is critical - if we don't unlock, the next voice call won't be able to attach pending tones
-				if call.System != nil && call.Talkgroup != nil {
-					key := fmt.Sprintf("%d:%d", call.System.Id, call.Talkgroup.Id)
-					queue.controller.pendingTonesMutex.Lock()
-					if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && pending.Locked {
-						pending.Locked = false
-						queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for talkgroup %d (call %d transcription complete, hasVoiceForTones=%t)", workerId, call.Talkgroup.TalkgroupRef, job.CallId, hasVoiceForTones))
-
-						// If there are "next pending" tones that arrived during the lock, merge them now
-						nextKey := key + ":next"
-						if nextPending, nextExists := queue.controller.pendingTones[nextKey]; nextExists && nextPending != nil {
-							queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("merging next pending tones into current pending for talkgroup %d (lock cleared after call %d)", call.Talkgroup.TalkgroupRef, job.CallId))
-
-							queue.controller.mergeNextPendingIntoCurrent(key, pending, nextPending)
-
-							// Clear next pending slot
-							delete(queue.controller.pendingTones, nextKey)
-						}
-					}
-					queue.controller.pendingTonesMutex.Unlock()
-				}
-			} else {
-				// FALLBACK: If we couldn't load the call from DB, still unlock using job data
-				// This prevents pending tones from being permanently locked
-				if jobSystemId > 0 && jobTalkgroupId > 0 {
-					key := fmt.Sprintf("%d:%d", jobSystemId, jobTalkgroupId)
-					queue.controller.pendingTonesMutex.Lock()
-					if pending, exists := queue.controller.pendingTones[key]; exists && pending != nil && pending.Locked {
-						pending.Locked = false
-						queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: unlocked pending tones for system:talkgroup %d:%d (call %d transcription complete, fallback unlock)", workerId, jobSystemId, jobTalkgroupId, job.CallId))
-
-						// If there are "next pending" tones that arrived during the lock, merge them now
-						nextKey := key + ":next"
-						if nextPending, nextExists := queue.controller.pendingTones[nextKey]; nextExists && nextPending != nil {
-							queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("merging next pending tones into current pending for system:talkgroup %d:%d (lock cleared after call %d, fallback)", jobSystemId, jobTalkgroupId, job.CallId))
-
-							queue.controller.mergeNextPendingIntoCurrent(key, pending, nextPending)
-
-							// Clear next pending slot
-							delete(queue.controller.pendingTones, nextKey)
-						}
-					}
-					queue.controller.pendingTonesMutex.Unlock()
-				}
-			}
-		}()
-
-		// Process keywords if needed - use cleaned transcript
-		go queue.processKeywords(job.CallId, job.SystemId, job.TalkgroupId, cleanedResult)
-
-		go func() {
-			if queue.controller.IncidentMappingQueue == nil {
-				return
-			}
-			toneWaitStart := time.Now()
-			mappingCall := queue.controller.callForIncidentMapping(job.CallId, cleanedTranscript)
-			if mappingCall == nil {
-				return
-			}
-			if extractedAddr != "" {
-				mappingCall.ExtractedAddress = extractedAddr
-			}
-			if toneWait := time.Since(toneWaitStart); toneWait > 2*time.Second {
-				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-					"incident mapping call %d: waited %.1fs for tone match before mapping started", job.CallId, toneWait.Seconds()))
-			}
-			queue.controller.IncidentMappingQueue.ProcessCall(mappingCall, cleanedTranscript)
-		}()
-
-		// Auto-learn tone sets (observe patterns, auto-add or log after N voiced calls)
-		go func() {
-			if postCall != nil {
-				call := postCall
-				call.Transcript = cleanedTranscript
-				queue.controller.processToneAutoLearn(call, cleanedTranscript)
-				return
-			}
-			if dbCall, err := queue.controller.Calls.GetCall(job.CallId); err == nil && dbCall != nil {
-				dbCall.Transcript = cleanedTranscript
-				queue.controller.processToneAutoLearn(dbCall, cleanedTranscript)
-			}
-		}()
-
-		// Auto-learn unit aliases (radio unitRef → human label)
-		go func() {
-			if postCall != nil {
-				call := postCall
-				call.Transcript = cleanedTranscript
-				queue.controller.processUnitAutoLearn(call, cleanedTranscript)
-				return
-			}
-			if dbCall, err := queue.controller.Calls.GetCall(job.CallId); err == nil && dbCall != nil {
-				dbCall.Transcript = cleanedTranscript
-				queue.controller.processUnitAutoLearn(dbCall, cleanedTranscript)
-			}
-		}()
-
-		duration := time.Since(startTime)
-		count := queue.processedCount.Add(1)
-		queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-			"[transcription] worker %d | call %d | %s / %s | done in %.2fs | confidence %.2f | total #%d",
-			workerId, job.CallId, systemLabel, talkgroupLabel,
-			duration.Seconds(), result.Confidence, count,
-		))
-	}
+	duration := time.Since(startTime)
+	count := queue.processedCount.Add(1)
+	queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+		"[transcription] %s | call %d | %s / %s | done in %.2fs | confidence %.2f | total #%d",
+		who, job.CallId, systemLabel, talkgroupLabel,
+		duration.Seconds(), result.Confidence, count,
+	))
 }
 
 // updateCallTranscriptionStatus updates the transcription status for a call
@@ -999,8 +1034,16 @@ func (queue *TranscriptionQueue) storeKeywordMatchesBatch(callId uint64, userIds
 	}
 }
 
-// QueueDepth returns the number of jobs currently waiting in the queue channel
+// QueueDepth returns jobs waiting in the local Whisper pool, or in-flight
+// Cloudflare/AssemblyAI sends when those providers dispatch without workers.
 func (queue *TranscriptionQueue) QueueDepth() int {
+	if queue.directDispatch {
+		n := int(queue.inFlight.Load())
+		if n < 0 {
+			return 0
+		}
+		return n
+	}
 	return len(queue.jobs)
 }
 
