@@ -61,37 +61,6 @@ func NewFFMpeg() *FFMpeg {
 	return ffmpeg
 }
 
-func (ffmpeg *FFMpeg) ProcessForTranscription(audio []byte) []byte {
-	if !ffmpeg.available {
-		return audio
-	}
-
-	args := []string{
-		"-i", "-",
-		"-af", "highpass=f=120,acompressor=threshold=-20dB:ratio=4:attack=8:release=80:makeup=6dB,afftdn=nf=-20",
-		"-ar", "16000",
-		"-ac", "1",
-		"-c:a", "pcm_s16le",
-		"-f", "wav",
-		"-",
-	}
-
-	cmd := exec.Command("ffmpeg", args...)
-	cmd.Stdin = bytes.NewReader(audio)
-
-	stdout := bytes.NewBuffer([]byte(nil))
-	cmd.Stdout = stdout
-
-	stderr := bytes.NewBuffer([]byte(nil))
-	cmd.Stderr = stderr
-
-	if err := cmd.Run(); err == nil {
-		return stdout.Bytes()
-	}
-
-	return audio
-}
-
 func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uint) error {
 	var (
 		args = []string{"-i", "-"}
@@ -119,14 +88,6 @@ func (ffmpeg *FFMpeg) Convert(call *Call, systems *Systems, tags *Tags, mode uin
 			"-metadata", fmt.Sprintf("genre=%v", tag),
 			"-metadata", fmt.Sprintf("title=%v", call.Talkgroup.Name),
 		)
-	}
-
-	if ffmpeg.version43 {
-		if mode == AUDIO_CONVERSION_ENABLED_NORM {
-			args = append(args, "-af", "apad=whole_dur=3s,highpass=f=120,acompressor=threshold=-20dB:ratio=4:attack=8:release=80:makeup=6dB,afftdn=nf=-20,equalizer=f=250:width_type=q:width=2:g=-3,equalizer=f=3000:width_type=q:width=2:g=5,lowpass=f=3200,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.891:attack=5:release=50")
-		} else if mode == AUDIO_CONVERSION_ENABLED_LOUD_NORM {
-			args = append(args, "-af", "apad=whole_dur=3s,highpass=f=120,acompressor=threshold=-20dB:ratio=4:attack=8:release=80:makeup=6dB,afftdn=nf=-20,equalizer=f=250:width_type=q:width=2:g=-3,equalizer=f=3000:width_type=q:width=2:g=5,lowpass=f=3200,loudnorm=I=-14:TP=-1.5:LRA=3,alimiter=limit=0.891:attack=5:release=50")
-		}
 	}
 
 	args = append(args, "-c:a", "aac", "-b:a", "48k", "-movflags", "frag_keyframe+empty_moov", "-f", "ipod", "-")

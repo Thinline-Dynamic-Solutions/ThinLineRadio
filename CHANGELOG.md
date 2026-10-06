@@ -1,5 +1,26 @@
 # Change log
 
+## Version 26.10.01 - Released October 6, 2026
+
+### Changed
+
+- **Web scanner matches the mobile HUD**
+  - Glass display with a tag-colored backlight, annunciator flags (LIVE, SCAN, RX, HOLD SYS, HOLD TG, PAUSE), a signal meter, and the system, tag, TGID, and unit lines.
+  - While the live feed is searching, the display walks each enabled talkgroup. A segmented sweep bar runs left to right, the same direction as the phone.
+  - The keypad uses the same glass keys as the mobile scanner.
+- **Audio conversion is plain AAC**
+  - Admin → Options offers Disabled or Enabled. The normalization modes and the voice-filter chain are gone. Incoming audio is stored as AAC m4a. Dispatch tones are still removed before transcription.
+  - The transcription audio-enhancement toggle is removed. Audio is no longer denoised or compressed with ffmpeg before speech-to-text.
+- **Web fonts are self-hosted**
+  - The scanner no longer loads fonts from a third party, and the unused Stripe.js script tag is gone.
+
+### Fixed
+
+- **Expired admin session away from localhost**
+  - A stale admin token now returns 401 instead of 403, so the mobile app can send the admin back through sign-in.
+
+---
+
 ## Version 26.09.24 - Released September 21, 2026
 
 ### Changed

@@ -95,116 +95,162 @@
   <div class="board" [class.disabled]="!subscriptionActive && subscriptionChecked">
 
     <div class="board-body" [class.board-body--solo]="!isTranscriptionEnabled">
-      <aside class="scanner-column">
-        <section class="lcd-strip lcd-strip--scanner">
-          <div class="lcd-status">
-            <span class="led-pill" [class.on]="linked" [class.off]="!linked">
-              {{ linked ? 'LINK' : 'NO LINK' }}
-            </span>
-            <span class="meta meta--clock">{{ clock | date:timeFormat }}</span>
-            @if (showListenersCount) {
-              <span class="meta">Listeners {{ listeners }}</span>
-            }
-            <span class="meta">Queue {{ callQueue }}</span>
-            <span class="meta live-indicator"
-              [class.is-placeholder]="!call"
-              [matTooltip]="call ? getDelayedTooltip() : ''">
-              {{ call ? getDelayedText() : '—' }}
-            </span>
-            <span class="meta flag-pill flag--avoid"
-            [class.is-placeholder]="!avoided">AVOID</span>
-            <span class="meta flag-pill flag--patch"
-            [class.is-placeholder]="!patched">PATCH</span>
+      <aside class="scanner-column"
+        [style.--hud-accent]="call ? nowPlayingTagColor(call) : '#4ccf70'">
+        <div class="hud-ambient" aria-hidden="true"></div>
+
+        <section class="hud-panel">
+          <div class="hud-brand" [class.is-linked]="linked">
+            <span class="hud-brand__dot"></span>
+            <span class="hud-brand__name">{{ branding || 'ThinLine Radio' }}</span>
           </div>
 
-          <div class="lcd-scan" [class.is-active]="showScanningAnimation">
-            <span class="scan-label">SCANNING</span>
-            <span class="scan-sys">{{ getCurrentScanningSystem() || '—' }}</span>
-          </div>
+          <div class="hud-lcd" [class.is-idle]="!call && !showScanningAnimation">
+            <div class="hud-flags">
+              <span class="hud-flag" [class.is-lit]="livefeedOnline">LIVE</span>
+              <span class="hud-flag" [class.is-lit]="showScanningAnimation">SCAN</span>
+              <span class="hud-flag hud-flag--rx" [class.is-lit]="!!call">RX</span>
+              <span class="hud-flag hud-flag--amber" [class.is-lit]="holdSys">HOLD SYS</span>
+              <span class="hud-flag hud-flag--amber" [class.is-lit]="holdTg">HOLD TG</span>
+              <span class="hud-flag hud-flag--amber" [class.is-lit]="livefeedPaused">PAUSE</span>
+              <span class="hud-meter" [class.is-on]="!!call" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i>
+              </span>
+            </div>
 
-          <div class="lcd-now">
-            <!-- Layout mirrors mobile scanner LCD: meta grid → talkgroup card → freq footer. -->
-            <div class="now-grid"
-              [class.now-grid--idle]="!call"
-              [style.--now-tag-color]="nowPlayingTagColor(call)"
-              [style.background-color]="call ? getTransmissionHistoryBackgroundColor(call) : null">
-              <div class="now-meta">
-                <div class="now-cell now-cell--system">
-                  <span class="cell-k">System</span>
-                  <span class="cell-v" [matTooltip]="call?.systemData?.label || ''">{{ call?.systemData?.label || call?.system || '—' }}</span>
-                </div>
-                <div class="now-cell">
-                  <span class="cell-k">Tag</span>
-                  <span class="cell-v">{{ nowPlayingTagLabel(call) }}</span>
-                </div>
-                <div class="now-cell now-cell--end">
-                  <span class="cell-k">TGID</span>
-                  <span class="cell-v">{{ call ? displayTgidForCall(call) : '—' }}</span>
-                </div>
-                <div class="now-cell">
-                  <span class="cell-k">Unit</span>
-                  <span class="cell-v">{{ call ? displaySourceForNowPlaying(call) : '—' }}</span>
-                </div>
-              </div>
+            <div class="hud-stats">
+              <span class="hud-stat">
+                <mat-icon>schedule</mat-icon>
+                <span class="hud-stat__k">TIME</span>
+                <span class="hud-stat__v">{{ clock | date:timeFormat }}</span>
+              </span>
+              <span class="hud-stat">
+                <mat-icon>people_outline</mat-icon>
+                <span class="hud-stat__k">LSN</span>
+                <span class="hud-stat__v">{{ showListenersCount ? listeners : '—' }}</span>
+              </span>
+              <span class="hud-stat">
+                <mat-icon>playlist_play</mat-icon>
+                <span class="hud-stat__k">Q</span>
+                <span class="hud-stat__v">{{ callQueue }}</span>
+              </span>
+            </div>
 
-              <div class="now-tg-card">
-                <span class="cell-k">Talkgroup</span>
-                <span class="cell-v hero">{{ scannerTalkgroupLabel }}</span>
-              </div>
+            <div class="hud-rule"></div>
 
-              <div class="now-footer">
-                <span class="now-freq">{{ call ? (formatFrequencyMHz(call.frequency) || '—') : '—' }}</span>
-                <span class="now-clock">{{ call ? (call.dateTime | date:timeFormat) : '—' }}</span>
-              </div>
+            <div class="hud-line">
+              <span class="hud-tag">SYS</span>
+              <span class="hud-line__v" [matTooltip]="lcdSystemLabel">{{ lcdSystemLabel }}</span>
+              <span class="hud-line__side-k">TGID</span>
+              <span class="hud-line__side-v">{{ lcdTgid }}</span>
+            </div>
+            <div class="hud-line">
+              <span class="hud-tag">TAG</span>
+              <span class="hud-line__v">{{ lcdTagLabel }}</span>
+              <span class="hud-line__side-k">UID</span>
+              <span class="hud-line__side-v">{{ call ? displaySourceForNowPlaying(call) : '—' }}</span>
+            </div>
+
+            <div class="hud-rule"></div>
+
+            <div class="hud-hero">
+              @if (showScanningAnimation) {
+                @if (currentScanChannel; as ch) {
+                  <div class="hud-scan-readout">
+                    <div class="hud-scan-readout__top">
+                      <span class="hud-tag" [class.hud-tag--amber]="holdSys || holdTg">{{ (holdSys || holdTg) ? 'HOLD' : 'SCAN' }}</span>
+                      <span class="hud-scan-readout__sys">{{ ch.system }}</span>
+                      <span class="hud-scan-readout__ch">{{ scanChannelCounter }}</span>
+                    </div>
+                    <div class="hud-scan-readout__label">{{ ch.label }}</div>
+                    @if (ch.name) {
+                      <div class="hud-scan-readout__name">{{ ch.name }}</div>
+                    }
+                    <div class="hud-scan-readout__meta">
+                      <span class="hud-scan-readout__k">TGID</span>
+                      <span>{{ ch.tgid }}</span>
+                      @if (ch.tag) {
+                        <span class="hud-scan-readout__dot" [style.background]="ch.color"></span>
+                        <span class="hud-scan-readout__tag" [style.color]="ch.color">{{ ch.tag }}</span>
+                      }
+                    </div>
+                  </div>
+                } @else {
+                  <div class="hud-scan">
+                    <span class="hud-tag" [class.hud-tag--amber]="holdSys || holdTg">{{ (holdSys || holdTg) ? 'HOLD' : 'SCAN' }}</span>
+                    <span class="hud-radar" aria-hidden="true"></span>
+                    <span class="hud-scan__label">SCANNING</span>
+                    <span class="hud-scan__sys">{{ getCurrentScanningSystem() || '—' }}</span>
+                  </div>
+                }
+                <div class="hud-segments" [class.is-hold]="holdSys || holdTg" aria-hidden="true">
+                  @for (seg of scanBarSegments; track seg) {
+                    <i [style.--i]="seg"></i>
+                  }
+                </div>
+              } @else {
+                <div class="hud-hero__top">
+                  @if (call) {
+                    <span class="hud-tag hud-tag--wide">NOW PLAYING</span>
+                  }
+                  <span class="hud-bars" [class.is-on]="!!call" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i>
+                  </span>
+                  @if (call && (playbackMode || delayed)) {
+                    <span class="hud-delay" [matTooltip]="getDelayedTooltip()">{{ getDelayedText() }}</span>
+                  }
+                  @if (avoided) {
+                    <span class="hud-chip hud-chip--amber">AVOID</span>
+                  }
+                  @if (patched) {
+                    <span class="hud-chip">PATCH</span>
+                  }
+                </div>
+                <div class="hud-hero__name" [matTooltip]="scannerTalkgroupLabel">{{ scannerTalkgroupLabel }}</div>
+                <div class="hud-hero__meta">
+                  <mat-icon>graphic_eq</mat-icon>
+                  <span class="hud-hero__freq">{{ call ? (formatFrequencyMHz(call.frequency) || '—') : '—' }}</span>
+                  <span class="hud-hero__clock">{{ call ? (call.dateTime | date:timeFormat) : '—' }}</span>
+                </div>
+              }
             </div>
 
             @if (isTranscriptionEnabled) {
-              <div class="now-transcript"
-                [class.is-empty]="!call?.transcript">
-                <span class="transcript-label">Transcript</span>
+              <div class="hud-transcript" [class.is-empty]="!call?.transcript">
+                <span class="hud-transcript__label">Transcript</span>
                 @if (call?.transcript) {
-                  <p class="transcript-text"
+                  <p class="hud-transcript__text"
                   [innerHTML]="renderTranscript(call!.transcript!, call!.transcriptAnnotations)"></p>
                 } @else {
-                  <p class="transcript-text transcript-text--placeholder">—</p>
+                  <p class="hud-transcript__text hud-transcript__text--placeholder">—</p>
                 }
               </div>
             }
           </div>
         </section>
 
-        <div class="scanner-controls">
+        <div class="hud-keys">
           <div class="scanner-keypad-grid">
             @for (key of scannerKeyOrder; track key) {
-              <div class="scanner-key-slot">
-                <button type="button"
-                  class="scanner-key"
-                  [class.scanner-key--latched]="scannerKeyState(key).latched"
-                  [matTooltip]="toolbarTooltip(key)"
-                  (click)="executeButtonAction(key)">
-                  @if (scannerKeyState(key).showGreenLed) {
-                    <span
-                      class="scanner-key__led scanner-key__led--green"
-                    [class.scanner-key__led--lit]="scannerKeyState(key).ledGreenLit"></span>
-                  }
-                  @if (scannerKeyState(key).showRedLed) {
-                    <span
-                      class="scanner-key__led scanner-key__led--red"
-                    [class.scanner-key__led--lit]="scannerKeyState(key).ledRedLit"></span>
-                  }
-                  @if (!scannerKeyState(key).showGreenLed && !scannerKeyState(key).showRedLed) {
-                    <span
-                    class="scanner-key__led scanner-key__led--spacer"></span>
-                  }
-                  <span class="scanner-key__label"
-                  [innerHTML]="toolbarButtonLabel(key)"></span>
-                  @if (scannerKeyState(key).pauseSquare) {
-                    <span
-                      class="scanner-key__pause-dot"
-                    aria-hidden="true"></span>
-                  }
-                </button>
-              </div>
+              <button type="button"
+                class="scanner-key"
+                [class.scanner-key--latched]="scannerKeyState(key).latched"
+                [matTooltip]="toolbarTooltip(key)"
+                (click)="executeButtonAction(key)">
+                @if (scannerKeyState(key).showGreenLed) {
+                  <span
+                    class="scanner-key__led scanner-key__led--green"
+                  [class.scanner-key__led--lit]="scannerKeyState(key).ledGreenLit"></span>
+                } @else if (scannerKeyState(key).showRedLed) {
+                  <span
+                    class="scanner-key__led scanner-key__led--red"
+                  [class.scanner-key__led--lit]="scannerKeyState(key).ledRedLit"></span>
+                } @else {
+                  <span class="scanner-key__led scanner-key__led--spacer"></span>
+                }
+                <mat-icon class="scanner-key__icon">{{ scannerKeyIcon(key) }}</mat-icon>
+                <span class="scanner-key__label">{{ toolbarButtonLabel(key) }}</span>
+              </button>
             }
           </div>
 

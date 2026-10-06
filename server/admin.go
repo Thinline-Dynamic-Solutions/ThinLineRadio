@@ -170,7 +170,8 @@ func (admin *Admin) requireLocalhost(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A valid admin JWT already proved identity (SSO or password login).
 		// Skip the IP allowlist so system admins can manage from the mobile app.
-		if t := admin.GetAuthorization(r); t != "" && admin.ValidateToken(t) {
+		t := admin.GetAuthorization(r)
+		if t != "" && admin.ValidateToken(t) {
 			next(w, r)
 			return
 		}
@@ -178,6 +179,13 @@ func (admin *Admin) requireLocalhost(next http.HandlerFunc) http.HandlerFunc {
 		clientIP := GetClientIP(r)
 
 		if !admin.isAdminIPAllowed(clientIP) {
+			// Expired or evicted token: 401 tells an SSO client to sign in
+			// again, where a 403 would leave it stuck.
+			if t != "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+				return
+			}
 			log.Printf("Admin access denied from IP: %s for route: %s", clientIP, r.URL.Path)
 			w.WriteHeader(http.StatusForbidden)
 			json.NewEncoder(w).Encode(map[string]string{

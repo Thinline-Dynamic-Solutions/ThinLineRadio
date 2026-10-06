@@ -110,7 +110,7 @@ type Call struct {
 	// Not persisted to DB or included in JSON output.
 	Duration float64
 
-	IsDuplicate bool `json:"isDuplicate,omitempty"`
+	IsDuplicate bool   `json:"isDuplicate,omitempty"`
 	AudioHash   string `json:"audioHash,omitempty"`
 
 	// IsForwarded is set when this call was received from another TLR server via

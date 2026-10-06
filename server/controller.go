@@ -86,7 +86,7 @@ type Controller struct {
 	Ingest            chan *Call
 	running           bool
 	startupReady      atomic.Bool
-	startupReadyAt    atomic.Int64 // unix nanos when config finished loading
+	startupReadyAt    atomic.Int64       // unix nanos when config finished loading
 	workerCancel      context.CancelFunc // Function to cancel worker context
 	workersWg         sync.WaitGroup     // WaitGroup to track worker goroutines
 	workerStats       struct {
@@ -122,9 +122,9 @@ type Controller struct {
 	noAudioMonitorStopsMu sync.Mutex
 
 	// Stop channels and monitor start times for per-API-key no-audio monitoring
-	apikeyNoAudioMonitorStops    map[uint64]chan struct{}
-	apikeyNoAudioMonitorStarted  map[uint64]int64
-	apikeyNoAudioMonitorStopsMu  sync.Mutex
+	apikeyNoAudioMonitorStops   map[uint64]chan struct{}
+	apikeyNoAudioMonitorStarted map[uint64]int64
+	apikeyNoAudioMonitorStopsMu sync.Mutex
 
 	// Rate limiting
 	RateLimiter         *RateLimiter
@@ -941,14 +941,6 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 	copy(call.OriginalAudio, call.Audio)
 	call.OriginalAudioMime = call.AudioMime
 
-	// Stage 3.5: Optionally enhance transcription audio with denoising and compression.
-	if controller.Options.TranscriptionEnhancement {
-		if enhanced := controller.FFMpeg.ProcessForTranscription(call.OriginalAudio); len(enhanced) > 0 {
-			call.OriginalAudio = enhanced
-			call.OriginalAudioMime = "audio/wav"
-		}
-	}
-
 	// Stage 4: Encode audio to AAC/M4A for storage and streaming.
 	if convertErr := controller.FFMpeg.Convert(call, controller.Systems, controller.Tags, controller.Options.AudioConversion); convertErr != nil {
 		controller.Logs.LogEvent(LogLevelWarn, convertErr.Error())
@@ -984,7 +976,6 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 				})
 			}
 		}
-
 
 		// IMMEDIATE: Emit call to clients (users can play NOW - zero delay)
 		controller.EmitCall(call)

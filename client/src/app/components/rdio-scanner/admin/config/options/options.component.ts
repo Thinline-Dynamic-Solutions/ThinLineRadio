@@ -163,7 +163,7 @@ const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
         ],
     },
     transcription: {
-        keys: ['transcriptionEnabled', 'transcriptionEnhancement', 'transcriptionConfig'],
+        keys: ['transcriptionEnabled', 'transcriptionConfig'],
     },
     userRegistration: {
         keys: [
@@ -311,7 +311,6 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     stripeBillingPortalConfigurationId: 'Stripe billing portal configuration ID',
     stripeGracePeriodDays: 'Stripe grace period (days)',
     transcriptionEnabled: 'Transcription enabled',
-    transcriptionEnhancement: 'Transcription audio enhancement',
     'transcriptionConfig.provider': 'Transcription provider',
     'transcriptionConfig.backupProvider': 'Backup transcription provider',
     'transcriptionConfig.whisperAPIURL': 'Whisper API URL',
@@ -1275,7 +1274,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         'noAudioAlertsEnabled', 'disableDuplicateDetection', 'audioEncryptionEnabled', 'rateLimitingEnabled',
         'time12hFormat', 'autoPopulate', 'playbackGoesLive', 'showListenersCount', 'sortTalkgroups',
         'emailServiceEnabled', 'emailSmtpUseTLS', 'emailSmtpSkipVerify',
-        'stripePaywallEnabled', 'transcriptionEnabled', 'transcriptionEnhancement', 'userRegistrationEnabled',
+        'stripePaywallEnabled', 'transcriptionEnabled', 'userRegistrationEnabled',
         'publicRegistrationEnabled', 'emailVerificationRequired', 'turnstileEnabled', 'configSyncEnabled',
         'adminLocalhostOnly', 'adminPasswordLoginDisabled',
     ];

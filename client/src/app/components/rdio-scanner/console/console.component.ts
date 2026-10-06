@@ -63,6 +63,18 @@ const TAB = {
 /** Sub-view inside the Transmissions tab. */
 type TransmissionsPanelMode = 'recent' | 'search';
 
+/** One enabled talkgroup in the scan sweep, matching the mobile channel readout. */
+interface ScanChannelView {
+    system: string;
+    label: string;
+    name: string;
+    tgid: string;
+    tag: string;
+    color: string;
+    position: number;
+    systemTotal: number;
+}
+
 @Component({
     selector: 'rdio-scanner-console',
     templateUrl: './console.component.html',
@@ -177,6 +189,13 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
 
     /** Cycles through `getEnabledSystems()` while scanning banner is shown. */
     currentScanningSystemIndex = 0;
+
+    /** Enabled talkgroups walked while the live feed is searching. */
+    scanChannels: ScanChannelView[] = [];
+    scanChannelIndex = 0;
+    /** 28-segment sweep, same count as the mobile scan bar. */
+    readonly scanBarSegments = Array.from({ length: 28 }, (_, i) => i);
+    private scanChannelsKey = '';
 
     // ────────────────────────────────────────────────────────────────────────
     // SUBSCRIPTIONS / STORED AUTH STATE
@@ -353,16 +372,31 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
 
     toolbarButtonLabel(key: string): string {
         const labels: Record<string, string> = {
-            liveFeed: 'LIVE<br>FEED',
+            liveFeed: 'LIVE FEED',
             pause: this.livefeedPaused ? 'RESUME' : 'PAUSE',
-            replayLast: 'REPLAY<br>LAST',
-            skipNext: 'SKIP<br>NEXT',
-            avoid: 'AVOID<br>TG',
-            holdSystem: 'HOLD<br>SYS',
-            holdTalkgroup: 'HOLD<br>TG',
-            channelSelect: 'SELECT<br>TG',
+            replayLast: 'REPLAY',
+            skipNext: 'SKIP',
+            avoid: 'AVOID TG',
+            holdSystem: 'HOLD SYS',
+            holdTalkgroup: 'HOLD TG',
+            channelSelect: 'SELECT TG',
         };
         return labels[key] || key;
+    }
+
+    /** Material icon for the glass keypad, matching the mobile HUD keys. */
+    scannerKeyIcon(key: string): string {
+        switch (key) {
+            case 'liveFeed': return 'settings_input_antenna';
+            case 'pause': return this.livefeedPaused ? 'play_arrow' : 'pause';
+            case 'replayLast': return 'restore';
+            case 'skipNext': return 'skip_next';
+            case 'avoid': return 'block';
+            case 'holdSystem': return 'lock';
+            case 'holdTalkgroup': return 'lock_outline';
+            case 'channelSelect': return 'tune';
+            default: return 'circle';
+        }
     }
 
     scannerKeyState(key: string): {
@@ -821,30 +855,145 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         return enabled[this.currentScanningSystemIndex]?.label || enabled[0]?.label || '';
     }
 
-    private updateScanningAnimation(): void {
-        if (this.showScanningAnimation) this.startScanningAnimation();
-        else this.stopScanningAnimation();
+    /** Channel under the scan head, or undefined when the feed is not searching. */
+    get currentScanChannel(): ScanChannelView | undefined {
+        if (!this.showScanningAnimation || this.scanChannels.length === 0) return undefined;
+        return this.scanChannels[this.scanChannelIndex % this.scanChannels.length];
     }
 
-    private startScanningAnimation(): void {
-        this.stopScanningAnimation();
-        const enabled = this.getEnabledSystems();
-        if (enabled.length === 0) return;
-        this.currentScanningSystemIndex = 0;
+    /** `CH 001/018` counter for the channel currently lit. */
+    get scanChannelCounter(): string {
+        const ch = this.currentScanChannel;
+        if (!ch) return '';
+        const width = Math.min(5, Math.max(3, String(ch.systemTotal).length));
+        const pad = (n: number) => String(n).padStart(width, '0');
+        return `CH ${pad(ch.position)}/${pad(ch.systemTotal)}`;
+    }
 
-        // 1s cycle. Timer runs inside Angular's zone so CD is triggered automatically.
-        this.scanningSystemTimer = timer(0, 1000).subscribe(() => {
+    get lcdSystemLabel(): string {
+        const ch = this.currentScanChannel;
+        if (ch) return ch.system;
+        if (!this.call) return '—';
+        return String(this.call.systemData?.label || this.call.system || '—');
+    }
+
+    get lcdTagLabel(): string {
+        const ch = this.currentScanChannel;
+        if (ch) return ch.tag || '—';
+        return this.nowPlayingTagLabel(this.call);
+    }
+
+    get lcdTgid(): string {
+        const ch = this.currentScanChannel;
+        if (ch) return ch.tgid;
+        return this.call ? this.displayTgidForCall(this.call) : '—';
+    }
+
+    private updateScanningAnimation(): void {
+        if (!this.showScanningAnimation) {
+            this.stopScanningAnimation();
+            return;
+        }
+        this.rebuildScanChannels();
+        if (this.scanningSystemTimer) return;
+        this.scanChannelIndex = 0;
+        this.currentScanningSystemIndex = 0;
+        // Same step as the mobile channel sweep. The segmented bar is CSS.
+        this.scanningSystemTimer = timer(182, 182).subscribe(() => {
+            const n = this.scanChannels.length;
+            if (n > 1) this.scanChannelIndex = (this.scanChannelIndex + 1) % n;
             const systems = this.getEnabledSystems();
-            if (systems.length > 0) {
+            if (systems.length > 1 && this.scanChannelIndex === 0) {
                 this.currentScanningSystemIndex = (this.currentScanningSystemIndex + 1) % systems.length;
             }
         });
+    }
+
+    /** Enabled talkgroups in system order, narrowed to a hold when one is on. */
+    private rebuildScanChannels(): void {
+        const key = this.scanChannelsCacheKey();
+        if (key === this.scanChannelsKey) return;
+        this.scanChannelsKey = key;
+        this.scanChannels = this.collectScanChannels();
+        if (this.scanChannelIndex >= this.scanChannels.length) this.scanChannelIndex = 0;
+    }
+
+    private scanChannelsCacheKey(): string {
+        const active: string[] = [];
+        const map = this.map;
+        if (map) {
+            for (const sysId of Object.keys(map)) {
+                const sys = map[+sysId];
+                if (!sys) continue;
+                for (const tgId of Object.keys(sys)) {
+                    if (sys[+tgId]?.active) active.push(`${sysId}:${tgId}`);
+                }
+            }
+        }
+        const held = this.call || this.callPrevious;
+        return [
+            active.join(','),
+            this.holdSys ? 1 : 0,
+            this.holdTg ? 1 : 0,
+            held?.system ?? '',
+            held?.talkgroup ?? '',
+        ].join('|');
+    }
+
+    private collectScanChannels(): ScanChannelView[] {
+        const systems = this.config?.systems;
+        if (!systems?.length || !this.map) return [];
+
+        const held = (this.holdSys || this.holdTg) ? (this.call || this.callPrevious) : undefined;
+        const raw: Array<Omit<ScanChannelView, 'position' | 'systemTotal'>> = [];
+
+        for (const system of systems) {
+            if (this.holdSys && held && system.id !== held.system) continue;
+            const sysMap = this.map[system.id];
+            if (!sysMap) continue;
+            for (const tg of system.talkgroups || []) {
+                if (!sysMap[tg.id]?.active) continue;
+                if (this.holdTg && (!held || system.id !== held.system || tg.id !== held.talkgroup)) continue;
+                const label = (tg.label || tg.name || String(tg.id)).trim();
+                const nameRaw = (tg.name || '').trim();
+                const tagRaw = (tg.tag || '').trim();
+                raw.push({
+                    system: system.label,
+                    label,
+                    name: nameRaw && nameRaw.toLowerCase() !== label.toLowerCase() ? nameRaw : '',
+                    tgid: system.type === 'provoice' || tg.type === 'provoice'
+                        ? this.formatAfs(tg.id)
+                        : String(tg.id),
+                    tag: tagRaw ? this.tagColorService.resolveTagLabel(tagRaw) : '',
+                    color: tagRaw ? this.tagColorService.getTagColor(tagRaw) : 'transparent',
+                });
+            }
+        }
+
+        const totals = new Map<string, number>();
+        for (const ch of raw) totals.set(ch.system, (totals.get(ch.system) ?? 0) + 1);
+
+        const sequence: ScanChannelView[] = [];
+        let current = '';
+        let pos = 0;
+        for (const ch of raw) {
+            if (ch.system !== current) {
+                current = ch.system;
+                pos = 0;
+            }
+            pos++;
+            sequence.push({ ...ch, position: pos, systemTotal: totals.get(ch.system) ?? pos });
+        }
+        return sequence;
     }
 
     private stopScanningAnimation(): void {
         this.scanningSystemTimer?.unsubscribe();
         this.scanningSystemTimer = undefined;
         this.currentScanningSystemIndex = 0;
+        this.scanChannelIndex = 0;
+        this.scanChannels = [];
+        this.scanChannelsKey = '';
     }
 
     // ────────────────────────────────────────────────────────────────────────
