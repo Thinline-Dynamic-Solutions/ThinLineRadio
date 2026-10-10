@@ -569,6 +569,11 @@ func (controller *Controller) IngestCall(call *Call) {
 		}
 	}
 
+	if system != nil && talkgroup != nil && talkgroup.Hidden {
+		logCall(call, LogLevelInfo, "hidden channel")
+		return
+	}
+
 	if controller.Options.AutoPopulate && system == nil && systemId > 0 {
 		populated = true
 

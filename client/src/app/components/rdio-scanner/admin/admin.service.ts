@@ -753,6 +753,7 @@ export interface Talkgroup {
     autoLearnToneSets?: boolean;
     autoLearnUnitAliases?: boolean;
     alertingTalkgroup?: boolean;
+    hidden?: boolean;                   // Hidden from user channel list and no new calls ingested; history kept
     retentionDays?: number;             // Days to retain calls; 0 = inherit system/global
     incidentMapping?: IncidentMappingConfig;
 }
@@ -2479,6 +2480,7 @@ export class RdioScannerAdminService implements OnDestroy {
             autoLearnToneSets: this.ngFormBuilder.control(talkgroup?.autoLearnToneSets || false),
             autoLearnUnitAliases: this.ngFormBuilder.control(talkgroup?.autoLearnUnitAliases || false),
             alertingTalkgroup: this.ngFormBuilder.control(talkgroup?.alertingTalkgroup || false),
+            hidden: this.ngFormBuilder.control(talkgroup?.hidden || false),
             retentionDays: this.ngFormBuilder.control(talkgroup?.retentionDays ?? 0, [Validators.min(0)]),
             incidentMapping: this.newIncidentMappingForm(talkgroup?.incidentMapping, { inherit: true }),
         });

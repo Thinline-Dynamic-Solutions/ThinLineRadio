@@ -3331,3 +3331,14 @@ func migrateAutoEnableNewTalkgroups(db *Database) error {
 	}
 	return nil
 }
+
+// migrateTalkgroupHidden adds the "hidden" flag to talkgroups. A hidden talkgroup is
+// removed from the channel list shown to users and no longer ingests new calls, but
+// the talkgroup row (and therefore all calls, transcripts and alerts that reference it)
+// is kept.
+func migrateTalkgroupHidden(db *Database) error {
+	if _, err := db.Sql.Exec(`ALTER TABLE "talkgroups" ADD COLUMN IF NOT EXISTS "hidden" boolean NOT NULL DEFAULT false`); err != nil {
+		return fmt.Errorf("migrateTalkgroupHidden: %w", err)
+	}
+	return nil
+}

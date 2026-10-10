@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.10.11 - Released October 10, 2026
+
+### Added
+
+- **Hidden channels**
+  - New **Hidden** toggle on each talkgroup in the admin. A hidden talkgroup is removed from the channel list users see (live feed, channel selection, available channels) and new calls for it are dropped at ingest.
+  - The talkgroup itself stays in the database, so every existing call, transcript and alert for it is kept. Deleting a talkgroup removes all of those, so use Hidden to retire a channel, for example one that has gone encrypted.
+  - Turn the toggle off to bring the channel back.
+
+---
+
 ## Version 26.10.10 - Released October 10, 2026
 
 ### Fixed

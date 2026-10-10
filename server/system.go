@@ -611,6 +611,12 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 				groupLabel = groupLabels[0]
 			}
 
+			// Hidden talkgroups are removed from the channel list shown to users.
+			// The row (and its calls, transcripts and alerts) stays in the database.
+			if rawTalkgroup.Hidden {
+				continue
+			}
+
 			tag, ok := tags.GetTagById(rawTalkgroup.TagId)
 			if !ok {
 				continue
@@ -793,9 +799,9 @@ func (systems *Systems) Read(db *Database) error {
 	// --- Query 3: all talkgroups (bulk, no per-system loop) ---
 	var tgQuery string
 	if db.Config.DbType == DbTypePostgresql {
-		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", t."autoLearnToneSets", t."alertingTalkgroup", t."autoLearnUnitAliases", t."retentionDays", STRING_AGG(CAST(COALESCE(tg."groupId", 0) AS text), ',') FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId", t."systemId", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", t."autoLearnToneSets", t."alertingTalkgroup", t."autoLearnUnitAliases", t."retentionDays" ORDER BY t."systemId", t."order", t."talkgroupId"`
+		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", t."autoLearnToneSets", t."alertingTalkgroup", t."autoLearnUnitAliases", t."retentionDays", t."hidden", STRING_AGG(CAST(COALESCE(tg."groupId", 0) AS text), ',') FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId", t."systemId", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", t."autoLearnToneSets", t."alertingTalkgroup", t."autoLearnUnitAliases", t."retentionDays" ORDER BY t."systemId", t."order", t."talkgroupId"`
 	} else {
-		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", t."autoLearnToneSets", t."alertingTalkgroup", t."autoLearnUnitAliases", t."retentionDays", GROUP_CONCAT(COALESCE(tg."groupId", 0)) FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId" ORDER BY t."systemId", t."order", t."talkgroupId"`
+		tgQuery = `SELECT t."talkgroupId", t."systemId", t."delay", t."frequency", t."label", t."name", t."order", t."tagId", t."talkgroupRef", t."type", t."toneDetectionEnabled", t."toneSets", t."preferredApiKeyId", t."excludeFromPreferredSite", t."toneDownstreamEnabled", t."toneDownstreamURL", t."toneDownstreamAPIKey", t."alertCooldownSeconds", t."linkedVoiceTalkgroupRef", t."linkedVoiceWindowSeconds", t."linkedVoiceMinDurationSeconds", t."alertsEnabled", t."transcriptionPrompt", t."autoLearnToneSets", t."alertingTalkgroup", t."autoLearnUnitAliases", t."retentionDays", t."hidden", GROUP_CONCAT(COALESCE(tg."groupId", 0)) FROM "talkgroups" AS t LEFT JOIN "talkgroupGroups" AS tg ON tg."talkgroupId" = t."talkgroupId" GROUP BY t."talkgroupId" ORDER BY t."systemId", t."order", t."talkgroupId"`
 	}
 
 	tgRows, err := db.Sql.Query(tgQuery)
@@ -812,7 +818,7 @@ func (systems *Systems) Read(db *Database) error {
 		var preferredApiKeyUnused sql.NullInt64
 		var excludePreferredUnused bool
 
-		if err = tgRows.Scan(&talkgroup.Id, &systemId, &talkgroup.Delay, &talkgroup.Frequency, &talkgroup.Label, &talkgroup.Name, &talkgroup.Order, &talkgroup.TagId, &talkgroup.TalkgroupRef, &talkgroup.Kind, &talkgroup.ToneDetectionEnabled, &toneSetsJson, &preferredApiKeyUnused, &excludePreferredUnused, &talkgroup.ToneDownstreamEnabled, &talkgroup.ToneDownstreamURL, &talkgroup.ToneDownstreamAPIKey, &talkgroup.AlertCooldownSeconds, &talkgroup.LinkedVoiceTalkgroupRef, &talkgroup.LinkedVoiceWindowSeconds, &talkgroup.LinkedVoiceMinDurationSeconds, &talkgroup.AlertsEnabled, &talkgroup.TranscriptionPrompt, &talkgroup.AutoLearnToneSets, &talkgroup.AlertingTalkgroup, &talkgroup.AutoLearnUnitAliases, &talkgroup.RetentionDays, &groupIds); err != nil {
+		if err = tgRows.Scan(&talkgroup.Id, &systemId, &talkgroup.Delay, &talkgroup.Frequency, &talkgroup.Label, &talkgroup.Name, &talkgroup.Order, &talkgroup.TagId, &talkgroup.TalkgroupRef, &talkgroup.Kind, &talkgroup.ToneDetectionEnabled, &toneSetsJson, &preferredApiKeyUnused, &excludePreferredUnused, &talkgroup.ToneDownstreamEnabled, &talkgroup.ToneDownstreamURL, &talkgroup.ToneDownstreamAPIKey, &talkgroup.AlertCooldownSeconds, &talkgroup.LinkedVoiceTalkgroupRef, &talkgroup.LinkedVoiceWindowSeconds, &talkgroup.LinkedVoiceMinDurationSeconds, &talkgroup.AlertsEnabled, &talkgroup.TranscriptionPrompt, &talkgroup.AutoLearnToneSets, &talkgroup.AlertingTalkgroup, &talkgroup.AutoLearnUnitAliases, &talkgroup.RetentionDays, &talkgroup.Hidden, &groupIds); err != nil {
 			return formatError(err, tgQuery)
 		}
 		if toneSetsJson != "" && toneSetsJson != "[]" {

@@ -9426,6 +9426,9 @@ func (api *Api) groupAvailableChannels(group *UserGroup) []map[string]interface{
 		}
 		talkgroups := []map[string]interface{}{}
 		for _, tg := range system.Talkgroups.List {
+			if tg.Hidden {
+				continue
+			}
 			if !group.HasTalkgroupAccess(uint64(system.SystemRef), tg.TalkgroupRef) {
 				continue
 			}

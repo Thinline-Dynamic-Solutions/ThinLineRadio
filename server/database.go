@@ -413,6 +413,7 @@ func (db *Database) migrate() error {
 		{"migrateCallNaturePhraseLearn", migrateCallNaturePhraseLearn},
 		{"migrateKeywordAlertUnique", migrateKeywordAlertUnique},
 		{"migrateAutoEnableNewTalkgroups", migrateAutoEnableNewTalkgroups},
+		{"migrateTalkgroupHidden", migrateTalkgroupHidden},
 	}
 	for _, step := range lateSteps {
 		if err := db.runMigrationStep(step.name, step.fn); err != nil {
