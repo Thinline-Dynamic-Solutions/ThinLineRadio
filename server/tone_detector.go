@@ -1206,6 +1206,59 @@ func (detector *ToneDetector) RemoveTonesFromAudio(audio []byte, audioMime strin
 	return filteredAudioBytes, nil
 }
 
+const (
+	// residualSpeechMinDB is the frame RMS (dBFS) a frame must reach to count as speech after tone removal.
+	// On real Trumbull dispatch calls the leftover of a tone-only page peaks around -34..-37 dB while
+	// speech sits around -3 dB, so -28 dB leaves ~25 dB of margin on both sides.
+	residualSpeechMinDB = -28.0
+
+	// MinResidualSpeechSeconds is how much non-tonal, speech-level audio must remain after tone
+	// removal before the clip is worth sending to speech-to-text. Below this, STT only sees silence
+	// and static and hallucinates filler ("you", "Thank you.") that then masquerades as the call.
+	MinResidualSpeechSeconds = 0.4
+)
+
+// ResidualSpeechSeconds estimates how many seconds of speech-like audio are in a 16-bit PCM WAV
+// (as produced by RemoveTonesFromAudio): frames that are loud enough AND not spectrally pure.
+// Tone remnants that survived removal are loud but tonal, so they do not count as speech.
+func (detector *ToneDetector) ResidualSpeechSeconds(wav []byte) (float64, error) {
+	samples, sampleRate, err := detector.parseWAV(wav)
+	if err != nil {
+		return 0, err
+	}
+
+	const windowSize = 2048
+	const hopSize = 512
+	if len(samples) < windowSize {
+		return 0, nil
+	}
+
+	speechFrames := 0
+	for start := 0; start+windowSize <= len(samples); start += hopSize {
+		frame := samples[start : start+windowSize]
+
+		var sumSq float64
+		for _, s := range frame {
+			sumSq += s * s
+		}
+		rmsDB := 20.0 * math.Log10(math.Max(math.Sqrt(sumSq/float64(windowSize)), 1e-6))
+		if rmsDB < residualSpeechMinDB {
+			continue
+		}
+
+		windowed := make([]float64, windowSize)
+		for i, s := range frame {
+			windowed[i] = s * 0.5 * (1.0 - math.Cos(2.0*math.Pi*float64(i)/float64(windowSize-1)))
+		}
+		if spectralTonality(detector.dft(windowed, sampleRate), windowSize, sampleRate) >= minTranscriptionToneTonality {
+			continue
+		}
+		speechFrames++
+	}
+
+	return float64(speechFrames*hopSize) / float64(sampleRate), nil
+}
+
 // calculateTotalToneDuration calculates total duration of all tones
 func calculateTotalToneDuration(tones []Tone) float64 {
 	total := 0.0
@@ -1284,6 +1337,68 @@ func (detector *ToneDetector) DetectAllTonesForTranscription(audio []byte, audio
 	fmt.Printf("transcription tone detection: found %d sustained tones to remove before transcription\n", len(detectedTones))
 
 	return detectedTones, nil
+}
+
+// minTranscriptionToneTonality is the minimum spectral purity a frame must have to count as part of a
+// dispatch tone when pre-filtering audio for transcription (see spectralTonality).
+//
+// Calibrated on real calls from the Trumbull County dispatch talkgroup: tone pages hold ~1.00 (pure
+// sinusoids) for 3s+ runs, while the longest unbroken run of frames >= 0.95 in any voice call was
+// 0.74s. Without this check, steady dispatcher vowels (200-650 Hz) were detected as "tones", the
+// "voice remaining after the last tone" collapsed to <2s and the real dispatch was skipped as
+// tone-only.
+const minTranscriptionToneTonality = 0.95
+
+// spectralTonality returns the fraction of in-band (200-5000 Hz) spectral energy that sits in the
+// three strongest spectral peaks (+-2 bins each) of a windowed frame. A pure dispatch tone (or a
+// tone plus its harmonics) scores ~1.0; speech spreads its energy across many harmonics and noise,
+// and scores well below that over any sustained stretch.
+func spectralTonality(magnitudes map[int]float64, windowSize, sampleRate int) float64 {
+	lo := int(200.0 * float64(windowSize) / float64(sampleRate))
+	hi := int(5000.0 * float64(windowSize) / float64(sampleRate))
+	if lo < 1 {
+		lo = 1
+	}
+
+	type peak struct {
+		bin    int
+		energy float64
+	}
+	var total float64
+	var peaks []peak
+	for k := lo; k <= hi; k++ {
+		m := magnitudes[k]
+		e := m * m
+		total += e
+		if m > magnitudes[k-1] && m >= magnitudes[k+1] {
+			peaks = append(peaks, peak{k, e})
+		}
+	}
+	if total <= 0 || len(peaks) == 0 {
+		return 0
+	}
+
+	sort.Slice(peaks, func(i, j int) bool { return peaks[i].energy > peaks[j].energy })
+
+	used := make(map[int]bool)
+	var peakEnergy float64
+	taken := 0
+	for _, p := range peaks {
+		if taken == 3 {
+			break
+		}
+		if used[p.bin] {
+			continue
+		}
+		for k := p.bin - 2; k <= p.bin+2; k++ {
+			if !used[k] {
+				used[k] = true
+				peakEnergy += magnitudes[k] * magnitudes[k]
+			}
+		}
+		taken++
+	}
+	return peakEnergy / total
 }
 
 // detectAllSustainedTones detects all sustained tones in audio without matching against tone sets
@@ -1402,6 +1517,13 @@ func (detector *ToneDetector) detectAllSustainedTones(samples []float64, sampleR
 		}
 
 		magnitudes := detector.dft(windowed, sampleRate)
+
+		// Speech (steady vowel pitch, 200-650 Hz) also produces a stable spectral peak, so a loud
+		// bin alone is not evidence of a dispatch tone. Only frames whose energy is concentrated in
+		// a few narrow peaks count; otherwise voice gets cut out and the call is skipped as tone-only.
+		if spectralTonality(magnitudes, windowSize, sampleRate) < minTranscriptionToneTonality {
+			continue
+		}
 
 		for bin, mag := range magnitudes {
 			freq := float64(bin) * float64(sampleRate) / float64(windowSize)

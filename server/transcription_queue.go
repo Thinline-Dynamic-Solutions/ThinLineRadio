@@ -309,10 +309,41 @@ func (queue *TranscriptionQueue) processJob(workerId int, job TranscriptionJob) 
 			remainingDuration = totalAudioDuration - toneEnd
 		}
 
+		// Whether a clip still holds speech is decided by measuring the audio left AFTER the tones are
+		// cut (ResidualSpeechSeconds below), not by "time remaining after the last tone": that
+		// formula threw away real speech that came before a late/steady tone, e.g. a short dispatch
+		// whose last word was held at a steady pitch.
 		const minRemainingDuration = 2.0
-		if durationErr == nil && remainingDuration < minRemainingDuration {
-			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: call %d is mostly tones (%.1fs tones, %.1fs remaining < %.1fs minimum), skipping transcription",
-				workerId, job.CallId, totalToneDuration, remainingDuration, minRemainingDuration))
+
+		filteredAudio, filterErr := queue.controller.ToneDetector.RemoveTonesFromAudio(audioToTranscribe, audioMimeType, detectedTones)
+		if filterErr != nil {
+			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d: audio filtering failed for call %d: %v, using original audio", workerId, job.CallId, filterErr))
+			// Fallback when the residue can't be measured: keep the old time-after-last-tone rule so a
+			// tone-only page is still never sent to STT with its tones in it.
+			if durationErr == nil && remainingDuration < minRemainingDuration {
+				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: call %d is mostly tones (%.1fs tones, %.1fs remaining < %.1fs minimum), skipping transcription",
+					workerId, job.CallId, totalToneDuration, remainingDuration, minRemainingDuration))
+				queue.updateCallTranscriptionStatus(job.CallId, "completed")
+				emptyResult := &TranscriptionResult{
+					Transcript: "",
+					Confidence: 0.0,
+					Language:   queue.controller.Options.TranscriptionConfig.Language,
+				}
+				go queue.storeTranscription(job.CallId, emptyResult)
+				unlockPendingTones()
+				duration := time.Since(startTime)
+				queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+					"[transcription] %s | call %d | %s / %s | skipped tone-only in %.2fs | total #%d",
+					who, job.CallId, systemLabel, talkgroupLabel, duration.Seconds(), queue.processedCount.Add(1),
+				))
+				return
+			}
+		} else if speechSec, speechErr := queue.controller.ToneDetector.ResidualSpeechSeconds(filteredAudio); speechErr == nil && speechSec < MinResidualSpeechSeconds {
+			// Tones were removed and only silence/static (or leftover tone fragments) remain. Sending
+			// that to STT makes it hallucinate filler ("you", "Thank you.") that then gets treated as
+			// this call's transcript instead of the real dispatch voice call that follows.
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: call %d has no speech after tone removal (%.2fs speech-like audio < %.1fs), skipping transcription as tone-only",
+				workerId, job.CallId, speechSec, MinResidualSpeechSeconds))
 			queue.updateCallTranscriptionStatus(job.CallId, "completed")
 			emptyResult := &TranscriptionResult{
 				Transcript: "",
@@ -323,21 +354,16 @@ func (queue *TranscriptionQueue) processJob(workerId int, job TranscriptionJob) 
 			unlockPendingTones()
 			duration := time.Since(startTime)
 			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-				"[transcription] %s | call %d | %s / %s | skipped tone-only in %.2fs | total #%d",
+				"[transcription] %s | call %d | %s / %s | skipped tone-only (no residual speech) in %.2fs | total #%d",
 				who, job.CallId, systemLabel, talkgroupLabel, duration.Seconds(), queue.processedCount.Add(1),
 			))
 			return
-		}
-
-		filteredAudio, filterErr := queue.controller.ToneDetector.RemoveTonesFromAudio(audioToTranscribe, audioMimeType, detectedTones)
-		if filterErr != nil {
-			queue.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("transcription worker %d: audio filtering failed for call %d: %v, using original audio", workerId, job.CallId, filterErr))
 		} else if len(filteredAudio) >= 1000 {
 			audioToTranscribe = filteredAudio
 			audioMimeType = "audio/wav"
 			usedFilteredAudio = true
-			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: using filtered audio for call %d (removed %.1fs of tones, %.1fs voice remaining)",
-				workerId, job.CallId, totalToneDuration, remainingDuration))
+			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: using filtered audio for call %d (removed %.1fs of tones, %.1fs speech-like audio remaining)",
+				workerId, job.CallId, totalToneDuration, speechSec))
 		} else {
 			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("transcription worker %d: filtered audio too small for call %d (tone-only), skipping transcription", workerId, job.CallId))
 			queue.updateCallTranscriptionStatus(job.CallId, "completed")

@@ -1,5 +1,21 @@
 # Change log
 
+## Version 26.10.10 - Released October 10, 2026
+
+### Fixed
+
+- **Dispatch voice calls skipped as "tone-only"**
+  - Tone removal before transcription mistook a dispatcher's steady vowel pitch (200-650 Hz) for a sustained tone. The voice left after the last "tone" fell under 2 seconds, so the whole call was skipped and never transcribed. The tones that came before it then had no voice call to attach to.
+  - A frame now only counts as a tone when its energy sits in a few narrow spectral peaks, which pure paging tones do and speech does not.
+  - Whether a clip still has speech is now decided by measuring the audio left after the tones are cut, not by the time after the last tone. Real speech before a late or steady tone is no longer thrown away.
+- **Tone pages transcribed as "YOU" / "THANK YOU"**
+  - After the tones are removed, a clip with no speech left (only silence and static) is no longer sent to speech-to-text, which was inventing filler words from it.
+- **Tone alerts fired on filler instead of waiting for the voice call**
+  - A tone clip of 3 seconds or more whose transcript was filler was treated as a real voice call, so the alert fired right away with that filler and the actual dispatch got no tones. It now stays pending until the real voice call arrives.
+  - If no voice call arrives within 60 seconds, the alert's transcript is `TONES DETECTED - NO VOICE CALL AVAILABLE` instead of the filler text sent to Tones To Active.
+
+---
+
 ## Version 26.10.01 - Released October 6, 2026
 
 ### Changed

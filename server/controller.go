@@ -1495,9 +1495,19 @@ func (controller *Controller) isToneOnlyCall(call *Call) bool {
 		return true
 	}
 
-	// If call has transcript already, it's not tone-only
-	if call.Transcript != "" {
-		return false
+	// A non-empty transcript is NOT enough to call this a voice clip. After tone removal the
+	// leftover silence/static is often transcribed as filler ("you", "Thank you.", "Bye.").
+	// Treating that as voice fires the tone alert on the junk transcript and leaves the real
+	// dispatch voice call (which follows) with no tones to attach. Require real dispatch voice.
+	if strings.TrimSpace(call.Transcript) != "" {
+		if controller.isVoiceForToneAlerts(call.Transcript) {
+			return false
+		}
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+			"call %d: transcript %q after tone removal is not dispatch voice, treating as tone-only (pending for voice call)",
+			call.Id, strings.TrimSpace(call.Transcript),
+		))
+		return true
 	}
 
 	// If transcription is already completed with no transcript, it's tone-only
@@ -1897,8 +1907,10 @@ func (controller *Controller) checkOrphanedTones(key string, callId uint64, time
 		}
 	}
 
-	// Set a special transcript to indicate no voice was available
-	if call.Transcript == "" {
+	// Set a special transcript to indicate no voice was available.
+	// Also replace filler left over from tone removal ("you", "Thank you.") - that is not
+	// dispatch voice and must not be forwarded downstream as the alert's transcript.
+	if strings.TrimSpace(call.Transcript) == "" || !controller.isVoiceForToneAlerts(call.Transcript) {
 		call.Transcript = "TONES DETECTED - NO VOICE CALL AVAILABLE"
 
 		// Update the call in the database with this transcript
