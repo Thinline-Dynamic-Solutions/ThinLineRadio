@@ -3389,6 +3389,22 @@ export class RdioScannerAdminService implements OnDestroy {
     }
   }
 
+  async listPublicApiKeys(): Promise<any[]> {
+    const response = await firstValueFrom(this.ngHttpClient.get<any>(
+      this.getUrl('/public-api/keys'),
+      { headers: this.getHeaders(), responseType: 'json' }
+    ));
+    return Array.isArray(response?.keys) ? response.keys : [];
+  }
+
+  async disablePublicApiKey(keyId: number): Promise<void> {
+    await firstValueFrom(this.ngHttpClient.post<any>(
+      this.getUrl(`/public-api/keys/${keyId}/disable`),
+      {},
+      { headers: this.getHeaders(), responseType: 'json' }
+    ));
+  }
+
   async setUserSuspended(userId: number, suspended: boolean): Promise<any> {
     const response = await firstValueFrom(this.ngHttpClient.post<any>(
       this.getUrl(`/users/${userId}/suspend`),

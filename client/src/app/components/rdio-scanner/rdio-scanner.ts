@@ -269,6 +269,13 @@ export interface RdioScannerConfig {
     tagsData: RdioScannerTagData[];
     time12hFormat: boolean;
     userSettings?: { [key: string]: any }; // User-specific settings (tag colors, etc.)
+    /** Server owner granted user-scoped public REST API access. */
+    publicApiEnabled?: boolean;
+    publicApiCapabilities?: {
+        health?: boolean;
+        transcripts?: boolean;
+        alertWebhooks?: boolean;
+    };
 }
 
 export interface RdioScannerEvent {

@@ -379,6 +379,7 @@ export class RdioScannerService implements OnDestroy {
 
     clearPin(): void {
         window?.localStorage.removeItem(RdioScannerService.LOCAL_STORAGE_KEY_PIN);
+        this.savePublicApiEnabled(false);
     }
 
     disconnect(): void {
@@ -794,6 +795,7 @@ export class RdioScannerService implements OnDestroy {
     }
 
     static LOCAL_STORAGE_KEY_IS_SYSTEM_ADMIN = 'rdio-scanner-is-system-admin';
+    static LOCAL_STORAGE_KEY_PUBLIC_API_ENABLED = 'rdio-scanner-public-api-enabled';
 
     isSystemAdmin(): boolean {
         return window?.localStorage?.getItem(RdioScannerService.LOCAL_STORAGE_KEY_IS_SYSTEM_ADMIN) === 'true';
@@ -801,6 +803,14 @@ export class RdioScannerService implements OnDestroy {
 
     saveIsSystemAdmin(value: boolean): void {
         window?.localStorage?.setItem(RdioScannerService.LOCAL_STORAGE_KEY_IS_SYSTEM_ADMIN, String(value));
+    }
+
+    isPublicApiEnabled(): boolean {
+        return window?.localStorage?.getItem(RdioScannerService.LOCAL_STORAGE_KEY_PUBLIC_API_ENABLED) === 'true';
+    }
+
+    savePublicApiEnabled(value: boolean): void {
+        window?.localStorage?.setItem(RdioScannerService.LOCAL_STORAGE_KEY_PUBLIC_API_ENABLED, String(!!value));
     }
 
     readPin(): string | undefined {
@@ -1487,7 +1497,12 @@ export class RdioScannerService implements OnDestroy {
                         tagsData: Array.isArray(config.tagsData) ? config.tagsData : [],
                         time12hFormat: typeof config.time12hFormat === 'boolean' ? config.time12hFormat : false,
                         userSettings: typeof config.userSettings === 'object' && config.userSettings !== null ? config.userSettings : undefined,
+                        publicApiEnabled: typeof config.publicApiEnabled === 'boolean' ? config.publicApiEnabled : false,
+                        publicApiCapabilities: typeof config.publicApiCapabilities === 'object' && config.publicApiCapabilities !== null
+                            ? config.publicApiCapabilities
+                            : undefined,
                     };
+                        this.savePublicApiEnabled(!!this.config.publicApiEnabled);
 
                         this.rebuildLivefeedMap();
 

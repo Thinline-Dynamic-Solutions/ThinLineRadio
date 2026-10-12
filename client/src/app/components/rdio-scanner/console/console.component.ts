@@ -26,9 +26,11 @@ import {
 } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MatInput } from '@angular/material/input';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
 import { Subscription, timer } from 'rxjs';
+import { RdioScannerPublicApiDialogComponent } from './public-api-dialog.component';
 
 import packageInfo from '../../../../../package.json';
 import {
@@ -214,6 +216,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
     constructor(
         private rdioScannerService: RdioScannerService,
         private matSnackBar: MatSnackBar,
+        private matDialog: MatDialog,
         private cdr: ChangeDetectorRef,
         private fb: FormBuilder,
         private tagColorService: TagColorService,
@@ -304,6 +307,10 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
 
     get isSystemAdmin(): boolean {
         return this.rdioScannerService.isSystemAdmin();
+    }
+
+    get publicApiEnabled(): boolean {
+        return this.rdioScannerService.isPublicApiEnabled();
     }
 
     /**
@@ -671,6 +678,14 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
     // ────────────────────────────────────────────────────────────────────────
     // HEADER ACTIONS
     // ────────────────────────────────────────────────────────────────────────
+
+    openPublicApiDialog(): void {
+        this.matDialog.open(RdioScannerPublicApiDialogComponent, {
+            width: '640px',
+            maxWidth: '95vw',
+            autoFocus: false,
+        });
+    }
 
     openAdminPanel(): void {
         const pin = this.rdioScannerService.readPin();

@@ -3342,3 +3342,51 @@ func migrateTalkgroupHidden(db *Database) error {
 	}
 	return nil
 }
+
+// migratePublicApi adds user-scoped public REST API keys, capabilities, usage audit,
+// and outbound alert webhook destinations (separate from uploader apikeys).
+func migratePublicApi(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "publicApiEnabled" boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "publicApiCapabilities" text NOT NULL DEFAULT '{}'`,
+		`CREATE TABLE IF NOT EXISTS "publicApiKeys" (
+			"keyId" bigserial NOT NULL PRIMARY KEY,
+			"userId" bigint NOT NULL,
+			"name" text NOT NULL DEFAULT '',
+			"keyPrefix" text NOT NULL DEFAULT '',
+			"keyHash" text NOT NULL DEFAULT '',
+			"createdAt" bigint NOT NULL DEFAULT 0,
+			"lastUsedAt" bigint NOT NULL DEFAULT 0,
+			"disabled" boolean NOT NULL DEFAULT false,
+			"requestCount" bigint NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS "publicApiKeys_userId_idx" ON "publicApiKeys" ("userId")`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "publicApiKeys_keyHash_idx" ON "publicApiKeys" ("keyHash")`,
+		`CREATE TABLE IF NOT EXISTS "publicApiKeyUsage" (
+			"usageId" bigserial NOT NULL PRIMARY KEY,
+			"keyId" bigint NOT NULL,
+			"path" text NOT NULL DEFAULT '',
+			"status" integer NOT NULL DEFAULT 0,
+			"at" bigint NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS "publicApiKeyUsage_keyId_at_idx" ON "publicApiKeyUsage" ("keyId", "at" DESC)`,
+		`CREATE TABLE IF NOT EXISTS "publicApiWebhooks" (
+			"webhookId" bigserial NOT NULL PRIMARY KEY,
+			"userId" bigint NOT NULL,
+			"destinationType" text NOT NULL DEFAULT 'custom',
+			"url" text NOT NULL DEFAULT '',
+			"email" text NOT NULL DEFAULT '',
+			"secret" text NOT NULL DEFAULT '',
+			"enabled" boolean NOT NULL DEFAULT true,
+			"alertTypes" text NOT NULL DEFAULT '["*"]',
+			"createdAt" bigint NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS "publicApiWebhooks_userId_idx" ON "publicApiWebhooks" ("userId")`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			return fmt.Errorf("migratePublicApi: %w", err)
+		}
+	}
+	return nil
+}

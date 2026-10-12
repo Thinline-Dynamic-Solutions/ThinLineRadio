@@ -68,6 +68,9 @@ func (controller *Controller) handleLegacyOneSignalToken(dt *DeviceToken, notifi
 
 // sendPushNotification sends a push notification to the relay server
 func (controller *Controller) sendPushNotification(userId uint64, alertType string, call *Call, systemLabel, talkgroupLabel string, toneSetName string, keywords []string) {
+	if controller.PublicApi != nil {
+		go controller.PublicApi.DispatchAlertWebhooks([]uint64{userId}, alertType, call, systemLabel, talkgroupLabel, toneSetName, keywords)
+	}
 	// Check if relay server API key is configured (URL is hardcoded)
 	if controller.Options.RelayServerAPIKey == "" {
 		return // Push notifications not configured
@@ -715,6 +718,9 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 // sendBatchedPushNotificationWithToneSet is the full implementation that accepts a toneSetId
 // so per-tone-set notification sounds can be resolved from each user's alert preferences.
 func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []uint64, alertType string, call *Call, systemLabel, talkgroupLabel string, toneSetName string, toneSetId string, keywords []string) {
+	if controller.PublicApi != nil && len(userIds) > 0 {
+		go controller.PublicApi.DispatchAlertWebhooks(userIds, alertType, call, systemLabel, talkgroupLabel, toneSetName, keywords)
+	}
 	// Check if relay server API key is configured (URL is hardcoded)
 	if controller.Options.RelayServerAPIKey == "" {
 		return // Push notifications not configured

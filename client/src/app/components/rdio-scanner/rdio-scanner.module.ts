@@ -23,6 +23,7 @@ import { AppSharedModule } from '../../shared/shared.module';
 import { RdioScannerComponent } from './rdio-scanner.component';
 import { RdioScannerService } from './rdio-scanner.service';
 import { RdioScannerConsoleComponent } from './console/console.component';
+import { RdioScannerPublicApiDialogComponent } from './console/public-api-dialog.component';
 import { RdioScannerIncidentMapComponent } from './incident-map/incident-map.component';
 import { RdioScannerIncidentMapSidebarComponent } from './incident-map/incident-map-sidebar.component';
 import { IncidentsService } from './incident-map/incidents.service';
@@ -69,6 +70,7 @@ import { RdioScannerTurnstileComponent } from './turnstile/turnstile.component';
     declarations: [
         RdioScannerComponent,
         RdioScannerConsoleComponent,
+        RdioScannerPublicApiDialogComponent,
         RdioScannerIncidentMapComponent,
         RdioScannerIncidentMapSidebarComponent,
         RdioScannerSearchComponent,
