@@ -1,0 +1,82 @@
+.public-api-dialog {
+  min-width: min(560px, 92vw);
+  max-width: 640px;
+
+  section {
+    margin-bottom: 1.25rem;
+  }
+
+  h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+  }
+
+  .hint {
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+  }
+
+  .row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+
+    &.wrap {
+      flex-wrap: wrap;
+    }
+
+    .grow {
+      flex: 1 1 220px;
+    }
+  }
+
+  .secret-box {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.65rem 0.75rem;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
+
+    code {
+      flex: 1;
+      word-break: break-all;
+      font-size: 0.8rem;
+    }
+  }
+
+  .snippet {
+    background: rgba(0, 0, 0, 0.04);
+    padding: 0.65rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    overflow-x: auto;
+  }
+
+  .key-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+    &.disabled {
+      opacity: 0.55;
+    }
+
+    code {
+      margin-left: 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .meta {
+      display: block;
+      font-size: 0.75rem;
+      color: rgba(0, 0, 0, 0.55);
+    }
+  }
+}

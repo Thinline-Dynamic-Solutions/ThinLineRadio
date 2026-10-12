@@ -618,6 +618,61 @@
                     <mat-checkbox formControlName="forcePasswordReset">Require Password Reset</mat-checkbox>
                     <mat-checkbox formControlName="suspended">Suspended</mat-checkbox>
                   </div>
+                  <div class="form-section">
+                    <h6 class="form-section-title">Public API</h6>
+                    <div class="form-row checkboxes-row">
+                      <mat-checkbox formControlName="publicApiEnabled">Enable public API access</mat-checkbox>
+                    </div>
+                    @if (editForm.get('publicApiEnabled')?.value) {
+                      <div class="form-row checkboxes-row">
+                        <mat-checkbox formControlName="publicApiHealth">Health</mat-checkbox>
+                        <mat-checkbox formControlName="publicApiTranscripts">Transcripts</mat-checkbox>
+                        <mat-checkbox formControlName="publicApiAlertWebhooks">Alert webhooks</mat-checkbox>
+                      </div>
+                      <div class="hint-row">
+                        <span class="muted">
+                          Grants /api/public/v1 access scoped to this user’s systems and talkgroups. Users mint their own keys from the console API button.
+                        </span>
+                      </div>
+                      @if (publicApiKeysLoading) {
+                        <p class="muted">Loading API keys…</p>
+                      }
+                      @if (!publicApiKeysLoading && publicApiKeysForEdit.length === 0) {
+                        <p class="muted">No keys minted yet.</p>
+                      }
+                      @if (!publicApiKeysLoading && publicApiKeysForEdit.length > 0) {
+                        <table class="users-table compact-table">
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Prefix</th>
+                              <th>Last used</th>
+                              <th>Requests</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (key of publicApiKeysForEdit; track key.id) {
+                              <tr [class.muted]="key.disabled">
+                                <td>{{ key.name }}</td>
+                                <td><code>{{ key.keyPrefix }}…</code></td>
+                                <td>{{ formatPublicApiLastUsed(key.lastUsedAt) }}</td>
+                                <td>{{ key.requestCount }}</td>
+                                <td>
+                                  @if (!key.disabled) {
+                                    <button mat-button type="button" color="warn" (click)="disablePublicApiKey(key.id)">Disable</button>
+                                  }
+                                  @if (key.disabled) {
+                                    <span class="muted">Disabled</span>
+                                  }
+                                </td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      }
+                    }
+                  </div>
                   <div class="hint-row">
                     @if (editingUser && !editingUser.userGroupId) {
                       <span class="muted">

@@ -64,6 +64,15 @@
       </div>
       <rdio-scanner-weather-alert-ticker class="header-ticker"></rdio-scanner-weather-alert-ticker>
       <div class="header-actions">
+        @if (publicApiEnabled) {
+          <button type="button"
+            mat-flat-button class="header-btn header-btn--ghost"
+            (click)="openPublicApiDialog()"
+            matTooltip="Public API keys and webhooks">
+            <mat-icon>api</mat-icon>
+            <span>API</span>
+          </button>
+        }
         @if (isSystemAdmin) {
           <button type="button"
             mat-flat-button class="header-btn header-btn--admin"

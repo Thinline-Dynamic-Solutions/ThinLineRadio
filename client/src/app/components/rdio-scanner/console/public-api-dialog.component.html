@@ -1,0 +1,99 @@
+<h2 mat-dialog-title>Public API</h2>
+<mat-dialog-content class="public-api-dialog">
+  @if (loading) {
+    <p>Loading…</p>
+  } @else {
+    <section>
+      <h3>API keys</h3>
+      <p class="hint">Keys are shown once at creation. Scope matches your account systems and talkgroups.</p>
+      <div class="row">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Key name</mat-label>
+          <input matInput [(ngModel)]="newKeyName" placeholder="Uptime Kuma" />
+        </mat-form-field>
+        <button mat-raised-button color="primary" type="button" (click)="createKey()">Create key</button>
+      </div>
+      @if (createdKeyPlain) {
+        <div class="secret-box">
+          <code>{{ createdKeyPlain }}</code>
+          <button mat-button type="button" (click)="copy(createdKeyPlain!)">Copy</button>
+        </div>
+      }
+      @if (keys.length === 0) {
+        <p class="hint">No keys yet.</p>
+      }
+      @for (key of keys; track key.id) {
+        <div class="key-row" [class.disabled]="key.disabled">
+          <div>
+            <strong>{{ key.name }}</strong>
+            <code>{{ key.keyPrefix }}…</code>
+            <span class="meta">{{ key.requestCount }} requests</span>
+          </div>
+          @if (!key.disabled) {
+            <button mat-button color="warn" type="button" (click)="revokeKey(key.id)">Revoke</button>
+          } @else {
+            <span class="hint">Disabled</span>
+          }
+        </div>
+      }
+    </section>
+
+    <section>
+      <h3>Uptime Kuma</h3>
+      <p class="hint">HTTP(s) monitor → GET health endpoint with Bearer header.</p>
+      <div class="secret-box">
+        <code>{{ healthUrl }}</code>
+        <button mat-button type="button" (click)="copy(healthUrl)">Copy URL</button>
+      </div>
+      <pre class="snippet">Authorization: Bearer tlr_…your_key…
+X-API-Key: tlr_…your_key…</pre>
+    </section>
+
+    @if (hasAlertWebhooks) {
+      <section>
+        <h3>Alert webhooks</h3>
+        <p class="hint">Push alerts to Slack, Discord, email, PagerDuty, or a custom HTTPS URL.</p>
+        <div class="row wrap">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Type</mat-label>
+            <mat-select [(ngModel)]="webhookType">
+              <mat-option value="slack">Slack</mat-option>
+              <mat-option value="discord">Discord</mat-option>
+              <mat-option value="email">Email</mat-option>
+              <mat-option value="pagerduty">PagerDuty</mat-option>
+              <mat-option value="custom">Custom</mat-option>
+            </mat-select>
+          </mat-form-field>
+          @if (webhookType === 'email') {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Email</mat-label>
+              <input matInput [(ngModel)]="webhookEmail" />
+            </mat-form-field>
+          } @else {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="grow">
+              <mat-label>Webhook URL</mat-label>
+              <input matInput [(ngModel)]="webhookUrl" />
+            </mat-form-field>
+          }
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Secret / routing key</mat-label>
+            <input matInput [(ngModel)]="webhookSecret" />
+          </mat-form-field>
+          <button mat-raised-button color="primary" type="button" (click)="createWebhook()">Add</button>
+        </div>
+        @for (wh of webhooks; track wh.id) {
+          <div class="key-row">
+            <div>
+              <strong>{{ wh.destinationType }}</strong>
+              <span class="meta">{{ wh.email || wh.url }}</span>
+            </div>
+            <button mat-button color="warn" type="button" (click)="deleteWebhook(wh.id)">Delete</button>
+          </div>
+        }
+      </section>
+    }
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Close</button>
+</mat-dialog-actions>

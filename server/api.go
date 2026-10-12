@@ -1315,13 +1315,15 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Login successful",
 		"user": map[string]interface{}{
-			"id":                 user.Id,
-			"email":              user.Email,
-			"pin":                user.Pin,
-			"subscriptionStatus": user.SubscriptionStatus,
-			"needsSubscription":  needsSubscription,
-			"needsPasswordReset": user.ForcePasswordReset,
-			"systemAdmin":        user.SystemAdmin,
+			"id":                     user.Id,
+			"email":                  user.Email,
+			"pin":                    user.Pin,
+			"subscriptionStatus":     user.SubscriptionStatus,
+			"needsSubscription":      needsSubscription,
+			"needsPasswordReset":     user.ForcePasswordReset,
+			"systemAdmin":            user.SystemAdmin,
+			"publicApiEnabled":       user.PublicApiEnabled,
+			"publicApiCapabilities":  user.PublicApiCaps(),
 		},
 	})
 }

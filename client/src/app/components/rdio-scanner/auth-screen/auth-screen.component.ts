@@ -818,6 +818,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy {
           }
           // Persist system admin flag so the main UI can show the Admin Panel button
           this.rdioScannerService.saveIsSystemAdmin(response?.user?.systemAdmin === true);
+          this.rdioScannerService.savePublicApiEnabled(response?.user?.publicApiEnabled === true);
           console.log('Login successful:', response);
           
           // Reload the page to ensure fresh state and WebSocket connection
@@ -911,6 +912,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy {
         if (typeof session?.pin === 'string' && session.pin.length > 0) {
           this.rdioScannerService.savePin(session.pin);
           this.rdioScannerService.saveIsSystemAdmin(false);
+          this.rdioScannerService.savePublicApiEnabled(false);
           window.location.reload();
           return;
         }

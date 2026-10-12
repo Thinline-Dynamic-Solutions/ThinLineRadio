@@ -196,6 +196,7 @@ export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
           }
           // Persist system admin flag so the main UI can show the Admin Panel button
           this.rdioScannerService.saveIsSystemAdmin(response?.user?.systemAdmin === true);
+          this.rdioScannerService.savePublicApiEnabled(response?.user?.publicApiEnabled === true);
           console.log('Login successful:', response);
         },
         error: (error) => {
@@ -252,6 +253,7 @@ export class RdioScannerUserLoginComponent implements OnInit, OnDestroy {
                 this.rdioScannerService.savePin(pin);
               }
               this.rdioScannerService.saveIsSystemAdmin(response?.user?.systemAdmin === true);
+              this.rdioScannerService.savePublicApiEnabled(response?.user?.publicApiEnabled === true);
               this.showForcedPasswordReset = false;
               this.forcedPasswordResetForm.reset();
               this.forcedResetEmail = '';
