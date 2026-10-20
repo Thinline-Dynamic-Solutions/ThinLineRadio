@@ -1,5 +1,31 @@
 # Change log
 
+## Version 26.10.20 - Released October 20, 2026
+
+### Added
+
+- **Remote settings management (Central Management)**
+  - `GET /api/admin/options` returns the current options plus the server version. Credentials (API keys, passwords, secrets, tokens) are never returned; they appear as `{"set": true|false}`.
+  - `PATCH /api/admin/options?compact=1` applies a partial update exactly as before but responds with only `{ok, version, options}` instead of the entire config (no users or systems in the response).
+  - Central Management uses these with its existing admin-token handshake to view and edit settings on one server or push them to many servers at once. Behavior for local admins is unchanged.
+
+- **Config backup to Central Management**
+  - A server paired with Central Management now sends its full configuration (the same document config sync writes and the admin export contains) to Central Management after every configuration change, so CM can keep versioned snapshots and restore one.
+  - Changes are coalesced: the push waits 30 seconds after the last change (never more than 5 minutes after the first) and is skipped when nothing differs from the last copy CM accepted. A baseline copy is also sent about 2 minutes after startup. The push is gzip-compressed and independent of the file-based **Config sync** setting.
+  - Failures retry with backoff (1 to 15 minutes) and log at most every 15 minutes. A Central Management that does not support backups yet is rechecked hourly.
+  - The export includes password hashes and credentials, exactly like config sync, so the Central Management database should be treated as sensitive.
+
+- **Per-instance time zone**
+  - New **Time Zone** option (Admin > Config > Options > General, IANA name such as `America/Chicago`). Call times in the web app (console, search, alerts, incident map), the time in tone/pre-alert push notifications, and the prune time use it. Empty keeps the old behavior (browser time zone in the web app, server time zone elsewhere).
+  - Zone names are validated in the admin, over the options API and on import; an unknown name is rejected. The zone database is embedded in the binary, so it works on minimal hosts and containers.
+
+- **Prune at a set time of day**
+  - New **Prune Time** option (24-hour `HH:MM`, in the instance time zone). When set, the database prune runs once a day at that time instead of at startup and every hour. Instances that share a host can be given different times so they do not all prune together.
+  - A restart does not trigger a catch-up prune outside the slot. Two prunes never overlap. Leave the option empty to keep the previous behavior.
+  - Both options can be pushed from Central Management with no restart.
+
+---
+
 ## Version 26.10.11 - Released October 10, 2026
 
 ### Added

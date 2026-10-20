@@ -49,6 +49,9 @@ type CentralManagementService struct {
 	// the samples. The first call after init returns 0 which is fine — it just
 	// means the very first heartbeat reports 0% CPU.
 	procSampler *process.Process
+
+	// Debounced full-config push to CM (see central_config_backup.go).
+	configPush configPushState
 }
 
 // NewCentralManagementService creates a new central management service
@@ -87,6 +90,9 @@ func (cms *CentralManagementService) Start() {
 
 	// Start heartbeat loop (first heartbeat fires immediately, then every minute)
 	go cms.heartbeatLoop()
+
+	// Give CM a baseline config snapshot shortly after startup.
+	cms.scheduleBaselineConfigPush()
 }
 
 // Stop stops the central management service

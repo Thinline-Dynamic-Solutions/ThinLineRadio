@@ -35,6 +35,7 @@ type serverManagementUserGroup struct {
 	SystemDelays            map[string]uint  `json:"systemDelays"`
 	TalkgroupDelays         map[string]uint  `json:"talkgroupDelays"`
 	AutoEnableNewTalkgroups bool             `json:"autoEnableNewTalkgroups"`
+	ConnectionLimit         uint             `json:"connectionLimit"`
 }
 
 func encodeUserGroupForMobile(g *UserGroup) serverManagementUserGroup {
@@ -48,6 +49,7 @@ func encodeUserGroupForMobile(g *UserGroup) serverManagementUserGroup {
 		SystemDelays:            map[string]uint{},
 		TalkgroupDelays:         map[string]uint{},
 		AutoEnableNewTalkgroups: g.AutoEnableNewTalkgroups,
+		ConnectionLimit:         g.ConnectionLimit,
 	}
 
 	trimmed := strings.TrimSpace(g.SystemAccess)
@@ -587,8 +589,8 @@ func validateSystemAccessEntries(entries []map[string]any) error {
 	return nil
 }
 
-// UserGroupMergePatchHandler updates group name, talkgroup access, and delays
-// without replacing billing or other fields.
+// UserGroupMergePatchHandler updates group name, talkgroup access, delays and
+// the per-user connection limit without replacing billing or other fields.
 //
 //	PATCH /api/admin/user-groups/{id}
 func (admin *Admin) UserGroupMergePatchHandler(w http.ResponseWriter, r *http.Request) {
@@ -620,6 +622,7 @@ func (admin *Admin) UserGroupMergePatchHandler(w http.ResponseWriter, r *http.Re
 		SystemDelays            *map[string]uint  `json:"systemDelays"`
 		TalkgroupDelays         *map[string]uint  `json:"talkgroupDelays"`
 		AutoEnableNewTalkgroups *bool             `json:"autoEnableNewTalkgroups"`
+		ConnectionLimit         *int              `json:"connectionLimit"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
@@ -627,7 +630,8 @@ func (admin *Admin) UserGroupMergePatchHandler(w http.ResponseWriter, r *http.Re
 	}
 	if body.Name == nil && body.Description == nil && body.AllSystems == nil &&
 		body.SystemAccess == nil && body.Delay == nil && body.SystemDelays == nil &&
-		body.TalkgroupDelays == nil && body.AutoEnableNewTalkgroups == nil {
+		body.TalkgroupDelays == nil && body.AutoEnableNewTalkgroups == nil &&
+		body.ConnectionLimit == nil {
 		writeJSONError(w, http.StatusBadRequest, "no fields to update")
 		return
 	}
@@ -664,6 +668,13 @@ func (admin *Admin) UserGroupMergePatchHandler(w http.ResponseWriter, r *http.Re
 	}
 	if body.AutoEnableNewTalkgroups != nil {
 		group.AutoEnableNewTalkgroups = *body.AutoEnableNewTalkgroups
+	}
+	if body.ConnectionLimit != nil {
+		if *body.ConnectionLimit < 0 {
+			writeJSONError(w, http.StatusBadRequest, "connectionLimit cannot be negative")
+			return
+		}
+		group.ConnectionLimit = uint(*body.ConnectionLimit)
 	}
 
 	accessChanged := false

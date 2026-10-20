@@ -30,6 +30,7 @@ import { RdioScannerAdminService } from '../admin/admin.service';
 import { TranscriptReviewService } from '../transcript-review/transcript-review.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { TagColorService } from '../tag-color.service';
+import { withInstanceZone } from '../instance-time';
 
 /** Main board hosts separate tabs; each instance uses one mode. */
 export type RdioScannerAlertsPanelMode = 'alertsAndPreferences' | 'transcripts' | 'stats';
@@ -736,7 +737,7 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     }
 
     statsCallsPerMinLabel(minute: number): string {
-        return new Date(minute).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return new Date(minute).toLocaleTimeString([], withInstanceZone({ hour: '2-digit', minute: '2-digit' }));
     }
 
     statsMaxCpm(): number {
@@ -1205,25 +1206,25 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
 
     formatTimestamp(timestamp: number): string {
         const date = new Date(timestamp);
-        const datePart = date.toLocaleDateString();
-        const timePart = date.toLocaleTimeString();
+        const datePart = date.toLocaleDateString(undefined, withInstanceZone());
+        const timePart = date.toLocaleTimeString(undefined, withInstanceZone());
         const spacer = '\u00A0\u00A0\u00A0'; // three non-breaking spaces
         return `${datePart}${spacer}${timePart}`;
     }
 
     formatAlertDate(timestamp: number): string {
-        return new Date(timestamp).toLocaleDateString(undefined, {
+        return new Date(timestamp).toLocaleDateString(undefined, withInstanceZone({
             month: 'numeric',
             day: 'numeric',
             year: '2-digit',
-        });
+        }));
     }
 
     formatAlertTime(timestamp: number): string {
-        return new Date(timestamp).toLocaleTimeString(undefined, {
+        return new Date(timestamp).toLocaleTimeString(undefined, withInstanceZone({
             hour: 'numeric',
             minute: '2-digit',
-        });
+        }));
     }
 
     /** Single-line date + time for group headers (avoids year/time mashup). */

@@ -21,6 +21,7 @@ import { IncidentMapBridgeService } from './incident-map-bridge.service';
 import { IncidentsService } from './incidents.service';
 import { NwsLayerToggles, NwsService } from '../weather/nws.service';
 import packageInfo from '../../../../../package.json';
+import { withInstanceZone } from '../instance-time';
 
 // Bump automatically per release; forces browsers to drop tiles cached from a
 // previous basemap provider instead of serving stale (e.g. watermarked) images.
@@ -513,7 +514,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         if (!ts) {
             return '';
         }
-        return new Date(ts).toLocaleString();
+        return new Date(ts).toLocaleString(undefined, withInstanceZone());
     }
 
     incidentAddress(incident: IncidentRecord): string {

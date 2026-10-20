@@ -103,6 +103,8 @@ type Options struct {
 	MaxClients                  uint   `json:"maxClients"`
 	PlaybackGoesLive            bool   `json:"playbackGoesLive"`
 	PruneDays                   uint   `json:"pruneDays"`
+	PruneTime                   string `json:"pruneTime"` // "HH:MM" daily prune time in TimeZone; empty = legacy hourly check
+	TimeZone                    string `json:"timeZone"`  // IANA zone for this instance (call times, alerts, prune schedule); empty = server local
 	ShowListenersCount          bool   `json:"showListenersCount"`
 	SortTalkgroups              bool   `json:"sortTalkgroups"`
 	Time12hFormat               bool   `json:"time12hFormat"`
@@ -480,6 +482,29 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.PruneDays = uint(v)
 	default:
 		options.PruneDays = defaults.options.pruneDays
+	}
+
+	switch v := m["pruneTime"].(type) {
+	case string:
+		if norm, ok := normalizePruneTime(v); ok {
+			options.PruneTime = norm
+		} else {
+			options.PruneTime = ""
+		}
+	default:
+		options.PruneTime = ""
+	}
+
+	switch v := m["timeZone"].(type) {
+	case string:
+		v = strings.TrimSpace(v)
+		if validTimeZone(v) {
+			options.TimeZone = v
+		} else {
+			options.TimeZone = ""
+		}
+	default:
+		options.TimeZone = ""
 	}
 
 	switch v := m["showListenersCount"].(type) {
@@ -1366,6 +1391,8 @@ func (options *Options) Read(db *Database) error {
 	options.MaxClients = defaults.options.maxClients
 	options.PlaybackGoesLive = defaults.options.playbackGoesLive
 	options.PruneDays = defaults.options.pruneDays
+	options.PruneTime = ""
+	options.TimeZone = ""
 	options.ShowListenersCount = defaults.options.showListenersCount
 	options.SortTalkgroups = defaults.options.sortTalkgroups
 	options.Time12hFormat = defaults.options.time12hFormat
@@ -1550,6 +1577,24 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case float64:
 					options.PruneDays = uint(v)
+				}
+			}
+		case "pruneTime":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					if norm, ok := normalizePruneTime(v); ok {
+						options.PruneTime = norm
+					}
+				}
+			}
+		case "timeZone":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case string:
+					if validTimeZone(v) {
+						options.TimeZone = v
+					}
 				}
 			}
 		case "showListenersCount":
@@ -2292,6 +2337,8 @@ func (options *Options) Write(db *Database) error {
 	set("maxClients", options.MaxClients)
 	set("playbackGoesLive", options.PlaybackGoesLive)
 	set("pruneDays", options.PruneDays)
+	set("pruneTime", options.PruneTime)
+	set("timeZone", options.TimeZone)
 	set("secret", options.secret)
 	set("showListenersCount", options.ShowListenersCount)
 	set("sortTalkgroups", options.SortTalkgroups)

@@ -268,6 +268,7 @@ export interface RdioScannerConfig {
     tags: { [key: string]: { [key: number]: number[] } };
     tagsData: RdioScannerTagData[];
     time12hFormat: boolean;
+    timeZone?: string; // IANA zone of this instance; empty = browser zone
     userSettings?: { [key: string]: any }; // User-specific settings (tag colors, etc.)
 }
 

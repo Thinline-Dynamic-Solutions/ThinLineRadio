@@ -365,6 +365,7 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 		"tags":               client.TagsMap,
 		"tagsData":           client.TagsData,
 		"time12hFormat":      options.Time12hFormat,
+		"timeZone":           options.TimeZone,
 	}
 
 	// Include user settings if user is authenticated

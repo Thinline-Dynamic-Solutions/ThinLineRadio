@@ -160,7 +160,7 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 		// Fallback to alert type info if no transcript
 		if alertType == "pre-alert" {
 			// Pre-alert: Tones detected, waiting for voice
-			currentTime := time.Now().Format("3:04 PM")
+			currentTime := time.Now().In(controller.Options.Location()).Format("3:04 PM")
 			if toneSetName != "" {
 				message = fmt.Sprintf("%s Tones Detected @ %s", strings.ToUpper(toneSetName), currentTime)
 			} else {
@@ -747,7 +747,7 @@ func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []u
 		// Fallback to alert type info if no transcript
 		if alertType == "pre-alert" {
 			// Pre-alert: Tones detected, waiting for voice
-			currentTime := time.Now().Format("3:04 PM")
+			currentTime := time.Now().In(controller.Options.Location()).Format("3:04 PM")
 			if toneSetName != "" {
 				message = fmt.Sprintf("%s Tones Detected @ %s", strings.ToUpper(toneSetName), currentTime)
 			} else {

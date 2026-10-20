@@ -1332,6 +1332,39 @@
             }
           </mat-form-field>
         </div>
+        <div class="row">
+          <p>
+            <span class="mat-body">Prune Time</span><br>
+            <span class="mat-caption">Run the prune once a day at this 24-hour time (for example 03:30) in the time zone below. Leave empty to prune at startup and every hour. When many instances share a host, give each a different time so they do not all prune at once. A restart does not trigger a catch-up prune.</span>
+          </p>
+          <mat-form-field>
+            <input type="text" matInput formControlName="pruneTime" placeholder="HH:MM" autocomplete="off">
+            @if (form?.get('pruneTime')?.hasError('pattern')) {
+              <mat-error>
+                Use 24-hour HH:MM, for example 03:30
+              </mat-error>
+            }
+          </mat-form-field>
+        </div>
+        <div class="row">
+          <p>
+            <span class="mat-body">Time Zone</span><br>
+            <span class="mat-caption">Time zone of the area this instance records, for example America/Chicago. Call times in the web app, push notification times and the prune time use it. Leave empty to use the server's own time zone.</span>
+          </p>
+          <mat-form-field>
+            <input type="text" matInput formControlName="timeZone" list="tlr-time-zones" placeholder="Server local time" autocomplete="off">
+            <datalist id="tlr-time-zones">
+              @for (z of timeZoneNames; track z) {
+                <option [value]="z"></option>
+              }
+            </datalist>
+            @if (form?.get('timeZone')?.hasError('timeZone')) {
+              <mat-error>
+                Unknown time zone. Use a name such as America/Chicago
+              </mat-error>
+            }
+          </mat-form-field>
+        </div>
         @if (systemsForm && systemsForm.length > 0) {
           <div style="margin-top: 24px;">
             <p style="margin-bottom: 8px;">

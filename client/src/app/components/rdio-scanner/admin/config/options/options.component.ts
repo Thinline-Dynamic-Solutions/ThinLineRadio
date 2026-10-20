@@ -151,7 +151,7 @@ const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
     general: {
         keys: [
             'time12hFormat', 'autoPopulate', 'defaultSystemDelay', 'playbackGoesLive',
-            'keypadBeeps', 'maxClients', 'pruneDays', 'showListenersCount', 'sortTalkgroups',
+            'keypadBeeps', 'maxClients', 'pruneDays', 'pruneTime', 'timeZone', 'showListenersCount', 'sortTalkgroups',
             'reconnectionGracePeriod', 'reconnectionMaxBufferSize', 'configSyncEnabled', 'configSyncPath', 'configSyncFileName',
         ],
         systemsRetention: true,
@@ -297,6 +297,8 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     keypadBeeps: 'Keypad beeps',
     maxClients: 'Max clients',
     pruneDays: 'Prune days',
+    pruneTime: 'Prune time',
+    timeZone: 'Time zone',
     showListenersCount: 'Show listeners count',
     sortTalkgroups: 'Sort talkgroups',
     reconnectionGracePeriod: 'Reconnection grace period',
@@ -1269,6 +1271,15 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     }
 
     /** Top-level boolean option controls that auto-save the moment they change. */
+    /** IANA zone names for the Time Zone suggestions (empty when the browser cannot list them). */
+    readonly timeZoneNames: string[] = (() => {
+        try {
+            return (Intl as any).supportedValuesOf('timeZone') as string[];
+        } catch {
+            return [];
+        }
+    })();
+
     private static readonly TOGGLE_KEYS = [
         'systemHealthAlertsEnabled', 'transcriptionFailureAlertsEnabled', 'toneDetectionAlertsEnabled',
         'noAudioAlertsEnabled', 'disableDuplicateDetection', 'audioEncryptionEnabled', 'rateLimitingEnabled',

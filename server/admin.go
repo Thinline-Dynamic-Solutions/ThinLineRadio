@@ -2565,8 +2565,13 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 // clients via EmitConfig (same mechanism the old whole-config save used).
 //
 //	PATCH /api/admin/options   body: { "<optionKey>": <value>, ... }
+//	PATCH /api/admin/options?compact=1  same, but responds with only
+//	  { "ok": true, "version": "...", "options": { ...masked options... } }
+//	  instead of the entire config (used by Central Management bulk pushes).
+//	GET   /api/admin/options   -> { "version": "...", "options": { ...masked options... } }
+//	  Credentials are never returned; they appear as {"set": true|false}.
 func (admin *Admin) OptionsPatchHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch && r.Method != http.MethodPost {
+	if r.Method != http.MethodPatch && r.Method != http.MethodPost && r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -2574,6 +2579,18 @@ func (admin *Admin) OptionsPatchHandler(w http.ResponseWriter, r *http.Request) 
 	t := admin.GetAuthorization(r)
 	if !admin.ValidateToken(t) {
 		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		masked, err := admin.Controller.Options.MaskedMap()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"version": Version, "options": masked})
 		return
 	}
 
@@ -2598,6 +2615,25 @@ func (admin *Admin) OptionsPatchHandler(w http.ResponseWriter, r *http.Request) 
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "cannot disable password login: no system administrator user exists",
 			})
+			return
+		}
+	}
+
+	// Guard: reject an unknown timezone or malformed prune time instead of silently
+	// dropping it (options.FromMap would otherwise reset the field).
+	if v, present := partial["timeZone"]; present {
+		str, isStr := v.(string)
+		if !isStr || !validTimeZone(str) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "timeZone must be empty or a valid IANA zone such as America/Chicago"})
+			return
+		}
+	}
+	if v, present := partial["pruneTime"]; present {
+		str, isStr := v.(string)
+		if _, ok := normalizePruneTime(str); !isStr || !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "pruneTime must be empty or a 24-hour time such as 03:30"})
 			return
 		}
 	}
@@ -2640,6 +2676,16 @@ func (admin *Admin) OptionsPatchHandler(w http.ResponseWriter, r *http.Request) 
 	admin.Controller.Logs.LogEvent(LogLevelInfo, "options changed")
 
 	w.Header().Set("Content-Type", "application/json")
+	if r.URL.Query().Get("compact") == "1" {
+		masked, merr := admin.Controller.Options.MaskedMap()
+		if merr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": merr.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"ok": true, "version": Version, "options": masked})
+		return
+	}
 	admin.SendConfig(w)
 }
 

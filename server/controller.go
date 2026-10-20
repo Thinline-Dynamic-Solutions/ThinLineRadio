@@ -4077,6 +4077,12 @@ func (controller *Controller) fetchAudioClientToken() {
 // SyncConfigToFile syncs the current configuration to a file if config sync is enabled
 // This is used for Google Drive sync and other file-based sync solutions
 func (controller *Controller) SyncConfigToFile() {
+	// Central Management keeps its own versioned copy of the config. This runs
+	// after every config change, independent of the file sync settings below.
+	if controller.CentralManagement != nil {
+		controller.CentralManagement.NotifyConfigChanged()
+	}
+
 	if !controller.Options.ConfigSyncEnabled {
 		return
 	}

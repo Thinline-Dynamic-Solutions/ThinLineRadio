@@ -434,6 +434,8 @@ export interface Options {
 	maxClients?: number;
 	playbackGoesLive?: boolean;
 	pruneDays?: number;
+	pruneTime?: string;
+	timeZone?: string;
 	showListenersCount?: boolean;
 	sortTalkgroups?: boolean;
 	time12hFormat?: boolean;
@@ -2197,6 +2199,12 @@ export class RdioScannerAdminService implements OnDestroy {
             maxClients: this.ngFormBuilder.control(options?.maxClients ?? 100, [Validators.required, Validators.min(1)]),
             playbackGoesLive: this.ngFormBuilder.control(options?.playbackGoesLive ?? false),
             pruneDays: this.ngFormBuilder.control(options?.pruneDays ?? 0, [Validators.required, Validators.min(0)]),
+            pruneTime: this.ngFormBuilder.control(options?.pruneTime || '', Validators.pattern(/^$|^([01]?\d|2[0-3]):[0-5]\d$/)),
+            timeZone: this.ngFormBuilder.control(options?.timeZone || '', (c) => {
+                const v = (c.value || '').trim();
+                if (!v) return null;
+                try { new Intl.DateTimeFormat('en-US', { timeZone: v }); return null; } catch { return { timeZone: true }; }
+            }),
             showListenersCount: this.ngFormBuilder.control(options?.showListenersCount),
             sortTalkgroups: this.ngFormBuilder.control(options?.sortTalkgroups),
             time12hFormat: this.ngFormBuilder.control(options?.time12hFormat),

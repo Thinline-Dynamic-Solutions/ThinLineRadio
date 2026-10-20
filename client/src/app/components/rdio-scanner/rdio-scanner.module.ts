@@ -21,6 +21,7 @@ import { FullscreenOverlayContainer, OverlayContainer } from '@angular/cdk/overl
 import { NgModule } from '@angular/core';
 import { AppSharedModule } from '../../shared/shared.module';
 import { RdioScannerComponent } from './rdio-scanner.component';
+import { InstanceDatePipe } from './instance-time';
 import { RdioScannerService } from './rdio-scanner.service';
 import { RdioScannerConsoleComponent } from './console/console.component';
 import { RdioScannerIncidentMapComponent } from './incident-map/incident-map.component';
@@ -67,6 +68,7 @@ import { RdioScannerTurnstileComponent } from './turnstile/turnstile.component';
 
 @NgModule({
     declarations: [
+        InstanceDatePipe,
         RdioScannerComponent,
         RdioScannerConsoleComponent,
         RdioScannerIncidentMapComponent,

@@ -23,6 +23,7 @@ import { Router } from '@angular/router';
 import { Subscription, timer } from 'rxjs';
 import { takeWhile } from 'rxjs/operators';
 import { AppUpdateService } from '../../shared/update/update.service';
+import { setInstanceTimeZone } from './instance-time';
 import {
     RdioScannerAvoidOptions,
     RdioScannerBeepStyle,
@@ -1468,6 +1469,8 @@ export class RdioScannerService implements OnDestroy {
                         return;
                     }
 
+                    setInstanceTimeZone(config.timeZone);
+
                     try {
                         this.configReceived = true;
                         this.awaitingPinAuth = false;
@@ -1486,6 +1489,7 @@ export class RdioScannerService implements OnDestroy {
                         tags: typeof config.tags !== null && typeof config.tags === 'object' ? config.tags : {},
                         tagsData: Array.isArray(config.tagsData) ? config.tagsData : [],
                         time12hFormat: typeof config.time12hFormat === 'boolean' ? config.time12hFormat : false,
+                        timeZone: typeof config.timeZone === 'string' ? config.timeZone : '',
                         userSettings: typeof config.userSettings === 'object' && config.userSettings !== null ? config.userSettings : undefined,
                     };
 
