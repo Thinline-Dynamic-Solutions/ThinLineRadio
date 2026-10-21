@@ -57,6 +57,8 @@ type User struct {
 	UserGroupIds              string // JSON array of all group IDs the user belongs to; always contains UserGroupId
 	IsGroupAdmin              bool
 	SystemAdmin               bool // System administrator flag
+	PublicApiEnabled          bool   // Server owner granted public REST API access
+	PublicApiCapabilities     string // JSON: {"health":true,"transcripts":true,"alertWebhooks":true}
 	PushSystemNoAudioAlerts   bool   // Push for assigned system no-audio alerts (in addition to system admins)
 	PushApiKeyNoAudioAlerts   bool   // Push for assigned API key no-audio alerts (in addition to system admins)
 	SystemNoAudioAlertSystems string // JSON: "*" or [systemId,...] — which systems' no-audio alerts the user can view
@@ -1082,7 +1084,7 @@ func (users *Users) Read(db *Database) error {
 	users.pins = make(map[string]*User)
 	users.groupAdmins = make(map[uint64]*User)
 
-	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("userGroupIds", ''), COALESCE("systemAdmin", false), COALESCE("pushSystemNoAudioAlerts", false), COALESCE("pushApiKeyNoAudioAlerts", false), COALESCE("systemNoAudioAlertSystems", ''), COALESCE("apiKeyNoAudioAlertApiKeys", ''), COALESCE("forcePasswordReset", false), COALESCE("suspended", false), "resetCode", "resetCodeExpires", "accountExpiresAt", COALESCE("mobileSetupTokenHash", ''), COALESCE("mobileSetupTokenExpires", 0), COALESCE("mobileWelcomeEmailSent", false) FROM "users"`)
+	rows, err := db.Sql.Query(`SELECT "userId", "email", "password", "pin", "pinExpiresAt", "connectionLimit", "verified", "verificationToken", "createdAt", "lastLogin", "firstName", "lastName", "zipCode", "systems", "talkgroups", "delay", "systemDelays", "talkgroupDelays", "settings", "stripeCustomerId", "stripeSubscriptionId", "subscriptionStatus", "userGroupId", "isGroupAdmin", COALESCE("userGroupIds", ''), COALESCE("systemAdmin", false), COALESCE("publicApiEnabled", false), COALESCE("publicApiCapabilities", '{}'), COALESCE("pushSystemNoAudioAlerts", false), COALESCE("pushApiKeyNoAudioAlerts", false), COALESCE("systemNoAudioAlertSystems", ''), COALESCE("apiKeyNoAudioAlertApiKeys", ''), COALESCE("forcePasswordReset", false), COALESCE("suspended", false), "resetCode", "resetCodeExpires", "accountExpiresAt", COALESCE("mobileSetupTokenHash", ''), COALESCE("mobileSetupTokenExpires", 0), COALESCE("mobileWelcomeEmailSent", false) FROM "users"`)
 	if err != nil {
 		return formatError(err, "")
 	}
@@ -1100,6 +1102,8 @@ func (users *Users) Read(db *Database) error {
 		var isGroupAdmin sql.NullBool
 		var userGroupIds sql.NullString
 		var systemAdmin sql.NullBool
+		var publicApiEnabled sql.NullBool
+		var publicApiCapabilities sql.NullString
 		var pushSystemNoAudioAlerts sql.NullBool
 		var pushApiKeyNoAudioAlerts sql.NullBool
 		var systemNoAudioAlertSystems sql.NullString
@@ -1113,7 +1117,7 @@ func (users *Users) Read(db *Database) error {
 		var mobileSetupTokenExpires sql.NullInt64
 		var mobileWelcomeEmailSent sql.NullBool
 
-		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &talkgroups, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &userGroupIds, &systemAdmin, &pushSystemNoAudioAlerts, &pushApiKeyNoAudioAlerts, &systemNoAudioAlertSystems, &apiKeyNoAudioAlertApiKeys, &forcePasswordReset, &suspended, &resetCode, &resetCodeExpires, &accountExpiresAt, &mobileSetupTokenHash, &mobileSetupTokenExpires, &mobileWelcomeEmailSent)
+		err := rows.Scan(&user.Id, &user.Email, &user.Password, &pin, &pinExpiresAt, &connectionLimit, &user.Verified, &user.VerificationToken, &user.CreatedAt, &user.LastLogin, &user.FirstName, &user.LastName, &user.ZipCode, &systems, &talkgroups, &user.Delay, &systemDelays, &talkgroupDelays, &settings, &stripeCustomerId, &stripeSubscriptionId, &subscriptionStatus, &userGroupId, &isGroupAdmin, &userGroupIds, &systemAdmin, &publicApiEnabled, &publicApiCapabilities, &pushSystemNoAudioAlerts, &pushApiKeyNoAudioAlerts, &systemNoAudioAlertSystems, &apiKeyNoAudioAlertApiKeys, &forcePasswordReset, &suspended, &resetCode, &resetCodeExpires, &accountExpiresAt, &mobileSetupTokenHash, &mobileSetupTokenExpires, &mobileWelcomeEmailSent)
 		if err != nil {
 			return formatError(err, "")
 		}
@@ -1163,6 +1167,14 @@ func (users *Users) Read(db *Database) error {
 		}
 		if systemAdmin.Valid {
 			user.SystemAdmin = systemAdmin.Bool
+		}
+		if publicApiEnabled.Valid {
+			user.PublicApiEnabled = publicApiEnabled.Bool
+		}
+		if publicApiCapabilities.Valid && publicApiCapabilities.String != "" {
+			user.PublicApiCapabilities = publicApiCapabilities.String
+		} else {
+			user.PublicApiCapabilities = "{}"
 		}
 		if pushSystemNoAudioAlerts.Valid {
 			user.PushSystemNoAudioAlerts = pushSystemNoAudioAlerts.Bool
@@ -1372,6 +1384,22 @@ func (users *Users) Write(db *Database) error {
 	}
 
 	return nil
+}
+
+// WritePublicApiSettings persists public API enablement and capability flags for one user.
+func (users *Users) WritePublicApiSettings(user *User, db *Database) error {
+	if user == nil || db == nil || db.Sql == nil || user.Id == 0 {
+		return nil
+	}
+	caps := strings.TrimSpace(user.PublicApiCapabilities)
+	if caps == "" {
+		caps = "{}"
+	}
+	_, err := db.Sql.Exec(
+		`UPDATE "users" SET "publicApiEnabled"=$1, "publicApiCapabilities"=$2 WHERE "userId"=$3`,
+		user.PublicApiEnabled, caps, user.Id,
+	)
+	return err
 }
 
 // WriteSubscriptionState persists only the membership/subscription fields for a

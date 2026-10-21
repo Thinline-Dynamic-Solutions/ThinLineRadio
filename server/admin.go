@@ -6463,6 +6463,8 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"userGroupName":            userGroupName,
 			"isGroupAdmin":             user.IsGroupAdmin,
 			"systemAdmin":              user.SystemAdmin,
+			"publicApiEnabled":         user.PublicApiEnabled,
+			"publicApiCapabilities":    user.PublicApiCaps(),
 			"pushSystemNoAudioAlerts": user.PushSystemNoAudioAlerts,
 			"pushApiKeyNoAudioAlerts": user.PushApiKeyNoAudioAlerts,
 			"systemNoAudioAlertSystems": user.SystemNoAudioAlertSystems,
@@ -6796,6 +6798,8 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		UserGroupIds         *[]uint64 `json:"userGroupIds"`
 		IsGroupAdmin         *bool    `json:"isGroupAdmin"`
 		SystemAdmin             *bool   `json:"systemAdmin"`
+		PublicApiEnabled          *bool                 `json:"publicApiEnabled"`
+		PublicApiCapabilities     *PublicApiCapabilities `json:"publicApiCapabilities"`
 		PushSystemNoAudioAlerts   *bool   `json:"pushSystemNoAudioAlerts"`
 		PushApiKeyNoAudioAlerts   *bool   `json:"pushApiKeyNoAudioAlerts"`
 		SystemNoAudioAlertSystems *string `json:"systemNoAudioAlertSystems"`
@@ -6913,6 +6917,16 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if request.SystemAdmin != nil {
 		user.SystemAdmin = *request.SystemAdmin
 	}
+	publicApiDirty := false
+	if request.PublicApiEnabled != nil {
+		user.PublicApiEnabled = *request.PublicApiEnabled
+		publicApiDirty = true
+	}
+	if request.PublicApiCapabilities != nil {
+		capsJson, _ := json.Marshal(*request.PublicApiCapabilities)
+		user.PublicApiCapabilities = string(capsJson)
+		publicApiDirty = true
+	}
 	if request.PushSystemNoAudioAlerts != nil {
 		user.PushSystemNoAudioAlerts = *request.PushSystemNoAudioAlerts
 	}
@@ -6972,6 +6986,14 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update user"})
 		return
+	}
+	if publicApiDirty {
+		if err := admin.Controller.Users.WritePublicApiSettings(user, admin.Controller.Database); err != nil {
+			log.Printf("Failed to update public API settings for user %d: %v", userID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update public API settings"})
+			return
+		}
 	}
 
 	// Kick active sessions when suspending so they cannot keep listening

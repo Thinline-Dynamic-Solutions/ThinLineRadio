@@ -496,6 +496,8 @@ func main() {
 	http.HandleFunc("/api/admin/users", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UsersListHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/create", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UserCreateHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/bulk-delete", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UsersBulkDeleteHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/public-api/keys", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.PublicApiKeysListHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/public-api/keys/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.PublicApiKeyActionHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/", wrapHandler(controller.Admin.requireLocalhost(func(w http.ResponseWriter, r *http.Request) {
 		// Check if it's a device-tokens endpoint: /api/admin/users/{userId}/device-tokens/{tokenId}
 		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -730,6 +732,10 @@ func main() {
 
 	// Startup readiness — no auth, no DB; web client polls before opening websocket after restart.
 	http.HandleFunc("/api/ready", controller.Api.ReadyHandler)
+
+	// User-scoped public REST API (separate from uploader apikeys). Auth: Bearer tlr_… or X-API-Key.
+	http.HandleFunc("/api/public/v1/", wrapHandler(http.HandlerFunc(controller.PublicApi.Router)).ServeHTTP)
+	http.HandleFunc("/api/public/v1", wrapHandler(http.HandlerFunc(controller.PublicApi.Router)).ServeHTTP)
 
 	// Call upload endpoints - exclude from security headers and rate limiting (machine-to-machine APIs)
 	// These endpoints handle their own validation and need to accept frequent uploads

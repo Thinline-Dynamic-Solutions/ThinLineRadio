@@ -65,6 +65,12 @@ export interface User {
     userGroupName?: string;
     isGroupAdmin?: boolean;
     systemAdmin?: boolean;
+    publicApiEnabled?: boolean;
+    publicApiCapabilities?: {
+        health?: boolean;
+        transcripts?: boolean;
+        alertWebhooks?: boolean;
+    };
     pushSystemNoAudioAlerts?: boolean;
     pushApiKeyNoAudioAlerts?: boolean;
     systemNoAudioAlertSystems?: string;
@@ -137,6 +143,15 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     configTags: any[] = [];
     systemDelayEntries: Array<{systemId: number, delay: number}> = [];
     talkgroupDelayEntries: Array<{systemId: number, talkgroupId: number, delay: number}> = [];
+    publicApiKeysForEdit: Array<{
+        id: number;
+        name: string;
+        keyPrefix: string;
+        lastUsedAt: number;
+        requestCount: number;
+        disabled: boolean;
+    }> = [];
+    publicApiKeysLoading = false;
 
     /** Only validate ZIP format when the field has a value — blank is allowed. */
     private static optionalZipValidator(control: AbstractControl): ValidationErrors | null {
@@ -220,6 +235,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             userGroupIds: [[] as number[]],
             isGroupAdmin: [false],
             systemAdmin: [false],
+            publicApiEnabled: [false],
+            publicApiHealth: [false],
+            publicApiTranscripts: [false],
+            publicApiAlertWebhooks: [false],
             systemNoAudioAlertSystemIds: [[] as number[]],
             apiKeyNoAudioAlertApiKeyIds: [[] as number[]],
             pushSystemNoAudioAlerts: [false],
@@ -278,6 +297,8 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 userGroupIds: RdioScannerAdminUsersComponent.normalizeGroupIds(user.userGroupIds, user.userGroupId),
                 isGroupAdmin: user.isGroupAdmin || false,
                 systemAdmin: user.systemAdmin || false,
+                publicApiEnabled: user.publicApiEnabled || false,
+                publicApiCapabilities: user.publicApiCapabilities || {},
                 systemNoAudioAlertSystemIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.systemNoAudioAlertSystems),
                 apiKeyNoAudioAlertApiKeyIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.apiKeyNoAudioAlertApiKeys),
                 pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
@@ -930,6 +951,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             userGroupIds: RdioScannerAdminUsersComponent.normalizeGroupIds(user.userGroupIds, user.userGroupId),
             isGroupAdmin: user.isGroupAdmin || false,
             systemAdmin: user.systemAdmin || false,
+            publicApiEnabled: user.publicApiEnabled || false,
+            publicApiHealth: !!user.publicApiCapabilities?.health,
+            publicApiTranscripts: !!user.publicApiCapabilities?.transcripts,
+            publicApiAlertWebhooks: !!user.publicApiCapabilities?.alertWebhooks,
             systemNoAudioAlertSystemIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.systemNoAudioAlertSystems),
             apiKeyNoAudioAlertApiKeyIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.apiKeyNoAudioAlertApiKeys),
             pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
@@ -940,6 +965,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             stripeSubscriptionId: user.stripeSubscriptionId || '',
             subscriptionStatus: user.subscriptionStatus || ''
         });
+        void this.loadPublicApiKeysForUser(user.id);
 
         // Parse system delays JSON
         this.systemDelayEntries = [];
@@ -1052,6 +1078,12 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             ),
             isGroupAdmin: !!formValue.isGroupAdmin,
             systemAdmin: !!formValue.systemAdmin,
+            publicApiEnabled: !!formValue.publicApiEnabled,
+            publicApiCapabilities: {
+                health: !!formValue.publicApiHealth,
+                transcripts: !!formValue.publicApiTranscripts,
+                alertWebhooks: !!formValue.publicApiAlertWebhooks,
+            },
             systemNoAudioAlertSystems: RdioScannerAdminUsersComponent.serializeNoAudioAlertIds(formValue.systemNoAudioAlertSystemIds),
             apiKeyNoAudioAlertApiKeys: RdioScannerAdminUsersComponent.serializeNoAudioAlertIds(formValue.apiKeyNoAudioAlertApiKeyIds),
             pushSystemNoAudioAlerts: !!formValue.pushSystemNoAudioAlerts,
@@ -1424,5 +1456,51 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 });
             }
         });
+    }
+
+    async loadPublicApiKeysForUser(userId: number): Promise<void> {
+        this.publicApiKeysLoading = true;
+        this.publicApiKeysForEdit = [];
+        try {
+            const keys = await this.adminService.listPublicApiKeys();
+            this.publicApiKeysForEdit = (keys || [])
+                .filter((k: any) => Number(k.userId) === Number(userId))
+                .map((k: any) => ({
+                    id: Number(k.id),
+                    name: k.name || '',
+                    keyPrefix: k.keyPrefix || '',
+                    lastUsedAt: Number(k.lastUsedAt) || 0,
+                    requestCount: Number(k.requestCount) || 0,
+                    disabled: !!k.disabled,
+                }));
+        } catch (err) {
+            console.error('Failed to load public API keys', err);
+        } finally {
+            this.publicApiKeysLoading = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    async disablePublicApiKey(keyId: number): Promise<void> {
+        if (!confirm('Disable this public API key? The user will need to mint a new one.')) {
+            return;
+        }
+        try {
+            await this.adminService.disablePublicApiKey(keyId);
+            this.matSnackBar.open('API key disabled', 'Close', { duration: 3000 });
+            if (this.editingUser) {
+                await this.loadPublicApiKeysForUser(this.editingUser.id);
+            }
+        } catch (err: any) {
+            this.matSnackBar.open(err?.error?.error || 'Failed to disable key', 'Close', { duration: 5000 });
+        }
+    }
+
+    formatPublicApiLastUsed(ts: number): string {
+        if (!ts || ts <= 0) {
+            return 'Never';
+        }
+        const ms = ts > 1e12 ? ts : ts * 1000;
+        return new Date(ms).toLocaleString();
     }
 }
