@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	fallingObjectRE       = regexp.MustCompile(`(?i)\bFALLING\s+(HER|HIS|THE|THEIR|A|AN|THIS|MY|YOUR|OUR)\b`)
-	fallIncidentContextRE = regexp.MustCompile(`(?i)\b(FALL\s+PATIENT|FALL\s+VICTIM|FOR\s+A\s+FALL|FOR\s+FALL|FELL\s+DOWN|HAS\s+FALLEN|HAVE\s+FALLEN|FROM\s+A\s+FALL|LIFT\s+ASSIST|ON\s+THE\s+FLOOR|UNABLE\s+TO\s+GET\s+UP|CAN'?T\s+GET\s+UP|STILL\s+DOWN|INJURED\s+IN\s+FALL|SLIPPED\s+AND\s+FELL)\b`)
+	fallingObjectRE           = regexp.MustCompile(`(?i)\bFALLING\s+(HER|HIS|THE|THEIR|A|AN|THIS|MY|YOUR|OUR)\b`)
+	fallIncidentContextRE     = regexp.MustCompile(`(?i)\b(FALL\s+PATIENT|FALL\s+VICTIM|FOR\s+A\s+FALL|FOR\s+FALL|FELL\s+DOWN|HAS\s+FALLEN|HAVE\s+FALLEN|FROM\s+A\s+FALL|LIFT\s+ASSIST|ON\s+THE\s+FLOOR|UNABLE\s+TO\s+GET\s+UP|CAN'?T\s+GET\s+UP|STILL\s+DOWN|INJURED\s+IN\s+FALL|SLIPPED\s+AND\s+FELL)\b`)
 	dispatchDemographicLeadRE = regexp.MustCompile(`(?i)^(?:\d{1,3}[- ]?YEAR[- ]?OLD\s+)?(?:MALE|FEMALE)\s+`)
 	// House number + street name ending in COURT ("150 CHARLES COURT").
 	streetAddressCourtRE = regexp.MustCompile(`(?i)\b\d{1,6}(?:[\s\-]+\d{1,4})?(?:[\s,\-]+[A-Z0-9][A-Z0-9'\-]*){0,6}\s+COURT\b`)
@@ -39,10 +39,10 @@ var apparatusOnlyNatureLabels = map[string]bool{
 }
 
 var (
-	ilpersonNatureRE         = regexp.MustCompile(`(?i)\bIL\s*PERSON\b`)
-	weightLimitNatureRE      = regexp.MustCompile(`(?i)^OVER\s*\d+\s*LIMIT$`)
+	ilpersonNatureRE          = regexp.MustCompile(`(?i)\bIL\s*PERSON\b`)
+	weightLimitNatureRE       = regexp.MustCompile(`(?i)^OVER\s*\d+\s*LIMIT$`)
 	apparatusDispatchPhraseRE = regexp.MustCompile(`(?i)^(MEDIC|ENGINE|SQUAD|RESCUE|LADDER|TRUCK|UNIT|BATTALION|CHIEF|CAPTAIN)\s+(RUN|CALL|DISPATCH)$`)
-	policeStatusNatureRE     = regexp.MustCompile(`(?i)^(10[- ]?\d{1,2}|CODE\s+(CLEAR|BLUE|VIOLET|4)|CLEAR\s+CODE|TROUBLE\s+UNKNOWN|TRAFFIC\s+STOP|STAND\s+BY|NOTICE|ADVICE|TOW|READ|RELEASE|MOTION|HANGOUT|HANG\s+UP)$`)
+	policeStatusNatureRE      = regexp.MustCompile(`(?i)^(10[- ]?\d{1,2}|CODE\s+(CLEAR|BLUE|VIOLET|4)|CLEAR\s+CODE|TROUBLE\s+UNKNOWN|TRAFFIC\s+STOP|STAND\s+BY|NOTICE|ADVICE|TOW|READ|RELEASE|MOTION|HANGOUT|HANG\s+UP)$`)
 )
 
 func isApparatusOnlyNatureLabel(nature string) bool {
@@ -101,16 +101,39 @@ func ScrubIncidentNature(nature, transcript string) string {
 		return ""
 	}
 	u := strings.ToUpper(transcript)
+	padded := " " + u + " "
 	switch n {
 	case "FALL", "FELL", "FALLEN":
 		if IsFallNatureFalsePositive(u) {
 			return ""
 		}
 	case "LAKE EMERGENCY":
-		if natureKeywordIsLakeDepartmentFalsePositive(" "+u+" ", n) {
+		if natureKeywordIsLakeDepartmentFalsePositive(padded, n) {
 			return ""
 		}
 		if inferWiresTreesDownNature(transcript, nil) != "" {
+			return ""
+		}
+	case "ALLERGIC REACTION":
+		if !allergicEvidenceInTranscript(padded) {
+			return ""
+		}
+	case "PERSONAL":
+		if !personalNatureEvidenceInTranscript(padded) {
+			return ""
+		}
+	case "BREAK":
+		if natureKeywordIsRadioBreakFalsePositive(padded, "BREAK") {
+			return ""
+		}
+	case "COURT", "CT":
+		if !courtNatureExplicitlySpoken(padded) {
+			return ""
+		}
+	case "ENTRAPMENT/RESCUE":
+		if natureKeywordIsDepartmentRescueFalsePositive(padded, "RESCUE") &&
+			!strings.Contains(padded, " ENTRAPMENT ") && !strings.Contains(padded, " EXTRICATION ") &&
+			!strings.Contains(padded, " PINNED ") && !strings.Contains(padded, " TRAPPED ") {
 			return ""
 		}
 	}
@@ -337,6 +360,9 @@ func natureKeywordIsLakeDepartmentFalsePositive(paddedUpper, keyword string) boo
 			return true
 		}
 	}
+	if strings.Contains(paddedUpper, " LAKE RESCUE ") && !lakeEmergencyEvidenceInTranscript(paddedUpper) {
+		return true
+	}
 	return false
 }
 
@@ -348,6 +374,41 @@ func natureKeywordIsBreakRoomFalsePositive(paddedUpper, keyword string) bool {
 	}
 	return strings.Contains(paddedUpper, " BREAK ROOM") ||
 		strings.Contains(paddedUpper, " IN THE BREAK ROOM")
+}
+
+// natureKeywordIsRadioBreakFalsePositive rejects bare BREAK as radio
+// procedure ("BREAK FOR THE NAME", trailing BREAK) unless the transcript
+// is a unit meal/break or a glass/forced-entry break.
+func natureKeywordIsRadioBreakFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if ku != "BREAK" {
+		return false
+	}
+	if strings.Contains(paddedUpper, " BREAK TIME") || strings.Contains(paddedUpper, " COFFEE BREAK") ||
+		strings.Contains(paddedUpper, " ON BREAK") || strings.Contains(paddedUpper, " LUNCH BREAK") ||
+		strings.Contains(paddedUpper, " GLASS BREAK") || strings.Contains(paddedUpper, " WINDOW BREAK") {
+		return false
+	}
+	return true
+}
+
+// natureKeywordIsDepartmentRescueFalsePositive rejects bare RESCUE when it is
+// only the company name ("WESTFIELD RESCUE REQUEST FOR YOUR SQUAD") and the
+// transcript has no entrapment/extrication evidence.
+func natureKeywordIsDepartmentRescueFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if ku != "RESCUE" {
+		return false
+	}
+	for _, ev := range []string{
+		" ENTRAPMENT ", " EXTRICATION ", " PINNED ", " TRAPPED ",
+		" PERSON TRAPPED ", " PEOPLE TRAPPED ", " VEHICLE EXTRICATION ",
+	} {
+		if strings.Contains(paddedUpper, ev) {
+			return false
+		}
+	}
+	return true
 }
 
 func natureKeywordBlockedInMedicalDispatch(paddedUpper, keyword string) bool {
@@ -469,8 +530,21 @@ func natureWordStemMatch(transcriptTok, keyword string) bool {
 	if (tailA == "LY") != (tailB == "LY") {
 		return false
 	}
-	// Allow short grammatical suffix differences (-ED/-ION/-ING/-NESS).
-	return stem >= shorter-3
+	// Allow only inflectional suffix differences (-ED/-ION/-ING/-NESS/-S).
+	// Derivational extras (PERSON+AL, PERSON+NEL) are different words —
+	// "SQUAD PERSONNEL" and "INJURED PERSON" must not become PERSONAL.
+	return natureInflectionalSuffix(a[stem:]) && natureInflectionalSuffix(b[stem:])
+}
+
+// natureInflectionalSuffix is a same-word grammatical ending, not a
+// derivational suffix that builds a new lexical item (AL/IVE/OUS/MENT).
+func natureInflectionalSuffix(suffix string) bool {
+	suffix = strings.ToUpper(strings.TrimSpace(suffix))
+	switch suffix {
+	case "", "S", "ES", "ED", "ING", "ION", "TION", "SION", "NESS", "ER", "OR", "Y":
+		return true
+	}
+	return false
 }
 
 func natureMorphologicalSuffix(suffix string) bool {
@@ -791,10 +865,9 @@ func natureLabelIsStreetSuffixFalsePositive(label, paddedUpper string) bool {
 	n := strings.ToUpper(strings.TrimSpace(label))
 	switch n {
 	case "COURT", "CT":
-		if courtNatureExplicitlySpoken(paddedUpper) {
-			return false
-		}
-		return streetAddressCourtRE.MatchString(strings.Trim(paddedUpper, " "))
+		// Bare COURT is a street suffix (CORKWOOD COURT, MAPLE LEAF COURT)
+		// unless dispatch actually said a legal-court cue.
+		return !courtNatureExplicitlySpoken(paddedUpper)
 	default:
 		return false
 	}
@@ -1328,7 +1401,1156 @@ func SanitizeCallNatureAssignment(transcript, nature string, natureCodes []strin
 	if corrected := correctFalseMedicalAlarmNature(u, nature, natureCodes); corrected != nature {
 		return corrected
 	}
+	if strings.EqualFold(nature, "ALLERGIC REACTION") && !allergicEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "BREAK") && natureKeywordIsRadioBreakFalsePositive(u, "BREAK") {
+		return ""
+	}
+	if strings.EqualFold(nature, "PERSONAL") && !personalNatureEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "CHECK WELFARE") && !welfareEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "PERSON WITH GUN") && natureKeywordIsBareGunFalsePositive(u, "GUN") {
+		return ""
+	}
+	if strings.EqualFold(nature, "PERSON WITH KNIFE") && knifeMentionIsNotAThreat(u) {
+		if knifeBodyCutSpoken(u) {
+			if label := clampNatureLabel("BLEEDING", natureCodes); label != "" {
+				return label
+			}
+		}
+		if knifeSelfHarmSpoken(u) {
+			if label := clampNatureLabel("SUICIDE", natureCodes); label != "" {
+				return label
+			}
+		}
+		return ""
+	}
+	if knifeSelfHarmSpoken(u) && !knifeThreatFrame(u) && strings.EqualFold(nature, "THREATS") {
+		if label := clampNatureLabel("SUICIDE", natureCodes); label != "" {
+			return label
+		}
+	}
+	if strings.EqualFold(nature, "PURSUIT") && natureKeywordIsChaseUnitOrStreet(u, "CHASE") &&
+		!strings.Contains(u, " PURSUIT ") {
+		return ""
+	}
+	if strings.EqualFold(nature, "LUNCH") && natureKeywordIsUnitLunch(u, "LUNCH") {
+		return ""
+	}
+	if strings.EqualFold(nature, "CELL PHONE CALLS") && natureKeywordIsOfficerCellOrProperty(u, "CELL PHONE") {
+		return ""
+	}
+	if strings.EqualFold(nature, "HANGING") && natureKeywordIsHangingFalsePositive(u, "HANGING") {
+		return ""
+	}
+	if strings.EqualFold(nature, "LIFT ASSIST") && !liftAssistEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "FALL") &&
+		(natureKeywordIsFallsPlaceName(u, "FALL") || natureKeywordIsFallenStreetName(u, "FALLEN")) {
+		return ""
+	}
+	if strings.EqualFold(nature, "SHORTNESS OF BREATH") && !breathingDifficultyEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "STANDBY") && natureKeywordIsRadioStandbyFalsePositive(u, "STANDBY") {
+		return ""
+	}
+	if strings.EqualFold(nature, "MENTAL") && mentalStatusOnlyInTranscript(u) {
+		if label := clampNatureLabel("ALTERED LEVEL OF CONSCIOUSNESS", natureCodes); label != "" {
+			return label
+		}
+		return ""
+	}
+	if strings.EqualFold(nature, "ELECTRICAL FIRE") && !electricalFireEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "STRUCTURE FIRE") && !structureFireEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "FIRE ALARM DROP") && natureKeywordIsCarAlarmFalsePositive(u, "FIRE ALARM") {
+		return ""
+	}
+	if strings.EqualFold(nature, "HEART PROBLEM") && !heartProblemEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "FRACTURE") && natureKeywordIsBrokenPropertyFalsePositive(u, "BROKEN") {
+		return ""
+	}
+	if strings.EqualFold(nature, "CRASH WITH REPORTED INJURIES") && natureKeywordIsCrashUnitOrGasLineFalsePositive(u, "CRASH") {
+		return ""
+	}
+	if strings.EqualFold(nature, "BURNS") {
+		if strings.Contains(u, " OPEN BURN ") || strings.Contains(u, " BURNING COMPLAINT ") {
+			if label := clampNatureLabel("BURNING COMPLAINT", natureCodes); label != "" {
+				return label
+			}
+			return ""
+		}
+		if !burnInjuryEvidenceInTranscript(u) {
+			return ""
+		}
+	}
+	if strings.EqualFold(nature, "DOA") && !doaEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "DUMPSTER FIRE") && !dumpsterFireEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "ATV/DIRTBIKE") && !atvDirtbikeEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "DRUG ACTIVITY") && natureKeywordIsDrugMartFalsePositive(u, "DRUGS") {
+		return ""
+	}
+	if strings.EqualFold(nature, "OB/GYN") {
+		if strings.Contains(u, " LABORED BREATHING ") &&
+			!strings.Contains(u, " PREGNANT ") && !strings.Contains(u, " IN LABOR ") {
+			if label := clampNatureLabel("SHORTNESS OF BREATH", natureCodes); label != "" {
+				return label
+			}
+			return ""
+		}
+		if natureKeywordIsNonObstetricLaborFalsePositive(u, "LABOR") {
+			return ""
+		}
+	}
+	if strings.EqualFold(nature, "STROKE") &&
+		(strings.Contains(u, " HEAT STROKE ") || strings.Contains(u, " HEATSTROKE ") || strings.Contains(u, " SUN STROKE ")) &&
+		!strings.Contains(u, " STROKE SYMPTOMS ") && !strings.Contains(u, " CVA ") {
+		if label := clampNatureLabel("GENERAL ILLNESS", natureCodes); label != "" {
+			return label
+		}
+		return ""
+	}
+	if strings.EqualFold(nature, "UNCONSCIOUS/FAINTED") && !unconsciousFaintedEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "FIGHT") &&
+		(strings.Contains(u, " TWO DOGS ") || strings.Contains(u, " DOGS ARE ") || strings.Contains(u, " DOG FIGHT ")) {
+		if label := clampNatureLabel("ANIMAL COMPLAINT", natureCodes); label != "" {
+			return label
+		}
+		return ""
+	}
+	if strings.EqualFold(nature, "ASSAULT") && natureKeywordIsElectricBatteryFalsePositive(u, "BATTERY") &&
+		!strings.Contains(u, " ASSAULT ") {
+		return ""
+	}
+	if strings.EqualFold(nature, "DRILL") && strings.Contains(u, " ROTC DRILL ") {
+		return ""
+	}
+	if (strings.EqualFold(nature, "ACTIVE SHOOTER") || strings.EqualFold(nature, "ACTIVE SHOOTER INCIDENT")) &&
+		strings.Contains(u, " THIS IS A DRILL ") {
+		if label := clampNatureLabel("DRILL", natureCodes); label != "" {
+			return label
+		}
+		return ""
+	}
+	if strings.EqualFold(nature, "CHIMNEY FIRE") && !chimneyFireEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "BOMB THREAT") && !bombThreatEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "HOMICIDE OR POSSIBLE HOMICIDE") {
+		if homicidalIdeationInTranscript(u) {
+			if label := clampNatureLabel("MENTAL", natureCodes); label != "" {
+				return label
+			}
+			return ""
+		}
+		if !homicideEvidenceInTranscript(u) {
+			return ""
+		}
+	}
+	if strings.EqualFold(nature, "SEX OFFENSE") && natureKeywordIsSexOffenderRegistryFalsePositive(u, "SEX OFFENSE") {
+		return ""
+	}
+	if strings.EqualFold(nature, "ABDUCTION OR KIDNAPPING") && natureKeywordIsKidnapMetaphorFalsePositive(u, "KIDNAP") {
+		return ""
+	}
+	if strings.EqualFold(nature, "DROWNING") && strings.Contains(u, " DOG FELL IN THE POOL ") {
+		if label := clampNatureLabel("ANIMAL COMPLAINT", natureCodes); label != "" {
+			return label
+		}
+		return ""
+	}
+	if strings.EqualFold(nature, "SHOTS FIRED") && natureKeywordIsLongShot(u, "SHOTS") {
+		return ""
+	}
+	if strings.EqualFold(nature, "FIRE ALARM DROP") && !fireAlarmEvidenceInTranscript(u) &&
+		securityAlarmEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "CARDIAC ARREST") && !cardiacArrestEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "LAKE EMERGENCY") && !lakeEmergencyEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "PUMPS") && !pumpsIncidentEvidenceInTranscript(u) {
+		return ""
+	}
+	if strings.EqualFold(nature, "BREAK") &&
+		(strings.Contains(u, " BREAK IN") || strings.Contains(u, " BREAK-IN") ||
+			strings.Contains(u, " BREAK INTO ") || strings.Contains(u, " BREAKING AND ENTERING")) {
+		if label := clampNatureLabel("BREAKING AND ENTERING", natureCodes); label != "" {
+			return label
+		}
+		if label := clampNatureLabel("BURGLARY", natureCodes); label != "" {
+			return label
+		}
+		return ""
+	}
 	return nature
+}
+
+func allergicEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" ALLERGIC ", " ALLERGY ", " ALLERGIES ", " ANAPHYLAXIS ", " ANAPHYLACTIC ",
+		" BEE STING ", " BEE STINGS ", " STUNG ", " EPINEPHRINE ", " EPI PEN ", " EPIPEN ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func personalNatureEvidenceInTranscript(paddedUpper string) bool {
+	return strings.Contains(paddedUpper, " PERSONAL ") &&
+		!strings.Contains(paddedUpper, " PERSONNEL ") &&
+		!strings.Contains(paddedUpper, " PERSONAL ALARM ") &&
+		!strings.Contains(paddedUpper, " PERSONAL INJURY ") &&
+		!strings.Contains(paddedUpper, " ACTING PERSONAL ") &&
+		!strings.Contains(paddedUpper, " PERSONAL ITEMS ") &&
+		!strings.Contains(paddedUpper, " PERSONAL SERVICE ") &&
+		!strings.Contains(paddedUpper, " QUICK PERSONAL ") &&
+		!strings.Contains(paddedUpper, " ON A PERSONAL ")
+}
+
+func welfareEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" WELFARE ", " WELL BEING ", " WELL-BEING ", " WELLBEING ",
+		" WELLNESS CHECK ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// natureKeywordIsAreaCheckFalsePositive rejects "CHECK THE AREA" / bare
+// "CHECK ON" when dispatch never said welfare or well-being.
+func natureKeywordIsAreaCheckFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "CHECK ON", "CHECK THE AREA", "CHECK FOR HER", "CHECK FOR HIM",
+		"CHECK ON THE CALLER", "CHECK WELFARE":
+		return !welfareEvidenceInTranscript(paddedUpper)
+	default:
+		return false
+	}
+}
+
+// natureKeywordIsKnifeCutNotThreat rejects "WITH A KNIFE" when the knife is
+// how someone cut themselves or a piece of property. PERSON WITH KNIFE is a
+// person threatening someone else (pulled a knife, armed, chasing, domestic).
+func natureKeywordIsKnifeCutNotThreat(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "WITH A KNIFE", "WITH THE KNIFE":
+	default:
+		return false
+	}
+	return knifeMentionIsNotAThreat(paddedUpper)
+}
+
+// knifeMentionIsNotAThreat is true when a knife is a cut, self-harm, or
+// property damage, and nobody is threatening another person with it.
+func knifeMentionIsNotAThreat(paddedUpper string) bool {
+	if knifeThreatFrame(paddedUpper) {
+		return false
+	}
+	return knifeBodyCutSpoken(paddedUpper) || knifeSelfHarmSpoken(paddedUpper) || knifeUsedOnProperty(paddedUpper)
+}
+
+func knifeThreatFrame(padded string) bool {
+	for _, cue := range []string{
+		" ARMED WITH ",
+		" HAS A KNIFE ", " HAD A KNIFE ", " HAVE A KNIFE ",
+		" PULLED A KNIFE ", " PULLED THE KNIFE ", " PULL A KNIFE ", " PULLING A KNIFE ",
+		" KNIFE OUT ", " KNIFE IN HIS HAND ", " KNIFE IN HER HAND ", " KNIFE IN HAND ",
+		" CHASING ", " CHASED ",
+		" WIELDING ", " BRANDISH",
+		" DOMESTIC ",
+		" ATTACKED ", " ATTACKING ", " ATTACK ",
+		" STABBED HIM ", " STABBED HER ", " STABBED THE ", " STABBED A ",
+		" STAB HIM ", " STAB HER ", " STAB THE ", " STAB THEM ",
+		" TO STAB ", " STABBING ",
+		" FIGHT ", " FIGHTING ",
+		" PERSON WITH A KNIFE ", " PERSON WITH THE KNIFE ",
+		" MAN WITH A KNIFE ", " MAN WITH THE KNIFE ",
+		" WOMAN WITH A KNIFE ", " WOMAN WITH THE KNIFE ",
+		" MALE WITH A KNIFE ", " MALE WITH THE KNIFE ",
+		" FEMALE WITH A KNIFE ", " FEMALE WITH THE KNIFE ",
+		" SUBJECT WITH A KNIFE ", " SUBJECT WITH THE KNIFE ",
+		" SOMEONE WITH A KNIFE ", " SOMEONE WITH THE KNIFE ",
+		" GUY WITH A KNIFE ", " KID WITH A KNIFE ",
+		" THREATENING WITH ", " THREATENED WITH ",
+		" THREATENING TO STAB ", " THREATENED TO STAB ",
+		" THREATENING HIM ", " THREATENING HER ", " THREATENING THEM ",
+		" POINTING A KNIFE ", " POINTED A KNIFE ",
+	} {
+		if strings.Contains(padded, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+func knifeBodyCutSpoken(padded string) bool {
+	cut := strings.Contains(padded, " CUT ") || strings.Contains(padded, " CUTS ") ||
+		strings.Contains(padded, " CUTTING ") || strings.Contains(padded, " SLICED ") ||
+		strings.Contains(padded, " SLICE ") || strings.Contains(padded, " SLICING ") ||
+		strings.Contains(padded, " LACERAT")
+	if !cut {
+		return false
+	}
+	for _, part := range []string{
+		"FINGER", "FINGERS", "THUMB", "THUMBS", "HAND", "HANDS", "PALM", "KNUCKLE",
+		"WRIST", "ARM", "FOREARM", "LEG", "TOE", "TOES", "FOOT", "FEET",
+	} {
+		if strings.Contains(padded, " "+part+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+func knifeSelfHarmSpoken(padded string) bool {
+	for _, cue := range []string{
+		" KNIFE TO HER NECK ", " KNIFE TO HIS NECK ", " KNIFE TO THEIR NECK ",
+		" KNIFE TO HER THROAT ", " KNIFE TO HIS THROAT ", " KNIFE TO THEIR THROAT ",
+		" CUTTING HIMSELF ", " CUTTING HERSELF ", " CUTTING THEMSELVES ",
+		" CUT HERSELF ", " CUT HIMSELF ",
+		" HARMING HERSELF ", " HARMING HIMSELF ", " HARMING THEMSELVES ",
+	} {
+		if strings.Contains(padded, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+func knifeUsedOnProperty(padded string) bool {
+	return strings.Contains(padded, " TIRE ") || strings.Contains(padded, " TIRES ")
+}
+
+// natureKeywordIsBareGunFalsePositive rejects the word GUN unless a person is
+// armed (NCIC "gun check clear" and "gunshot" traffic are not this nature).
+func natureKeywordIsBareGunFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "GUN", "GUNS":
+	default:
+		return false
+	}
+	for _, ev := range []string{
+		" WITH A GUN ", " WITH GUN ", " WITH GUNS ", " PULLED A GUN ",
+		" WAVING A GUN ", " MAN WITH GUN ", " PERSON WITH GUN ",
+		" SUBJECT WITH GUN ", " ARMED SUBJECT ", " HAS A GUN ",
+		" HAS THE GUN ", " HAS HIS GUN ", " HAS HER GUN ", " GUN OUT ",
+		" GUN BEING PULLED ", " GUN WAS PULLED ", " POINTING A GUN ", " BRANDISH ", " FIREARM ", " A FIREARM ",
+	} {
+		if strings.Contains(paddedUpper, ev) {
+			return false
+		}
+	}
+	return true
+}
+
+// natureKeywordIsChaseUnitOrStreet rejects CHASE when it is an apparatus name
+// (GREEN CHASE 1) or a street (HICKORY CHASE WAY), not a vehicle pursuit.
+func natureKeywordIsChaseUnitOrStreet(paddedUpper, keyword string) bool {
+	if strings.ToUpper(strings.TrimSpace(keyword)) != "CHASE" {
+		return false
+	}
+	for _, ev := range []string{
+		" FOOT PURSUIT ", " VEHICLE PURSUIT ", " IN A PURSUIT ", " IN PURSUIT ",
+		" HIGH SPEED PURSUIT ", " PURSUIT THE ", " A PURSUIT ",
+	} {
+		if strings.Contains(paddedUpper, ev) {
+			return false
+		}
+	}
+	return true
+}
+
+func natureKeywordIsUnitLunch(paddedUpper, keyword string) bool {
+	return strings.ToUpper(strings.TrimSpace(keyword)) == "LUNCH"
+}
+
+// natureKeywordIsOfficerCellOrProperty rejects CELL PHONE when it is a unit's
+// radio ID, a stolen/left phone, or property — not an incomplete 911.
+func natureKeywordIsOfficerCellOrProperty(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if !strings.Contains(ku, "CELL") {
+		return false
+	}
+	if strings.Contains(paddedUpper, " 911 ") &&
+		(strings.Contains(paddedUpper, " INCOMPLETE ") ||
+			strings.Contains(paddedUpper, " ABANDONED ") ||
+			strings.Contains(paddedUpper, " DISCONNECTED ") ||
+			strings.Contains(paddedUpper, " NOTHING HEARD ") ||
+			strings.Contains(paddedUpper, " NO ANSWER ")) {
+		return false
+	}
+	if strings.Contains(paddedUpper, " 911 FROM CELL ") ||
+		strings.Contains(paddedUpper, " 911 CELL PHONE ") {
+		return false
+	}
+	return true
+}
+
+func natureKeywordIsHangingFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "HANGING", "HANGED":
+	default:
+		return false
+	}
+	if strings.Contains(paddedUpper, " HANGING FIRE ") ||
+		strings.Contains(paddedUpper, " HANGING ON THE ") ||
+		strings.Contains(paddedUpper, " HANGING OUT ") {
+		return true
+	}
+	return false
+}
+
+func liftAssistEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" LIFT ASSIST ", " LIFT ASSISTANCE ", " INVALID ASSIST ",
+		" ASSIST UP ", " HELP UP ", " CANNOT GET UP ", " CAN T GET UP ",
+		" UNABLE TO GET UP ", " STUCK IN A CHAIR ", " CANNOT STAND ",
+		" UNABLE TO WALK ", " CANNOT WALK ", " CAN T WALK ", " NOT ABLE TO WALK ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsBareLiftFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "LIFT", "LIFT ASSIST", "INVALID ASSIST":
+	default:
+		return false
+	}
+	return !liftAssistEvidenceInTranscript(paddedUpper)
+}
+
+func natureKeywordIsTooShortAbbrev(keyword string) bool {
+	return strings.ToUpper(strings.TrimSpace(keyword)) == "INV"
+}
+
+func cardiacArrestEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" CARDIAC ARREST ", " FULL ARREST ", " CODE BLUE ", " CPR ",
+		" CPR IN PROGRESS ", " NOT BREATHING ", " NON BREATHER ",
+		" V-FIB ", " V FIB ", " VFIB ", " ASYSTOLE ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	if strings.Contains(paddedUpper, " CARDIAC ") && !strings.Contains(paddedUpper, " CARDINAL ") {
+		return true
+	}
+	return false
+}
+
+func natureKeywordIsCardinalPlaceName(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "CARDIAC", "CARDIAC ARREST":
+	default:
+		return false
+	}
+	return strings.Contains(paddedUpper, " CARDINAL ") && !cardiacArrestEvidenceInTranscript(paddedUpper)
+}
+
+func lakeEmergencyEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" IN THE LAKE ", " PERSON IN THE LAKE ", " SUBJECT IN THE LAKE ",
+		" BOAT EMERGENCY ", " BOAT IN DISTRESS ", " DROWNING ",
+		" PERSON IN THE WATER ", " IN THE WATER ", " JET SKI ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func pumpsIncidentEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" NEED PUMPS ", " REQUESTING PUMPS ", " PUMP FAILURE ",
+		" BOOSTER PUMP ", " DRAFTING ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsPumpFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "PUMP", "PUMPS":
+	default:
+		return false
+	}
+	return !pumpsIncidentEvidenceInTranscript(paddedUpper)
+}
+
+// natureKeywordIsFallsPlaceName rejects FALL when the only hit is a place
+// (FALLS AVENUE, FALLS EMS, CUYAHOGA FALLS) and nobody actually fell.
+func natureKeywordIsFallsPlaceName(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "FALL", "FALLS":
+	default:
+		return false
+	}
+	for _, ev := range []string{
+		" FELL ", " FALL VICTIM ", " FALL PATIENT ", " FALL FROM ",
+		" A FALL ", " THE FALL ", " FOR A FALL ", " FOR FALL ", " FALL WITH ",
+		" FALL BETWEEN ", " FALLS BETWEEN ", " MULTIPLE FALLS ",
+	} {
+		if strings.Contains(paddedUpper, ev) {
+			return false
+		}
+	}
+	tokens := natureTranscriptTokens(paddedUpper)
+	if n := len(tokens); n >= 2 && tokens[n-1] == "FALLS" {
+		prev := tokens[n-2]
+		if prev != "CUYAHOGA" && prev != "MONROE" && prev != "NEWTON" &&
+			prev != "CHAGRIN" && prev != "GRAND" && prev != "MEADOW" &&
+			prev != "OLMSTED" && prev != "VALLEY" && prev != "SOUTH" &&
+			prev != "NORTH" && prev != "EAST" && prev != "WEST" && prev != "AND" {
+			return false
+		}
+	}
+	if fallenPatientEvidenceInTranscript(paddedUpper) {
+		return false
+	}
+	if strings.Contains(paddedUpper, " FALL ") && !strings.Contains(paddedUpper, " FALLS ") {
+		return false
+	}
+	return strings.Contains(paddedUpper, " FALLS ")
+}
+
+// fallenPatientEvidenceInTranscript is a person who has fallen — not FALLEN ROAD.
+func fallenPatientEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" HAS FALLEN ", " HAD FALLEN ", " HAVE FALLEN ", " FALLEN DOWN ",
+		" FALLEN OFF ", " FALLEN FROM ", " FALLEN OUT ", " FALLEN ON ",
+		" PATIENT FALLEN ", " PERSON FALLEN ", " FALLEN PATIENT ",
+		" FALLEN PERSON ", " FALLEN VICTIM ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// natureKeywordIsFallenStreetName rejects FALL/FALLEN when the only hit is a
+// street (FALLEN ROAD, "...AND FALLEN") and nobody actually fell.
+func natureKeywordIsFallenStreetName(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "FALL", "FALLS", "FALLEN":
+	default:
+		return false
+	}
+	if fallenPatientEvidenceInTranscript(paddedUpper) {
+		return false
+	}
+	tokens := natureTranscriptTokens(paddedUpper)
+	for i, tok := range tokens {
+		if tok != "FALLEN" {
+			continue
+		}
+		if i+1 >= len(tokens) {
+			if i > 0 && tokens[i-1] == "AND" {
+				return true
+			}
+			continue
+		}
+		switch tokens[i+1] {
+		case "ROAD", "RD", "STREET", "ST", "AVENUE", "AVE", "DRIVE", "DR",
+			"LANE", "LN", "BOULEVARD", "BLVD", "WAY", "COURT", "CT",
+			"PLACE", "PL", "CIRCLE", "CIR", "HIGHWAY", "HWY",
+			"SOUTHWEST", "SOUTHEAST", "NORTHWEST", "NORTHEAST", "SW", "SE", "NW", "NE":
+			return true
+		}
+	}
+	return false
+}
+
+// breathingDifficultyEvidenceInTranscript requires a spoken breathing
+// complaint. Vital-status "conscious and breathing" and STT lookalikes
+// (BREEDING DIFFICULTY) are not evidence.
+func breathingDifficultyEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" BREATHING DIFFICULT", " DIFFICULTY BREATHING ", " TROUBLE BREATHING ",
+		" HARD TIME BREATHING ", " SHORT OF BREATH ", " SHORT OF THE BREATH ",
+		" SHORTNESS OF BREATH ", " OUT OF BREATH ", " CATCH HIS BREATH ",
+		" CATCH HER BREATH ", " CATCH THEIR BREATH ", " SOB ", " RESPIRATORY ",
+		" DYSPNEA ", " BREATHING PROBLEM ", " BREATHING PROBLEMS ",
+		" BREATHING ISSUE ", " BREATHING ISSUES ", " LABORED BREATHING ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func mentalStatusOnlyInTranscript(paddedUpper string) bool {
+	if strings.Contains(paddedUpper, " MENTAL HEALTH ") ||
+		strings.Contains(paddedUpper, " MENTALLY ILL ") ||
+		strings.Contains(paddedUpper, " MENTAL ILLNESS ") ||
+		strings.Contains(paddedUpper, " MENTAL EVAL ") ||
+		strings.Contains(paddedUpper, " MENTAL EVALUATION ") ||
+		strings.Contains(paddedUpper, " MENTAL BREAKDOWN ") ||
+		strings.Contains(paddedUpper, " PSYCH ") ||
+		strings.Contains(paddedUpper, " PSYCHIATRIC ") ||
+		strings.Contains(paddedUpper, " BEHAVIORAL ") {
+		return false
+	}
+	for _, kw := range []string{
+		" MENTAL STATUS ", " CHANGE IN MENTAL ", " ALTERED MENTAL ",
+		" ALTERED LOC ", " A LOC ", " AMS ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func heartProblemEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" HEART ATTACK ", " HEART PROBLEM ", " HEART PROBLEMS ",
+		" HEART RATE ", " CARDIAC EVENT ", " POSSIBLE HEART ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func electricalFireEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" ELECTRICAL FIRE ", " ELECTRIC FIRE ", " SMELL OF AN ELECTRICAL BURN ",
+		" ELECTRICAL BURNING ", " SPARKING ", " SPARKING AND ",
+		" ARCING ", " WIRES ON FIRE ", " WIRE ON FIRE ", " POLE ON FIRE ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsElectricalPlaceFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "ELECTRICAL", "ELECTRICAL FIRE", "ELECTRIC FIRE":
+	default:
+		return false
+	}
+	return !electricalFireEvidenceInTranscript(paddedUpper)
+}
+
+func structureFireEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" STRUCTURE FIRE ", " RESTRUCTURE FIRE ", " STRUCTURED FIRE ", " HOUSE FIRE ", " BUILDING FIRE ",
+		" APARTMENT FIRE ", " GARAGE FIRE ", " KITCHEN FIRE ", " STOVE FIRE ",
+		" OVEN FIRE ", " WORKING FIRE ", " FULLY INVOLVED ", " BOX ALARM ",
+		" SECOND ALARM ", " 2ND ALARM ", " FIREBOX ", " FIRE BOX ",
+		" FIRE IN THE ", " ON FIRE ", " POSSIBLE STRUCTURE FIRE ", " RESIDENTIAL FIRE ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsCarAlarmFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "ALARM", "FIRE ALARM", "FIRE ALARM DROP", "AUTOMATIC ALARM",
+		"ALARM FIRE", "HIGH RISE ALARM":
+	default:
+		return false
+	}
+	if fireAlarmEvidenceInTranscript(paddedUpper) || structureFireEvidenceInTranscript(paddedUpper) {
+		return false
+	}
+	return strings.Contains(paddedUpper, " CAR ALARM ")
+}
+
+func fracturePatientEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" FRACTURE ", " FRACTURED ", " BROKEN BONE ", " BROKEN LEG ",
+		" BROKEN LEGS ", " BROKEN ARM ", " BROKEN ARMS ", " BROKEN HIP ",
+		" BROKEN ANKLE ", " BROKEN WRIST ", " BROKEN FOOT ", " BROKEN SHOULDER ",
+		" BROKEN NOSE ", " BROKEN JAW ", " BROKEN RIB ", " BROKEN RIBS ",
+		" BROKEN COLLARBONE ", " BROKE HIS LEG ", " BROKE HER LEG ",
+		" BROKE HIS ARM ", " BROKE HER ARM ", " BROKE HIS HIP ", " BROKE HER HIP ",
+		" BROKE HIS ANKLE ", " BROKE HER ANKLE ", " BROKE HIS WRIST ",
+		" BROKE HER WRIST ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsBrokenPropertyFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if !strings.Contains(ku, "BROKEN") && !strings.Contains(ku, "FRACTURE") &&
+		!strings.Contains(ku, "BROKE") {
+		return false
+	}
+	if fracturePatientEvidenceInTranscript(paddedUpper) {
+		return false
+	}
+	for _, prop := range []string{
+		" BROKEN INTO ", " BROKEN WINDOW ", " WINDOW IS BROKEN ",
+		" WINDOW BROKEN ", " NOTHING APPEARS BROKEN ", " BROKEN DOWN ",
+		" BROKEN PIPE ", " BROKE HER TV ", " BROKE HIS TV ", " BROKE A ",
+	} {
+		if strings.Contains(paddedUpper, prop) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsCrashUnitOrGasLineFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if !strings.Contains(ku, "CRASH") && !strings.Contains(ku, "ACCIDENT") &&
+		!strings.Contains(ku, "COLLISION") && ku != "MVA" {
+		return false
+	}
+	if strings.Contains(paddedUpper, " CRASH ONE ") ||
+		strings.Contains(paddedUpper, " CRASH 1 ") ||
+		strings.Contains(paddedUpper, " GAS LINE HIT ") ||
+		strings.Contains(paddedUpper, " HIT A GAS LINE ") ||
+		strings.Contains(paddedUpper, " ACCIDENTALLY CALLED ") ||
+		strings.Contains(paddedUpper, " ACCIDENTALLY DIALED ") ||
+		strings.Contains(paddedUpper, " ACCIDENTALLY HIT 911 ") ||
+		strings.Contains(paddedUpper, " 911 ACCIDENTAL ") {
+		return !strings.Contains(paddedUpper, " ACCIDENT WITH INJURY") &&
+			!strings.Contains(paddedUpper, " VEHICLE ACCIDENT ") &&
+			!strings.Contains(paddedUpper, " CAR ACCIDENT ") &&
+			!strings.Contains(paddedUpper, " TRAFFIC COLLISION ") &&
+			!strings.Contains(paddedUpper, " MVA ")
+	}
+	return false
+}
+
+func burnInjuryEvidenceInTranscript(paddedUpper string) bool {
+	if strings.Contains(paddedUpper, " OPEN BURN ") ||
+		strings.Contains(paddedUpper, " BURN RESCUE ") ||
+		strings.Contains(paddedUpper, " BURNING SENSATION ") ||
+		strings.Contains(paddedUpper, " BURNERS ") {
+		return false
+	}
+	for _, kw := range []string{
+		" DEGREE BURN", " BURN INJURY ", " BURN VICTIM ", " THERMAL BURN ",
+		" SCALDED ", " BURNED HIS ", " BURNED HER ", " BURNED THEIR ",
+		" BURNED BY ", " HOT COFFEE ", " HOT WATER ", " HOT OIL ", " HOT GREASE ",
+		" BURNS ", " BURNED ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsBurnPlaceOrOpenBurnFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "BURN", "BURNS", "BURNED", "BURN INJURY", "THERMAL BURN":
+	default:
+		return false
+	}
+	return !burnInjuryEvidenceInTranscript(paddedUpper)
+}
+
+func doaEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" DOA ", " D O A ", " DEAD ON ARRIVAL ", " DECEASED ",
+		" OBVIOUS DEATH ", " PASSED AWAY ", " TIME OF DEATH ",
+		" COLD AND STIFF ", " RIGOR ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func dumpsterFireEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" DUMPSTER FIRE ", " TRASH FIRE ", " DUMPSTER ON FIRE ",
+		" DUMPSTER IS ON FIRE ", " FIRE IN THE DUMPSTER ", " FIRE IN A DUMPSTER ",
+		" DUMPSTER SMOKING ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsDumpsterWithoutFireFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "DUMPSTER", "DUMPSTER FIRE", "TRASH FIRE":
+	default:
+		return false
+	}
+	return !dumpsterFireEvidenceInTranscript(paddedUpper)
+}
+
+func atvDirtbikeEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" ATV ", " ATVS ", " DIRT BIKE ", " DIRT BIKES ", " DIRTBIKE ",
+		" DIRTBIKES ", " FOUR WHEELER ", " FOUR WHEELERS ", " 4 WHEELER ",
+		" QUAD ", " MINI BIKE ", " MINIBIKE ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsBareBikeFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if !strings.Contains(ku, "ATV") && !strings.Contains(ku, "BIKE") &&
+		!strings.Contains(ku, "WHEELER") {
+		return false
+	}
+	return !atvDirtbikeEvidenceInTranscript(paddedUpper)
+}
+
+func drugActivityEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" DRUG ACTIVITY ", " DRUG DEAL ", " DRUG USE ", " DRUG OFFENSE ",
+		" SELLING DRUGS ", " SMOKING DRUGS ", " UNDER THE INFLUENCE OF DRUGS ",
+		" ON DRUGS ", " NARCOTICS ", " MARIJUANA ", " HEROIN ", " FENTANYL ",
+		" COCAINE ", " METH ", " METHAMPHETAMINE ", " DRUG PARAPHERNALIA ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	if strings.Contains(paddedUpper, " DRUGS ") &&
+		!strings.Contains(paddedUpper, " NO DRINKING DRUGS ") &&
+		!strings.Contains(paddedUpper, " OR ON DRUGS ") &&
+		!strings.Contains(paddedUpper, " HISTORY OF DRUGS ") {
+		return true
+	}
+	return false
+}
+
+func natureKeywordIsDrugMartFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if !strings.Contains(ku, "DRUG") && !strings.Contains(ku, "NARCOTIC") {
+		return false
+	}
+	if drugActivityEvidenceInTranscript(paddedUpper) {
+		return false
+	}
+	return strings.Contains(paddedUpper, " DRUG MART ") ||
+		strings.Contains(paddedUpper, " DRUG STORE ") ||
+		strings.Contains(paddedUpper, " DRUG HER ") ||
+		strings.Contains(paddedUpper, " DRUG HIM ") ||
+		strings.Contains(paddedUpper, " DRUG THE ") ||
+		strings.Contains(paddedUpper, " DRUGGED THE ") ||
+		strings.Contains(paddedUpper, " NO DRINKING DRUGS ") ||
+		strings.Contains(paddedUpper, " OR ON DRUGS ") ||
+		strings.Contains(paddedUpper, " HISTORY OF DRUGS ")
+}
+
+func natureKeywordIsNonObstetricLaborFalsePositive(paddedUpper, keyword string) bool {
+	if strings.ToUpper(strings.TrimSpace(keyword)) != "LABOR" {
+		return false
+	}
+	for _, ok := range []string{
+		" IN LABOR ", " ACTIVE LABOR ", " INACTIVE LABOR ", " GOING INTO LABOR ",
+		" PREGNANT ", " PREGNANCY ", " CHILDBIRTH ", " CONTRACTIONS ",
+		" WATER BROKE ",
+	} {
+		if strings.Contains(paddedUpper, ok) {
+			return false
+		}
+	}
+	return strings.Contains(paddedUpper, " LABORED BREATHING ") ||
+		strings.Contains(paddedUpper, " MUTUAL LABOR ") ||
+		strings.Contains(paddedUpper, " LABOR DAY ")
+}
+
+func unconsciousFaintedEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" UNCONSCIOUS ", " UNRESPONSIVE ", " NOT RESPONSIVE ", " FAINTED ",
+		" FAINTING ", " PASSED OUT ", " PASSING OUT ", " PASS OUT ",
+		" SYNCOPAL ", " SYNCOPE ", " NOT BREATHING ", " SHALLOW BREATHING ",
+		" BARELY BREATHING ", " BARELY CONSCIOUS ", " IN AND OUT OF CONSCIOUSNESS ",
+		" LOST CONSCIOUSNESS ", " LAYING IN ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func standbyIncidentEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" FOR A STANDBY ", " FOR STANDBY ", " STANDBY AT ", " ON STANDBY ",
+		" FIRE STANDBY ", " MEDICAL STANDBY ", " LZ STANDBY ", " LANDING ZONE ",
+		" REQUEST ON STANDBY ", " REQUESTING STANDBY ", " TO STANDBY ",
+		" STANDBY FOR FIRE ", " STANDBY FOR POLICE ", " STANDBY FOR PD ",
+		" STANDBY FOR EMS ", " PROPERTY STANDBY ", " CIVIL STANDBY ",
+		" STANDBY FOR BELONGINGS ", " ASKING FOR A STAND BY ",
+		" ASKED FOR A STAND BY ", " REQUESTING A STAND BY ",
+		" REQUESTED TO STAND BY ", " COULD STAND BY ", " STAND BY WHILE ",
+		" STAND BY WITH ", " OFFICER S STANDBY ", " OFFICERS STANDBY ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// natureKeywordIsRadioStandbyFalsePositive rejects radio "stand by" / a person
+// standing somewhere when dispatch never requested a standby assignment.
+func natureKeywordIsRadioStandbyFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "STANDBY", "STAND BY", "STANDING BY":
+	default:
+		return false
+	}
+	return !standbyIncidentEvidenceInTranscript(paddedUpper)
+}
+
+func natureKeywordIsLongShot(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "SHOT", "SHOTS", "SHOTS FIRED", "SHOOTING":
+	default:
+		return false
+	}
+	if strings.Contains(paddedUpper, " LONG SHOT ") ||
+		strings.Contains(paddedUpper, " SHOT THROUGH ") ||
+		strings.Contains(paddedUpper, " SHOT PAST ") ||
+		strings.Contains(paddedUpper, " WATER SHOOTING ") ||
+		strings.Contains(paddedUpper, " SHOOTING UP IN THE AIR ") ||
+		strings.Contains(paddedUpper, " SHOOTING DOWN ") ||
+		strings.Contains(paddedUpper, " TETANUS SHOT ") ||
+		strings.Contains(paddedUpper, " FLU SHOT ") {
+		return !strings.Contains(paddedUpper, " SHOTS FIRED ") &&
+			!strings.Contains(paddedUpper, " SHOT FIRED ") &&
+			!strings.Contains(paddedUpper, " GUNSHOT ") &&
+			!strings.Contains(paddedUpper, " DRIVE BY SHOOTING ") &&
+			!strings.Contains(paddedUpper, " GOT SHOT ")
+	}
+	return false
+}
+
+func natureKeywordIsElectricBatteryFalsePositive(paddedUpper, keyword string) bool {
+	if strings.ToUpper(strings.TrimSpace(keyword)) != "BATTERY" {
+		return false
+	}
+	return strings.Contains(paddedUpper, " DETECTOR ") ||
+		strings.Contains(paddedUpper, " DETECTORS ") ||
+		strings.Contains(paddedUpper, " SMOKE ALARM ") ||
+		strings.Contains(paddedUpper, " CAR BATTERY ") ||
+		strings.Contains(paddedUpper, " DEAD BATTERY ") ||
+		strings.Contains(paddedUpper, " JUMP START ")
+}
+
+func natureKeywordIsDogFightFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "FIGHT", "FIGHTING":
+	default:
+		return false
+	}
+	return strings.Contains(paddedUpper, " TWO DOGS ") ||
+		strings.Contains(paddedUpper, " DOGS ARE CURRENTLY ") ||
+		strings.Contains(paddedUpper, " DOG FIGHT ")
+}
+
+func chimneyFireEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" CHIMNEY FIRE ", " FLUE FIRE ", " OUT OF THE CHIMNEY ",
+		" FROM A CHIMNEY ", " FROM THE CHIMNEY ", " CHIMNEY IS ON FIRE ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsChimneyStreetFalsePositive(paddedUpper, keyword string) bool {
+	switch strings.ToUpper(strings.TrimSpace(keyword)) {
+	case "CHIMNEY", "CHIMNEY FIRE", "FLUE FIRE":
+	default:
+		return false
+	}
+	return !chimneyFireEvidenceInTranscript(paddedUpper)
+}
+
+func bombThreatEvidenceInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" BOMB THREAT ", " BOMB SCARE ", " EXPLOSIVE THREAT ",
+		" PLANTED A BOMB ", " IS A BOMB ", " HAS A BOMB ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func homicidalIdeationInTranscript(paddedUpper string) bool {
+	for _, kw := range []string{
+		" HOMICIDAL THOUGHTS ", " HOMICIDAL IDEATION", " FEELING HOMICIDAL ",
+		" HOMICIDAL AND SUICIDAL ", " HOMICIDAL MALE ", " HOMICIDAL FEMALE ",
+		" HOMICIDAL TEXT ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func homicideEvidenceInTranscript(paddedUpper string) bool {
+	if strings.Contains(paddedUpper, " HOMICIDE UNIT ") ||
+		strings.Contains(paddedUpper, " HOMICIDE DETECTIVE ") ||
+		strings.Contains(paddedUpper, " WASN T HOMICIDAL ") ||
+		strings.Contains(paddedUpper, " NOT HOMICIDAL ") ||
+		strings.Contains(paddedUpper, " FUNERAL ") ||
+		homicidalIdeationInTranscript(paddedUpper) {
+		return false
+	}
+	for _, kw := range []string{
+		" POSSIBLE HOMICIDE ", " A HOMICIDE ", " THE HOMICIDE ",
+		" HOMICIDE SUSPECT ", " DECEASED ", " DEAD BODY ",
+	} {
+		if strings.Contains(paddedUpper, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func natureKeywordIsSexOffenderRegistryFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if !strings.Contains(ku, "SEX") && ku != "RAPE" {
+		return false
+	}
+	if strings.Contains(paddedUpper, " SEXUAL ASSAULT ") ||
+		strings.Contains(paddedUpper, " SEX OFFENSE ") ||
+		strings.Contains(paddedUpper, " SEX CRIME ") ||
+		strings.Contains(paddedUpper, " RAPED ") ||
+		strings.Contains(paddedUpper, " RAPE ") {
+		return strings.Contains(paddedUpper, " ASSAULT KITS ") ||
+			strings.Contains(paddedUpper, " ASSAULT KIT ")
+	}
+	return strings.Contains(paddedUpper, " SEX OFFENDER ")
+}
+
+func natureKeywordIsKidnapMetaphorFalsePositive(paddedUpper, keyword string) bool {
+	ku := strings.ToUpper(strings.TrimSpace(keyword))
+	if !strings.Contains(ku, "KIDNAP") && !strings.Contains(ku, "ABDUCTION") &&
+		!strings.Contains(ku, "HOSTAGE") {
+		return false
+	}
+	return strings.Contains(paddedUpper, " KIDNAPPED HIS PHONE ") ||
+		strings.Contains(paddedUpper, " KIDNAPPED HER PHONE ") ||
+		strings.Contains(paddedUpper, " KIDNAPPED THE KITTEN ") ||
+		strings.Contains(paddedUpper, " KIDNAPPED THE CAT ") ||
+		strings.Contains(paddedUpper, " KIDNAPPED THE DOG ") ||
+		strings.Contains(paddedUpper, " HOSTAGE DRIVE ") ||
+		strings.Contains(paddedUpper, " PREVIOUS 48 REGISTRATION KIDNAPPING ")
+}
+
+// adjustUnspecifiedAlarmNature sends a generic commercial/residential/general
+// alarm to the fire alarm label when a fire company is dispatched or the
+// talkgroup tag is fire. Tamper, burglar, intrusion, and the other security
+// cues stay burglary. serviceTag may be empty; the gateway has no tag.
+func adjustUnspecifiedAlarmNature(nature, transcript, serviceTag string, natureCodes []string) string {
+	if !strings.EqualFold(strings.TrimSpace(nature), "BURGLARY") {
+		return nature
+	}
+	u := " " + strings.ToUpper(transcript) + " "
+	if !genericSecurityAlarmPhrase(u) || specificSecurityAlarmCue(u) {
+		return nature
+	}
+	if !fireCompanyDispatched(u) && !strings.Contains(strings.ToUpper(serviceTag), "FIRE") {
+		return nature
+	}
+	if label := clampNatureLabel("FIRE ALARM DROP", natureCodes); label != "" {
+		return label
+	}
+	return nature
+}
+
+func genericSecurityAlarmPhrase(padded string) bool {
+	for _, cue := range []string{
+		" COMMERCIAL ALARM ", " RESIDENTIAL ALARM ", " GENERAL ALARM ",
+	} {
+		if strings.Contains(padded, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+func specificSecurityAlarmCue(padded string) bool {
+	for _, cue := range []string{
+		" TAMPER ", " BURGLAR ", " BURG ALARM ", " INTRUSION ", " HOLD UP ", " HOLDUP ",
+		" MOTION SENSOR ", " PANIC ALARM ", " ENTRY EXIT ", " SILENT ALARM ", " AUDIBLE ALARM ",
+		" ATM ALARM ", " ETM ALARM ",
+	} {
+		if strings.Contains(padded, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+func fireCompanyDispatched(padded string) bool {
+	for _, cue := range []string{
+		" BATTALION ", " ENGINE ", " LADDER ", " QUINT ", " TOWER ",
+	} {
+		if strings.Contains(padded, cue) {
+			return true
+		}
+	}
+	return false
 }
 
 // correctFalseMedicalAlarmNature rewrites ALARM DROP MEDICAL when the dispatch
@@ -1371,7 +2593,9 @@ func medicalAlarmEvidenceInTranscript(paddedUpper string) bool {
 func securityAlarmEvidenceInTranscript(paddedUpper string) bool {
 	for _, kw := range []string{
 		" TAMPER ", " BURGLAR ", " BURG ALARM ", " INTRUSION ", " HOLD UP ", " HOLDUP ",
-		" ATM ", " ETM ", " SILENT ALARM ", " AUDIBLE ALARM ",
+		" ATM ", " ETM ", " SILENT ALARM ", " AUDIBLE ALARM ", " COMMERCIAL ALARM ",
+		" RESIDENTIAL ALARM ", " MOTION SENSOR ", " PANIC ALARM ", " GENERAL ALARM ",
+		" ENTRY EXIT ",
 	} {
 		if strings.Contains(paddedUpper, kw) {
 			return true
@@ -1383,7 +2607,9 @@ func securityAlarmEvidenceInTranscript(paddedUpper string) bool {
 func fireAlarmEvidenceInTranscript(paddedUpper string) bool {
 	for _, kw := range []string{
 		" FIRE ALARM ", " SMOKE ALARM ", " SMOKE DETECTOR ", " AUTOMATIC ALARM ",
-		" TROUBLE ALARM ", " PULL STATION ",
+		" TROUBLE ALARM ", " PULL STATION ", " ALARM FIRE ", " FIRE DETECTOR ",
+		" HIGH RISE ALARM ", " DETECTOR BEEPING ", " DETECTOR CHIRPING ",
+		" ALARM CHIRPING ",
 	} {
 		if strings.Contains(paddedUpper, kw) {
 			return true
@@ -1530,6 +2756,8 @@ func transcriptDescribesSuicideRisk(paddedUpper string) bool {
 		" ATTEMPTED SUICIDE", " ATTEMPTED TO KILL", " INTENDS TO KILL", " INTENDS TO STRANGLE",
 		" STRANGLING HIMSELF", " STRANGLE HIMSELF", " STRANGLE MYSELF", " STRANGLING MYSELF",
 		" SUICIDAL", " SUICIDE ATTEMPT", " SUICIDE THREAT", " VIA HANGING", " HANGING HIMSELF",
+		" HANG HIMSELF", " HANG HERSELF", " HANG THEMSELF", " TO HANG HIMSELF",
+		" TO HANG HERSELF", " ATTEMPTING TO HANG", " ATTEMPTED TO HANG", " ATTEMPTED HANGING",
 		" KILL HIMSELF", " KILL MYSELF", " KILL HERSELF", " KILL THEMSELF",
 	} {
 		if strings.Contains(paddedUpper, cue) {

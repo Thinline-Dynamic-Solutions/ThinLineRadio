@@ -207,6 +207,17 @@ export interface IncidentRecord {
     relatedCallIds?: number[];
     /** Channel labels for related calls (same order as relatedCallIds). */
     relatedChannels?: string[];
+    /** Distinct nature labels across merged calls (e.g. CRASH / MUTUAL AID). */
+    relatedNatures?: string[];
+    /** Precomputed UI fields so sidebar template bindings are O(1) property reads. */
+    uiNatureLabel?: string;
+    uiAddress?: string;
+    uiChannel?: string;
+    uiTime?: string;
+    uiTagColor?: string;
+    uiTextColor?: string;
+    uiBgColor?: string;
+    uiSelectedShadow?: string;
 }
 
 export interface MappingBoundaryImportStatus {

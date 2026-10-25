@@ -178,8 +178,36 @@
         </div>
         <label class="pin-edit-field">
           <span>Address</span>
-          <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.address" autocomplete="off">
+          <div class="pin-edit-address-row">
+            <input class="toolbar-control"
+              type="text"
+              [(ngModel)]="pinEdit.address"
+              autocomplete="off"
+              (keydown.enter)="searchPinAddress(); $event.preventDefault()">
+            <button type="button"
+              class="toolbar-preset-btn pin-edit-find"
+              [disabled]="pinSearchBusy || !pinEdit.address.trim()"
+              (click)="searchPinAddress()">
+              {{ pinSearchBusy ? '…' : 'Find' }}
+            </button>
+          </div>
         </label>
+        @if (pinSearchError) {
+          <div class="pin-edit-error">{{ pinSearchError }}</div>
+        }
+        @if (pinSearchHits.length > 1) {
+          <div class="pin-edit-results">
+            @for (hit of pinSearchHits; track $index) {
+              <button type="button"
+                class="pin-edit-result"
+                [class.pin-edit-result--on]="pinSearchSelected === $index"
+                (click)="choosePinSearchHit($index, false)">
+                <span class="pin-edit-result__letter">{{ pinSearchLetter($index) }}</span>
+                <span>{{ hit.label }}</span>
+              </button>
+            }
+          </div>
+        }
         <label class="pin-edit-field">
           <span>Nature</span>
           <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.nature" autocomplete="off">

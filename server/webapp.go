@@ -15,7 +15,42 @@
 
 package main
 
-import "embed"
+import (
+	"embed"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+)
 
 //go:embed all:webapp
 var webapp embed.FS
+
+const defaultLiveWebappDir = "/opt/thinline-radio/webapp"
+
+// liveWebappDir is a disk overlay for the Angular UI. When set (or when the
+// default path has index.html), GET / and hashed JS/CSS are served from disk
+// so a UI rsync does not require rebuilding or restarting the binary.
+func liveWebappDir() string {
+	if d := strings.TrimSpace(os.Getenv("TLR_WEBAPP_DIR")); d != "" {
+		return d
+	}
+	if fi, err := os.Stat(filepath.Join(defaultLiveWebappDir, "index.html")); err == nil && !fi.IsDir() {
+		return defaultLiveWebappDir
+	}
+	return ""
+}
+
+func readWebappFile(name string) ([]byte, error) {
+	name = strings.TrimPrefix(path.Clean("/"+name), "/")
+	if name == "" || name == "." || strings.HasPrefix(name, "../") || strings.Contains(name, "/../") {
+		return nil, os.ErrNotExist
+	}
+	if root := liveWebappDir(); root != "" {
+		p := filepath.Join(root, filepath.FromSlash(name))
+		if b, err := os.ReadFile(p); err == nil {
+			return b, nil
+		}
+	}
+	return webapp.ReadFile(path.Join("webapp", name))
+}

@@ -25,14 +25,17 @@ type CallNature struct {
 	// range. Zero means incidents never force-expire.
 	ExpireMinutes uint
 	CreatedAt     int64
+	// Source is "catalog" for a category loaded from the ThinLine call
+	// classification database, or "local" for one this server added itself.
+	Source string
 }
 
 // CallNatureMatchData is the flattened catalog passed into the mapping pipeline.
 type CallNatureMatchData struct {
-	Labels            []string
-	MatchTerms        []string
-	PhraseToLabel     map[string]string
-	OpenAIClassify    bool
+	Labels         []string
+	MatchTerms     []string
+	PhraseToLabel  map[string]string
+	OpenAIClassify bool
 }
 
 type CallNaturesCache struct {
@@ -49,7 +52,7 @@ func (cache *CallNaturesCache) Read(db *Database) error {
 	if db == nil || db.Sql == nil {
 		return fmt.Errorf("database unavailable")
 	}
-	rows, err := db.Sql.Query(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt"
+	rows, err := db.Sql.Query(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt", "source"
 		FROM "callNatures" ORDER BY "order" ASC, "label" ASC`)
 	if err != nil {
 		return err
@@ -63,11 +66,12 @@ func (cache *CallNaturesCache) Read(db *Database) error {
 			phrasesJSON string
 			enabled     bool
 		)
-		if err := rows.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.ExpireMinutes, &n.CreatedAt); err != nil {
+		if err := rows.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.ExpireMinutes, &n.CreatedAt, &n.Source); err != nil {
 			continue
 		}
 		n.Enabled = enabled
 		n.Label = strings.ToUpper(strings.TrimSpace(n.Label))
+		n.Source = normalizeCallNatureSource(n.Source)
 		if phrasesJSON != "" && phrasesJSON != "[]" {
 			_ = json.Unmarshal([]byte(phrasesJSON), &n.Phrases)
 		}
@@ -127,6 +131,11 @@ func (cache *CallNaturesCache) MatchData(openAIClassify bool) CallNatureMatchDat
 }
 
 func migrateCallNatures(db *Database) error {
+	var reg sql.NullString
+	if err := db.Sql.QueryRow(`SELECT to_regclass('"callNatures"')`).Scan(&reg); err != nil {
+		return fmt.Errorf("migrateCallNatures: %w", err)
+	}
+	existed := reg.Valid && strings.TrimSpace(reg.String) != ""
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS "callNatures" (
 			"callNatureId" bigserial NOT NULL PRIMARY KEY,
@@ -138,11 +147,17 @@ func migrateCallNatures(db *Database) error {
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS "callNatures_label_uidx" ON "callNatures" ("label")`,
 		`ALTER TABLE "callNatures" ADD COLUMN IF NOT EXISTS "expireMinutes" integer NOT NULL DEFAULT 0`,
+		`ALTER TABLE "callNatures" ADD COLUMN IF NOT EXISTS "source" text NOT NULL DEFAULT 'local'`,
 	}
 	for _, q := range queries {
 		if _, err := db.Sql.Exec(q); err != nil {
 			return fmt.Errorf("migrateCallNatures: %w", err)
 		}
+	}
+	// Seed only when the table is created. An admin clear leaves it empty on
+	// purpose, and a restart must not fill it back in.
+	if existed {
+		return nil
 	}
 	return seedDefaultCallNatures(db)
 }
@@ -178,11 +193,12 @@ func callNatureFromRow(row *sql.Row) (*CallNature, error) {
 		phrasesJSON string
 		enabled     bool
 	)
-	if err := row.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.ExpireMinutes, &n.CreatedAt); err != nil {
+	if err := row.Scan(&n.Id, &n.Label, &phrasesJSON, &enabled, &n.Order, &n.ExpireMinutes, &n.CreatedAt, &n.Source); err != nil {
 		return nil, err
 	}
 	n.Enabled = enabled
 	n.Label = strings.ToUpper(strings.TrimSpace(n.Label))
+	n.Source = normalizeCallNatureSource(n.Source)
 	if phrasesJSON != "" && phrasesJSON != "[]" {
 		_ = json.Unmarshal([]byte(phrasesJSON), &n.Phrases)
 	}
@@ -201,5 +217,13 @@ func callNatureToJSON(n *CallNature) map[string]any {
 		"order":         n.Order,
 		"expireMinutes": n.ExpireMinutes,
 		"createdAt":     n.CreatedAt,
+		"source":        normalizeCallNatureSource(n.Source),
 	}
+}
+
+func normalizeCallNatureSource(source string) string {
+	if strings.EqualFold(strings.TrimSpace(source), "catalog") {
+		return "catalog"
+	}
+	return "local"
 }

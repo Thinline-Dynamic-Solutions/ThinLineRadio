@@ -1,0 +1,16 @@
+<div class="map-pop-backdrop" (click)="close()">
+  <div class="map-pop" role="dialog" aria-modal="true" aria-label="Incident map" (click)="$event.stopPropagation()">
+    <header class="map-pop-head">
+      <div class="map-pop-copy">
+        <h2>{{ title }}</h2>
+        @if (subtitle) {
+          <p>{{ subtitle }}</p>
+        }
+      </div>
+      <button type="button" class="map-pop-close" (click)="close()" aria-label="Close map">
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+    <div #mapCanvas class="map-pop-canvas"></div>
+  </div>
+</div>

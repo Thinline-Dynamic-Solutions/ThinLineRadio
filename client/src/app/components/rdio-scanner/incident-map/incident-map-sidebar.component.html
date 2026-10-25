@@ -24,7 +24,15 @@
       <mat-spinner diameter="20"></mat-spinner>
     }
   </div>
-  <div class="sidebar-list">
+  <div class="sidebar-list" #incidentList (scroll)="onIncidentListScroll($event)">
+    @if (showJumpTop) {
+      <div class="sidebar-jump-top-wrap">
+        <button type="button" class="sidebar-jump-top" (click)="scrollIncidentListToTop()">
+          <mat-icon>arrow_upward</mat-icon>
+          Top
+        </button>
+      </div>
+    }
     @if (!m.loading && m.incidents.length === 0) {
       <div class="sidebar-empty">
         <mat-icon>map</mat-icon>
@@ -43,16 +51,16 @@
         [attr.data-incident-call-id]="incident.callId"
         [class.selected]="m.selectedIncident?.callId === incident.callId"
         [class.focusing]="m.focusingCallId === incident.callId"
-        [style.background]="m.incidentListBackground(incident)"
-        [style.box-shadow]="m.selectedIncident?.callId === incident.callId ? m.incidentListSelectedShadow(incident) : 'none'"
+        [style.background]="incident.uiBgColor || m.incidentListBackground(incident)"
+        [style.box-shadow]="m.selectedIncident?.callId === incident.callId ? (incident.uiSelectedShadow || m.incidentListSelectedShadow(incident)) : 'none'"
         (click)="m.selectIncident(incident)">
         <div class="incident-list-nature"
-          [style.background]="m.getIncidentTagColor(incident)"
-          [style.color]="m.incidentNatureTextColor(incident)">
-          {{ m.incidentNatureLabel(incident) }}
+          [style.background]="incident.uiTagColor || m.getIncidentTagColor(incident)"
+          [style.color]="incident.uiTextColor || m.incidentNatureTextColor(incident)">
+          {{ incident.uiNatureLabel || m.incidentNatureLabel(incident) }}
         </div>
-        <div class="incident-list-title">{{ m.incidentAddress(incident) }}</div>
-        <div class="incident-list-channel">{{ m.incidentChannel(incident) }}</div>
+        <div class="incident-list-title">{{ incident.uiAddress || m.incidentAddress(incident) }}</div>
+        <div class="incident-list-channel">{{ incident.uiChannel || m.incidentChannel(incident) }}</div>
         <div class="incident-list-meta">
           @if (incident.tagLabel) {
             <span class="incident-list-tag">{{ incident.tagLabel }}</span>
@@ -60,7 +68,7 @@
           @if (incident.tagLabel) {
             <span> · </span>
           }
-          <span>{{ m.formatTimestamp(incident.timestamp) }}</span>
+          <span>{{ incident.uiTime || m.formatTimestamp(incident.timestamp) }}</span>
         </div>
         <button type="button"
           class="btn-play-audio"

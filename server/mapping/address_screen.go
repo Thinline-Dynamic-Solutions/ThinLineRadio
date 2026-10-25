@@ -223,6 +223,8 @@ func TranscriptHasGeocodeAnchor(transcript string, scope *ScopeData) bool {
 		if screenHasGazetteerBackedIntersection(clean, scope) {
 			return true
 		}
+	} else if screenHasSuffixlessAddress(clean, transcript) {
+		return true
 	}
 	if len(extractDispatchIntersectionsFromTranscript(transcript, screenScopeStreets(scope))) > 0 {
 		return true

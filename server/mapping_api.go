@@ -423,12 +423,6 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	limit := 300
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
-			limit = n
-		}
-	}
 	since := int64(0)
 	until := int64(0)
 	if v := r.URL.Query().Get("since"); v != "" {
@@ -436,6 +430,18 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := r.URL.Query().Get("until"); v != "" {
 		until, _ = strconv.ParseInt(v, 10, 64)
+	}
+	const maxIncidentLimit = 2000
+	limit := 1500
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= maxIncidentLimit {
+			limit = n
+		}
+	}
+	// Busy statewide maps mint hundreds of pins per hour. Floor tiny legacy
+	// caps (120–250) so a 24h window isn't truncated after a few hours.
+	if since > 0 && limit < 800 {
+		limit = 1500
 	}
 	nowMs := time.Now().UnixMilli()
 	// The expiry predicate below makes rows older than a nature's window
@@ -451,15 +457,29 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 			since = nowMs - maxIncidentScanWindowMs
 		}
 	}
-	// Nature is optional: geocoded address-only pins must still appear on the
-	// map (client labels blank nature as "UNKNOWN PROBLEM").
 	where := `WHERE c."incidentLat" <> 0 AND c."incidentLon" <> 0
 		AND COALESCE(c."incidentGeocodeStatus", '') NOT IN ('', 'failed', 'skipped')`
+	api.Controller.Options.mutex.Lock()
+	suppressUnknown := api.Controller.Options.MappingIntegration.SuppressUnknownNaturePins
+	api.Controller.Options.mutex.Unlock()
+	if suppressUnknown {
+		where += ` AND COALESCE(c."incidentNature", '') <> '' AND UPPER(c."incidentNature") NOT IN ('UNKNOWN PROBLEM', 'UNKNOWN PROBLEM/UNCLASSIFIED', 'EMS UNKNOWN PROBLEM/UNCLASSIFIED')`
+	}
 	if since > 0 {
 		where += fmt.Sprintf(` AND c."timestamp" >= %d`, since)
 	}
 	if until > 0 {
 		where += fmt.Sprintf(` AND c."timestamp" <= %d`, until)
+	}
+	if v := r.URL.Query().Get("systemId"); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 64); err == nil && n > 0 {
+			where += fmt.Sprintf(` AND c."systemId" = %d`, n)
+		}
+	}
+	if v := r.URL.Query().Get("talkgroupId"); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 64); err == nil && n > 0 {
+			where += fmt.Sprintf(` AND c."talkgroupId" = %d`, n)
+		}
 	}
 	// Call-nature force expiry: an enabled category with expireMinutes > 0
 	// removes its incidents from the map that many minutes after dispatch, no

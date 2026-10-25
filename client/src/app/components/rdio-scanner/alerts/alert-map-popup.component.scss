@@ -1,0 +1,121 @@
+:host {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+}
+
+.map-pop-backdrop {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(4, 6, 10, 0.82);
+}
+
+.map-pop {
+    display: flex;
+    flex-direction: column;
+    width: min(920px, 100%);
+    height: min(680px, 100%);
+    overflow: hidden;
+    border-radius: 16px;
+    background: #0d1118;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.map-pop-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.map-pop-copy {
+    min-width: 0;
+
+    h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+        line-height: 1.3;
+        color: #e9edf4;
+    }
+
+    p {
+        margin: 4px 0 0;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #8590a3;
+    }
+}
+
+.map-pop-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+
+    mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+}
+
+.map-pop-canvas {
+    flex: 1 1 auto;
+    min-height: 0;
+    background: #1a1f28;
+}
+
+:host ::ng-deep .leaflet-tile {
+    transition: none !important;
+}
+
+:host ::ng-deep .leaflet-fade-anim .leaflet-tile,
+:host ::ng-deep .leaflet-fade-anim .leaflet-tile-loaded {
+    opacity: 1 !important;
+    transition: none !important;
+}
+
+:host ::ng-deep .alert-map-pop-pin {
+    background: none;
+    border: none;
+}
+
+:host ::ng-deep .alert-map-pop-pin__mark {
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0 2px;
+    background: var(--tag-accent, #ff5b2e);
+    border: 2px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 4px;
+        background: #fff;
+        border-radius: 50%;
+    }
+}

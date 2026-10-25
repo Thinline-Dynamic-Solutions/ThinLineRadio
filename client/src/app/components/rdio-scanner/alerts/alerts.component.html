@@ -14,21 +14,28 @@
   }
 
   @if (!boardEmbed && panelMode === 'alertsAndPreferences') {
-    <div class="alerts-header">
-      <div class="header-tabs">
-        <button type="button" class="tab-button" [class.active]="activeTab === 'alerts'" (click)="setTab('alerts')">
-          <mat-icon>notifications</mat-icon>
-          Alerts
-        </button>
-        <button type="button" class="tab-button" [class.active]="activeTab === 'preferences'" (click)="setTab('preferences')">
-          <mat-icon>tune</mat-icon>
-          Preferences
-        </button>
+    <div class="alerts-header alerts-chrome">
+      <div class="alerts-chrome__left">
+        <span class="aux-heading">
+          <mat-icon>notifications_active</mat-icon>
+          Dispatch Alerts
+        </span>
+        <div class="alerts-seg" role="tablist" aria-label="Alerts sections">
+          <button type="button" class="alerts-seg__btn" [class.active]="activeTab === 'alerts'" (click)="setTab('alerts')">
+            Feed
+          </button>
+          <button type="button" class="alerts-seg__btn" [class.active]="activeTab === 'preferences'" (click)="setTab('preferences')">
+            Preferences
+          </button>
+        </div>
       </div>
-      <div class="header-actions">
+      <div class="alerts-chrome__right">
+        @if (activeTab === 'alerts' && totalAlertCount > 0) {
+          <span class="alerts-count-pill">{{ totalAlertCount }} {{ totalAlertCount === 1 ? 'hit' : 'hits' }}</span>
+        }
         @if (activeTab === 'alerts') {
-          <button type="button" class="btn-refresh" (click)="refreshAlertsTab()" [disabled]="alertsTabLoading">
-            {{ alertsTabLoading ? 'Loading...' : 'Refresh Alerts' }}
+          <button type="button" class="btn-icon-refresh" (click)="refreshAlertsTab()" [disabled]="alertsTabLoading" title="Refresh alerts">
+            <mat-icon>refresh</mat-icon>
           </button>
         }
       </div>
@@ -47,11 +54,45 @@
   }
 
   @if (!boardEmbed && panelMode === 'stats') {
-    <div class="alerts-header alerts-header-aux">
-      <span class="aux-heading"><mat-icon>bar_chart</mat-icon> Stats</span>
-      <div class="header-actions">
+    <div class="alerts-header alerts-header-aux stats-top-bar">
+      <div class="stats-top-bar__left">
+        <span class="aux-heading"><mat-icon>insights</mat-icon> Radio &amp; Dispatch Analytics</span>
+        @if (stats?.classificationMode === 'mapped') {
+          <span class="stats-mode-badge stats-mode-badge--mapped" title="Powered by geocoded incident mapping and call nature classification">
+            <span class="stats-mode-dot"></span>
+            Mapped &amp; Classified
+          </span>
+        } @else if (stats) {
+          <span class="stats-mode-badge stats-mode-badge--legacy" title="Powered by transcript keyword analytics">
+            Transcript Analytics
+          </span>
+        }
+      </div>
+      <div class="stats-top-bar__controls">
+        <div class="stats-range-pills" role="group" aria-label="Time range">
+          <button type="button" class="stats-range-pill" [class.active]="statsRange === 'today'" (click)="setStatsRange('today')">Today</button>
+          <button type="button" class="stats-range-pill" [class.active]="statsRange === '24h'" (click)="setStatsRange('24h')">24 Hours</button>
+          <button type="button" class="stats-range-pill" [class.active]="statsRange === '7d'" (click)="setStatsRange('7d')">7 Days</button>
+          <button type="button" class="stats-range-pill" [class.active]="statsRange === '30d'" (click)="setStatsRange('30d')">30 Days</button>
+        </div>
+        @if (stats?.availableSystems?.length) {
+          <select class="stats-system-select stats-system-select--header"
+            [(ngModel)]="selectedSystemId"
+            (ngModelChange)="loadStats()"
+            aria-label="Filter by System">
+            <option [ngValue]="null">All Systems ({{ stats!.availableSystems.length }})</option>
+            @for (sys of stats!.availableSystems; track sys.id) {
+              <option [ngValue]="sys.id">{{ sys.label }}</option>
+            }
+          </select>
+        }
+        @if (selectedSystemId !== null || statsRange !== '24h') {
+          <button type="button" class="btn-stats-reset" (click)="resetStatsFilters()" title="Reset filters">
+            Reset
+          </button>
+        }
         <button type="button" class="btn-refresh" (click)="loadStats()" [disabled]="loadingStats">
-          {{ loadingStats ? 'Loading...' : 'Refresh Stats' }}
+          {{ loadingStats ? 'Refreshing…' : 'Refresh' }}
         </button>
       </div>
     </div>
@@ -81,16 +122,6 @@
               [style.--tag-accent]="alertTagColor(alert) || null">
               <div class="alert-header alert-header-embed">
                 <div class="alert-header-left">
-                  @if (alert.toneDetected) {
-                    <mat-icon class="tone-indicator" title="Tone detected">notifications_active</mat-icon>
-                  }
-                  @if (getKeywordsMatched(alert).length > 0) {
-                    <div class="embed-keywords">
-                      @for (keyword of getKeywordsMatched(alert); track keyword) {
-                        <span class="embed-keyword" [ngClass]="keywordToneClass(keyword)">{{ keyword }}</span>
-                      }
-                    </div>
-                  }
                   <div class="alert-channel embed-channel">
                     @if (alert.systemLabel) {
                       <span>{{ alert.systemLabel }}</span>
@@ -122,6 +153,16 @@
                     <mat-icon>play_arrow</mat-icon>
                   </button>
                 </div>
+                @if (alert.toneDetected || getKeywordsMatched(alert).length > 0) {
+                  <div class="embed-keywords">
+                    @if (alert.toneDetected) {
+                      <mat-icon class="tone-indicator" title="Tone detected">notifications_active</mat-icon>
+                    }
+                    @for (keyword of getKeywordsMatched(alert); track keyword) {
+                      <span class="embed-keyword" [ngClass]="keywordToneClass(keyword)">{{ keyword }}</span>
+                    }
+                  </div>
+                }
               </div>
               <div class="alert-body">
                 @if (alert.alertSummary) {
@@ -145,35 +186,39 @@
 
   @if (!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'alerts') {
     <div class="alerts-content">
-      @if (canViewSystemAlerts) {
-        <div class="alerts-subtabs">
-          <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'mine'" (click)="setAlertsViewMode('mine')">
-            My alerts
-          </button>
-          <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'system'" (click)="setAlertsViewMode('system')">
-            System
-          </button>
-          <button type="button" class="alerts-subtab" [class.active]="alertsViewMode === 'all'" (click)="setAlertsViewMode('all')">
-            All
-          </button>
-        </div>
-      }
-      @if (showMyAlertsSection || showSystemAlertsSection) {
-        <div class="alerts-search-bar">
-          <mat-icon class="alerts-search-icon">search</mat-icon>
-          <input type="text"
-            [(ngModel)]="alertSearch"
-            placeholder="Search alerts…"
-            class="alerts-search-input"
-            aria-label="Search alerts">
-          @if (hasActiveAlertSearch) {
-            <button
-              type="button"
-              class="alerts-search-clear"
-              (click)="clearAlertSearch()"
-              title="Clear search">
-              <mat-icon>close</mat-icon>
-            </button>
+      @if (canViewSystemAlerts || showMyAlertsSection || showSystemAlertsSection) {
+        <div class="alerts-toolbar">
+          @if (canViewSystemAlerts) {
+            <div class="alerts-seg alerts-seg--scope" role="tablist" aria-label="Alert scope">
+              <button type="button" class="alerts-seg__btn" [class.active]="alertsViewMode === 'mine'" (click)="setAlertsViewMode('mine')">
+                Mine
+              </button>
+              <button type="button" class="alerts-seg__btn" [class.active]="alertsViewMode === 'system'" (click)="setAlertsViewMode('system')">
+                System
+              </button>
+              <button type="button" class="alerts-seg__btn" [class.active]="alertsViewMode === 'all'" (click)="setAlertsViewMode('all')">
+                All
+              </button>
+            </div>
+          }
+          @if (showMyAlertsSection || showSystemAlertsSection) {
+            <div class="alerts-search-bar">
+              <mat-icon class="alerts-search-icon">search</mat-icon>
+              <input type="text"
+                [(ngModel)]="alertSearch"
+                placeholder="Search channel, keyword, or transcript…"
+                class="alerts-search-input"
+                aria-label="Search alerts">
+              @if (hasActiveAlertSearch) {
+                <button
+                  type="button"
+                  class="alerts-search-clear"
+                  (click)="clearAlertSearch()"
+                  title="Clear search">
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+            </div>
           }
         </div>
       }
@@ -201,7 +246,7 @@
           <p>No system alerts in your access scope</p>
         </div>
       }
-      @if (showMyAlertsSection && showSystemAlertsSection && alerts.length === 0 && systemAlerts.length === 0 && !alertsTabLoading) {
+      @if (showMyAlertsSection && alerts.length === 0 && !loading && alertsViewMode === 'all') {
         <div class="no-alerts">
           <mat-icon>notifications_off</mat-icon>
           <p>No alerts</p>
@@ -217,7 +262,7 @@
           <p>Loading system alerts...</p>
         </div>
       }
-      @if (alertsTabLoading && alertsViewMode === 'all' && alerts.length === 0 && systemAlerts.length === 0) {
+      @if (alertsTabLoading && alertsViewMode === 'all' && alerts.length === 0) {
         <div class="loading">
           <p>Loading alerts...</p>
         </div>
@@ -225,7 +270,9 @@
       @if (showMyAlertsSection && filteredAlertGroups.length > 0) {
         <div class="alerts-desk">
           <nav class="channel-rail" aria-label="Alert channels">
+            <div class="channel-rail-head">Channels</div>
             <button type="button" class="channel-row" [class.active]="!selectedChannelKey" (click)="selectChannel(null)">
+              <span class="channel-row-dot channel-row-dot--all" aria-hidden="true"></span>
               <span class="channel-row-name">All activity</span>
               <span class="channel-row-count">{{ totalAlertCount }}</span>
             </button>
@@ -237,6 +284,7 @@
                 [class.tone]="group.groupType === 'tone'"
                 [style.--tag-accent]="alertTagColor(group.alerts[0]) || null"
                 (click)="selectChannel(group.key)">
+                <span class="channel-row-dot" aria-hidden="true"></span>
                 <span class="channel-row-name">{{ group.key }}</span>
                 <span class="channel-row-meta">
                   <span class="channel-row-count">{{ group.alerts.length }}</span>
@@ -249,59 +297,78 @@
             <header class="dispatch-feed-head">
               <div>
                 <h2>{{ selectedAlertGroup?.key || 'All activity' }}</h2>
-                <p>{{ feedAlerts.length }} {{ feedAlerts.length === 1 ? 'hit' : 'hits' }}</p>
+                <p>{{ feedAlerts.length }} {{ feedAlerts.length === 1 ? 'dispatch' : 'dispatches' }}</p>
               </div>
             </header>
             <div class="dispatch-feed-list">
               @for (alert of feedAlerts; track trackByAlertId($index, alert)) {
-                <article class="dispatch-card" [style.--tag-accent]="alertTagColor(alert) || null">
-                  <div class="dispatch-card-top">
-                    <div class="dispatch-kws">
-                      @if (alert.toneDetected) {
-                        <mat-icon class="tone-indicator" title="Tone detected">notifications_active</mat-icon>
-                      }
-                      @for (keyword of getKeywordsMatched(alert); track keyword) {
-                        <span class="keyword-tag" [ngClass]="keywordToneClass(keyword)">{{ keyword }}</span>
-                      }
-                      @if (!selectedChannelKey) {
-                        <div class="dispatch-channel">{{ channelLabel(alert) }}</div>
-                      }
-                    </div>
-                    <div class="dispatch-card-actions">
-                      @if (hasIncidentLocation(alert)) {
-                        <mat-icon class="incident-map-pin" matTooltip="Incident location available">place</mat-icon>
-                      }
-                      <time class="dispatch-time">{{ formatAlertDateTime(alert.createdAt) }}</time>
+                <article
+                  class="dispatch-card"
+                  [class.has-map]="hasIncidentLocation(alert)"
+                  [style.--tag-accent]="alertTagColor(alert) || null">
+                  <div class="dispatch-body">
+                    <div class="dispatch-top">
+                      <div class="dispatch-identity">
+                        <div class="dispatch-kicker">
+                          <time class="dispatch-when">
+                            <span class="dispatch-clock">{{ formatAlertTime(alert.createdAt) || '—' }}</span>
+                            <span class="dispatch-date">{{ formatAlertDate(alert.createdAt) }}</span>
+                          </time>
+                          @if (!selectedChannelKey) {
+                            <span class="dispatch-channel">{{ channelLabel(alert) }}</span>
+                          }
+                        </div>
+                        <h3 class="dispatch-title">{{ cardTitle(alert) }}</h3>
+                      </div>
                       <button type="button" class="btn-play btn-play--compact" (click)="playCall(alert.callId)" title="Play" aria-label="Play">
                         <mat-icon>play_arrow</mat-icon>
                       </button>
                     </div>
-                  </div>
-                  @if (alert.toneDetected && (alert.matchedToneSetNames?.length || alert.matchedToneSetName)) {
-                    <div class="dispatch-tone">
-                      @if (alert.matchedToneSetNames?.length) {
-                        {{ alert.matchedToneSetNames.join(', ') }}
-                      } @else {
-                        {{ alert.matchedToneSetName }}
+                    <div class="dispatch-split">
+                      <div class="dispatch-copy-col">
+                        @if (alert.incidentAddress) {
+                          <p class="dispatch-address">{{ alert.incidentAddress }}</p>
+                        }
+                        @if (alert.toneDetected || cardKeywords(alert).length || toneSetLabel(alert)) {
+                          <div class="dispatch-chips">
+                            @if (alert.toneDetected) {
+                              <span class="dispatch-chip">Tone</span>
+                            }
+                            @for (keyword of cardKeywords(alert); track keyword) {
+                              <span class="dispatch-chip">{{ keyword }}</span>
+                            }
+                            @if (toneSetLabel(alert)) {
+                              <span class="dispatch-chip dispatch-chip--set">{{ toneSetLabel(alert) }}</span>
+                            }
+                          </div>
+                        }
+                        @if (alert.transcript || alert.transcriptSnippet) {
+                          <p class="dispatch-copy"
+                            [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations, alertSearch)"></p>
+                        } @else if (alert.alertSummary) {
+                          <p class="dispatch-copy">{{ alert.alertSummary }}</p>
+                        }
+                      </div>
+                      @if (hasIncidentLocation(alert)) {
+                        <button
+                          type="button"
+                          class="dispatch-map"
+                          [attr.aria-label]="'Open map for ' + (alert.incidentAddress || 'incident')"
+                          (click)="openMapPopup(alert, $event)">
+                          <rdio-scanner-alert-map-thumb
+                            [lat]="alert.incidentLat ?? 0"
+                            [lon]="alert.incidentLon ?? 0">
+                          </rdio-scanner-alert-map-thumb>
+                        </button>
                       }
                     </div>
-                  }
-                  @if (alert.alertSummary) {
-                    <p class="dispatch-summary">{{ alert.alertSummary }}</p>
-                  }
-                  @if (alert.transcript || alert.transcriptSnippet) {
-                    <p class="dispatch-copy"
-                      [innerHTML]="renderTranscript(alert.transcript || alert.transcriptSnippet || '', alert.transcriptAnnotations, alertSearch)"></p>
-                  }
+                  </div>
                 </article>
               }
             </div>
           </section>
         </div>
       }
-    @if (showSystemAlertsSection && alertsViewMode === 'all') {
-      <h4 class="alerts-section-label">System alerts</h4>
-    }
     @if (showSystemAlertsSection && filteredSystemAlerts.length > 0) {
       <div class="system-alerts-list">
         @for (alert of filteredSystemAlerts; track trackBySystemAlertId($index, alert)) {
@@ -522,179 +589,334 @@
   <div class="stats-content">
     @if (loadingStats && !stats) {
       <div class="stats-loading">
-        <mat-icon>bar_chart</mat-icon>
-        <p>Loading stats...</p>
+        <mat-icon>insights</mat-icon>
+        <p>Loading radio &amp; dispatch analytics…</p>
       </div>
     }
     @if (statsError) {
       <div class="stats-error">{{ statsError }}</div>
     }
     @if (stats) {
-      <!-- System Filter -->
-      <div class="stats-filter-bar">
-        <mat-icon class="filter-icon">filter_list</mat-icon>
-        <span class="filter-label">Filter by System:</span>
-        <select class="stats-system-select"
-          [(ngModel)]="selectedSystemId"
-          (ngModelChange)="loadStats()">
-          <option [ngValue]="null">All Systems</option>
-          @for (sys of stats.availableSystems; track sys) {
-            <option [ngValue]="sys.id">{{ sys.label }}</option>
+      <!-- ── 6-Card Hero KPI Strip ── -->
+      <div class="stats-counters stats-counters--six">
+        <div class="stat-counter">
+          <div class="counter-label">Radio Calls ({{ statsRangeLabel() }})</div>
+          <div class="counter-value">{{ (stats.totalCallsRange ?? stats.totalCallsToday) | number }}</div>
+          <div class="counter-sub">{{ stats.totalCallsToday | number }} calls since midnight</div>
+        </div>
+
+        <div class="stat-counter accent">
+          <div class="counter-label">Live Call Velocity</div>
+          <div class="counter-value">{{ stats.callsLastHour | number }} <span class="counter-unit">/ hr</span></div>
+          <div class="counter-sub">
+            Now {{ stats.callsLastMinute }}/m &nbsp;·&nbsp; Peak {{ stats.peakCallsPerMinute ?? statsMaxCpm() }}/m &nbsp;·&nbsp; Avg {{ stats.avgCallsPerMinute ?? 0 }}/m
+          </div>
+        </div>
+
+        <div class="stat-counter emerald">
+          <div class="counter-label">
+            {{ stats.classificationMode === 'mapped' ? 'Mapped & Classified Incidents' : 'Classified Incidents' }}
+          </div>
+          <div class="counter-value">{{ statsTotalIncidents() | number }}</div>
+          <div class="counter-sub">
+            @if (stats.classificationMode === 'mapped') {
+              {{ (stats.uniqueIncidentLocations || statsTotalIncidents()) | number }} distinct scene locations
+            } @else {
+              Detected across completed transcripts
+            }
+          </div>
+        </div>
+
+        <div class="stat-counter sky">
+          <div class="counter-label">Active Channels</div>
+          <div class="counter-value">{{ (stats.activeChannelsCount ?? stats.topTalkgroups.length) | number }}</div>
+          <div class="counter-sub">Peak traffic at {{ statsHourLabel(stats.peakHour ?? 0) }}</div>
+        </div>
+
+        <div class="stat-counter tone">
+          <div class="counter-label">Tone-Out Dispatches</div>
+          <div class="counter-value">{{ (stats.totalToneDispatches ?? stats.topDepartmentsByTone.length) | number }}</div>
+          <div class="counter-sub">{{ (stats.activeToneDeptsCount ?? stats.topDepartmentsByTone.length) | number }} toned agencies / stations</div>
+        </div>
+
+        <div class="stat-counter violet">
+          <div class="counter-label">Leading Service</div>
+          @if (topServiceCategory(); as topCat) {
+            <div class="counter-value counter-value--cat" [style.color]="topCat.color || getIncidentColor(topCat.category)">
+              {{ topCat.category }}
+            </div>
+            <div class="counter-sub">{{ topCat.count | number }} incidents ({{ statsCategorySharePct(topCat) }}%)</div>
+          } @else {
+            <div class="counter-value">—</div>
+            <div class="counter-sub">No classified incidents in window</div>
           }
-        </select>
-        @if (selectedSystemId) {
-          <span class="filter-active-badge">Filtered</span>
-        }
+        </div>
       </div>
-      <!-- Incident Summary -->
+
+      <!-- ── Service Distribution Ribbon ── -->
       @if (stats.incidentSummary && stats.incidentSummary.length > 0) {
-        <div class="stats-section">
-          <h3 class="stats-section-title">
-            📋 Today's Incident Summary
-            <span class="section-subtitle">based on transcripts · click to expand</span>
-          </h3>
-          <div class="incident-categories">
-            @for (cat of stats.incidentSummary; track cat) {
-              <div class="incident-category"
-                [class.expanded]="expandedIncidentCategory === cat.category">
-                <!-- Category header row -->
-                <div class="incident-cat-header" (click)="toggleIncidentCategory(cat.category)"
-                  [style.border-left-color]="getIncidentColor(cat.category)">
-                  <span class="incident-emoji">{{ getIncidentIcon(cat.category) }}</span>
-                  <span class="incident-cat-label">{{ cat.category }}</span>
-                  <div class="incident-cat-bar-track">
-                    <div class="incident-cat-bar"
-                      [style.width.%]="statsBarPct(cat.count, statsMaxCount(stats.incidentSummary))"
-                      [style.background]="getIncidentColor(cat.category)">
-                    </div>
-                  </div>
-                  <span class="incident-cat-count">{{ cat.count }}</span>
-                  <span class="expand-chevron">{{ expandedIncidentCategory === cat.category ? '▲' : '▼' }}</span>
-                </div>
-                <!-- Sub-category breakdown -->
-                @if (expandedIncidentCategory === cat.category) {
-                  <div class="incident-subcats">
-                    @for (sub of cat.subcategories; track sub) {
-                      <div class="incident-subcat-row">
-                        <span class="subcat-label">{{ sub.label }}</span>
-                        <div class="subcat-bar-track">
-                          <div class="subcat-bar"
-                            [style.width.%]="statsBarPct(sub.count, cat.count)"
-                            [style.background]="getIncidentColor(cat.category)">
-                          </div>
-                        </div>
-                        <span class="subcat-count">{{ sub.count }}</span>
-                      </div>
-                    }
-                  </div>
-                }
+        <div class="stats-distribution-card">
+          <div class="stats-distribution-head">
+            <span class="stats-distribution-title">
+              Incident Distribution by Service ({{ statsRangeLabel() }} · {{ statsTotalIncidents() | number }} total)
+            </span>
+            <div class="stats-distribution-legend">
+              @for (cat of stats.incidentSummary; track cat.category) {
+                <button type="button" class="dist-legend-chip" (click)="toggleIncidentCategory(cat.category)">
+                  <span class="dist-legend-dot" [style.background]="cat.color || getIncidentColor(cat.category)"></span>
+                  <span class="dist-legend-name">{{ cat.category }}</span>
+                  <strong class="dist-legend-pct">{{ statsCategorySharePct(cat) }}%</strong>
+                  <span class="dist-legend-cnt">({{ cat.count | number }})</span>
+                </button>
+              }
+            </div>
+          </div>
+          <div class="stats-distribution-bar">
+            @for (cat of stats.incidentSummary; track cat.category) {
+              <div class="stats-distribution-seg"
+                [style.width.%]="statsCategorySharePct(cat)"
+                [style.background]="cat.color || getIncidentColor(cat.category)"
+                [title]="cat.category + ': ' + cat.count + ' (' + statsCategorySharePct(cat) + '%)'">
               </div>
             }
           </div>
         </div>
       }
-      <!-- Counter Row -->
-      <div class="stats-counters">
-        <div class="stat-counter">
-          <div class="counter-value">{{ stats.totalCallsToday | number }}</div>
-          <div class="counter-label">Calls Today</div>
-        </div>
-        <div class="stat-counter accent">
-          <div class="counter-value">{{ stats.callsLastMinute }}</div>
-          <div class="counter-label">Calls / Min</div>
-        </div>
-        <div class="stat-counter accent">
-          <div class="counter-value">{{ stats.callsLastHour | number }}</div>
-          <div class="counter-label">Calls / Hour</div>
-        </div>
-        <div class="stat-counter">
-          <div class="counter-value">{{ stats.topTalkgroups.length }}</div>
-          <div class="counter-label">Active Channels (24h)</div>
-        </div>
-        <div class="stat-counter tone">
-          <div class="counter-value">{{ stats.topDepartmentsByTone.length }}</div>
-          <div class="counter-label">Depts w/ Tones (24h)</div>
-        </div>
-      </div>
-      <!-- Calls Per Minute – last hour -->
-      <div class="stats-section">
-        <h3 class="stats-section-title">
-          <mat-icon>show_chart</mat-icon>
-          Calls Per Minute — Last Hour
-        </h3>
-        @if (stats.callsPerMinute.length === 0) {
-          <div class="stats-empty">No call activity in the last hour.</div>
-        }
-        @if (stats.callsPerMinute.length > 0) {
-          <div class="cpm-chart">
-            <div class="cpm-chart-inner">
-              <!-- Y-axis -->
-              <div class="chart-y-axis">
-                @for (tick of statsYTicksCpm(); track tick) {
-                  <span class="y-tick">{{ tick }}</span>
-                }
-              </div>
-              <!-- Bars + grid -->
-              <div class="cpm-chart-area">
-                <div class="chart-grid">
-                  @for (tick of statsYTicksCpm(); track tick) {
-                    <div class="grid-line"></div>
-                  }
-                </div>
-                <div class="cpm-bars">
-                  @for (bucket of stats.callsPerMinute; track bucket) {
-                    <div class="cpm-bar-wrap"
-                      [title]="statsCallsPerMinLabel(bucket.minute) + ': ' + bucket.count + ' calls'">
-                      <div class="cpm-bar"
-                        [style.height.%]="statsBarPct(bucket.count, statsMaxCpm())">
+
+      <!-- ── Primary 2-Column Classification Grid: Service Breakdown | Top Call Natures ── -->
+      @if (stats.incidentSummary && stats.incidentSummary.length > 0) {
+        <div class="stats-two-col stats-classification-grid">
+          <!-- Left: Service Categories + Expandable Call Natures -->
+          <div class="stats-section">
+            <div class="stats-section-head">
+              <h3 class="stats-section-title">
+                <mat-icon>category</mat-icon>
+                Classification by Service
+              </h3>
+              <button type="button" class="btn-stats-mini" (click)="toggleAllCategories()">
+                {{ allCategoriesExpanded() ? 'Collapse All' : 'Expand All' }}
+              </button>
+            </div>
+            <div class="incident-categories">
+              @for (cat of stats.incidentSummary; track cat.category) {
+                <div class="incident-category"
+                  [class.expanded]="isCategoryExpanded(cat.category)">
+                  <div class="incident-cat-header" (click)="toggleIncidentCategory(cat.category)"
+                    [style.border-left-color]="cat.color || getIncidentColor(cat.category)">
+                    <span class="incident-emoji">{{ getIncidentIcon(cat.category) }}</span>
+                    <div class="incident-cat-meta">
+                      <span class="incident-cat-label">{{ cat.category }}</span>
+                      <span class="incident-cat-subcount">{{ cat.subcategories.length }} call natures</span>
+                    </div>
+                    <div class="incident-cat-bar-track">
+                      <div class="incident-cat-bar"
+                        [style.width.%]="statsBarPct(cat.count, statsMaxCount(stats.incidentSummary))"
+                        [style.background]="cat.color || getIncidentColor(cat.category)">
                       </div>
+                    </div>
+                    <span class="incident-cat-pct">{{ statsCategorySharePct(cat) }}%</span>
+                    <span class="incident-cat-count">{{ cat.count | number }}</span>
+                    <span class="expand-chevron">{{ isCategoryExpanded(cat.category) ? '▲' : '▼' }}</span>
+                  </div>
+                  @if (isCategoryExpanded(cat.category)) {
+                    <div class="incident-subcats incident-subcats--grid">
+                      @for (sub of cat.subcategories; track sub.label) {
+                        <div class="incident-subcat-row">
+                          <span class="subcat-label" [title]="sub.label">{{ sub.label }}</span>
+                          <div class="subcat-bar-track">
+                            <div class="subcat-bar"
+                              [style.width.%]="statsBarPct(sub.count, cat.subcategories[0]?.count || cat.count)"
+                              [style.background]="cat.color || getIncidentColor(cat.category)">
+                            </div>
+                          </div>
+                          <span class="subcat-count">{{ sub.count | number }}</span>
+                        </div>
+                      }
                     </div>
                   }
                 </div>
-                <div class="cpm-x-labels">
-                  @for (lbl of statsCpmLabels(); track lbl) {
-                    <span class="cpm-label">{{ lbl }}</span>
-                  }
-                </div>
-              </div>
+              }
             </div>
           </div>
-        }
-      </div>
-      <!-- Two column: Top Talkgroups | Top Depts by Tone -->
+
+          <!-- Right: Top Classified Call Natures Leaderboard -->
+          <div class="stats-section">
+            <div class="stats-section-head">
+              <h3 class="stats-section-title">
+                <mat-icon>local_Offer</mat-icon>
+                Top Classified Call Natures ({{ statsRangeLabel() }})
+              </h3>
+              <input type="text"
+                class="stats-nature-filter"
+                [(ngModel)]="statsNatureSearch"
+                placeholder="Filter natures…"
+                aria-label="Filter call natures" />
+            </div>
+            @if (filteredTopNatures().length === 0) {
+              <div class="stats-empty">No matching call natures found.</div>
+            }
+            <div class="stats-natures-list">
+              @for (nat of filteredTopNatures(); track nat.label; let i = $index) {
+                <div class="nature-rank-row">
+                  <span class="bar-rank">#{{ i + 1 }}</span>
+                  <div class="nature-rank-info">
+                    <div class="nature-rank-top">
+                      <span class="nature-rank-dot" [style.background]="nat.color || getIncidentColor(nat.category)"></span>
+                      <span class="nature-rank-label" [title]="nat.label">{{ nat.label }}</span>
+                      <span class="nature-rank-cat" [style.color]="nat.color || getIncidentColor(nat.category)">{{ nat.category }}</span>
+                    </div>
+                    <div class="bar-track">
+                      <div class="bar-fill"
+                        [style.width.%]="statsBarPct(nat.count, stats.topNatures?.[0]?.count || 1)"
+                        [style.background]="nat.color || getIncidentColor(nat.category)">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="nature-rank-metrics">
+                    <strong class="nature-rank-count">{{ nat.count | number }}</strong>
+                    <span class="nature-rank-pct">{{ nat.sharePct }}%</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- ── Row 2: Real-Time 60m Velocity | 24-Hour Activity & Incident Profile ── -->
       <div class="stats-two-col">
-        <!-- Top Talkgroups (24h) -->
+        <!-- Calls Per Minute – last 60 minutes -->
         <div class="stats-section">
-          <h3 class="stats-section-title">
-            <mat-icon>radio</mat-icon>
-            Top 10 Channels — Last 24h
-          </h3>
-          @if (stats.topTalkgroups.length === 0) {
-            <div class="stats-empty">No data yet.</div>
+          <div class="stats-section-head">
+            <h3 class="stats-section-title">
+              <mat-icon>show_chart</mat-icon>
+              Calls Per Minute — Last 60 Minutes
+            </h3>
+            <span class="section-subtitle">
+              Peak {{ stats.peakCallsPerMinute ?? statsMaxCpm() }}/m &nbsp;·&nbsp; Avg {{ stats.avgCallsPerMinute ?? 0 }}/m
+            </span>
+          </div>
+          @if (stats.callsPerMinute.length === 0) {
+            <div class="stats-empty">No call activity in the last hour.</div>
           }
-          @for (tg of stats.topTalkgroups; track tg; let i = $index) {
-            <div class="bar-row">
-              <span class="bar-rank">#{{ i + 1 }}</span>
-              <span class="bar-label" [title]="tg.label">{{ tg.label }}</span>
-              <div class="bar-track">
-                <div class="bar-fill"
-                  [style.width.%]="statsBarPct(tg.count, statsMaxCount(stats.topTalkgroups))">
+          @if (stats.callsPerMinute.length > 0) {
+            <div class="cpm-chart">
+              <div class="cpm-chart-inner">
+                <div class="chart-y-axis">
+                  @for (tick of statsYTicksCpm(); track tick) {
+                    <span class="y-tick">{{ tick }}</span>
+                  }
+                </div>
+                <div class="cpm-chart-area">
+                  <div class="chart-grid">
+                    @for (tick of statsYTicksCpm(); track tick) {
+                      <div class="grid-line"></div>
+                    }
+                  </div>
+                  <div class="cpm-bars">
+                    @for (bucket of stats.callsPerMinute; track bucket.minute) {
+                      <div class="cpm-bar-wrap"
+                        [title]="statsCallsPerMinLabel(bucket.minute) + ': ' + bucket.count + ' calls'">
+                        <div class="cpm-bar"
+                          [style.height.%]="statsBarPct(bucket.count, statsMaxCpm())">
+                        </div>
+                      </div>
+                    }
+                  </div>
+                  <div class="cpm-x-labels">
+                    @for (lbl of statsCpmLabels(); track lbl) {
+                      <span class="cpm-label">{{ lbl }}</span>
+                    }
+                  </div>
                 </div>
               </div>
-              <span class="bar-count">{{ tg.count }}</span>
             </div>
           }
         </div>
-        <!-- Top 10 Departments by Tone (24h) -->
+
+        <!-- Activity by Hour of Day -->
+        <div class="stats-section">
+          <div class="stats-section-head">
+            <h3 class="stats-section-title">
+              <mat-icon>schedule</mat-icon>
+              24-Hour Activity Profile
+            </h3>
+            <span class="section-subtitle">
+              Peak Hour: {{ statsHourLabel(stats.peakHour ?? 0) }}
+            </span>
+          </div>
+          <div class="hour-chart-outer">
+            <div class="chart-y-axis">
+              @for (tick of statsYTicks(stats.callsByHour); track tick) {
+                <span class="y-tick">{{ tick }}</span>
+              }
+            </div>
+            <div class="hour-chart-area">
+              <div class="chart-grid">
+                @for (tick of statsYTicks(stats.callsByHour); track tick) {
+                  <div class="grid-line"></div>
+                }
+              </div>
+              <div class="hour-chart">
+                @for (h of stats.callsByHour; track h.hour) {
+                  <div class="hour-col"
+                    [title]="statsHourLabel(h.hour) + ': ' + (h.count | number) + ' calls' + (h.incidents ? ' · ' + h.incidents + ' mapped incidents' : '')">
+                    <div class="hour-bar-wrap">
+                      <div class="hour-bar"
+                        [class.hour-bar--peak]="h.hour === stats.peakHour"
+                        [style.height.%]="statsBarPct(h.count, statsMaxCount(stats.callsByHour))">
+                      </div>
+                    </div>
+                    <span class="hour-label">{{ statsHourLabel(h.hour) }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Row 3: 3-Column Radio & Dispatch Leaderboards ── -->
+      <div class="stats-three-col">
+        <!-- Col 1: Top Channels by Radio Volume -->
+        <div class="stats-section">
+          <h3 class="stats-section-title">
+            <mat-icon>radio</mat-icon>
+            Top Channels ({{ statsRangeLabel() }})
+          </h3>
+          @if (stats.topTalkgroups.length === 0) {
+            <div class="stats-empty">No channel activity in window.</div>
+          }
+          @for (tg of stats.topTalkgroups; track tg.label + (tg.systemLabel || ''); let i = $index) {
+            <div class="bar-row">
+              <span class="bar-rank">#{{ i + 1 }}</span>
+              <div class="bar-label-stack">
+                <span class="bar-label" [title]="tg.label">{{ tg.label }}</span>
+                @if (tg.systemLabel) {
+                  <span class="bar-sublabel">{{ tg.systemLabel }}</span>
+                }
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill"
+                  [style.width.%]="statsBarPct(tg.count, statsMaxCount(stats.topTalkgroups))"
+                  [style.background]="tg.color || '#ff5b2e'">
+                </div>
+              </div>
+              <span class="bar-count">{{ tg.count | number }}</span>
+            </div>
+          }
+        </div>
+
+        <!-- Col 2: Top Tone-Out Departments (or Top Mapped Incident Channels) -->
         <div class="stats-section">
           <h3 class="stats-section-title">
             <mat-icon>notifications_active</mat-icon>
-            Top 10 Depts by Tone — Last 24h
+            Top Tone-Out Agencies ({{ statsRangeLabel() }})
           </h3>
           @if (stats.topDepartmentsByTone.length === 0) {
-            <div class="stats-empty">No tone dispatches in the last 24h.</div>
+            <div class="stats-empty">No tone dispatches in window.</div>
           }
-          @for (dept of stats.topDepartmentsByTone; track dept; let i = $index) {
+          @for (dept of stats.topDepartmentsByTone; track dept.label; let i = $index) {
             <div class="bar-row tone-row">
               <span class="bar-rank">#{{ i + 1 }}</span>
               <span class="bar-label" [title]="dept.label">{{ dept.label }}</span>
@@ -703,52 +925,89 @@
                   [style.width.%]="statsBarPct(dept.count, statsMaxCount(stats.topDepartmentsByTone))">
                 </div>
               </div>
-              <span class="bar-count">{{ dept.count }}</span>
+              <span class="bar-count">{{ dept.count | number }}</span>
+            </div>
+          }
+        </div>
+
+        <!-- Col 3: Traffic by Service Tag & System -->
+        <div class="stats-section">
+          <h3 class="stats-section-title">
+            <mat-icon>hub</mat-icon>
+            Traffic by Service Tag
+          </h3>
+          @if (!stats.tagBreakdown || stats.tagBreakdown.length === 0) {
+            <div class="stats-empty">No tagged traffic in window.</div>
+          }
+          @for (tb of (stats.tagBreakdown || []).slice(0, 10); track tb.label; let i = $index) {
+            <div class="bar-row">
+              <span class="bar-rank">#{{ i + 1 }}</span>
+              <span class="bar-label" [title]="tb.label">
+                <span class="tag-dot" [style.background]="tb.color || '#38bdf8'"></span>
+                {{ tb.label }}
+              </span>
+              <div class="bar-track">
+                <div class="bar-fill"
+                  [style.width.%]="statsBarPct(tb.count, statsMaxCount(stats.tagBreakdown || []))"
+                  [style.background]="tb.color || '#38bdf8'">
+                </div>
+              </div>
+              <span class="bar-count">{{ tb.count | number }}</span>
             </div>
           }
         </div>
       </div>
-      <!-- Calls by Hour of Day -->
-      <div class="stats-section">
-        <h3 class="stats-section-title">
-          <mat-icon>schedule</mat-icon>
-          Activity by Hour of Day — Last 7 Days
-        </h3>
-        <div class="hour-chart-outer">
-          <!-- Y-axis -->
-          <div class="chart-y-axis">
-            @for (tick of statsYTicks(stats.callsByHour); track tick) {
-              <span class="y-tick">{{ tick }}</span>
+
+      <!-- ── Row 4: Recent Classified & Mapped Dispatches (with instant audio play) ── -->
+      @if (stats.recentIncidents && stats.recentIncidents.length > 0) {
+        <div class="stats-section">
+          <div class="stats-section-head">
+            <h3 class="stats-section-title">
+              <mat-icon>place</mat-icon>
+              Latest Classified &amp; Mapped Dispatches
+            </h3>
+            <span class="section-subtitle">Click play to listen to dispatch audio</span>
+          </div>
+          <div class="stats-recent-incidents-grid">
+            @for (inc of stats.recentIncidents; track inc.callId) {
+              <div class="stats-recent-card" [style.border-left-color]="inc.color">
+                <div class="stats-recent-card__top">
+                  <span class="stats-recent-nature" [style.background]="inc.color + '22'" [style.color]="inc.color" [style.border-color]="inc.color + '55'">
+                    {{ inc.nature }}
+                  </span>
+                  <span class="stats-recent-time">{{ formatAlertDateTime(inc.timestamp) }}</span>
+                </div>
+                <div class="stats-recent-addr" [title]="inc.address">{{ inc.address || 'Mapped Location' }}</div>
+                <div class="stats-recent-footer">
+                  <span class="stats-recent-ch" [title]="inc.systemLabel + ' · ' + inc.talkgroupLabel">
+                    {{ inc.systemLabel }} · {{ inc.talkgroupLabel }}
+                  </span>
+                  <button type="button" class="btn-play btn-play--compact" (click)="playCall(inc.callId)" title="Play dispatch audio">
+                    <mat-icon>play_arrow</mat-icon>
+                  </button>
+                </div>
+              </div>
             }
           </div>
-          <!-- Chart area -->
-          <div class="hour-chart-area">
-            <div class="chart-grid">
-              @for (tick of statsYTicks(stats.callsByHour); track tick) {
-                <div class="grid-line"></div>
-              }
-            </div>
-            <div class="hour-chart">
-              @for (h of stats.callsByHour; track h) {
-                <div class="hour-col"
-                  [title]="statsHourLabel(h.hour) + ': ' + h.count + ' calls'">
-                  <div class="hour-bar-wrap">
-                    <div class="hour-bar"
-                      [style.height.%]="statsBarPct(h.count, statsMaxCount(stats.callsByHour))">
-                    </div>
-                  </div>
-                  <span class="hour-label">{{ statsHourLabel(h.hour) }}</span>
-                </div>
-              }
-            </div>
-          </div>
         </div>
-      </div>
+      }
+
       <div class="stats-footer">
         Updated {{ stats.generatedAt | date:'shortTime' }} &nbsp;·&nbsp; Auto-refreshes every 30s
       </div>
     }
   </div>
+}
+
+@if (mapPopupAlert) {
+  <rdio-scanner-alert-map-popup
+    [lat]="mapPopupAlert.incidentLat ?? 0"
+    [lon]="mapPopupAlert.incidentLon ?? 0"
+    [title]="mapPopupAlert.incidentAddress || 'Incident location'"
+    [subtitle]="mapPopupSubtitle(mapPopupAlert)"
+    [style.--tag-accent]="alertTagColor(mapPopupAlert) || null"
+    (closed)="closeMapPopup()">
+  </rdio-scanner-alert-map-popup>
 }
 
 </div>

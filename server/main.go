@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-//go:build !remapcall && !reviewmapped && !diagnoselost && !reviewunmapped && !setup_incident_mapping
+//go:build !remapcall && !reviewmapped && !diagnoselost && !reviewunmapped && !setup_incident_mapping && !remapallnatures
 
 package main
 
@@ -83,7 +83,7 @@ func loadDotEnv(candidates ...string) {
 // default <base href="./"> then mis-resolves scripts and assets on public URLs while localhost
 // often still works when users only open "/".
 func writeInjectedWebappIndexHTML(w http.ResponseWriter, r *http.Request, controller *Controller) bool {
-	b, err := webapp.ReadFile("webapp/index.html")
+	b, err := readWebappFile("index.html")
 	if err != nil {
 		return false
 	}
@@ -646,6 +646,8 @@ func main() {
 	http.HandleFunc("/api/transcripts/training-progress", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.TranscriptsTrainingProgressHandler))).ServeHTTP)
 	http.HandleFunc("/api/keyword-lists", wrapHandler(http.HandlerFunc(controller.Api.KeywordListsHandler)).ServeHTTP)
 	http.HandleFunc("/api/call-natures", wrapHandler(http.HandlerFunc(controller.Api.CallNaturesHandler)).ServeHTTP)
+	http.HandleFunc("/api/call-natures/sync", wrapHandler(http.HandlerFunc(controller.Api.CallNaturesSyncHandler)).ServeHTTP)
+	http.HandleFunc("/api/call-natures/clear", wrapHandler(http.HandlerFunc(controller.Api.CallNaturesClearHandler)).ServeHTTP)
 	http.HandleFunc("/api/call-nature-phrase-suggestions", wrapHandler(http.HandlerFunc(controller.Api.CallNaturePhraseSuggestionsHandler)).ServeHTTP)
 	http.HandleFunc("/api/call-nature-phrase-suggestions/", wrapHandler(http.HandlerFunc(controller.Api.CallNaturePhraseSuggestionActionHandler)).ServeHTTP)
 	http.HandleFunc("/api/call-nature-phrase-scan", wrapHandler(http.HandlerFunc(controller.Api.CallNaturePhraseScanHandler)).ServeHTTP)
@@ -1050,7 +1052,7 @@ func main() {
 				url = "index.html"
 			}
 
-			if b, err := webapp.ReadFile(path.Join("webapp", url)); err == nil {
+			if b, err := readWebappFile(url); err == nil {
 				var t string
 				ext := path.Ext(url)
 				switch ext {
@@ -1177,6 +1179,11 @@ func main() {
 	// Accept HTTP immediately so static assets load while controller.Start() reads the DB.
 	httpServer = newServer(fmt.Sprintf("%s:%s", addr, port), nil)
 	go func() {
+		if overlay := liveWebappDir(); overlay != "" {
+			log.Printf("webapp overlay: %s", overlay)
+		} else {
+			log.Printf("webapp: embedded")
+		}
 		log.Printf("startup: HTTP listening on %s:%s (loading configuration...)", addr, port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)

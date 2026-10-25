@@ -24,17 +24,16 @@ const geoBoundsBufferMiles = 2.0
 const milesPerDegreeLat = 69.0
 
 // geocodeViewboxParam builds a Nominatim "minLon,maxLat,maxLon,minLat"
-// viewbox string (paired with bounded=1 by the gateway) covering every disc
-// this request could legitimately geocode into: the home coverage area, the
-// dispatch-spoken-locality disc, and any configured mutual-aid destinations.
-// Passing this lets the gateway's own upstream Nominatim query — and, on a
-// miss, its geographically-aware fuzzy "did you mean" retry — exclude
-// same-named streets far outside all of them (e.g. a "VIENNA AVENUE" STT
-// misread as "VIANNA AVENUE" no longer loses to a same-named street in Salt
-// Lake City, because bounded=1 removes it from the candidate set entirely
-// instead of merely being outranked by trigram score). Returns "" when no
-// bounds are configured at all, so callers with no coverage area behave
-// exactly as before (no viewbox sent, unbounded nationwide search).
+// viewbox string (paired with bounded=1 by the gateway) for the current
+// request disc: home/tone-set bounds (+buffer) and, when dispatch actually
+// named another community, that spoken-locality disc. Mutual-aid destination
+// catalogs are NOT unioned in — they exist so ApplyMutualAidGeoOverride can
+// rewrite BoundsLat/Lon when a peer city is spoken. Unioning every talkgroup
+// on the system (Niles FD + Newton Falls + Warren + …) made a 10-mile Niles
+// search ~20 miles wide and let "36 WEST CHURCH STREET" pin in Newton Falls.
+// Returns "" when no bounds are configured at all, so callers with no
+// coverage area behave exactly as before (no viewbox sent, unbounded
+// nationwide search).
 func geocodeViewboxParam(geo *GeoOptions) string {
 	if geo == nil {
 		return ""
@@ -61,11 +60,13 @@ func geocodeViewboxParam(geo *GeoOptions) string {
 		minLat, maxLat = math.Min(minLat, lo), math.Max(maxLat, hi)
 		minLon, maxLon = math.Min(minLon, lLon), math.Max(maxLon, rLon)
 	}
-	// Search disc = current request bounds (+buffer), plus spoken-locality
-	// and mutual-aid escapes. Do NOT expand to HomeMaxRadiusMi: that ceiling
-	// is only for PinOutsideCoverage after a pin is chosen. Using it as the
-	// viewbox (e.g. Niles 5mi → 30mi) lets far homonyms win addr-search
-	// (1500 MCKINLEY → Poland's West McKinley Way via digit-repair).
+	// Search disc = current request bounds (+buffer), plus a spoken-locality
+	// disc when dispatch named that community. Do NOT expand to
+	// HomeMaxRadiusMi or the full MutualAidDestinations catalog: those are
+	// pin-accept escape hatches, not search boxes. Using them as the viewbox
+	// (Niles 10mi → county union, or Niles 5mi → 30mi HomeMax) lets far
+	// homonyms win addr-search (36 WEST CHURCH → Newton Falls; 1500 MCKINLEY
+	// → Poland's West McKinley Way via digit-repair).
 	if geo.BoundsRadiusMi > 0 && (geo.BoundsLat != 0 || geo.BoundsLon != 0) {
 		grow(geo.BoundsLat, geo.BoundsLon, geo.BoundsRadiusMi+geoBoundsBufferMiles)
 	} else if geo.HomeMaxRadiusMi > 0 {
@@ -74,9 +75,6 @@ func geocodeViewboxParam(geo *GeoOptions) string {
 		grow(geo.HomeLat, geo.HomeLon, geo.HomeMaxRadiusMi)
 	}
 	grow(geo.SpokenLocalityLat, geo.SpokenLocalityLon, geo.SpokenLocalityRadiusMi)
-	for _, d := range geo.MutualAidDestinations {
-		grow(d.Lat, d.Lon, d.RadiusMi)
-	}
 	if !have {
 		return ""
 	}

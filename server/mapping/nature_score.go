@@ -47,7 +47,10 @@ func natureTokenWordMatch(tok, word string) bool {
 	if tok == word {
 		return true
 	}
-	if tok == word+"S" || word == tok+"S" || tok == word+"ES" || word == tok+"ES" {
+	// Plural / +S / +ES only for 3+ letter tokens. "BE"+"ES"="BEES" was
+	// classifying every "going to be" as ALLERGIC REACTION.
+	if len(tok) >= 3 && len(word) >= 3 &&
+		(tok == word+"S" || word == tok+"S" || tok == word+"ES" || word == tok+"ES") {
 		return true
 	}
 	return natureWordStemMatch(tok, word)
@@ -123,7 +126,38 @@ func scoreConfiguredNatures(transcript string, natureCodes, matchTerms []string,
 		}
 		if natureKeywordBlockedInMedicalDispatch(padded, t) || natureKeywordIsNegated(padded, t) ||
 			natureKeywordIsBreakRoomFalsePositive(padded, t) ||
+			natureKeywordIsRadioBreakFalsePositive(padded, t) ||
+			natureKeywordIsDepartmentRescueFalsePositive(padded, t) ||
 			natureKeywordIsLakeDepartmentFalsePositive(padded, t) ||
+			natureKeywordIsAreaCheckFalsePositive(padded, t) ||
+			natureKeywordIsBareGunFalsePositive(padded, t) ||
+			natureKeywordIsKnifeCutNotThreat(padded, t) ||
+			natureKeywordIsChaseUnitOrStreet(padded, t) ||
+			natureKeywordIsUnitLunch(padded, t) ||
+			natureKeywordIsOfficerCellOrProperty(padded, t) ||
+			natureKeywordIsHangingFalsePositive(padded, t) ||
+			natureKeywordIsBareLiftFalsePositive(padded, t) ||
+			natureKeywordIsTooShortAbbrev(t) ||
+			natureKeywordIsFallsPlaceName(padded, t) ||
+			natureKeywordIsFallenStreetName(padded, t) ||
+			natureKeywordIsRadioStandbyFalsePositive(padded, t) ||
+			natureKeywordIsLongShot(padded, t) ||
+			natureKeywordIsCardinalPlaceName(padded, t) ||
+			natureKeywordIsPumpFalsePositive(padded, t) ||
+			natureKeywordIsCarAlarmFalsePositive(padded, t) ||
+			natureKeywordIsElectricalPlaceFalsePositive(padded, t) ||
+			natureKeywordIsBrokenPropertyFalsePositive(padded, t) ||
+			natureKeywordIsCrashUnitOrGasLineFalsePositive(padded, t) ||
+			natureKeywordIsBurnPlaceOrOpenBurnFalsePositive(padded, t) ||
+			natureKeywordIsDumpsterWithoutFireFalsePositive(padded, t) ||
+			natureKeywordIsBareBikeFalsePositive(padded, t) ||
+			natureKeywordIsDrugMartFalsePositive(padded, t) ||
+			natureKeywordIsNonObstetricLaborFalsePositive(padded, t) ||
+			natureKeywordIsElectricBatteryFalsePositive(padded, t) ||
+			natureKeywordIsDogFightFalsePositive(padded, t) ||
+			natureKeywordIsChimneyStreetFalsePositive(padded, t) ||
+			natureKeywordIsSexOffenderRegistryFalsePositive(padded, t) ||
+			natureKeywordIsKidnapMetaphorFalsePositive(padded, t) ||
 			natureLabelIsStreetSuffixFalsePositive(t, padded) {
 			continue
 		}
@@ -247,6 +281,12 @@ func preferComplaintOverResponseMode(scores []natureEvidence) natureEvidence {
 func natureLoneGerundEvidence(label, transcript string, natureCodes, matchTerms []string, phraseToLabel map[string]string) bool {
 	n := strings.ToUpper(strings.TrimSpace(label))
 	if n == "" || strings.Contains(n, " ") || !strings.HasSuffix(n, "ING") {
+		return false
+	}
+	// Medical / complaint -ING labels are symptom/offense names, not conversational gerunds.
+	switch n {
+	case "BLEEDING", "CHOKING", "NAUSEA/VOMITING", "VOMITING", "DROWNING",
+		"POISONING", "SHOPLIFTING", "STALKING", "SOLICITING", "BREAKING AND ENTERING":
 		return false
 	}
 	u := " " + strings.ToUpper(transcript) + " "

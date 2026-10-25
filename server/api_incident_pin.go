@@ -33,7 +33,12 @@ func (api *Api) IncidentPinHandler(w http.ResponseWriter, r *http.Request) {
 		api.exitWithError(w, http.StatusForbidden, "system admin access required")
 		return
 	}
-	idStr := strings.TrimPrefix(r.URL.Path, "/api/incidents/pin/")
+	idStr := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/incidents/pin/"), "/")
+	searching := false
+	if strings.HasSuffix(idStr, "/search") {
+		searching = true
+		idStr = strings.Trim(strings.TrimSuffix(idStr, "/search"), "/")
+	}
 	callId, err := strconv.ParseUint(strings.TrimSpace(idStr), 10, 64)
 	if err != nil || callId == 0 {
 		api.exitWithError(w, http.StatusBadRequest, "invalid call id")
@@ -45,6 +50,11 @@ func (api *Api) IncidentPinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	store := NewMappingStore(api.Controller.Database)
+
+	if searching {
+		api.searchIncidentPinAddress(w, r, call)
+		return
+	}
 
 	switch r.Method {
 	case http.MethodDelete:
@@ -130,6 +140,68 @@ func (api *Api) IncidentPinHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+// searchIncidentPinAddress geocodes a typed address for the Correct Pin panel.
+// Several matches are returned so the map can offer A/B/C choices.
+func (api *Api) searchIncidentPinAddress(w http.ResponseWriter, r *http.Request, call *Call) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		api.exitWithError(w, http.StatusBadRequest, "address required")
+		return
+	}
+	if len(query) > 200 {
+		query = query[:200]
+	}
+	geo := api.geoOptionsForPinSearch(call)
+	if strings.TrimSpace(geo.NominatimDirectURL) == "" || strings.TrimSpace(geo.NominatimAPIKey) == "" {
+		api.exitWithError(w, http.StatusServiceUnavailable, "geocode server is not available")
+		return
+	}
+	hits, detail := mapping.GeocodeNominatimSearchAll(geo.NominatimDirectURL, geo.NominatimAPIKey, query, geo, 8)
+	if detail != "" {
+		switch detail {
+		case "no_subscription":
+			api.exitWithError(w, http.StatusPaymentRequired, "geocode subscription inactive")
+		case "transport_error":
+			api.exitWithError(w, http.StatusBadGateway, "geocode server did not answer")
+		default:
+			api.exitWithError(w, http.StatusBadGateway, "geocode lookup failed")
+		}
+		return
+	}
+	out := make([]map[string]any, 0, len(hits))
+	for _, h := range hits {
+		out = append(out, map[string]any{
+			"lat":   h.Lat,
+			"lon":   h.Lon,
+			"label": h.DisplayName,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"results": out})
+}
+
+func (api *Api) geoOptionsForPinSearch(call *Call) *mapping.GeoOptions {
+	geo := &mapping.GeoOptions{}
+	if call != nil && call.System != nil {
+		cfg, _, _ := resolveIncidentMappingForCall(call.System, call.Talkgroup, call.ToneSequence)
+		geo = buildGeoOptions(cfg)
+		if geo == nil {
+			geo = &mapping.GeoOptions{}
+		}
+	}
+	if api.Controller.NominatimAccessAllowed() {
+		geo.NominatimDirectURL = api.Controller.NominatimGatewayURLSnapshot()
+		api.Controller.Options.mutex.Lock()
+		geo.NominatimAPIKey = strings.TrimSpace(api.Controller.Options.RelayServerAPIKey)
+		api.Controller.Options.mutex.Unlock()
+	}
+	return geo
 }
 
 func pinAdminActor(client *Client) string {

@@ -359,6 +359,10 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
             keywords: pref.keywords,
             keywordListIds: pref.keywordListIds,
             toneSetIds: pref.toneSetIds,
+            notificationSound: pref.notificationSound ?? '',
+            toneSetSounds: pref.toneSetSounds ?? {},
+            pagerAlert: pref.pagerAlert ?? false,
+            toneSetPagerAlerts: pref.toneSetPagerAlerts ?? {},
         }));
         
         // DEBUG: Log what we're sending to the API

@@ -67,7 +67,7 @@ func (api *Api) CallNaturesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = api.Controller.CallNaturesCache.Read(api.Controller.Database)
-		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt"
+		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt", "source"
 			FROM "callNatures" WHERE "callNatureId" = $1`, id)
 		n, _ := callNatureFromRow(row)
 		w.Header().Set("Content-Type", "application/json")
@@ -86,6 +86,10 @@ func (api *Api) CallNatureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/call-natures/")
+	if idStr == "sync" || idStr == "clear" {
+		api.exitWithError(w, http.StatusNotFound, "not found")
+		return
+	}
 	id, err := strconv.ParseInt(strings.TrimSpace(idStr), 10, 64)
 	if err != nil || id <= 0 {
 		api.exitWithError(w, http.StatusBadRequest, "invalid id")
@@ -121,7 +125,7 @@ func (api *Api) CallNatureHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = api.Controller.CallNaturesCache.Read(api.Controller.Database)
-		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt"
+		row := api.Controller.Database.Sql.QueryRow(`SELECT "callNatureId", "label", "phrases", "enabled", "order", "expireMinutes", "createdAt", "source"
 			FROM "callNatures" WHERE "callNatureId" = $1`, id)
 		n, _ := callNatureFromRow(row)
 		w.Header().Set("Content-Type", "application/json")
@@ -138,6 +142,53 @@ func (api *Api) CallNatureHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+// CallNaturesSyncHandler loads the shared catalog from the geocode server.
+// Categories this server added itself are kept.
+func (api *Api) CallNaturesSyncHandler(w http.ResponseWriter, r *http.Request) {
+	client := api.getClient(r)
+	if client == nil || !api.isAdmin(client) {
+		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	doc, err := api.Controller.fetchCallNatureCatalog()
+	if err != nil {
+		api.exitWithError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	result, err := applyCallNatureCatalog(api.Controller.Database, doc)
+	if err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = api.Controller.CallNaturesCache.Read(api.Controller.Database)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+// CallNaturesClearHandler removes every local call classification.
+func (api *Api) CallNaturesClearHandler(w http.ResponseWriter, r *http.Request) {
+	client := api.getClient(r)
+	if client == nil || !api.isAdmin(client) {
+		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if err := clearCallNatures(api.Controller.Database); err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = api.Controller.CallNaturesCache.Read(api.Controller.Database)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func stringsFromAnySlice(v any) []string {

@@ -1557,13 +1557,13 @@ func (api *Api) PostVerifyPlanContextHandler(w http.ResponseWriter, r *http.Requ
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"requiresPlanSelection":   requires,
-		"pricingOptions":          options,
-		"stripePublishableKey":    api.Controller.Options.StripePublishableKey,
-		"branding":                branding,
-		"email":                   user.Email,
-		"iosAppStoreUrl":          api.Controller.Options.EffectiveIOSAppStoreURL(),
-		"androidPlayStoreUrl":     api.Controller.Options.EffectiveAndroidPlayStoreURL(),
+		"requiresPlanSelection": requires,
+		"pricingOptions":        options,
+		"stripePublishableKey":  api.Controller.Options.StripePublishableKey,
+		"branding":              branding,
+		"email":                 user.Email,
+		"iosAppStoreUrl":        api.Controller.Options.EffectiveIOSAppStoreURL(),
+		"androidPlayStoreUrl":   api.Controller.Options.EffectiveAndroidPlayStoreURL(),
 	})
 }
 
@@ -1883,14 +1883,14 @@ func (api *Api) UserVerifyHandler(w http.ResponseWriter, r *http.Request) {
 
 	requiresPlan, pricingOptions := api.postVerifyRequiresPlanSelection(user)
 	resp := map[string]interface{}{
-		"message":                 "Email verified successfully",
-		"verified":                true,
-		"email":                   user.Email,
-		"requiresPlanSelection":   requiresPlan,
-		"stripePublishableKey":    api.Controller.Options.StripePublishableKey,
-		"pricingOptions":          pricingOptions,
-		"iosAppStoreUrl":          api.Controller.Options.EffectiveIOSAppStoreURL(),
-		"androidPlayStoreUrl":     api.Controller.Options.EffectiveAndroidPlayStoreURL(),
+		"message":               "Email verified successfully",
+		"verified":              true,
+		"email":                 user.Email,
+		"requiresPlanSelection": requiresPlan,
+		"stripePublishableKey":  api.Controller.Options.StripePublishableKey,
+		"pricingOptions":        pricingOptions,
+		"iosAppStoreUrl":        api.Controller.Options.EffectiveIOSAppStoreURL(),
+		"androidPlayStoreUrl":   api.Controller.Options.EffectiveAndroidPlayStoreURL(),
 	}
 	if !requiresPlan {
 		resp["pricingOptions"] = []PricingOption{}
@@ -3132,6 +3132,10 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 				sinceTimestamp = v
 			}
 		}
+		// scope=all is every radio-transmission alert this account can hear.
+		// Personal tone/keyword preferences are not applied. System health
+		// alerts stay on /api/system-alerts.
+		includeAllTransmissions := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("scope")), "all")
 
 		// Get user's alert preferences from cache
 		type userPref struct {
@@ -3370,162 +3374,166 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Filter by user/group access, then alert preferences (tone/keyword/transcript).
+			// scope=all skips the preference match and keeps access plus delay.
 			prefKey := fmt.Sprintf("%d-%d", systemId, talkgroupId)
 			pref, hasPreference := preferences[prefKey]
 
-			if !hasPreference {
-				// User has no preference for this system/talkgroup, skip this alert
-				continue
-			}
-
-			// Check if alerts are enabled for this preference
-			if !pref.alertEnabled {
-				// User has disabled alerts for this system/talkgroup, skip this alert
-				continue
-			}
-
-			// Check if alert matches user's preferences
-			matchesPreference := false
-
-			if alertType == "tone" {
-				// For tone alerts: user must have toneAlerts enabled
-				if pref.toneAlerts {
-					// If user has specific toneSetIds, check if this alert's toneSetId matches
-					if len(pref.toneSetIds) > 0 {
-						// User wants specific tone sets - check if this alert's toneSetId is in the list
-						for _, userToneSetId := range pref.toneSetIds {
-							if userToneSetId == toneSetId {
-								matchesPreference = true
-								break
-							}
-						}
-					} else {
-						// User wants all tone sets
-						matchesPreference = true
-					}
+			matchesPreference := includeAllTransmissions
+			if !includeAllTransmissions {
+				if !hasPreference {
+					// User has no preference for this system/talkgroup, skip this alert
+					continue
 				}
-			} else if alertType == "keyword" {
-				// For keyword alerts: user must have keywordAlerts enabled
-				if pref.keywordAlerts {
-					// Parse alert's keywords
-					var alertKeywords []string
-					if keywordsMatched != "" && keywordsMatched != "[]" {
-						json.Unmarshal([]byte(keywordsMatched), &alertKeywords)
-					}
 
-					// Check if any alert keyword matches user's keywords
-					matchesKeywords := false
-					for _, alertKw := range alertKeywords {
-						for _, userKw := range pref.keywords {
-							if strings.EqualFold(alertKw, userKw) {
-								matchesKeywords = true
-								break
+				// Check if alerts are enabled for this preference
+				if !pref.alertEnabled {
+					// User has disabled alerts for this system/talkgroup, skip this alert
+					continue
+				}
+			}
+
+			if !includeAllTransmissions {
+				if alertType == "tone" {
+					// For tone alerts: user must have toneAlerts enabled
+					if pref.toneAlerts {
+						// If user has specific toneSetIds, check if this alert's toneSetId matches
+						if len(pref.toneSetIds) > 0 {
+							// User wants specific tone sets - check if this alert's toneSetId is in the list
+							for _, userToneSetId := range pref.toneSetIds {
+								if userToneSetId == toneSetId {
+									matchesPreference = true
+									break
+								}
 							}
-						}
-						if matchesKeywords {
-							break
+						} else {
+							// User wants all tone sets
+							matchesPreference = true
 						}
 					}
+				} else if alertType == "keyword" {
+					// For keyword alerts: user must have keywordAlerts enabled
+					if pref.keywordAlerts {
+						// Parse alert's keywords
+						var alertKeywords []string
+						if keywordsMatched != "" && keywordsMatched != "[]" {
+							json.Unmarshal([]byte(keywordsMatched), &alertKeywords)
+						}
 
-					// If no direct keyword match, check keyword lists
-					if !matchesKeywords && len(pref.keywordListIds) > 0 {
-						// Load keyword lists from cache and check if alert keywords match
-						for _, listId := range pref.keywordListIds {
-							list := api.Controller.KeywordListsCache.GetList(listId)
-							if list != nil {
-								// Check if any alert keyword matches list keywords
-								for _, alertKw := range alertKeywords {
-									for _, listKw := range list.Keywords {
-										if strings.EqualFold(alertKw, listKw) {
-											matchesKeywords = true
-											break
-										}
-									}
-									if matchesKeywords {
-										break
-									}
+						// Check if any alert keyword matches user's keywords
+						matchesKeywords := false
+						for _, alertKw := range alertKeywords {
+							for _, userKw := range pref.keywords {
+								if strings.EqualFold(alertKw, userKw) {
+									matchesKeywords = true
+									break
 								}
 							}
 							if matchesKeywords {
 								break
 							}
 						}
-					}
 
-					matchesPreference = matchesKeywords
-				}
-			} else if alertType == "tone+keyword" {
-				// For tone+keyword alerts: must match both tone and keyword preferences
-				toneMatches := false
-				keywordMatches := false
-
-				// Check tone match
-				if pref.toneAlerts {
-					if len(pref.toneSetIds) > 0 {
-						for _, userToneSetId := range pref.toneSetIds {
-							if userToneSetId == toneSetId {
-								toneMatches = true
-								break
-							}
-						}
-					} else {
-						toneMatches = true
-					}
-				}
-
-				// Check keyword match
-				if pref.keywordAlerts {
-					var alertKeywords []string
-					if keywordsMatched != "" && keywordsMatched != "[]" {
-						json.Unmarshal([]byte(keywordsMatched), &alertKeywords)
-					}
-
-					// Check direct keywords
-					for _, alertKw := range alertKeywords {
-						for _, userKw := range pref.keywords {
-							if strings.EqualFold(alertKw, userKw) {
-								keywordMatches = true
-								break
-							}
-						}
-						if keywordMatches {
-							break
-						}
-					}
-
-					// Check keyword lists using cache
-					if !keywordMatches && len(pref.keywordListIds) > 0 {
-						for _, listId := range pref.keywordListIds {
-							// Get from cache instead of database
-							list := api.Controller.KeywordListsCache.GetList(listId)
-							if list != nil {
-								for _, alertKw := range alertKeywords {
-									for _, listKw := range list.Keywords {
-										if strings.EqualFold(alertKw, listKw) {
-											keywordMatches = true
+						// If no direct keyword match, check keyword lists
+						if !matchesKeywords && len(pref.keywordListIds) > 0 {
+							// Load keyword lists from cache and check if alert keywords match
+							for _, listId := range pref.keywordListIds {
+								list := api.Controller.KeywordListsCache.GetList(listId)
+								if list != nil {
+									// Check if any alert keyword matches list keywords
+									for _, alertKw := range alertKeywords {
+										for _, listKw := range list.Keywords {
+											if strings.EqualFold(alertKw, listKw) {
+												matchesKeywords = true
+												break
+											}
+										}
+										if matchesKeywords {
 											break
 										}
 									}
-									if keywordMatches {
-										break
-									}
+								}
+								if matchesKeywords {
+									break
+								}
+							}
+						}
+
+						matchesPreference = matchesKeywords
+					}
+				} else if alertType == "tone+keyword" {
+					// For tone+keyword alerts: must match both tone and keyword preferences
+					toneMatches := false
+					keywordMatches := false
+
+					// Check tone match
+					if pref.toneAlerts {
+						if len(pref.toneSetIds) > 0 {
+							for _, userToneSetId := range pref.toneSetIds {
+								if userToneSetId == toneSetId {
+									toneMatches = true
+									break
+								}
+							}
+						} else {
+							toneMatches = true
+						}
+					}
+
+					// Check keyword match
+					if pref.keywordAlerts {
+						var alertKeywords []string
+						if keywordsMatched != "" && keywordsMatched != "[]" {
+							json.Unmarshal([]byte(keywordsMatched), &alertKeywords)
+						}
+
+						// Check direct keywords
+						for _, alertKw := range alertKeywords {
+							for _, userKw := range pref.keywords {
+								if strings.EqualFold(alertKw, userKw) {
+									keywordMatches = true
+									break
 								}
 							}
 							if keywordMatches {
 								break
 							}
 						}
-					}
-				}
 
-				matchesPreference = toneMatches && keywordMatches
-			} else if alertType == "transcript" {
-				// Alerting-talkgroup transcript alerts: alertEnabled on this talkgroup
-				// is enough (no tone/keyword prefs required).
-				matchesPreference = true
+						// Check keyword lists using cache
+						if !keywordMatches && len(pref.keywordListIds) > 0 {
+							for _, listId := range pref.keywordListIds {
+								// Get from cache instead of database
+								list := api.Controller.KeywordListsCache.GetList(listId)
+								if list != nil {
+									for _, alertKw := range alertKeywords {
+										for _, listKw := range list.Keywords {
+											if strings.EqualFold(alertKw, listKw) {
+												keywordMatches = true
+												break
+											}
+										}
+										if keywordMatches {
+											break
+										}
+									}
+								}
+								if keywordMatches {
+									break
+								}
+							}
+						}
+					}
+
+					matchesPreference = toneMatches && keywordMatches
+				} else if alertType == "transcript" {
+					// Alerting-talkgroup transcript alerts: alertEnabled on this talkgroup
+					// is enough (no tone/keyword prefs required).
+					matchesPreference = true
+				}
 			}
 
-			// Only add alert if it matches user's preferences
+			// Only add alert if it matches user's preferences.
+			// scope=all already set matchesPreference and skipped this block.
 			if !matchesPreference {
 				continue
 			}
@@ -3821,18 +3829,18 @@ func (api *Api) TranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			rowCount++
 			var (
-				callId              uint64
-				sysId               uint64
-				tgId                uint64
-				transcriptionStatus sql.NullString
-				transcript          sql.NullString
-				reviewedTranscript  sql.NullString
+				callId               uint64
+				sysId                uint64
+				tgId                 uint64
+				transcriptionStatus  sql.NullString
+				transcript           sql.NullString
+				reviewedTranscript   sql.NullString
 				trainingReviewStatus sql.NullString
-				callTimestamp       sql.NullInt64
-				alertSummary        sql.NullString
-				systemLabel         sql.NullString
-				talkgroupLabel      sql.NullString
-				talkgroupName       sql.NullString
+				callTimestamp        sql.NullInt64
+				alertSummary         sql.NullString
+				systemLabel          sql.NullString
+				talkgroupLabel       sql.NullString
+				talkgroupName        sql.NullString
 			)
 
 			if err := rows.Scan(&callId, &sysId, &tgId, &transcriptionStatus, &transcript, &reviewedTranscript, &trainingReviewStatus, &callTimestamp, &alertSummary, &systemLabel, &talkgroupLabel, &talkgroupName); err != nil {
@@ -4126,9 +4134,11 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 					}
 				}
 			}
+			_, hasNotificationSound := pref["notificationSound"]
 			if v, ok := pref["notificationSound"].(string); ok {
 				notificationSound = v
 			}
+			_, hasToneSetSounds := pref["toneSetSounds"]
 			if v, ok := pref["toneSetSounds"].(map[string]any); ok {
 				toneSetSounds = make(map[string]string)
 				for k, val := range v {
@@ -4137,9 +4147,11 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 					}
 				}
 			}
+			_, hasPagerAlert := pref["pagerAlert"]
 			if v, ok := pref["pagerAlert"].(bool); ok {
 				pagerAlert = v
 			}
+			_, hasToneSetPagerAlerts := pref["toneSetPagerAlerts"]
 			if v, ok := pref["toneSetPagerAlerts"].(map[string]any); ok {
 				toneSetPagerAlerts = make(map[string]bool)
 				for k, val := range v {
@@ -4218,9 +4230,11 @@ func (api *Api) AlertPreferencesHandler(w http.ResponseWriter, r *http.Request) 
 			}
 
 			// Upsert preference using verified database talkgroupId
-			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds", "pagerAlert", "toneSetPagerAlerts") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5, %t, $6) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = $4, "toneSetSounds" = $5, "pagerAlert" = %t, "toneSetPagerAlerts" = $6`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, pagerAlert, alertEnabled, toneAlerts, keywordAlerts, pagerAlert)
+			// A preferences save that omits sound or pager fields must not wipe
+			// values set elsewhere. An explicit empty string still means default.
+			query := fmt.Sprintf(`INSERT INTO "userAlertPreferences" ("userId", "systemId", "talkgroupId", "alertEnabled", "toneAlerts", "keywordAlerts", "keywords", "keywordListIds", "toneSetIds", "notificationSound", "toneSetSounds", "pagerAlert", "toneSetPagerAlerts") VALUES (%d, %d, %d, %t, %t, %t, $1, $2, $3, $4, $5, %t, $6) ON CONFLICT ("userId", "systemId", "talkgroupId") DO UPDATE SET "alertEnabled" = %t, "toneAlerts" = %t, "keywordAlerts" = %t, "keywords" = $1, "keywordListIds" = $2, "toneSetIds" = $3, "notificationSound" = CASE WHEN $7 THEN $4 ELSE "userAlertPreferences"."notificationSound" END, "toneSetSounds" = CASE WHEN $8 THEN $5 ELSE "userAlertPreferences"."toneSetSounds" END, "pagerAlert" = CASE WHEN $9 THEN %t ELSE "userAlertPreferences"."pagerAlert" END, "toneSetPagerAlerts" = CASE WHEN $10 THEN $6 ELSE "userAlertPreferences"."toneSetPagerAlerts" END`, client.User.Id, systemId, dbTalkgroupId, alertEnabled, toneAlerts, keywordAlerts, pagerAlert, alertEnabled, toneAlerts, keywordAlerts, pagerAlert)
 
-			if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson), string(toneSetPagerAlertsJson)); err != nil {
+			if _, err := tx.Exec(query, string(keywordsJson), string(keywordListIdsJson), string(toneSetIdsJson), notificationSound, string(toneSetSoundsJson), string(toneSetPagerAlertsJson), hasNotificationSound, hasToneSetSounds, hasPagerAlert, hasToneSetPagerAlerts); err != nil {
 				api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update preference: %v", err))
 				return
 			}
@@ -9807,369 +9821,6 @@ func (api *Api) SystemAlertDismissHandler(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "alert dismissed successfully",
-	})
-}
-
-// StatsHandler handles GET /api/stats — returns call activity stats for the dashboard
-func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		api.exitWithError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
-	client := api.getClient(r)
-	if client == nil || client.User == nil {
-		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-
-	db := api.Controller.Database.Sql
-	now := time.Now().UnixMilli()
-	oneHourAgo := now - 60*60*1000
-	twentyFourHoursAgo := now - 24*60*60*1000
-	sevenDaysAgo := now - 7*24*60*60*1000
-	midnightToday := func() int64 {
-		t := time.Now()
-		midnight := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		return midnight.UnixMilli()
-	}()
-
-	// ── Optional system filter ─────────────────────────────────────────────
-	var systemFilter string
-	var systemFilterArgs []interface{}
-	if sid := r.URL.Query().Get("systemId"); sid != "" {
-		if id, err := strconv.Atoi(sid); err == nil {
-			systemFilter = fmt.Sprintf(` AND c."systemId" = %d`, id)
-		}
-	}
-	_ = systemFilterArgs // unused but kept for clarity
-
-	// ── 0. Available systems (for frontend dropdown) ───────────────────────
-	type SystemItem struct {
-		Id    int64  `json:"id"`
-		Label string `json:"label"`
-	}
-	var availableSystems []SystemItem
-	sysRows, err := db.Query(`SELECT "systemId", "label" FROM "systems" ORDER BY "label" ASC`)
-	if err == nil {
-		defer sysRows.Close()
-		for sysRows.Next() {
-			var s SystemItem
-			if sysRows.Scan(&s.Id, &s.Label) == nil {
-				availableSystems = append(availableSystems, s)
-			}
-		}
-	}
-	if availableSystems == nil {
-		availableSystems = []SystemItem{}
-	}
-
-	// ── 1. Calls per minute – last 60 minutes ──────────────────────────────
-	type MinuteBucket struct {
-		Minute int64 `json:"minute"`
-		Count  int   `json:"count"`
-	}
-	var callsPerMinute []MinuteBucket
-
-	cpmRows, err := db.Query(`
-		SELECT (c.timestamp / 60000) * 60000 AS minute, COUNT(*) AS count
-		FROM calls c
-		WHERE c.timestamp >= $1`+systemFilter+`
-		GROUP BY minute
-		ORDER BY minute ASC`, oneHourAgo)
-	if err == nil {
-		defer cpmRows.Close()
-		for cpmRows.Next() {
-			var b MinuteBucket
-			if cpmRows.Scan(&b.Minute, &b.Count) == nil {
-				callsPerMinute = append(callsPerMinute, b)
-			}
-		}
-	}
-	if callsPerMinute == nil {
-		callsPerMinute = []MinuteBucket{}
-	}
-
-	// ── 2. Top 10 talkgroups – last 24 hours ──────────────────────────────
-	type LabelCount struct {
-		Label string `json:"label"`
-		Count int    `json:"count"`
-	}
-	var topTalkgroups []LabelCount
-
-	tgRows, err := db.Query(`
-		SELECT COALESCE(t.label, CONCAT('TG ', t."talkgroupRef")), COUNT(*) AS count
-		FROM calls c
-		JOIN talkgroups t ON t."talkgroupId" = c."talkgroupId"
-		WHERE c.timestamp >= $1`+systemFilter+`
-		GROUP BY t."talkgroupId", t.label, t."talkgroupRef"
-		ORDER BY count DESC
-		LIMIT 10`, twentyFourHoursAgo)
-	if err == nil {
-		defer tgRows.Close()
-		for tgRows.Next() {
-			var s LabelCount
-			if tgRows.Scan(&s.Label, &s.Count) == nil {
-				topTalkgroups = append(topTalkgroups, s)
-			}
-		}
-	}
-	if topTalkgroups == nil {
-		topTalkgroups = []LabelCount{}
-	}
-
-	// ── 3. Calls by hour of day – last 7 days ─────────────────────────────
-	type HourBucket struct {
-		Hour  int `json:"hour"`
-		Count int `json:"count"`
-	}
-	hourMap := make(map[int]int)
-	for h := 0; h < 24; h++ {
-		hourMap[h] = 0
-	}
-
-	hourRows, err := db.Query(`
-		SELECT EXTRACT(HOUR FROM to_timestamp(c.timestamp / 1000)) AS hour, COUNT(*) AS count
-		FROM calls c
-		WHERE c.timestamp >= $1`+systemFilter+`
-		GROUP BY hour
-		ORDER BY hour ASC`, sevenDaysAgo)
-	if err == nil {
-		defer hourRows.Close()
-		for hourRows.Next() {
-			var hour int
-			var count int
-			if hourRows.Scan(&hour, &count) == nil {
-				hourMap[hour] = count
-			}
-		}
-	}
-	callsByHour := make([]HourBucket, 24)
-	for h := 0; h < 24; h++ {
-		callsByHour[h] = HourBucket{Hour: h, Count: hourMap[h]}
-	}
-
-	// ── 4. Top 10 tone set names by dispatch count – last 24 hours ────────
-	// Uses the alerts table (toneSetId + talkgroup toneSets JSON) to resolve
-	// the human-readable tone set label (e.g. "Station 7 Medic").
-	var topDepartmentsByTone []LabelCount
-
-	// Build system filter using systemId from alerts table
-	toneSystemFilter := ""
-	if sid := r.URL.Query().Get("systemId"); sid != "" {
-		if id, err2 := strconv.Atoi(sid); err2 == nil {
-			toneSystemFilter = fmt.Sprintf(` AND a."systemId" = %d`, id)
-		}
-	}
-
-	toneRows, err := db.Query(`
-		SELECT
-		    COALESCE(
-		        NULLIF(
-		            (SELECT elem->>'label'
-		             FROM jsonb_array_elements(
-		                 CASE
-		                     WHEN t."toneSets" IS NOT NULL AND t."toneSets" <> '' AND t."toneSets" <> '[]'
-		                     THEN t."toneSets"::jsonb
-		                     ELSE '[]'::jsonb
-		                 END
-		             ) AS elem
-		             WHERE elem->>'id' = a."toneSetId"
-		             LIMIT 1),
-		            ''
-		        ),
-		        NULLIF(t.label, ''),
-		        CONCAT('TG ', t."talkgroupRef")
-		    ) AS tone_set_name,
-		    COUNT(a."alertId") AS count
-		FROM alerts a
-		JOIN talkgroups t ON t."talkgroupId" = a."talkgroupId"
-		WHERE a."createdAt" >= $1
-		  AND a."toneDetected" = true`+toneSystemFilter+`
-		GROUP BY a."toneSetId", t."talkgroupId", t."toneSets", t.label, t."talkgroupRef"
-		ORDER BY count DESC
-		LIMIT 10`, twentyFourHoursAgo)
-	if err == nil {
-		defer toneRows.Close()
-		for toneRows.Next() {
-			var s LabelCount
-			if toneRows.Scan(&s.Label, &s.Count) == nil {
-				topDepartmentsByTone = append(topDepartmentsByTone, s)
-			}
-		}
-	} else {
-		log.Printf("StatsHandler: topDepartmentsByTone query error: %v", err)
-	}
-	if topDepartmentsByTone == nil {
-		topDepartmentsByTone = []LabelCount{}
-	}
-
-	// ── 5. Simple counters ─────────────────────────────────────────────────
-	var totalCallsToday, callsLastMinute, callsLastHour int
-
-	todayQ := `SELECT COUNT(*) FROM calls c WHERE c.timestamp >= $1` + systemFilter
-	db.QueryRow(todayQ, midnightToday).Scan(&totalCallsToday)
-
-	minQ := `SELECT COUNT(*) FROM calls c WHERE c.timestamp >= $1` + systemFilter
-	db.QueryRow(minQ, now-60*1000).Scan(&callsLastMinute)
-
-	hourQ := `SELECT COUNT(*) FROM calls c WHERE c.timestamp >= $1` + systemFilter
-	db.QueryRow(hourQ, now-60*60*1000).Scan(&callsLastHour)
-
-	// ── 6. Incident summary (today, by sub-category derived from transcripts) ─
-	// Each transcript is matched to the FIRST keyword group that applies
-	// (priority order: most specific → least specific).
-	// Sub-category → parent-category mapping is resolved in Go after the query.
-	subcategoryToCategory := map[string]string{
-		"Structure Fire":       "Fire",
-		"Brush / Wildland":     "Fire",
-		"Vehicle Fire":         "Fire",
-		"Fire Alarm":           "Fire",
-		"Fire (General)":       "Fire",
-		"Carbon Monoxide":      "Hazmat",
-		"Gas Leak":             "Hazmat",
-		"Chemical / Spill":     "Hazmat",
-		"Cardiac / Breathing":  "Medical / EMS",
-		"Trauma / Injury":      "Medical / EMS",
-		"Overdose / Substance": "Medical / EMS",
-		"General Medical":      "Medical / EMS",
-		"Violent Crime":        "Crime",
-		"Property Crime":       "Crime",
-		"Suspicious":           "Crime",
-		"MVA / Crash":          "Traffic",
-		"Traffic Stop / Plate": "Traffic",
-		"Road Hazard":          "Traffic",
-		"Domestic":             "Disturbance",
-		"Disturbance":          "Disturbance",
-	}
-
-	categoryOrder := []string{"Fire", "Hazmat", "Medical / EMS", "Crime", "Traffic", "Disturbance"}
-
-	type IncidentSub struct {
-		Label string `json:"label"`
-		Count int    `json:"count"`
-	}
-	type IncidentCat struct {
-		Category      string        `json:"category"`
-		Count         int           `json:"count"`
-		Subcategories []IncidentSub `json:"subcategories"`
-	}
-
-	incidentSystemFilter := ""
-	if sid := r.URL.Query().Get("systemId"); sid != "" {
-		if id, err3 := strconv.Atoi(sid); err3 == nil {
-			incidentSystemFilter = fmt.Sprintf(` AND c."systemId" = %d`, id)
-		}
-	}
-
-	incidentQuery := `
-		WITH filtered_calls AS (
-		    SELECT c.transcript
-		    FROM calls c
-		    WHERE c.timestamp >= EXTRACT(EPOCH FROM date_trunc('day', NOW())) * 1000
-		      AND c.transcript != ''
-		      AND c."transcriptionStatus" = 'completed'
-		      ` + incidentSystemFilter + `
-		),
-		categorized AS (
-		    SELECT
-		        CASE
-		            WHEN transcript ILIKE ANY(ARRAY['%structure fire%','%working fire%','%house fire%','%garage fire%','%apartment fire%','%residential fire%','%commercial fire%','%warehouse fire%','%fully involved%','%smoke showing%','%basement fire%','%attic fire%','%kitchen fire%','%bedroom fire%','%office fire%'])
-		                THEN 'Structure Fire'
-		            WHEN transcript ILIKE ANY(ARRAY['%brush fire%','%grass fire%','%wildland%','%barn fire%','%field fire%'])
-		                THEN 'Brush / Wildland'
-		            WHEN transcript ILIKE ANY(ARRAY['%vehicle fire%','%car fire%','%truck fire%'])
-		                THEN 'Vehicle Fire'
-		            WHEN transcript ILIKE ANY(ARRAY['%fire alarm%','%alarm activation%','%fire investigation%','%rekindle%','%dumpster fire%'])
-		                THEN 'Fire Alarm'
-		            WHEN transcript ILIKE ANY(ARRAY['%smoke%','%flames%','%burning%'])
-		                THEN 'Fire (General)'
-		            WHEN transcript ILIKE ANY(ARRAY['%carbon monoxide%','%co alarm%'])
-		                THEN 'Carbon Monoxide'
-		            WHEN transcript ILIKE ANY(ARRAY['%gas leak%','%natural gas%','%propane%','%ammonia%'])
-		                THEN 'Gas Leak'
-		            WHEN transcript ILIKE ANY(ARRAY['%hazmat%','%chemical%','%spill%','%unknown substance%','%fumes%','%strange odor%','%unknown odor%'])
-		                THEN 'Chemical / Spill'
-		            WHEN transcript ILIKE ANY(ARRAY['%cardiac%','%not breathing%','%chest pain%','%respiratory%','%cpr%','%stopped breathing%'])
-		                THEN 'Cardiac / Breathing'
-		            WHEN transcript ILIKE ANY(ARRAY['%trauma%','%injured%','%bleeding%','%laceration%','%fracture%'])
-		                THEN 'Trauma / Injury'
-		            WHEN transcript ILIKE ANY(ARRAY['%overdose%','%narcan%','%bad drugs%','%intoxicated%'])
-		                THEN 'Overdose / Substance'
-		            WHEN transcript ILIKE ANY(ARRAY['%squad%','%patient%','%medical%','%ems%','%ambulance%','%sick%','%medication%','%pass out%','%stomach pain%'])
-		                THEN 'General Medical'
-		            WHEN transcript ILIKE ANY(ARRAY['%shooting%','%shots fired%','%shot fired%','%gunshot%','%armed%','%assault%','%battery%','%robbery%','%homicide%','%stabbing%','%weapon%','%gun%'])
-		                THEN 'Violent Crime'
-		            WHEN transcript ILIKE ANY(ARRAY['%stolen%','%theft%','%burglary%','%larceny%','%shoplifting%','%breaking in%','%vandalism%'])
-		                THEN 'Property Crime'
-		            WHEN transcript ILIKE ANY(ARRAY['%suspicious%','%warrant%'])
-		                THEN 'Suspicious'
-		            WHEN transcript ILIKE ANY(ARRAY['%accident%','%crash%','%collision%','%mva%','%rollover%'])
-		                THEN 'MVA / Crash'
-		            WHEN transcript ILIKE ANY(ARRAY['%traffic stop%','%plate%','%registered to%','%comes back to%','%return clean%','%registered owner%'])
-		                THEN 'Traffic Stop / Plate'
-		            WHEN transcript ILIKE ANY(ARRAY['%erratic%','%speeding%','%road blocked%','%wires down%','%broken down%','%broke down%'])
-		                THEN 'Road Hazard'
-		            WHEN transcript ILIKE ANY(ARRAY['%domestic%'])
-		                THEN 'Domestic'
-		            WHEN transcript ILIKE ANY(ARRAY['%disturbance%','%argument%','%fighting%','%irate%','%unwanted%','%trespass%','%refusing%','%wilding out%','%attacking%'])
-		                THEN 'Disturbance'
-		            ELSE NULL
-		        END AS subcategory
-		    FROM filtered_calls
-		)
-		SELECT subcategory, COUNT(*) AS count
-		FROM categorized
-		WHERE subcategory IS NOT NULL
-		GROUP BY subcategory
-		ORDER BY count DESC`
-
-	// Build category map
-	catMap := make(map[string]*IncidentCat)
-	for _, c := range categoryOrder {
-		catMap[c] = &IncidentCat{Category: c, Count: 0, Subcategories: []IncidentSub{}}
-	}
-
-	incRows, err := db.Query(incidentQuery)
-	if err != nil {
-		log.Printf("StatsHandler: incident query error: %v", err)
-	} else {
-		defer incRows.Close()
-		for incRows.Next() {
-			var subLabel string
-			var subCount int
-			if incRows.Scan(&subLabel, &subCount) == nil {
-				if parentCat, ok := subcategoryToCategory[subLabel]; ok {
-					if cat, ok2 := catMap[parentCat]; ok2 {
-						cat.Subcategories = append(cat.Subcategories, IncidentSub{Label: subLabel, Count: subCount})
-						cat.Count += subCount
-					}
-				}
-			}
-		}
-	}
-
-	// Build ordered slice, only include categories with data
-	incidentSummary := []IncidentCat{}
-	for _, catName := range categoryOrder {
-		if cat := catMap[catName]; cat.Count > 0 {
-			incidentSummary = append(incidentSummary, *cat)
-		}
-	}
-
-	// ── Response ───────────────────────────────────────────────────────────
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"availableSystems":     availableSystems,
-		"callsPerMinute":       callsPerMinute,
-		"topTalkgroups":        topTalkgroups,
-		"callsByHour":          callsByHour,
-		"topDepartmentsByTone": topDepartmentsByTone,
-		"totalCallsToday":      totalCallsToday,
-		"callsLastMinute":      callsLastMinute,
-		"callsLastHour":        callsLastHour,
-		"incidentSummary":      incidentSummary,
-		"generatedAt":          now,
 	})
 }
 

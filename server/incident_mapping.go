@@ -666,6 +666,12 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	if call.ToneSequence != nil && call.ToneSequence.MatchedToneSet != nil {
 		toneLabel = call.ToneSequence.MatchedToneSet.Label
 	}
+	serviceTag := ""
+	if call.Talkgroup.TagId > 0 && q.controller.Tags != nil {
+		if tag, ok := q.controller.Tags.GetTagById(call.Talkgroup.TagId); ok && tag != nil {
+			serviceTag = tag.Label
+		}
+	}
 
 	engine := "local"
 
@@ -689,6 +695,7 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 		NaturePhraseToLabel:       natureData.PhraseToLabel,
 		CallNatureOpenAIClassify:  natureData.OpenAIClassify,
 		SuppressUnknownNaturePins: mapInteg.SuppressUnknownNaturePins,
+		ServiceTag:                serviceTag,
 		Engine:                    engine,
 	})
 

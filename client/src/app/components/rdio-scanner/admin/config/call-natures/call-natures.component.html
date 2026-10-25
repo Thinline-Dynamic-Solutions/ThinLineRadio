@@ -13,6 +13,38 @@
   <div class="cn-learn-header">
     <div>
       <div class="cn-learn-title">
+        <mat-icon>cloud_download</mat-icon>
+        ThinLine call classifications
+      </div>
+      <p class="cn-learn-disclaimer">
+        The geocode server publishes the shared categories. Update replaces those categories and keeps any you added on this server, such as local 10-codes.
+        Phrase edits on a shared category are replaced the next time you update. Map expire times stay as you set them.
+      </p>
+    </div>
+    <div class="cn-learn-actions">
+      <button type="button" mat-stroked-button color="primary"
+        (click)="updateFromCatalog()"
+        [disabled]="catalogBusy">
+        <mat-icon>cloud_download</mat-icon>
+        {{ catalogAction === 'sync' ? 'Working…' : 'Update from ThinLine' }}
+      </button>
+      <button type="button" mat-stroked-button color="warn"
+        (click)="clearLocalClassifications()"
+        [disabled]="catalogBusy">
+        <mat-icon>delete_sweep</mat-icon>
+        {{ catalogAction === 'clear' ? 'Working…' : 'Clear local classifications' }}
+      </button>
+    </div>
+  </div>
+  @if (catalogMessage) {
+    <p class="cn-learn-status">{{ catalogMessage }}</p>
+  }
+</div>
+
+<div class="cn-learn-panel">
+  <div class="cn-learn-header">
+    <div>
+      <div class="cn-learn-title">
         <mat-icon>psychology</mat-icon>
         Phrase suggestions from transcripts
       </div>
@@ -144,6 +176,9 @@
               <span class="cn-count-badge">{{ (nature.phrases || []).length }}</span>
               @if (!nature.enabled) {
                 <span class="cn-disabled-badge">Disabled</span>
+              }
+              @if (nature.source === 'local' && hasCatalogNatures) {
+                <span class="cn-local-badge">Local</span>
               }
               @if (nature.expireMinutes) {
                 <span class="cn-expire-badge"

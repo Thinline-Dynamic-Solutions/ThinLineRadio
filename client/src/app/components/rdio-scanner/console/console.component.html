@@ -495,8 +495,8 @@
 
       @if (isTranscriptionEnabled) {
         <aside class="alerts-sidebar"
-          [class.is-hidden]="mapTabActive"
-          [attr.aria-hidden]="mapTabActive">
+          [class.is-hidden]="!alertsSidebarVisible"
+          [attr.aria-hidden]="!alertsSidebarVisible">
           <rdio-scanner-alerts
             [boardEmbed]="true"
             [boardEmbedMax]="24"

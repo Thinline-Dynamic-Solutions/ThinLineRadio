@@ -44,6 +44,8 @@ import { RdioScannerAuthScreenComponent } from './auth-screen/auth-screen.compon
 import { RdioScannerStripeCheckoutComponent } from './stripe-checkout/stripe-checkout.component';
 import { RdioScannerSettingsComponent } from './settings/settings.component';
 import { RdioScannerAlertsComponent } from './alerts/alerts.component';
+import { RdioScannerAlertMapThumbComponent } from './alerts/alert-map-thumb.component';
+import { RdioScannerAlertMapPopupComponent } from './alerts/alert-map-popup.component';
 import { RdioScannerAlertPreferencesComponent } from './alerts/preferences/preferences.component';
 import { KeywordListInfoDialogComponent } from './alerts/preferences/keyword-list-info-dialog.component';
 import { SettingsService } from './settings/settings.service';
@@ -88,6 +90,8 @@ import { RdioScannerTurnstileComponent } from './turnstile/turnstile.component';
         RdioScannerStripeCheckoutComponent,
         RdioScannerSettingsComponent,
         RdioScannerAlertsComponent,
+        RdioScannerAlertMapThumbComponent,
+        RdioScannerAlertMapPopupComponent,
         RdioScannerTranscriptTrainingTipsComponent,
         RdioScannerAlertPreferencesComponent,
         KeywordListInfoDialogComponent,

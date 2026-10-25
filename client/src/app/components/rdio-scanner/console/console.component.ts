@@ -42,6 +42,7 @@ import {
 } from '../rdio-scanner';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { IncidentMapBridgeService } from '../incident-map/incident-map-bridge.service';
+import { IncidentsService } from '../incident-map/incidents.service';
 import { RdioScannerSearchComponent } from '../search/search.component';
 import { RdioScannerSupportComponent } from '../main/support/support.component';
 import { SettingsService } from '../settings/settings.service';
@@ -220,6 +221,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         private settingsService: SettingsService,
         private titleService: Title,
         private incidentMapBridge: IncidentMapBridgeService,
+        private incidentsService: IncidentsService,
     ) {
         this.authForm = this.fb.group<{ password: string | null }>({ password: null });
 
@@ -249,6 +251,9 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         const currentConfig = this.rdioScannerService.getConfig();
         if (currentConfig) {
             this.config = currentConfig;
+            if (this.showIncidentMapTab) {
+                this.incidentsService.prefetchDefault24h(this.rdioScannerService.readPin() || undefined);
+            }
         }
 
         this.syncPageScrollMode();
@@ -324,6 +329,15 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
 
     get mapTabActive(): boolean {
         return this.showIncidentMapTab && this.boardTabIndex === this.mapBoardTabIndex;
+    }
+
+    get statsTabActive(): boolean {
+        return this.isTranscriptionEnabled && this.boardTabIndex === TAB.Stats;
+    }
+
+    /** Recent-alerts rail stays on Transmissions only so Map / Stats / other tabs can use the width. */
+    get alertsSidebarVisible(): boolean {
+        return this.isTranscriptionEnabled && this.boardTabIndex === TAB.Transmissions;
     }
 
     get showScanningAnimation(): boolean {
@@ -647,7 +661,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
             setTimeout(() => this.archiveSearch?.searchCalls(), 0);
         }
         if (this.showIncidentMapTab && index === this.mapBoardTabIndex) {
-            // Wait for alerts rail to collapse so Leaflet measures the wider pane.
+            // Wait for the alerts rail to collapse so Leaflet measures the wider pane.
             setTimeout(() => {
                 this.cdr.detectChanges();
                 this.incidentMapBridge.getMap()?.invalidateMapSize();
@@ -1300,6 +1314,9 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                 this.boardTabIndex = this.settingsBoardTabIndex;
             } else if (!this.showIncidentMapTab && this.boardTabIndex === TAB.Map) {
                 this.boardTabIndex = this.settingsBoardTabIndex;
+            }
+            if (this.showIncidentMapTab) {
+                this.incidentsService.prefetchDefault24h(this.rdioScannerService.readPin() || undefined);
             }
             this.cdr.markForCheck();
             this.cdr.detectChanges();

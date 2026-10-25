@@ -44,6 +44,8 @@ type AlertGroup = {
     groupType: 'tone' | 'channel';
 };
 
+export type StatsTimeRange = 'today' | '24h' | '7d' | '30d';
+
 interface IncidentSubcategory {
     label: string;
     count: number;
@@ -51,20 +53,58 @@ interface IncidentSubcategory {
 
 interface IncidentCategory {
     category: string;
+    color?: string;
     count: number;
+    sharePct?: number;
     subcategories: IncidentSubcategory[];
+}
+
+interface StatsNatureRank {
+    label: string;
+    category: string;
+    color: string;
+    count: number;
+    sharePct: number;
+}
+
+interface StatsRecentIncident {
+    callId: number;
+    timestamp: number;
+    nature: string;
+    category: string;
+    color: string;
+    address: string;
+    systemLabel: string;
+    talkgroupLabel: string;
 }
 
 interface StatsData {
     availableSystems: Array<{ id: number; label: string }>;
+    range?: StatsTimeRange;
+    classificationMode?: 'mapped' | 'legacy';
     callsPerMinute: Array<{ minute: number; count: number }>;
-    topTalkgroups: Array<{ label: string; count: number }>;
-    callsByHour: Array<{ hour: number; count: number }>;
+    topTalkgroups: Array<{ label: string; systemLabel?: string; tag?: string; color?: string; count: number }>;
+    callsByHour: Array<{ hour: number; count: number; incidents?: number }>;
+    peakHour?: number;
     topDepartmentsByTone: Array<{ label: string; count: number }>;
+    tagBreakdown?: Array<{ label: string; color?: string; count: number }>;
+    systemBreakdown?: Array<{ id: number; label: string; count: number; incidents: number }>;
     totalCallsToday: number;
+    totalCallsRange?: number;
     callsLastMinute: number;
     callsLastHour: number;
+    peakCallsPerMinute?: number;
+    avgCallsPerMinute?: number;
+    activeChannelsCount?: number;
+    activeToneDeptsCount?: number;
+    totalToneDispatches?: number;
+    totalIncidents?: number;
+    mappedIncidentsCount?: number;
+    uniqueIncidentLocations?: number;
     incidentSummary: IncidentCategory[];
+    topNatures?: StatsNatureRank[];
+    topIncidentChannels?: Array<{ label: string; systemLabel?: string; count: number }>;
+    recentIncidents?: StatsRecentIncident[];
     generatedAt: number;
 }
 
@@ -92,6 +132,8 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
      */
     @Input() panelMode: RdioScannerAlertsPanelMode = 'alertsAndPreferences';
 
+    mapPopupAlert: RdioScannerAlert | null = null;
+
     alerts: RdioScannerAlert[] = [];
     systemAlerts: RdioScannerSystemAlert[] = [];
     loadingSystemAlerts = false;
@@ -107,11 +149,16 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     activeTab: 'alerts' | 'preferences' = 'alerts';
 
     // Stats
+    private static cachedStatsByKey = new Map<string, StatsData>();
     stats: StatsData | null = null;
     loadingStats = false;
     statsError = '';
     selectedSystemId: number | null = null;
+    statsRange: StatsTimeRange = '24h';
+    statsNatureSearch = '';
     expandedIncidentCategory: string | null = null;
+    expandedCategories = new Set<string>();
+    private didAutoExpandCategory = false;
     private statsRefreshInterval: any;
     private pin?: string;
     
@@ -206,6 +253,12 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
                 this.updateGroupedAlerts();
             }
         }
+        if (!this.boardEmbed && this.panelMode === 'stats') {
+            const cached = RdioScannerAlertsComponent.cachedStatsByKey.get(this.statsCacheKey());
+            if (cached) {
+                this.applyStatsData(cached);
+            }
+        }
 
         // Defer all remaining data-loading to a separate task so the tab paint is not blocked.
         // The browser can render the empty shell first, then data arrives in the next task.
@@ -238,6 +291,10 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         setTimeout(() => {
             // Subscribe to shared alerts service for updates
             this.alertsService.alerts$.subscribe(alerts => {
+                // All keeps its own list. The Mine cache must not replace it.
+                if (this.alertsViewMode === 'all') {
+                    return;
+                }
                 this.alerts = alerts;
                 this.updateGroupedAlerts();
             });
@@ -260,6 +317,13 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
                 }
                 if (event.incident) {
                     this.alertsService.patchIncidentUpdate(event.incident);
+                    if (this.alertsViewMode === 'all') {
+                        const patched = this.alertsService.withIncidentUpdate(this.alerts, event.incident);
+                        if (patched) {
+                            this.alerts = patched;
+                            this.updateGroupedAlerts();
+                        }
+                    }
                 }
                 if (event.config && !this.boardEmbed && (this.panelMode === 'alertsAndPreferences' || this.panelMode === 'transcripts')) {
                     this.loadSystemsAndTalkgroups();
@@ -275,7 +339,7 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         // Deduplicate by callId — keep the alert with the most keywords for each call.
         const byCall = new Map<number, RdioScannerAlert>();
         for (const alert of this.alerts) {
-            if (alert?.createdAt == null) continue;
+            if (alert?.createdAt == null || this.isToneOnlyAlert(alert)) continue;
             const callId = Number(alert.callId);
             if (!Number.isFinite(callId)) continue;
             const existing = byCall.get(callId);
@@ -411,6 +475,7 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     }
 
     ngOnDestroy(): void {
+        this.closeMapPopup();
         if (this.statsRefreshInterval) {
             clearInterval(this.statsRefreshInterval);
         }
@@ -698,18 +763,56 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         }, 30000);
     }
 
+    private statsCacheKey(): string {
+        return `${this.selectedSystemId ?? 'all'}|${this.statsRange}`;
+    }
+
+    private applyStatsData(data: StatsData): void {
+        this.stats = data;
+        if (!this.didAutoExpandCategory && data?.incidentSummary?.length) {
+            this.didAutoExpandCategory = true;
+            this.expandedCategories.add(data.incidentSummary[0].category);
+            if (data.incidentSummary.length > 1) {
+                this.expandedCategories.add(data.incidentSummary[1].category);
+            }
+            this.expandedIncidentCategory = data.incidentSummary[0].category;
+        }
+    }
+
+    setStatsRange(range: StatsTimeRange): void {
+        if (this.statsRange === range) {
+            return;
+        }
+        this.statsRange = range;
+        const cached = RdioScannerAlertsComponent.cachedStatsByKey.get(this.statsCacheKey());
+        if (cached) {
+            this.applyStatsData(cached);
+        }
+        this.loadStats();
+    }
+
+    resetStatsFilters(): void {
+        this.selectedSystemId = null;
+        this.statsRange = '24h';
+        this.statsNatureSearch = '';
+        this.loadStats();
+    }
+
     loadStats(): void {
         this.loadingStats = true;
         this.statsError = '';
-        const pin = this.pin;
+        const pin = this.pin || this.rdioScannerService.readPin();
         const headers = pin ? new HttpHeaders({ 'Authorization': `Bearer ${pin}` }) : new HttpHeaders();
-        let url = '/api/stats';
+        const params: string[] = [`range=${encodeURIComponent(this.statsRange)}`];
         if (this.selectedSystemId !== null) {
-            url += `?systemId=${this.selectedSystemId}`;
+            params.push(`systemId=${this.selectedSystemId}`);
         }
+        const url = `/api/stats?${params.join('&')}`;
+        const key = this.statsCacheKey();
         this.http.get<StatsData>(url, { headers }).subscribe({
             next: (data) => {
-                this.stats = data;
+                RdioScannerAlertsComponent.cachedStatsByKey.set(key, data);
+                this.applyStatsData(data);
                 this.loadingStats = false;
             },
             error: (_err) => {
@@ -717,6 +820,66 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
                 this.loadingStats = false;
             }
         });
+    }
+
+    statsRangeLabel(): string {
+        switch (this.statsRange) {
+            case 'today': return 'Today';
+            case '7d': return 'Last 7 Days';
+            case '30d': return 'Last 30 Days';
+            default: return 'Last 24 Hours';
+        }
+    }
+
+    filteredTopNatures(): StatsNatureRank[] {
+        const list = this.stats?.topNatures || [];
+        const q = (this.statsNatureSearch || '').trim().toUpperCase();
+        if (!q) {
+            return list;
+        }
+        return list.filter(n => n.label.toUpperCase().includes(q) || n.category.toUpperCase().includes(q));
+    }
+
+    isCategoryExpanded(cat: string): boolean {
+        return this.expandedCategories.has(cat);
+    }
+
+    allCategoriesExpanded(): boolean {
+        const cats = this.stats?.incidentSummary || [];
+        return cats.length > 0 && cats.every(c => this.expandedCategories.has(c.category));
+    }
+
+    toggleAllCategories(): void {
+        const cats = this.stats?.incidentSummary || [];
+        if (this.allCategoriesExpanded()) {
+            this.expandedCategories.clear();
+            this.expandedIncidentCategory = null;
+        } else {
+            for (const c of cats) {
+                this.expandedCategories.add(c.category);
+            }
+        }
+    }
+
+    topServiceCategory(): IncidentCategory | null {
+        const list = this.stats?.incidentSummary || [];
+        return list.length > 0 ? list[0] : null;
+    }
+
+    statsTotalIncidents(): number {
+        if (!this.stats) return 0;
+        if (typeof this.stats.totalIncidents === 'number') {
+            return this.stats.totalIncidents;
+        }
+        return (this.stats.incidentSummary || []).reduce((acc, c) => acc + (c.count || 0), 0);
+    }
+
+    statsCategorySharePct(cat: IncidentCategory): number {
+        if (typeof cat.sharePct === 'number') {
+            return cat.sharePct;
+        }
+        const total = this.statsTotalIncidents();
+        return total > 0 ? Math.round((cat.count * 1000) / total) / 10 : 0;
     }
 
 
@@ -788,6 +951,27 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
             this.updateGroupedAlerts();
             return;
         }
+
+        if (this.alertsViewMode === 'all') {
+            this.loading = true;
+            this.alertsService.getAllTransmissionAlerts(this.pin).subscribe({
+                next: (alerts) => {
+                    this.alerts = (alerts || []).map((alert) => {
+                        alert.transcriptSnippet = alert.transcriptSnippet || alert.transcript || '';
+                        return alert;
+                    });
+                    this.updateGroupedAlerts();
+                    this.loading = false;
+                },
+                error: (error) => {
+                    console.error('Error loading all transmission alerts:', error);
+                    this.alerts = [];
+                    this.updateGroupedAlerts();
+                    this.loading = false;
+                },
+            });
+            return;
+        }
         
         this.loading = true;
         
@@ -844,21 +1028,19 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
             return;
         }
         this.alertsViewMode = mode;
-        if (mode === 'system' || mode === 'all') {
+        if (mode === 'system') {
             this.loadSystemAlerts();
+            return;
         }
-        if (mode === 'mine' || mode === 'all') {
-            this.loadAlerts(false);
+        if (mode === 'mine') {
+            this.alerts = this.alertsService.getCachedAlerts();
+            this.updateGroupedAlerts();
         }
+        this.loadAlerts(mode === 'all');
     }
 
     refreshAlertsTab(): void {
         if (this.alertsViewMode === 'system') {
-            this.loadSystemAlerts();
-            return;
-        }
-        if (this.alertsViewMode === 'all') {
-            this.loadAlerts(true);
             this.loadSystemAlerts();
             return;
         }
@@ -870,15 +1052,12 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     }
 
     get showSystemAlertsSection(): boolean {
-        return this.canViewSystemAlerts && (this.alertsViewMode === 'system' || this.alertsViewMode === 'all');
+        return this.canViewSystemAlerts && this.alertsViewMode === 'system';
     }
 
     get alertsTabLoading(): boolean {
         if (this.alertsViewMode === 'system') {
             return this.loadingSystemAlerts;
-        }
-        if (this.alertsViewMode === 'all') {
-            return this.loading || this.loadingSystemAlerts;
         }
         return this.loading;
     }
@@ -956,6 +1135,36 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         const system = item.systemLabel || `System ${item.systemId}`;
         const talkgroup = item.talkgroupLabel || item.talkgroupName || `TG ${item.talkgroupId}`;
         return `${system} / ${talkgroup}`;
+    }
+
+    cardTitle(alert: RdioScannerAlert): string {
+        const nature = alert.incidentNature?.trim();
+        if (nature) {
+            return nature;
+        }
+        const keywords = this.getKeywordsMatched(alert);
+        if (keywords.length) {
+            return keywords[0];
+        }
+        if (alert.toneDetected) {
+            return 'Tone out';
+        }
+        return 'Dispatch';
+    }
+
+    cardKeywords(alert: RdioScannerAlert): string[] {
+        const keywords = this.getKeywordsMatched(alert);
+        if (alert.incidentNature?.trim()) {
+            return keywords;
+        }
+        return keywords.slice(1);
+    }
+
+    toneSetLabel(alert: RdioScannerAlert): string {
+        if (alert.matchedToneSetNames?.length) {
+            return alert.matchedToneSetNames.join(', ');
+        }
+        return (alert.matchedToneSetName || '').trim();
     }
 
     private alertMatchesSearch(alert: RdioScannerAlert, q: string): boolean {
@@ -1213,6 +1422,9 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     }
 
     formatAlertDate(timestamp: number): string {
+        if (!timestamp) {
+            return '';
+        }
         return new Date(timestamp).toLocaleDateString(undefined, withInstanceZone({
             month: 'numeric',
             day: 'numeric',
@@ -1220,7 +1432,22 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         }));
     }
 
+    formatAlertDateLong(timestamp: number): string {
+        if (!timestamp) {
+            return '';
+        }
+        return new Date(timestamp).toLocaleDateString(undefined, withInstanceZone({
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        }));
+    }
+
     formatAlertTime(timestamp: number): string {
+        if (!timestamp) {
+            return '';
+        }
         return new Date(timestamp).toLocaleTimeString(undefined, withInstanceZone({
             hour: 'numeric',
             minute: '2-digit',
@@ -1233,12 +1460,51 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         return `${this.formatAlertDate(timestamp)} ${this.formatAlertTime(timestamp)}`;
     }
 
+    mapPopupSubtitle(alert: RdioScannerAlert): string {
+        const parts = [
+            alert.incidentNature?.trim(),
+            this.channelLabel(alert),
+            this.formatAlertDateLong(alert.createdAt),
+            this.formatAlertTime(alert.createdAt),
+        ].filter(Boolean);
+        return parts.join('  ·  ');
+    }
+
+    openMapPopup(alert: RdioScannerAlert, event?: Event): void {
+        event?.preventDefault();
+        event?.stopPropagation();
+        if (!this.hasIncidentLocation(alert)) {
+            return;
+        }
+        this.mapPopupAlert = alert;
+    }
+
+    closeMapPopup(): void {
+        this.mapPopupAlert = null;
+    }
+
+    /** Tone clip with no spoken dispatch. Transcript-only cards stay. */
+    private isToneOnlyAlert(alert: RdioScannerAlert): boolean {
+        if (alert.alertType === 'keyword' || alert.alertType === 'transcript') {
+            return false;
+        }
+        if (this.getKeywordsMatched(alert).length > 0 || !!alert.incidentNature?.trim()) {
+            return false;
+        }
+        const text = (alert.transcript || alert.transcriptSnippet || alert.alertSummary || '').trim();
+        if (!text) {
+            return alert.toneDetected || alert.alertType === 'tone' || alert.alertType === 'tone+keyword';
+        }
+        return /tones detected\s*-\s*no voice/i.test(text);
+    }
+
     // Update cached grouped alerts (called when alerts change to avoid recalculation on every change detection)
     private updateGroupedAlerts(): void {
+        const visibleAlerts = this.alerts.filter((alert) => !this.isToneOnlyAlert(alert));
         // Group tone alerts by tone set name
         const toneGrouped = new Map<string, RdioScannerAlert[]>();
         
-        this.alerts.filter(alert => 
+        visibleAlerts.filter(alert => 
             alert.alertType === 'tone' || alert.alertType === 'tone+keyword'
         ).forEach(alert => {
             // Get tone set name from alert - prefer matchedToneSetName (specific tone set for this alert)
@@ -1271,7 +1537,7 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         // Group channel alerts by channel (system + talkgroup)
         const channelGrouped = new Map<string, RdioScannerAlert[]>();
         
-        this.alerts.filter(alert => alert.alertType === 'keyword' || alert.alertType === 'transcript').forEach(alert => {
+        visibleAlerts.filter(alert => alert.alertType === 'keyword' || alert.alertType === 'transcript').forEach(alert => {
             const callId = Number(alert.callId);
             if (!Number.isFinite(callId)) {
                 return;
@@ -1324,7 +1590,9 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
 
     hasIncidentLocation(alert: RdioScannerAlert): boolean {
         return typeof alert.incidentLat === 'number' &&
+            typeof alert.incidentLon === 'number' &&
             alert.incidentLat !== 0 &&
+            alert.incidentLon !== 0 &&
             !!alert.incidentNature?.trim();
     }
 
@@ -1355,31 +1623,46 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
 
     // ── Incident summary helpers ────────────────────────────────────────────
     toggleIncidentCategory(cat: string): void {
+        if (this.expandedCategories.has(cat)) {
+            this.expandedCategories.delete(cat);
+        } else {
+            this.expandedCategories.add(cat);
+        }
         this.expandedIncidentCategory = this.expandedIncidentCategory === cat ? null : cat;
     }
 
     getIncidentIcon(category: string): string {
         const icons: { [key: string]: string } = {
-            'Fire':          '🔥',
-            'Hazmat':        '☣️',
-            'Medical / EMS': '🚑',
-            'Crime':         '🚔',
-            'Traffic':       '🚗',
-            'Disturbance':   '⚠️',
+            'Medical / EMS':      '🚑',
+            'Fire & Alarms':      '🔥',
+            'Fire':               '🔥',
+            'Traffic & MVA':      '🚗',
+            'Traffic':            '🚗',
+            'Law Enforcement':    '🚔',
+            'Crime':              '🚔',
+            'Hazmat & Utilities': '⚡',
+            'Hazmat':             '☣️',
+            'Service & Welfare':  '🛡️',
+            'Disturbance':        '⚠️',
         };
         return icons[category] || '📻';
     }
 
     getIncidentColor(category: string): string {
         const colors: { [key: string]: string } = {
-            'Fire':         '#ff5722',
-            'Hazmat':       '#ff9800',
-            'Medical / EMS':'#00e676',
-            'Crime':        '#f44336',
-            'Traffic':      '#29b6f6',
-            'Disturbance':  '#ce93d8',
+            'Medical / EMS':      '#10b981',
+            'Fire & Alarms':      '#ff5722',
+            'Fire':               '#ff5722',
+            'Traffic & MVA':      '#38bdf8',
+            'Traffic':            '#38bdf8',
+            'Law Enforcement':    '#ef4444',
+            'Crime':              '#ef4444',
+            'Hazmat & Utilities': '#f59e0b',
+            'Hazmat':             '#f59e0b',
+            'Service & Welfare':  '#a855f7',
+            'Disturbance':        '#a855f7',
         };
-        return colors[category] || '#90a4ae';
+        return colors[category] || '#94a3b8';
     }
 
     private playAlertSound(): void {

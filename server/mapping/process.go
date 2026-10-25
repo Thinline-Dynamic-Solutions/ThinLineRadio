@@ -10,12 +10,12 @@ import (
 
 // ProcessInput holds everything needed to extract and geocode one dispatch transcript.
 type ProcessInput struct {
-	Transcript    string
-	ToneSetLabel  string
-	OpenAIKey     string
-	OpenAIModel   string
-	Scope         *ScopeData
-	Geo           *GeoOptions
+	Transcript      string
+	ToneSetLabel    string
+	OpenAIKey       string
+	OpenAIModel     string
+	Scope           *ScopeData
+	Geo             *GeoOptions
 	CoverageAddress string
 	CoverageNature  string
 	NatureCodes     []string
@@ -27,7 +27,10 @@ type ProcessInput struct {
 	// SuppressUnknownNaturePins drops map pins for catch-all unknown natures
 	// (UNKNOWN PROBLEM, etc.) after classification.
 	SuppressUnknownNaturePins bool
-	ForceCoverage             bool
+	// ServiceTag is the talkgroup tag (Fire Dispatch, Law Dispatch, EMS).
+	// An alarm with no spoken type follows this tag.
+	ServiceTag    string
+	ForceCoverage bool
 	// Engine is retained for interface stability with existing callers but is
 	// no longer branched on — extraction is always the local rule-based
 	// identifier (digit address candidate); street pins are placed by
@@ -69,12 +72,12 @@ func sanitizeExtractBatch(curated *CuratedAlert, extras []*CuratedAlert, cleaned
 
 // ProcessOutput is the geocoding pipeline result.
 type ProcessOutput struct {
-	Primary  *CuratedAlert
-	Extras   []*CuratedAlert
-	Status   string // geocoded|local|cache|failed|skipped|coverage|approximate
-	Source   string
-	Query    string
-	Cleaned  string
+	Primary *CuratedAlert
+	Extras  []*CuratedAlert
+	Status  string // geocoded|local|cache|failed|skipped|coverage|approximate
+	Source  string
+	Query   string
+	Cleaned string
 	// Approximate is set for limited-access highway calls that could not be
 	// anchored to a cross street — the pin (if any) is a rough highway point,
 	// not a precise location.
@@ -166,6 +169,7 @@ func applyCallNatureAssignment(curated *CuratedAlert, in ProcessInput, cleaned s
 		)
 	}
 	curated.NatureDesc = SanitizeCallNatureAssignment(cleaned, curated.NatureDesc, in.NatureCodes)
+	curated.NatureDesc = adjustUnspecifiedAlarmNature(curated.NatureDesc, cleaned, in.ServiceTag, in.NatureCodes)
 }
 
 func shouldUseOpenAINatureClassify(in ProcessInput) bool {

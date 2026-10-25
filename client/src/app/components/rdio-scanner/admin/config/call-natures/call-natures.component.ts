@@ -53,6 +53,9 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
     loadingSuggestions = false;
     scanning = false;
     scanMessage = '';
+    catalogBusy = false;
+    catalogAction: '' | 'sync' | 'clear' = '';
+    catalogMessage = '';
     private phrasesSubscription?: Subscription;
 
     constructor(
@@ -93,6 +96,10 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
         return this.suggestions.filter((s) => s.ready);
     }
 
+    get hasCatalogNatures(): boolean {
+        return this.callNatures.some((n) => n.source === 'catalog');
+    }
+
     get emergingSuggestions(): CallNaturePhraseSuggestion[] {
         return this.suggestions.filter((s) => !s.ready);
     }
@@ -124,6 +131,7 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             order: nature.order ?? 0,
             expireMinutes: nature.expireMinutes ?? 0,
             createdAt: nature.createdAt,
+            source: nature.source === 'catalog' ? 'catalog' : 'local',
         };
     }
 
@@ -187,6 +195,58 @@ export class RdioScannerAdminCallNaturesComponent implements OnInit, OnDestroy {
             this.scanMessage = 'Scan failed — check that phrase learning is enabled and try again.';
         }
         this.scanning = false;
+        this.cdr.markForCheck();
+    }
+
+    async updateFromCatalog(): Promise<void> {
+        const ok = confirm(
+            'Update shared call classifications from ThinLine?\n\n' +
+            'Categories you added on this server, such as local 10-codes, are kept.\n' +
+            'Phrases and enabled state on a shared category are replaced.\n' +
+            'Map expire times you already set are kept.',
+        );
+        if (!ok) {
+            return;
+        }
+        this.catalogBusy = true;
+        this.catalogAction = 'sync';
+        this.catalogMessage = '';
+        this.cdr.markForCheck();
+        const res = await this.adminService.syncCallNatureCatalog();
+        if (res) {
+            const kept = res.keptLocal === 1 ? '1 local category' : `${res.keptLocal} local categories`;
+            this.catalogMessage = `Updated ${res.updated}, added ${res.added}, removed ${res.removed}. Kept ${kept}.`;
+            await this.loadCallNatures();
+        } else {
+            this.catalogMessage = 'Update failed.';
+        }
+        this.catalogBusy = false;
+        this.catalogAction = '';
+        this.cdr.markForCheck();
+    }
+
+    async clearLocalClassifications(): Promise<void> {
+        const ok = confirm(
+            'Remove every call classification on this server?\n\n' +
+            'This includes shared categories and any you added. You can load the ThinLine database again afterward.',
+        );
+        if (!ok) {
+            return;
+        }
+        this.catalogBusy = true;
+        this.catalogAction = 'clear';
+        this.catalogMessage = '';
+        this.cdr.markForCheck();
+        const cleared = await this.adminService.clearCallNatures();
+        if (cleared) {
+            this.cancelEdit();
+            this.catalogMessage = 'Local call classifications cleared.';
+            await this.loadCallNatures();
+        } else {
+            this.catalogMessage = 'Clear failed.';
+        }
+        this.catalogBusy = false;
+        this.catalogAction = '';
         this.cdr.markForCheck();
     }
 

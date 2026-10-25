@@ -340,7 +340,9 @@ select.toolbar-control {
     top: 12px;
     right: 12px;
     z-index: 1100;
-    width: 280px;
+    width: 320px;
+    max-height: calc(100% - 24px);
+    overflow: auto;
     background: rgba(18, 18, 18, 0.96);
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 8px;
@@ -378,6 +380,67 @@ select.toolbar-control {
         width: 100%;
         box-sizing: border-box;
     }
+}
+
+.pin-edit-address-row {
+    display: flex;
+    gap: 6px;
+
+    input {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+.pin-edit-find {
+    flex: 0 0 auto;
+}
+
+.pin-edit-error {
+    font-size: 12px;
+    color: #ff8a80;
+}
+
+.pin-edit-results {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pin-edit-result {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: #ddd;
+    font-size: 12px;
+    line-height: 1.35;
+    padding: 6px 8px;
+    cursor: pointer;
+
+    &:hover,
+    &--on {
+        border-color: #d9a441;
+        background: rgba(217, 164, 65, 0.12);
+    }
+}
+
+.pin-edit-result__letter {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 1px solid #d9a441;
+    color: #d9a441;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
 }
 
 .pin-edit-coords {
@@ -506,6 +569,30 @@ select.toolbar-control {
     background: rgba(217, 164, 65, 0.35);
     border: 2px solid #d9a441;
     box-shadow: 0 0 8px rgba(217, 164, 65, 0.8);
+}
+
+:host ::ng-deep .tlr-pin-choice-icon {
+    background: transparent !important;
+    border: 0 !important;
+}
+
+:host ::ng-deep .tlr-pin-choice {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 2px solid #d9a441;
+    color: #d9a441;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 22px;
+    text-align: center;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+:host ::ng-deep .tlr-pin-choice--on {
+    background: #d9a441;
+    color: #1a1a1a;
 }
 
 // Leaflet custom incident pins

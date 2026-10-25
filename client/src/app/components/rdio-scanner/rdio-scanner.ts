@@ -178,6 +178,8 @@ export interface RdioScannerAlertPreference {
     notificationSound?: string;
     /** Per-tone-set notification sound overrides. Key = toneSetId, value = filename e.g. "chirp_long.wav". */
     toneSetSounds?: { [toneSetId: string]: string };
+    pagerAlert?: boolean;
+    toneSetPagerAlerts?: { [toneSetId: string]: boolean };
 }
 
 export interface RdioScannerKeywordList {

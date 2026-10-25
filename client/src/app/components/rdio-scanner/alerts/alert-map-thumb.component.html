@@ -1,0 +1,6 @@
+<div class="map-thumb">
+  @for (tile of tiles; track tile.src) {
+    <img class="map-thumb-tile" [src]="tile.src" [style.left.px]="tile.left" [style.top.px]="tile.top" alt="" draggable="false">
+  }
+  <span class="map-thumb-pin" aria-hidden="true"></span>
+</div>

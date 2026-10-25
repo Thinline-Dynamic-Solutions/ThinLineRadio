@@ -127,6 +127,19 @@ export class AlertsService {
         return path;
     }
 
+    /**
+     * Every radio-transmission alert this account can hear. Does not touch the
+     * personal Mine cache, and does not include system health alerts.
+     */
+    getAllTransmissionAlerts(pin?: string): Observable<RdioScannerAlert[]> {
+        let url = `${this.getFullUrl(this.apiUrl)}?scope=all`;
+        if (pin) {
+            url += `&pin=${encodeURIComponent(pin)}`;
+        }
+        const headers = pin ? new HttpHeaders().set('Authorization', `Bearer ${pin}`) : undefined;
+        return this.http.get<RdioScannerAlert[]>(url, { headers });
+    }
+
     getAlerts(limit: number = 50, offset: number = 0, pin?: string): Observable<any[]> {
         let url = `${this.getFullUrl(this.apiUrl)}?limit=${limit}&offset=${offset}`;
         if (pin) {
@@ -328,38 +341,49 @@ export class AlertsService {
      * Apply a pushed incident-mapping update to cached alerts for one call.
      */
     patchIncidentUpdate(update: RdioScannerIncidentUpdate): boolean {
-        if (!update?.callId) {
+        const next = this.withIncidentUpdate(this.alertsCache, update);
+        if (!next) {
             return false;
         }
+        this.alertsCache = next;
+        this.alertsSubject.next([...this.alertsCache]);
+        this.writeSessionCache();
+        return true;
+    }
+
+    /**
+     * Returns a new list with the mapping result applied, or null when no card matched.
+     */
+    withIncidentUpdate(alerts: RdioScannerAlert[], update: RdioScannerIncidentUpdate): RdioScannerAlert[] | null {
+        const callId = Number(update?.callId);
+        if (!Number.isFinite(callId)) {
+            return null;
+        }
         let changed = false;
-        this.alertsCache = this.alertsCache.map((alert) => {
-            if (alert.callId !== update.callId) {
+        const next = (alerts || []).map((alert) => {
+            if (Number(alert.callId) !== callId) {
                 return alert;
             }
             changed = true;
-            const next = { ...alert };
+            const patched = { ...alert };
             if (update.incidentAddress !== undefined) {
-                next.incidentAddress = update.incidentAddress;
+                patched.incidentAddress = update.incidentAddress;
             }
             if (update.incidentNature !== undefined) {
-                next.incidentNature = update.incidentNature;
+                patched.incidentNature = update.incidentNature;
             }
             if (update.incidentLat !== undefined) {
-                next.incidentLat = update.incidentLat;
+                patched.incidentLat = update.incidentLat;
             }
             if (update.incidentLon !== undefined) {
-                next.incidentLon = update.incidentLon;
+                patched.incidentLon = update.incidentLon;
             }
             if (update.incidentGeocodeStatus !== undefined) {
-                next.incidentGeocodeStatus = update.incidentGeocodeStatus;
+                patched.incidentGeocodeStatus = update.incidentGeocodeStatus;
             }
-            return next;
+            return patched;
         });
-        if (changed) {
-            this.alertsSubject.next([...this.alertsCache]);
-            this.writeSessionCache();
-        }
-        return changed;
+        return changed ? next : null;
     }
 
     getPreferences(pin?: string): Observable<RdioScannerAlertPreference[]> {

@@ -210,6 +210,15 @@ export interface CallNature {
     order?: number;
     expireMinutes?: number;
     createdAt?: number;
+    source?: 'catalog' | 'local' | string;
+}
+
+export interface CallNatureCatalogSync {
+    version: string;
+    added: number;
+    updated: number;
+    removed: number;
+    keptLocal: number;
 }
 
 export interface CallNaturePhraseSuggestion {
@@ -1825,6 +1834,44 @@ export class RdioScannerAdminService implements OnDestroy {
             this.errorHandler(error);
             return false;
         }
+    }
+
+    async syncCallNatureCatalog(): Promise<CallNatureCatalogSync | undefined> {
+        try {
+            return await firstValueFrom(this.ngHttpClient.post<CallNatureCatalogSync>(
+                '/api/call-natures/sync',
+                {},
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error) {
+            this.reportCallNatureError(error);
+            return undefined;
+        }
+    }
+
+    async clearCallNatures(): Promise<boolean> {
+        try {
+            await firstValueFrom(this.ngHttpClient.post(
+                '/api/call-natures/clear',
+                {},
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return true;
+        } catch (error) {
+            this.reportCallNatureError(error);
+            return false;
+        }
+    }
+
+    private reportCallNatureError(error: unknown): void {
+        if (error instanceof HttpErrorResponse && error.status === 401) {
+            this.errorHandler(error);
+            return;
+        }
+        const body = error instanceof HttpErrorResponse && typeof error.error === 'string'
+            ? error.error.trim()
+            : '';
+        this.matSnackBar.open(body || 'Call classification request failed', '', { duration: 5000 });
     }
 
     async deleteCallNature(natureId: number): Promise<boolean> {

@@ -1,4 +1,5 @@
 .incident-map-sidebar {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -178,6 +179,46 @@
 .incident-list-tag {
     font-weight: 600;
     opacity: 0.95;
+}
+
+.sidebar-jump-top-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 10px 0;
+    pointer-events: none;
+}
+
+.sidebar-jump-top {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(8, 10, 14, 0.9);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+
+    mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+    }
+
+    &:hover {
+        background: #ff5b2e;
+        color: #0a1218;
+        border-color: #ff5b2e;
+    }
 }
 
 .btn-play-audio {

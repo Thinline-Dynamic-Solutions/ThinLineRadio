@@ -256,10 +256,11 @@ func ClassifyCallNatureForLearning(transcript string, labels, matchTerms []strin
 // and rule-based inference. OpenAI is never used.
 func ClassifyCallNature(transcript string, labels, matchTerms []string, phraseToLabel map[string]string) string {
 	cleaned := PreCleanTranscript(transcript)
-	return FinalizeIncidentNatureWithMap(
+	nature := FinalizeIncidentNatureWithMap(
 		"", cleaned, labels, effectiveMatchTerms(labels, matchTerms),
 		shouldInferNatureFromTranscript(cleaned, false), phraseToLabel, false,
 	)
+	return SanitizeCallNatureAssignment(cleaned, nature, labels)
 }
 
 // extractLearnedPhraseForLabel returns the shortest identifying phrase from a

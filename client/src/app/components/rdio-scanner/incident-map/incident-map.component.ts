@@ -76,7 +76,12 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     pinEdit: { incident: IncidentRecord; address: string; nature: string; lat: number; lon: number } | null = null;
     pinEditSaving = false;
     movePinArmed = false;
+    pinSearchBusy = false;
+    pinSearchError = '';
+    pinSearchHits: { label: string; lat: number; lon: number }[] = [];
+    pinSearchSelected = -1;
     private pinEditMarker: L.Marker | null = null;
+    private pinSearchMarkers: L.Marker[] = [];
 
     readonly mapStyleOptions: IncidentMapStyleOption[] = [
         { id: 'voyager', label: 'Voyager' },
@@ -156,6 +161,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     private pollSub?: Subscription;
     private eventSub?: Subscription;
     private incidentRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    private incidentFetchGen = 0;
     private tagColorSub?: Subscription;
     private weatherLayersSub?: Subscription;
     private readonly mapStyleStorageKey = 'tlr-incident-map-style';
@@ -163,6 +169,13 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     private readonly startDateStorageKey = 'tlr-incident-map-start-date';
     private readonly endDateStorageKey = 'tlr-incident-map-end-date';
     private readonly incidentFocusZoom = 16;
+    private dateTimeFormatter: { zone: string | undefined; fmt: Intl.DateTimeFormat } | null = null;
+    private filteredRawCountCache = 0;
+
+    private notifySidebar(): void {
+        this.sidebarTick++;
+        this.mapBridge.notifyChanged();
+    }
 
     constructor(
         private incidentsService: IncidentsService,
@@ -200,8 +213,10 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             }
         });
         this.tagColorSub = this.tagColorService.getTagColors().subscribe(() => {
+            this.rebuildFilteredIncidents();
             this.scheduleMarkerRender();
             this.cdr.markForCheck();
+            this.notifySidebar();
         });
     }
 
@@ -268,11 +283,18 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
 
     private applyIncidentFilters(rows: IncidentRecord[]): IncidentRecord[] {
         let out = rows;
+        const { since, until } = this.getQueryTimeRange();
+        if (since > 0) {
+            out = out.filter((inc) => Number(inc.timestamp) >= since);
+        }
+        if (until > 0) {
+            out = out.filter((inc) => Number(inc.timestamp) <= until);
+        }
         if (this.filterSystemId != null) {
-            out = out.filter((inc) => inc.systemId === this.filterSystemId);
+            out = out.filter((inc) => Number(inc.systemId) === Number(this.filterSystemId));
         }
         if (this.filterTalkgroupId != null) {
-            out = out.filter((inc) => inc.talkgroupId === this.filterTalkgroupId);
+            out = out.filter((inc) => Number(inc.talkgroupId) === Number(this.filterTalkgroupId));
         }
         const q = this.searchQuery.trim().toLowerCase();
         if (q) {
@@ -357,7 +379,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.persistTimeFilter();
         this.refreshIncidents();
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     onCustomStartDateChange(value: string): void {
@@ -374,7 +396,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             this.refreshIncidents();
         }
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     onCustomEndDateChange(value: string): void {
@@ -391,7 +413,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             this.refreshIncidents();
         }
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     isTimePresetActive(preset: IncidentTimePreset): boolean {
@@ -416,29 +438,29 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.searchQuery = value;
         this.onFiltersChanged();
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     onSystemFilterChange(raw: string | number | null): void {
         this.filterSystemId = raw === '' || raw == null ? null : Number(raw);
         this.filterTalkgroupId = null;
-        this.onFiltersChanged();
+        this.refreshIncidents();
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     onTalkgroupFilterChange(raw: string | number | null): void {
         this.filterTalkgroupId = raw === '' || raw == null ? null : Number(raw);
-        this.onFiltersChanged();
+        this.refreshIncidents();
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     clearSearch(): void {
         this.searchQuery = '';
         this.onFiltersChanged();
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     clearAllFilters(): void {
@@ -447,7 +469,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.filterTalkgroupId = null;
         this.onFiltersChanged();
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
     }
 
     /** Keep map/toolbar focus from scrolling the page and hiding the tab bar. */
@@ -499,7 +521,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.focusingCallId = resolved.callId;
         this.scrollIncidentIntoView(resolved.callId);
         this.cdr.markForCheck();
-        this.sidebarTick++;
+        this.notifySidebar();
         this.ngZone.runOutsideAngular(() => {
             this.focusIncidentOnMap(resolved, () => this.openPopupForIncident(resolved));
         });
@@ -514,7 +536,23 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         if (!ts) {
             return '';
         }
-        return new Date(ts).toLocaleString(undefined, withInstanceZone());
+        const opts = withInstanceZone();
+        const zone = opts?.timeZone;
+        if (!this.dateTimeFormatter || this.dateTimeFormatter.zone !== zone) {
+            this.dateTimeFormatter = {
+                zone,
+                fmt: new Intl.DateTimeFormat(undefined, {
+                    year: 'numeric',
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    ...(zone ? { timeZone: zone } : {}),
+                }),
+            };
+        }
+        return this.dateTimeFormatter.fmt.format(new Date(ts));
     }
 
     incidentAddress(incident: IncidentRecord): string {
@@ -548,7 +586,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
 
     /** Number of underlying call records behind the deduped sidebar list. */
     get filteredIncidentRawCount(): number {
-        return this.filteredIncidentsRaw().length;
+        return this.filteredRawCountCache;
     }
 
     getIncidentTagColor(incident: IncidentRecord): string {
@@ -612,9 +650,21 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     }
 
     private rebuildFilteredIncidents(): void {
-        this.dedupedFilteredIncidents = this.dedupeIncidentsByLocation(
-            this.applyIncidentFilters(this.incidents),
-        );
+        const raw = this.applyIncidentFilters(this.incidents);
+        this.filteredRawCountCache = raw.length;
+        const deduped = this.dedupeIncidentsByLocation(raw);
+        for (const inc of deduped) {
+            const color = this.getIncidentTagColor(inc);
+            inc.uiTagColor = color;
+            inc.uiTextColor = this.contrastTextColor(color);
+            inc.uiBgColor = this.incidentListBackground(inc);
+            inc.uiSelectedShadow = `inset 3px 0 0 ${color}`;
+            inc.uiNatureLabel = this.incidentNatureLabel(inc);
+            inc.uiAddress = this.incidentAddress(inc);
+            inc.uiChannel = this.incidentChannel(inc);
+            inc.uiTime = this.formatTimestamp(inc.timestamp);
+        }
+        this.dedupedFilteredIncidents = deduped;
     }
 
     /** Merge same-location dispatches (multi-TG tones) within a short time window. */
@@ -622,36 +672,67 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         const windowMs = 15 * 60 * 1000;
         const sorted = [...rows].sort((a, b) => b.timestamp - a.timestamp);
         const out: IncidentRecord[] = [];
+        const byLocKey = new Map<string, IncidentRecord[]>();
+        const byAddrKey = new Map<string, IncidentRecord[]>();
         for (const inc of sorted) {
-            const existing = this.findDedupeMatch(out, inc, windowMs);
+            const locKey = this.incidentLocationKey(inc);
+            const addrKey = this.incidentAddressKey(inc);
+            const existing = this.findDedupeMatchIndexed(byLocKey, byAddrKey, inc, locKey, addrKey, windowMs);
             if (existing) {
                 this.mergeIncidentDuplicate(existing, inc);
             } else {
-                out.push({ ...inc });
+                const clone: IncidentRecord = { ...inc };
+                const n = (clone.nature || '').trim();
+                if (n) {
+                    clone.relatedNatures = [n];
+                }
+                out.push(clone);
+                const locList = byLocKey.get(locKey);
+                if (locList) {
+                    locList.push(clone);
+                } else {
+                    byLocKey.set(locKey, [clone]);
+                }
+                if (addrKey) {
+                    const addrList = byAddrKey.get(addrKey);
+                    if (addrList) {
+                        addrList.push(clone);
+                    } else {
+                        byAddrKey.set(addrKey, [clone]);
+                    }
+                }
             }
         }
         return out;
     }
 
-    private findDedupeMatch(
-        out: IncidentRecord[],
+    private findDedupeMatchIndexed(
+        byLocKey: Map<string, IncidentRecord[]>,
+        byAddrKey: Map<string, IncidentRecord[]>,
         inc: IncidentRecord,
+        locKey: string,
+        addrKey: string,
         windowMs: number,
     ): IncidentRecord | undefined {
-        const key = this.incidentLocationKey(inc);
-        const addrKey = this.incidentAddressKey(inc);
-        return out.find((e) => {
-            if (e.systemId !== inc.systemId) {
-                return false;
+        const locCandidates = byLocKey.get(locKey);
+        if (locCandidates) {
+            for (const e of locCandidates) {
+                if (e.systemId === inc.systemId && Math.abs(e.timestamp - inc.timestamp) <= windowMs) {
+                    return e;
+                }
             }
-            if (Math.abs(e.timestamp - inc.timestamp) > windowMs) {
-                return false;
+        }
+        if (addrKey) {
+            const addrCandidates = byAddrKey.get(addrKey);
+            if (addrCandidates) {
+                for (const e of addrCandidates) {
+                    if (e.systemId === inc.systemId && Math.abs(e.timestamp - inc.timestamp) <= windowMs) {
+                        return e;
+                    }
+                }
             }
-            if (this.incidentLocationKey(e) === key) {
-                return true;
-            }
-            return !!addrKey && this.incidentAddressKey(e) === addrKey;
-        });
+        }
+        return undefined;
     }
 
     private incidentLocationKey(inc: IncidentRecord): string {
@@ -728,21 +809,24 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         if (!primary.nature && other.nature) {
             primary.nature = other.nature;
         }
+        const otherNat = (other.nature || '').trim();
+        if (otherNat) {
+            if (!primary.relatedNatures) {
+                const primNat = (primary.nature || '').trim();
+                primary.relatedNatures = primNat && primNat !== otherNat ? [primNat, otherNat] : [otherNat];
+            } else if (!primary.relatedNatures.includes(otherNat)) {
+                primary.relatedNatures.push(otherNat);
+            }
+        }
     }
 
     /** Unique nature labels across merged calls (e.g. CRASH / MUTUAL AID). */
     incidentNatureLabel(incident: IncidentRecord): string {
-        const natures = [
-            ...new Set(
-                this.groupedIncidentCalls(incident)
-                    .map((row) => (row.nature || '').trim())
-                    .filter(Boolean),
-            ),
-        ];
-        if (natures.length === 0) {
-            return 'UNKNOWN PROBLEM';
+        if (incident.relatedNatures?.length) {
+            return incident.relatedNatures.join(' / ');
         }
-        return natures.join(' / ');
+        const n = (incident.nature || '').trim();
+        return n || 'UNKNOWN PROBLEM';
     }
 
     private channelLabel(incident: IncidentRecord): string {
@@ -867,12 +951,12 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
                 return {
                     since: start.getTime(),
                     until: end.getTime(),
-                    limit: 400,
+                    limit: 2000,
                 };
             }
         }
         const hours = this.timePreset === '8h' ? 8 : this.timePreset === '16h' ? 16 : 24;
-        const limit = this.timePreset === '8h' ? 120 : this.timePreset === '16h' ? 200 : 250;
+        const limit = this.timePreset === '8h' ? 800 : this.timePreset === '16h' ? 1500 : 2000;
         return {
             since: now - hours * 60 * 60 * 1000,
             until: now,
@@ -974,6 +1058,8 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
                 }
                 this.pinEdit.lat = Number(e.latlng.lat.toFixed(6));
                 this.pinEdit.lon = Number(e.latlng.lng.toFixed(6));
+                this.pinSearchSelected = -1;
+                this.renderPinSearchMarkers();
                 this.disarmMovePin();
                 this.updatePinEditMarker();
                 this.cdr.markForCheck();
@@ -1162,33 +1248,52 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     }
 
     private refreshIncidents(): void {
+        const fetchId = ++this.incidentFetchGen;
         const pin = this.rdioScannerService.readPin();
         const { since, until, limit } = this.getQueryTimeRange();
-        this.incidentsService.getIncidents(limit, pin || undefined, since, until).subscribe({
-            next: (items) => {
-                this.incidents = items || [];
-                this.loading = false;
-                this.loadError = '';
-                this.rebuildFilteredIncidents();
-                if (this.selectedIncident) {
-                    const selectedId = this.selectedIncident.callId;
-                    this.selectedIncident = this.resolveIncident(selectedId);
-                    if (!this.selectedIncident) {
-                        // The incident aged out (e.g. call-nature force expiry)
-                        // — its standalone popup is not bound to the marker, so
-                        // close it or it floats over an empty spot.
-                        this.map?.closePopup();
-                    }
+        const applyItems = (items: IncidentRecord[]): void => {
+            if (fetchId !== this.incidentFetchGen) {
+                return;
+            }
+            this.incidents = items || [];
+            this.loading = false;
+            this.loadError = '';
+            this.rebuildFilteredIncidents();
+            if (this.selectedIncident) {
+                const selectedId = this.selectedIncident.callId;
+                this.selectedIncident = this.resolveIncident(selectedId);
+                if (!this.selectedIncident) {
+                    this.map?.closePopup();
                 }
-                this.scheduleMarkerRender();
-                this.cdr.markForCheck();
-                this.sidebarTick++;
-            },
+            }
+            this.scheduleMarkerRender();
+            this.cdr.markForCheck();
+            this.notifySidebar();
+        };
+        if (this.incidents.length === 0 && this.timePreset === '24h' && !this.filterSystemId && !this.filterTalkgroupId && !this.searchQuery.trim()) {
+            const cached = this.incidentsService.consumePrefetched24h(pin || undefined);
+            if (cached) {
+                applyItems(cached);
+                return;
+            }
+        }
+        this.incidentsService.getIncidents(
+            limit,
+            pin || undefined,
+            since,
+            until,
+            this.filterSystemId,
+            this.filterTalkgroupId,
+        ).subscribe({
+            next: (items) => applyItems(items),
             error: (err) => {
+                if (fetchId !== this.incidentFetchGen) {
+                    return;
+                }
                 this.loading = false;
                 this.loadError = this.formatIncidentLoadError(err);
                 this.cdr.markForCheck();
-                this.sidebarTick++;
+                this.notifySidebar();
             },
         });
     }
@@ -1253,7 +1358,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         }
 
         let index = 0;
-        const chunkSize = 35;
+        const chunkSize = 250;
         const renderChunk = (): void => {
             const end = Math.min(index + chunkSize, visible.length);
             for (; index < end; index++) {
@@ -1455,6 +1560,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             lat: Number(incident.lat) || 0,
             lon: Number(incident.lon) || 0,
         };
+        this.clearPinSearch();
         this.movePinArmed = false;
         this.map?.closePopup();
         this.updatePinEditMarker();
@@ -1471,8 +1577,73 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     cancelPinEdit(): void {
         this.pinEdit = null;
         this.pinEditSaving = false;
+        this.clearPinSearch();
         this.disarmMovePin();
         this.removePinEditMarker();
+        this.cdr.markForCheck();
+    }
+
+    /** Geocode the typed address. One hit moves the pin; several become A/B/C dots. */
+    searchPinAddress(): void {
+        const edit = this.pinEdit;
+        const query = edit?.address.trim() ?? '';
+        if (!edit || !query || this.pinSearchBusy) {
+            return;
+        }
+        this.pinSearchBusy = true;
+        this.pinSearchError = '';
+        this.pinSearchHits = [];
+        this.pinSearchSelected = -1;
+        this.renderPinSearchMarkers();
+        const pin = this.rdioScannerService.readPin();
+        this.incidentsService.searchPinAddress(edit.incident.callId, query, pin || undefined).subscribe({
+            next: (results) => {
+                this.pinSearchBusy = false;
+                if (!this.pinEdit || this.pinEdit.incident.callId !== edit.incident.callId) {
+                    return;
+                }
+                this.pinSearchHits = results;
+                if (results.length === 0) {
+                    this.pinSearchError = 'No matches';
+                } else if (results.length === 1) {
+                    this.choosePinSearchHit(0, true);
+                } else {
+                    this.renderPinSearchMarkers();
+                    this.fitPinSearchHits();
+                    this.choosePinSearchHit(0, false);
+                }
+                this.cdr.markForCheck();
+            },
+            error: (err) => {
+                this.pinSearchBusy = false;
+                const body = typeof (err as { error?: unknown })?.error === 'string'
+                    ? (err as { error: string }).error.trim()
+                    : '';
+                this.pinSearchError = body || 'Address search failed';
+                this.cdr.markForCheck();
+            },
+        });
+    }
+
+    pinSearchLetter(index: number): string {
+        return String.fromCharCode(65 + index);
+    }
+
+    choosePinSearchHit(index: number, pan = true): void {
+        const hit = this.pinSearchHits[index];
+        if (!hit || !this.pinEdit) {
+            return;
+        }
+        this.pinSearchSelected = index;
+        this.pinEdit.address = hit.label;
+        this.pinEdit.lat = hit.lat;
+        this.pinEdit.lon = hit.lon;
+        this.renderPinSearchMarkers();
+        this.updatePinEditMarker();
+        if (pan) {
+            const zoom = this.pinSearchHits.length === 1 ? 17 : this.map?.getZoom();
+            this.map?.setView([hit.lat, hit.lon], zoom, { animate: true });
+        }
         this.cdr.markForCheck();
     }
 
@@ -1563,6 +1734,51 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         if (this.pinEditMarker) {
             this.pinEditMarker.remove();
             this.pinEditMarker = null;
+        }
+    }
+
+    private clearPinSearch(): void {
+        this.pinSearchBusy = false;
+        this.pinSearchError = '';
+        this.pinSearchHits = [];
+        this.pinSearchSelected = -1;
+        this.renderPinSearchMarkers();
+    }
+
+    private renderPinSearchMarkers(): void {
+        for (const marker of this.pinSearchMarkers) {
+            marker.remove();
+        }
+        this.pinSearchMarkers = [];
+        const map = this.map;
+        if (!map || this.pinSearchHits.length < 2) {
+            return;
+        }
+        this.pinSearchHits.forEach((hit, index) => {
+            const on = index === this.pinSearchSelected;
+            const icon = L.divIcon({
+                className: 'tlr-pin-choice-icon',
+                html: `<div class="tlr-pin-choice${on ? ' tlr-pin-choice--on' : ''}">${this.pinSearchLetter(index)}</div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+            });
+            const marker = L.marker([hit.lat, hit.lon], { icon, zIndexOffset: 2200 + index }).addTo(map);
+            marker.on('click', (event) => {
+                L.DomEvent.stopPropagation(event);
+                this.ngZone.run(() => this.choosePinSearchHit(index, false));
+            });
+            this.pinSearchMarkers.push(marker);
+        });
+    }
+
+    private fitPinSearchHits(): void {
+        const map = this.map;
+        if (!map || this.pinSearchHits.length < 2) {
+            return;
+        }
+        const bounds = L.latLngBounds(this.pinSearchHits.map((hit) => [hit.lat, hit.lon] as L.LatLngTuple));
+        if (bounds.isValid()) {
+            map.fitBounds(bounds.pad(0.35), { maxZoom: 16, animate: true });
         }
     }
 

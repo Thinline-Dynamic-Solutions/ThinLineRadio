@@ -1,5 +1,32 @@
 # Change log
 
+## Version 26.10.25 - Released October 25, 2026
+
+### Added
+
+- **Shared call classifications**
+  - Admin → Call Natures can **Update from ThinLine** to download the shared category list. Categories you added on this server, such as local 10-codes, are kept, and map expire times are not changed. **Clear local classifications** removes the whole list.
+- **Correct Pin address search**
+  - Type an address and choose **Find**. One match moves the pin. Several matches are shown as A, B, C, D dots on the map and as a list. Pick one, then save.
+
+### Changed
+
+- **Alerts**
+  - Dispatch cards are grouped by channel, with the call label, transcript, and a map when the call is pinned. The map and label fill in on the open card when mapping finishes.
+  - **All** lists every radio-transmission alert the account can hear. **Mine** stays limited to alert preferences. **System** stays health alerts only.
+  - The recent-alerts rail shows on the Transmissions tab only.
+- **Stats**
+  - Ranges are today, 24 hours, 7 days, and 30 days. The board shows call volume, incidents, tone-outs, channels, and call natures.
+
+### Fixed
+
+- **Alert sounds**
+  - Saving Alerts → Preferences no longer clears custom notification sounds or pager playback.
+- **Unspecified alarms**
+  - When the radio does not say fire or burglary, the channel tag decides. A commercial alarm on a fire channel is a fire alarm.
+
+---
+
 ## Version 26.10.20 - Released October 20, 2026
 
 ### Added
