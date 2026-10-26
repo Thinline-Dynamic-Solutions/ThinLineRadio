@@ -2706,17 +2706,27 @@ func (controller *Controller) waitForToneDetectionBeforeTranscription(call *Call
 	}
 }
 
-// queueTranscriptionIfNeeded queues transcription if at least one user has alerts enabled for this talkgroup.
+// queueTranscriptionIfNeeded queues transcription when TranscribeAllCalls is on, or when
+// at least one alert / auto-learn reason applies for this talkgroup.
 // toneDone is closed when async tone detection finishes; pass nil when tones are not being detected.
 func (controller *Controller) queueTranscriptionIfNeeded(call *Call, toneDone <-chan struct{}) {
-	// Admin-level gate: skip transcription entirely if alerts are disabled at system or talkgroup level
-	if call.System != nil && !call.System.AlertsEnabled {
-		controller.markTranscriptionSkipped(call.Id, "system_alerts_disabled")
+	if call.Talkgroup != nil && call.Talkgroup.TranscriptionExclude {
+		controller.markTranscriptionSkipped(call.Id, "transcription_excluded")
 		return
 	}
-	if call.Talkgroup != nil && !call.Talkgroup.AlertsEnabled {
-		controller.markTranscriptionSkipped(call.Id, "talkgroup_alerts_disabled")
-		return
+
+	transcribeAll := controller.Options.TranscriptionConfig.TranscribeAllCalls
+
+	// Admin-level gate (skipped when TranscribeAllCalls — use talkgroup TranscriptionExclude to opt out)
+	if !transcribeAll {
+		if call.System != nil && !call.System.AlertsEnabled {
+			controller.markTranscriptionSkipped(call.Id, "system_alerts_disabled")
+			return
+		}
+		if call.Talkgroup != nil && !call.Talkgroup.AlertsEnabled {
+			controller.markTranscriptionSkipped(call.Id, "talkgroup_alerts_disabled")
+			return
+		}
 	}
 
 	// Check if Hydra transcription is enabled and call has transmission_id
@@ -2818,6 +2828,10 @@ func (controller *Controller) queueTranscriptionIfNeeded(call *Call, toneDone <-
 			return
 		}
 
+		if transcribeAll {
+			controller.queueTranscriptionJobIfNeeded(call, priority, []string{"transcribe_all"})
+			return
+		}
 		localReasons := controller.transcriptionReasonsForCall(call)
 		if len(localReasons) == 0 {
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("no transcription reasons for call %d (system=%d, talkgroup=%d)", call.Id, call.System.Id, call.Talkgroup.Id))

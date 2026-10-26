@@ -1575,7 +1575,7 @@
 <div class="row">
           <p>
             <span class="mat-body">Transcription Enabled</span><br>
-            <span class="mat-caption">Enable transcription for calls. When enabled, calls will be transcribed if tone detected or user alerts are enabled.</span>
+            <span class="mat-caption">Turns on the STT pipeline. By default, calls are transcribed only when alerts or auto-learn need a transcript. Use Transcribe all calls below to cover every channel.</span>
           </p>
           <div>
             <mat-slide-toggle color="primary" formControlName="transcriptionEnabled"></mat-slide-toggle>
@@ -1583,6 +1583,25 @@
         </div>
                   @if (form?.get('transcriptionEnabled')?.value) {
             <ng-container formGroupName="transcriptionConfig">
+<div class="row">
+              <p>
+                <span class="mat-body">Transcribe all calls</span><br>
+                <span class="mat-caption">Queue transcription for every call on every system (not only alert/auto-learn talkgroups). Duration and tone-only skips still apply. To skip a channel, open that talkgroup and enable <strong>Exclude from transcription</strong>.</span>
+              </p>
+              <div>
+                <mat-slide-toggle color="warn" formControlName="transcribeAllCalls"></mat-slide-toggle>
+              </div>
+            </div>
+            @if (form?.get('transcriptionConfig')?.get('transcribeAllCalls')?.value) {
+              <div class="row" style="align-items: flex-start;">
+                <p style="color: #b45309; max-width: 42rem;">
+                  <strong>Warning:</strong> This sends far more audio to your transcription provider.
+                  Cloud STT (OpenAI, AssemblyAI, Azure, Gemini, Cloudflare, etc.) will cost significantly more.
+                  Prefer a self-hosted Whisper server if you need full coverage without cloud bills.
+                  Exclude individual channels on the talkgroup form if you do not want them transcribed.
+                </p>
+              </div>
+            }
 <div class="row">
               <p>
                 <span class="mat-body">Transcription Provider</span><br>

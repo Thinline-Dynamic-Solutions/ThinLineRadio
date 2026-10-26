@@ -3342,3 +3342,12 @@ func migrateTalkgroupHidden(db *Database) error {
 	}
 	return nil
 }
+
+// migrateTalkgroupTranscriptionExclude opts a talkgroup out of STT when
+// TranscribeAllCalls (or alert-driven transcription) would otherwise queue it.
+func migrateTalkgroupTranscriptionExclude(db *Database) error {
+	if _, err := db.Sql.Exec(`ALTER TABLE "talkgroups" ADD COLUMN IF NOT EXISTS "transcriptionExclude" boolean NOT NULL DEFAULT false`); err != nil {
+		return fmt.Errorf("migrateTalkgroupTranscriptionExclude: %w", err)
+	}
+	return nil
+}

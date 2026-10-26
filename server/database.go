@@ -414,6 +414,7 @@ func (db *Database) migrate() error {
 		{"migrateKeywordAlertUnique", migrateKeywordAlertUnique},
 		{"migrateAutoEnableNewTalkgroups", migrateAutoEnableNewTalkgroups},
 		{"migrateTalkgroupHidden", migrateTalkgroupHidden},
+		{"migrateTalkgroupTranscriptionExclude", migrateTalkgroupTranscriptionExclude},
 	}
 	for _, step := range lateSteps {
 		if err := db.runMigrationStep(step.name, step.fn); err != nil {

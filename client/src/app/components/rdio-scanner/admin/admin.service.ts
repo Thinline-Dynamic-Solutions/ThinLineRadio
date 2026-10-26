@@ -491,6 +491,8 @@ export interface Options {
         prompt?: string;
         workerPoolSize?: number;
         minCallDuration?: number;
+        /** When true, transcribe every call on every system (except excluded talkgroups). */
+        transcribeAllCalls?: boolean;
         whisperAPIURL?: string;
         whisperAPIKey?: string;
         whisperAPIModel?: string;
@@ -765,6 +767,8 @@ export interface Talkgroup {
     autoLearnUnitAliases?: boolean;
     alertingTalkgroup?: boolean;
     hidden?: boolean;                   // Hidden from user channel list and no new calls ingested; history kept
+    /** Skip STT for this talkgroup (alert-driven or Transcribe all calls). */
+    transcriptionExclude?: boolean;
     retentionDays?: number;             // Days to retain calls; 0 = inherit system/global
     incidentMapping?: IncidentMappingConfig;
 }
@@ -2201,7 +2205,7 @@ export class RdioScannerAdminService implements OnDestroy {
             language: 'en',
             prompt: '',
             workerPoolSize: 1, // Default 1 for safety; users with adequate VRAM can increase
-            minCallDuration: 0, // 0 = transcribe all calls
+            minCallDuration: 0, // 0 = no minimum duration floor
             whisperAPIURL: 'http://localhost:8000',
             whisperAPIKey: '',
             whisperAPIModel: 'whisper-1',
@@ -2298,6 +2302,7 @@ export class RdioScannerAdminService implements OnDestroy {
                 prompt: this.ngFormBuilder.control(transcriptionConfig?.prompt || ''),
                 workerPoolSize: this.ngFormBuilder.control(transcriptionConfig?.workerPoolSize || 1, [Validators.min(1), Validators.max(10)]), // Default 1 for safety; configurable by user
                 minCallDuration: this.ngFormBuilder.control(transcriptionConfig?.minCallDuration || 0, [Validators.min(0)]),
+                transcribeAllCalls: this.ngFormBuilder.control(transcriptionConfig?.transcribeAllCalls || false),
                 timeoutSeconds: this.ngFormBuilder.control(transcriptionConfig?.timeoutSeconds || 0, [Validators.min(0)]),
                 whisperAPIURL: this.ngFormBuilder.control(transcriptionConfig?.whisperAPIURL || 'http://localhost:8000'),
                 whisperAPIKey: this.ngFormBuilder.control(transcriptionConfig?.whisperAPIKey || ''),
@@ -2536,6 +2541,7 @@ export class RdioScannerAdminService implements OnDestroy {
             autoLearnUnitAliases: this.ngFormBuilder.control(talkgroup?.autoLearnUnitAliases || false),
             alertingTalkgroup: this.ngFormBuilder.control(talkgroup?.alertingTalkgroup || false),
             hidden: this.ngFormBuilder.control(talkgroup?.hidden || false),
+            transcriptionExclude: this.ngFormBuilder.control(talkgroup?.transcriptionExclude || false),
             retentionDays: this.ngFormBuilder.control(talkgroup?.retentionDays ?? 0, [Validators.min(0)]),
             incidentMapping: this.newIncidentMappingForm(talkgroup?.incidentMapping, { inherit: true }),
         });
