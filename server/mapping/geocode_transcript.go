@@ -128,6 +128,7 @@ func GeocodeRelayNominatimFromTranscript(gatewayURL, apiKey, transcript string, 
 		Query:       out.Query,
 		House:       out.House,
 		StreetName:  out.StreetName,
+		Detail:      out.Detail,
 		OK:          true,
 	}
 }
@@ -174,6 +175,16 @@ func postTranscriptGeocode(url, apiKey string, payload []byte) (status int, deta
 	return 0, "transport_error", out
 }
 
+func transcriptGeocodeHitIsIntersection(hit TranscriptGeocodeHit) bool {
+	if strings.TrimSpace(hit.House) != "" {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(hit.Detail), "intersection") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(hit.StreetName), " and ")
+}
+
 // ApplyTranscriptGeocodeHit writes gateway transcript-geocode coordinates onto
 // the curated alert and fills a missing card address from the hit.
 func ApplyTranscriptGeocodeHit(curated *CuratedAlert, hit TranscriptGeocodeHit) {
@@ -182,6 +193,12 @@ func ApplyTranscriptGeocodeHit(curated *CuratedAlert, hit TranscriptGeocodeHit) 
 	}
 	curated.Lat = fmt.Sprintf("%.6f", hit.Lat)
 	curated.Lon = fmt.Sprintf("%.6f", hit.Lon)
+	// "ENGINE 6 … AREA OF UNION STREET AND PARKMAN ROAD" is an intersection.
+	// The 6 is the engine, and the local extract must not stay on the card.
+	if transcriptGeocodeHitIsIntersection(hit) {
+		curated.Address = strings.ToUpper(strings.TrimSpace(hit.StreetName))
+		return
+	}
 	if strings.TrimSpace(curated.Address) == "" {
 		addr := strings.TrimSpace(strings.TrimSpace(hit.House) + " " + strings.TrimSpace(hit.StreetName))
 		if addr == "" && hit.DisplayName != "" {

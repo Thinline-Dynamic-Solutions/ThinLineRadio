@@ -49,6 +49,21 @@ func TestGeocodeRelayNominatimFromTranscriptRequiresViewbox(t *testing.T) {
 	}
 }
 
+func TestApplyTranscriptGeocodeHitDropsEngineNumberOnIntersection(t *testing.T) {
+	c := &CuratedAlert{Address: "6 UNION STREET AND PARKMAN ROAD"}
+	ApplyTranscriptGeocodeHit(c, TranscriptGeocodeHit{
+		OK: true, Lat: 41.231969, Lon: -80.833072,
+		StreetName: "UNION STREET and PARKMAN ROAD",
+		Detail:     "intersection",
+	})
+	if c.Address != "UNION STREET AND PARKMAN ROAD" {
+		t.Fatalf("engine number stayed on the intersection label: %q", c.Address)
+	}
+	if c.Lat == "" || c.Lon == "" {
+		t.Fatalf("pin missing: %+v", c)
+	}
+}
+
 func TestApplyTranscriptGeocodeHitFillsAddress(t *testing.T) {
 	c := &CuratedAlert{}
 	ApplyTranscriptGeocodeHit(c, TranscriptGeocodeHit{
