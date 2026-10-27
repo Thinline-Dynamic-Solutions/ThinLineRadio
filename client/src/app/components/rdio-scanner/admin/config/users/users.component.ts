@@ -88,6 +88,8 @@ export interface User {
 })
 export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChanges {
     @Input() userRegistrationEnabled = false;
+    /** When false, creating accounts does not lock open listening. */
+    @Input() requireListenerSignIn = false;
     @Input() form?: FormArray;
 
     users: User[] = [];
@@ -485,6 +487,17 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     }
 
     openCreateUserDialog(): void {
+        if (!this.requireListenerSignIn && this.users.length === 0) {
+            const proceed = confirm(
+                'Listeners can still connect without signing in after you create this account.\n\n' +
+                'Sign-in is controlled by Options → Require listener sign-in — creating users no longer locks the scanner by itself.\n\n' +
+                'Continue creating the user?',
+            );
+            if (!proceed) {
+                return;
+            }
+        }
+
         const dialogRef = this.matDialog.open(CreateUserDialogComponent, {
             width: '500px',
             data: { groups: this.availableGroups }

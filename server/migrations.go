@@ -3342,3 +3342,45 @@ func migrateTalkgroupHidden(db *Database) error {
 	}
 	return nil
 }
+
+// migrateRequireListenerSignIn seeds the explicit requireListenerSignIn option from
+// the previous implicit rules (userRegistrationEnabled OR any user PIN), so existing
+// locked scanners stay locked and new installs stay open until the admin toggles it.
+func migrateRequireListenerSignIn(db *Database) error {
+	var existing sql.NullString
+	err := db.Sql.QueryRow(`SELECT "value" FROM "options" WHERE "key" = $1`, "requireListenerSignIn").Scan(&existing)
+	if err == nil && existing.Valid {
+		return nil // already configured
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("migrateRequireListenerSignIn: lookup: %w", err)
+	}
+
+	require := false
+
+	var regVal sql.NullString
+	if qerr := db.Sql.QueryRow(`SELECT "value" FROM "options" WHERE "key" = $1`, "userRegistrationEnabled").Scan(&regVal); qerr == nil && regVal.Valid {
+		var enabled bool
+		if uerr := json.Unmarshal([]byte(regVal.String), &enabled); uerr == nil && enabled {
+			require = true
+		}
+	}
+
+	if !require {
+		var pinCount int
+		// Any non-empty PIN means the old HasPins() gate would have locked the server.
+		qerr := db.Sql.QueryRow(`SELECT COUNT(*) FROM "users" WHERE COALESCE("pin", '') <> ''`).Scan(&pinCount)
+		if qerr != nil {
+			return fmt.Errorf("migrateRequireListenerSignIn: pin count: %w", qerr)
+		}
+		if pinCount > 0 {
+			require = true
+		}
+	}
+
+	raw, _ := json.Marshal(require)
+	if _, err := db.Sql.Exec(`INSERT INTO "options" ("key", "value") VALUES ($1, $2)`, "requireListenerSignIn", string(raw)); err != nil {
+		return fmt.Errorf("migrateRequireListenerSignIn: insert: %w", err)
+	}
+	return nil
+}

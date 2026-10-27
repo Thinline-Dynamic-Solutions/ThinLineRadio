@@ -221,6 +221,7 @@
             @case ('users') {
               <rdio-scanner-admin-users
                 [userRegistrationEnabled]="$safeNavigationMigration(options.get('userRegistrationEnabled')?.value)"
+                [requireListenerSignIn]="$safeNavigationMigration(options.get('requireListenerSignIn')?.value)"
                 [form]="users">
               </rdio-scanner-admin-users>
             }

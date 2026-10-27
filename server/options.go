@@ -112,6 +112,11 @@ type Options struct {
 	RadioReferenceUsername      string `json:"radioReferenceUsername"`
 	RadioReferencePassword      string `json:"radioReferencePassword"`
 	UserRegistrationEnabled     bool   `json:"userRegistrationEnabled"`
+	// RequireListenerSignIn forces websocket clients to authenticate with a PIN.
+	// Independent of whether user accounts exist — creating users no longer
+	// implicitly locks the scanner. Defaults false; migration preserves prior
+	// HasPins / UserRegistrationEnabled behavior for existing installs.
+	RequireListenerSignIn       bool   `json:"requireListenerSignIn"`
 	PublicRegistrationEnabled   bool   `json:"publicRegistrationEnabled"`
 	PublicRegistrationMode      string `json:"publicRegistrationMode"` // "codes", "email", "both"
 	EmailVerificationRequired   bool   `json:"emailVerificationRequired"`
@@ -554,6 +559,13 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.UserRegistrationEnabled = v
 	default:
 		options.UserRegistrationEnabled = defaults.options.userRegistrationEnabled
+	}
+
+	switch v := m["requireListenerSignIn"].(type) {
+	case bool:
+		options.RequireListenerSignIn = v
+	default:
+		options.RequireListenerSignIn = defaults.options.requireListenerSignIn
 	}
 
 	switch v := m["publicRegistrationEnabled"].(type) {
@@ -1646,6 +1658,13 @@ func (options *Options) Read(db *Database) error {
 					options.UserRegistrationEnabled = v
 				}
 			}
+		case "requireListenerSignIn":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.RequireListenerSignIn = v
+				}
+			}
 		case "publicRegistrationEnabled":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -2347,6 +2366,7 @@ func (options *Options) Write(db *Database) error {
 	set("radioReferenceUsername", options.RadioReferenceUsername)
 	set("radioReferencePassword", options.RadioReferencePassword)
 	set("userRegistrationEnabled", options.UserRegistrationEnabled)
+	set("requireListenerSignIn", options.RequireListenerSignIn)
 	set("publicRegistrationEnabled", options.PublicRegistrationEnabled)
 	set("publicRegistrationMode", options.PublicRegistrationMode)
 	set("emailVerificationRequired", options.EmailVerificationRequired)
