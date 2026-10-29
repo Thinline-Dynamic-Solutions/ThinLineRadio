@@ -167,7 +167,7 @@ const OPTIONS_PANEL_DEFS: Record<OptionsPanelId, OptionsPanelDef> = {
     },
     userRegistration: {
         keys: [
-            'userRegistrationEnabled', 'publicRegistrationEnabled', 'publicRegistrationMode',
+            'requireListenerSignIn', 'userRegistrationEnabled', 'publicRegistrationEnabled', 'publicRegistrationMode',
             'emailVerificationRequired', 'turnstileEnabled', 'turnstileSiteKey', 'turnstileSecretKey',
         ],
     },
@@ -342,6 +342,7 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     'transcriptionConfig.hallucinationConfidenceThreshold': 'Hallucination confidence threshold',
     'transcriptionConfig.profanityFilterEnabled': 'Profanity filter',
     'transcriptionConfig.profanityFilterExtraWords': 'Extra blocked words',
+    requireListenerSignIn: 'Require listener sign-in',
     userRegistrationEnabled: 'User registration',
     publicRegistrationEnabled: 'Public registration',
     publicRegistrationMode: 'Public registration mode',
@@ -1286,7 +1287,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         'noAudioAlertsEnabled', 'disableDuplicateDetection', 'audioEncryptionEnabled', 'rateLimitingEnabled',
         'time12hFormat', 'autoPopulate', 'playbackGoesLive', 'showListenersCount', 'sortTalkgroups',
         'emailServiceEnabled', 'emailSmtpUseTLS', 'emailSmtpSkipVerify',
-        'stripePaywallEnabled', 'transcriptionEnabled', 'userRegistrationEnabled',
+        'stripePaywallEnabled', 'transcriptionEnabled', 'requireListenerSignIn', 'userRegistrationEnabled',
         'publicRegistrationEnabled', 'emailVerificationRequired', 'turnstileEnabled', 'configSyncEnabled',
         'adminLocalhostOnly', 'adminPasswordLoginDisabled',
     ];

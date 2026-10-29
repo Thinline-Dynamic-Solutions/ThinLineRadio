@@ -417,6 +417,7 @@ func (db *Database) migrate() error {
 		{"migrateAutoEnableNewTalkgroups", migrateAutoEnableNewTalkgroups},
 		{"migrateTalkgroupHidden", migrateTalkgroupHidden},
 		{"migrateTalkgroupTranscriptionExclude", migrateTalkgroupTranscriptionExclude},
+		{"migrateRequireListenerSignIn", migrateRequireListenerSignIn},
 	}
 	for _, step := range lateSteps {
 		if err := db.runMigrationStep(step.name, step.fn); err != nil {

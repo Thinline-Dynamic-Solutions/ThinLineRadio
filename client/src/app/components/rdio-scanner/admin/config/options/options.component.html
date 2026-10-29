@@ -2069,8 +2069,17 @@
           <!-- User Registration & Access -->
           <div class="row">
             <p>
+              <span class="mat-body">Require listener sign-in</span><br>
+              <span class="mat-caption">When on, web and app listeners must sign in with a PIN before they can listen. When off, anyone can listen without an account — creating users does not change that. Use this for open scanners behind a reverse proxy while still keeping admin or alert accounts.</span>
+            </p>
+            <div>
+              <mat-slide-toggle color="primary" formControlName="requireListenerSignIn"></mat-slide-toggle>
+            </div>
+          </div>
+          <div class="row">
+            <p>
               <span class="mat-body">User Registration Enabled</span><br>
-              <span class="mat-caption">Allow new users to create accounts (admin approval may be required depending on Public Registration setting).</span>
+              <span class="mat-caption">Allow new users to create accounts (admin approval may be required depending on Public Registration setting). Does not by itself require listeners to sign in.</span>
             </p>
             <div>
               <mat-slide-toggle color="primary" formControlName="userRegistrationEnabled"></mat-slide-toggle>

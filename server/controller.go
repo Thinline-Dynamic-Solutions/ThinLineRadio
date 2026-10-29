@@ -3303,16 +3303,7 @@ func (controller *Controller) requiresUserAuth() bool {
 	if controller.Options == nil {
 		return false
 	}
-
-	if controller.Options.UserRegistrationEnabled {
-		return true
-	}
-
-	if controller.Users != nil && controller.Users.HasPins() {
-		return true
-	}
-
-	return false
+	return controller.Options.RequireListenerSignIn
 }
 
 func (controller *Controller) ProcessMessageCommandPin(client *Client, message *Message) error {

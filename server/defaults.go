@@ -66,6 +66,7 @@ type DefaultOptions struct {
 	radioReferenceUsername      string
 	radioReferencePassword      string
 	userRegistrationEnabled     bool
+	requireListenerSignIn       bool
 	publicRegistrationEnabled   bool
 	publicRegistrationMode      string
 	emailVerificationRequired   bool
@@ -186,6 +187,7 @@ var defaults = Defaults{
 		radioReferenceUsername:      "",
 		radioReferencePassword:      "",
 		userRegistrationEnabled:     true,
+		requireListenerSignIn:       false, // Explicit; creating users does not lock the scanner
 		publicRegistrationEnabled:   false, // Default to invite-only
 		publicRegistrationMode:      "both",
 		emailVerificationRequired:   false, // Default to not requiring email verification
