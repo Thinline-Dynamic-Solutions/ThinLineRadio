@@ -431,8 +431,12 @@
           <mat-icon>add</mat-icon> Add Talkgroup
         </button>
         <button type="button" mat-stroked-button (click)="sortTalkgroupsAlphabetically()"
-          [disabled]="!talkgroupsLoaded" matTooltip="Sort talkgroups A–Z">
+          [disabled]="!talkgroupsLoaded" matTooltip="Sort talkgroups A–Z by label">
           <mat-icon>sort_by_alpha</mat-icon> Sort A–Z
+        </button>
+        <button type="button" mat-stroked-button (click)="sortTalkgroupsByGroup()"
+          [disabled]="!talkgroupsLoaded" matTooltip="Sort talkgroups by group, then label">
+          <mat-icon>folder</mat-icon> Sort by Group
         </button>
       </div>
     </div>
@@ -511,21 +515,33 @@
     @if (talkgroupsLoaded && talkgroups.length > 0) {
       <div class="table-wrapper">
         <!-- Pagination Controls (Top) -->
-        @if (talkgroupTotalPages > 1) {
+        @if (filteredTalkgroups.length > 0) {
           <div class="pagination-controls">
-            <button type="button" mat-icon-button
-              [disabled]="talkgroupCurrentPage === 0"
-              (click)="prevTalkgroupPage()"
-              matTooltip="Previous page">
-              <mat-icon>chevron_left</mat-icon>
-            </button>
+            <mat-form-field appearance="outline" class="page-size-field" subscriptSizing="dynamic">
+              <mat-label>Per page</mat-label>
+              <mat-select [value]="talkgroupPageSize" (selectionChange)="onTalkgroupPageSizeChange($event.value)">
+                @for (size of talkgroupPageSizeOptions; track size) {
+                  <mat-option [value]="size">{{ talkgroupPageSizeLabel(size) }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            @if (talkgroupTotalPages > 1) {
+              <button type="button" mat-icon-button
+                [disabled]="talkgroupCurrentPage === 0"
+                (click)="prevTalkgroupPage()"
+                matTooltip="Previous page">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+            }
             <span class="page-info">{{ talkgroupPageInfo }}</span>
-            <button type="button" mat-icon-button
-              [disabled]="talkgroupCurrentPage >= talkgroupTotalPages - 1"
-              (click)="nextTalkgroupPage()"
-              matTooltip="Next page">
-              <mat-icon>chevron_right</mat-icon>
-            </button>
+            @if (talkgroupTotalPages > 1) {
+              <button type="button" mat-icon-button
+                [disabled]="talkgroupCurrentPage >= talkgroupTotalPages - 1"
+                (click)="nextTalkgroupPage()"
+                matTooltip="Next page">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            }
           </div>
         }
         <mat-table [dataSource]="paginatedTalkgroups"
@@ -665,7 +681,7 @@
           </tr>
         </mat-table>
         <!-- Pagination Controls (Bottom) -->
-        @if (talkgroupTotalPages > 1) {
+        @if (filteredTalkgroups.length > 0 && talkgroupTotalPages > 1) {
           <div class="pagination-controls bottom">
             <button type="button" mat-icon-button
               [disabled]="talkgroupCurrentPage === 0"
