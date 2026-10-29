@@ -19,6 +19,14 @@
   - Admin → API Keys has separate **Uploads** and **Site Control & Thinline Core** tabs. These keys connect SDRTrunk for health, remote control and Thinline Core, and upload only the Core calls the server picks (or held calls while the site is disconnected).
 - **SDRTrunk system alerts**
   - Control channel lost, tuner error, uploader error, sample overflow, and site offline alerts appear under a new **SDRTrunk** group.
+- **Transcribe all calls**
+  - Admin → Options → Transcription has a **Transcribe all calls** switch that transcribes every call on every system, not only talkgroups with alerts or auto-learn. Duration and tone-only skips still apply. Off by default; cloud transcription providers will cost more when it is on.
+  - A talkgroup's **Exclude from transcription** setting skips that channel entirely.
+- **Require listener sign-in**
+  - Admin → Options has a **Require listener sign-in** switch. Creating users or turning on registration no longer locks the scanner by itself (#302).
+  - Existing servers that already required sign-in keep it on after the upgrade. Importing an older backup or saving options without this setting keeps the current value.
+- **Sort talkgroups by group**
+  - The system talkgroup list has a **Sort by Group** button next to Sort A–Z, and a per-page choice of 50, 100, 200, 500, or All (#300). Talkgroup search also matches group names.
 
 ### Changed
 
