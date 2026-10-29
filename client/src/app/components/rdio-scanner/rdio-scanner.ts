@@ -272,6 +272,13 @@ export interface RdioScannerConfig {
     time12hFormat: boolean;
     timeZone?: string; // IANA zone of this instance; empty = browser zone
     userSettings?: { [key: string]: any }; // User-specific settings (tag colors, etc.)
+    /** Server owner granted user-scoped public REST API access. */
+    publicApiEnabled?: boolean;
+    publicApiCapabilities?: {
+        health?: boolean;
+        transcripts?: boolean;
+        alertWebhooks?: boolean;
+    };
 }
 
 export interface RdioScannerEvent {

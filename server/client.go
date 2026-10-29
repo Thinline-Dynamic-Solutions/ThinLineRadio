@@ -369,10 +369,14 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 	}
 
 	// Include user settings if user is authenticated
-	if client.User != nil && client.User.Settings != "" {
-		var userSettings map[string]interface{}
-		if err := json.Unmarshal([]byte(client.User.Settings), &userSettings); err == nil {
-			payload["userSettings"] = userSettings
+	if client.User != nil {
+		payload["publicApiEnabled"] = client.User.PublicApiEnabled
+		payload["publicApiCapabilities"] = client.User.PublicApiCaps()
+		if client.User.Settings != "" {
+			var userSettings map[string]interface{}
+			if err := json.Unmarshal([]byte(client.User.Settings), &userSettings); err == nil {
+				payload["userSettings"] = userSettings
+			}
 		}
 	}
 

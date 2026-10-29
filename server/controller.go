@@ -73,6 +73,7 @@ type Controller struct {
 	HallucinationDetector            *HallucinationDetector
 	CentralManagement                *CentralManagementService
 	Health                           *HealthService
+	PublicApi                        *PublicApiService
 	// Performance caches
 	PreferencesCache  *PreferencesCache
 	KeywordListsCache *KeywordListsCache
@@ -240,6 +241,7 @@ func NewController(config *Config) *Controller {
 	controller.EmailService = NewEmailService(controller)
 	controller.CentralManagement = NewCentralManagementService(controller)
 	controller.Health = NewHealthService(controller)
+	controller.PublicApi = NewPublicApiService(controller)
 	controller.Delayer = NewDelayer(controller)
 	controller.Downstreams = NewDownstreams(controller)
 	controller.Scheduler = NewScheduler(controller)
