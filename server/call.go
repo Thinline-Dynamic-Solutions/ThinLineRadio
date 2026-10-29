@@ -121,9 +121,12 @@ type Call struct {
 	// CoreRecordingId is the SDRTrunk Thinline Radio Core recording id.
 	// CoreAccepted is set once that recording has been stored.
 	// CoreRejectReason says why it was not stored.
+	// CoreFallback marks a held recording the site uploaded without being asked,
+	// after losing its connection, so another site may already have delivered it.
 	CoreRecordingId  string `json:"-"`
 	CoreAccepted     bool   `json:"-"`
 	CoreRejectReason string `json:"-"`
+	CoreFallback     bool   `json:"-"`
 
 	// ToneSourceTalkgroupId is runtime-only. When pending tones from one talkgroup
 	// attach to a voice call on another (linked-voice), this is the DB id of the
@@ -507,6 +510,67 @@ func (calls *Calls) CheckDuplicateByTimestamp(call *Call, db *Database, windowMs
 		return false, formatError(err, query)
 	}
 	return false, nil
+}
+
+// CheckCoveredByStoredCall is true when at least half of the call's audio falls
+// inside a call already stored on the same talkgroup. Start times of two
+// sites' copies can differ by seconds when one site caught only part of it.
+func (calls *Calls) CheckCoveredByStoredCall(call *Call, db *Database, spanMs int64) (bool, error) {
+	if call.System == nil || call.Talkgroup == nil || spanMs <= 0 {
+		return false, nil
+	}
+	ts := call.Timestamp.UnixMilli()
+	if ts == 0 {
+		return false, nil
+	}
+
+	formatError := errorFormatter("calls", "checkcoveredbystoredcall")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := fmt.Sprintf(
+		`SELECT c."timestamp", c."audioDuration" FROM "calls" c
+		WHERE c."timestamp" BETWEEN %d AND %d
+		  AND c."systemId" = %d AND c."talkgroupId" = %d AND c."audioDuration" > 0`,
+		ts-120000, ts+spanMs, call.System.Id, call.Talkgroup.Id,
+	)
+
+	rows, err := db.Sql.QueryContext(ctx, query)
+	if err != nil {
+		return false, formatError(err, query)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var priorStart int64
+		var priorDuration float64
+		if err := rows.Scan(&priorStart, &priorDuration); err != nil {
+			return false, formatError(err, query)
+		}
+		if coveredByStoredCall(priorStart, int64(priorDuration*1000), ts, spanMs) {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, formatError(err, query)
+	}
+	return false, nil
+}
+
+func coveredByStoredCall(storedStart int64, storedDuration int64, start int64, duration int64) bool {
+	if duration <= 0 || storedDuration <= 0 {
+		return false
+	}
+	end := start + duration
+	if storedEnd := storedStart + storedDuration; storedEnd < end {
+		end = storedEnd
+	}
+	begin := start
+	if storedStart > begin {
+		begin = storedStart
+	}
+	return (end-begin)*2 >= duration
 }
 
 func timestampSpansOverlap(aStart int64, aDuration int64, bStart int64, bDuration int64) bool {

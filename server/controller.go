@@ -936,6 +936,19 @@ func (controller *Controller) IngestCall(call *Call) {
 				call.IsDuplicate = true
 			}
 		}
+
+		// Pass 4: a held Core recording uploaded after its site lost the server.
+		if !call.IsDuplicate && call.CoreFallback {
+			if seconds, err := controller.getCallDuration(call); err == nil && seconds > 0 {
+				isCovered, covErr := controller.Calls.CheckCoveredByStoredCall(call, controller.Database, int64(seconds*1000))
+				if covErr != nil {
+					logError(covErr)
+				} else if isCovered {
+					logCall(call, LogLevelWarn, "duplicate (inside a stored call)")
+					call.IsDuplicate = true
+				}
+			}
+		}
 	}
 
 	// Continue processing after duplicate detection

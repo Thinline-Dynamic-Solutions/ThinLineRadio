@@ -404,6 +404,20 @@ func TestStoredFragmentDoesNotDiscardTheRealCall(t *testing.T) {
 	}
 }
 
+func TestFallbackUploadInsideStoredCallIsDuplicate(t *testing.T) {
+	// 77 tg 62721 03:50: Wadsworth's 6.1s copy from 16.459 was stored, then
+	// Summit's held 2.9s tail from 19.888 arrived 26s later after an outage.
+	if !coveredByStoredCall(16_459, 6100, 19_888, 2900) {
+		t.Fatal("a late partial copy inside a stored call is a duplicate")
+	}
+	if coveredByStoredCall(16_459, 6100, 22_300, 2400) {
+		t.Fatal("audio that mostly runs past the stored call is kept")
+	}
+	if coveredByStoredCall(16_459, 6100, 30_000, 2000) {
+		t.Fatal("a call nobody else stored is kept")
+	}
+}
+
 func TestCleanerCopyWinsWhenEquallyLong(t *testing.T) {
 	// 77 tg 62962 21:28:27: both sites held 2.88 seconds, Summit decoded 99%
 	// and Wadsworth 94%, and Wadsworth was kept because it reported first.

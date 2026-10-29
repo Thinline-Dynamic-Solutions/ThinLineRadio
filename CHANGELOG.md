@@ -8,7 +8,7 @@
   - SDRTrunk sites with a **Thinline Radio Core** stream hold each recording and report it to the server as it starts and when it is ready, with its length and voice decode quality. The server groups every site's copy of the same transmission and asks only the best one to upload. The other copies are discarded, so listeners hear each call once.
   - The longest copy wins. When copies are the same length, the one with the cleaner decode wins.
   - Works with one site too: when a site hears the same call on more than one tower, Core keeps the best copy.
-  - If a site loses its connection to the server, it uploads its held calls directly, so nothing is lost.
+  - If a site loses its connection to the server, it uploads its held calls directly, so nothing is lost. A held call whose audio is mostly inside a call another site already delivered is dropped as a duplicate.
   - A very short best copy waits up to one second for other sites before it is chosen, so a fragment from one site cannot replace another site's full call.
   - Requires the Thinline Dynamic Solutions SDRTrunk build.
 - **SDR Health (Admin)**

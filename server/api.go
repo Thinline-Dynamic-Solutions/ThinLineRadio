@@ -402,10 +402,14 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 	msg := []byte(fmt.Sprintf("Invalid API key for system %v talkgroup %v.\n", systemRef, talkgroupRef))
 
 	if apikey, ok := api.Controller.Apikeys.GetApikey(key); ok {
-		if apikey.IsSite() && !api.Controller.core().allowSiteUpload(apikey.Id, call.CoreRecordingId) {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("This API key is for site control, not call uploads.\n"))
-			return
+		if apikey.IsSite() {
+			allowed, fallback := api.Controller.core().allowSiteUpload(apikey.Id, call.CoreRecordingId)
+			if !allowed {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte("This API key is for site control, not call uploads.\n"))
+				return
+			}
+			call.CoreFallback = fallback
 		}
 		if apikey.HasAccess(call) {
 			// Store API key ID in call metadata for preferred API key logic

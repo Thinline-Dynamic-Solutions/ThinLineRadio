@@ -121,17 +121,22 @@ func (core *coreCoordinator) expireOpenLocked(now time.Time) []*coreGroup {
 	return pending
 }
 
-func (core *coreCoordinator) allowSiteUpload(keyId uint64, recordingId string) bool {
+// allowSiteUpload reports whether a site key may upload the recording, and
+// whether it is a fallback upload the server never asked for.
+func (core *coreCoordinator) allowSiteUpload(keyId uint64, recordingId string) (allowed bool, fallback bool) {
 	if recordingId == "" {
-		return false
+		return false, false
 	}
 	core.mu.Lock()
 	reserved := core.reserved[recordingId]
 	core.mu.Unlock()
 	if reserved == keyId {
-		return true
+		return true, false
 	}
-	return reserved == 0 && !core.controller.sdrtrunkHub().connected(keyId)
+	if reserved == 0 && !core.controller.sdrtrunkHub().connected(keyId) {
+		return true, true
+	}
+	return false, false
 }
 
 func (core *coreCoordinator) offerOrdinary(call *Call) bool {
