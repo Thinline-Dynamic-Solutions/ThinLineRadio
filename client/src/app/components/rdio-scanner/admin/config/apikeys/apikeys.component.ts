@@ -142,7 +142,7 @@ export class RdioScannerAdminApikeysComponent {
         }
         const ident = (apikey.get('ident')?.value || '').toString().trim() || 'this API key';
         const warning = apikey.get('purpose')?.value === 'site'
-            ? 'SDRTrunk will disconnect from site control.'
+            ? 'SDRTrunk will disconnect from site control, and its Thinline Core streams will stop uploading.'
             : 'Recorders using this key will stop uploading.';
         if (!confirm(`Are you sure you want to delete API key "${ident}"?\n\n${warning}`)) {
             return;

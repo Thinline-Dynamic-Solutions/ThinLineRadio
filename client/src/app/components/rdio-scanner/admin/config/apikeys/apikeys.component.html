@@ -18,13 +18,13 @@
 -->
 <div class="apikey-tabs">
   <button type="button" [class.active]="keyTab === 'upload'" (click)="setTab('upload')">Uploads</button>
-  <button type="button" [class.active]="keyTab === 'site'" (click)="setTab('site')">Site control</button>
+  <button type="button" [class.active]="keyTab === 'site'" (click)="setTab('site')">Site Control &amp; Thinline Core</button>
 </div>
 <p class="apikey-hint">
   @if (keyTab === 'site') {
-    Site control keys connect SDRTrunk for health and remote control. They do not upload calls.
+    These keys connect SDRTrunk for health, remote control and Thinline Core. With Thinline Core streams, the site also uploads calls with this key when the server picks its copy.
   } @else {
-    Upload keys are for recorders and streams. Use a separate site control key for SDRTrunk health.
+    Upload keys are for recorders and regular streams. SDRTrunk sites use a Site Control &amp; Thinline Core key instead.
   }
 </p>
 
@@ -59,7 +59,7 @@
   <div class="empty-state">
     <mat-icon>vpn_key</mat-icon>
     @if (keyTab === 'site') {
-      <p class="mat-body">No site control keys</p>
+      <p class="mat-body">No Site Control &amp; Thinline Core keys</p>
       <p class="mat-caption">Create one and paste it into SDRTrunk under User Preferences, Thinline Radio.</p>
     } @else {
       <p class="mat-body">No upload keys</p>

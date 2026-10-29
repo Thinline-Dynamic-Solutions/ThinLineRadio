@@ -15,8 +15,8 @@
   - Live view of each connected SDRTrunk site: tuners, channels, streams, playlist, preferences, and a spectrum display in dB with channel markers.
   - Change tuner, channel, stream, and preference settings remotely, assign talkgroups to streams, and add or delete streams.
   - Each site decides what can be changed remotely under **User Preferences → Thinline Radio** in SDRTrunk.
-- **Site control keys**
-  - Admin → API Keys has separate **Uploads** and **Site control** tabs. Site control keys connect SDRTrunk for health and remote control and do not upload calls.
+- **Site Control & Thinline Core keys**
+  - Admin → API Keys has separate **Uploads** and **Site Control & Thinline Core** tabs. These keys connect SDRTrunk for health, remote control and Thinline Core, and upload only the Core calls the server picks (or held calls while the site is disconnected).
 - **SDRTrunk system alerts**
   - Control channel lost, tuner error, uploader error, sample overflow, and site offline alerts appear under a new **SDRTrunk** group.
 

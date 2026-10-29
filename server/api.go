@@ -406,7 +406,7 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 			allowed, fallback := api.Controller.core().allowSiteUpload(apikey.Id, call.CoreRecordingId)
 			if !allowed {
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte("This API key is for site control, not call uploads.\n"))
+				w.Write([]byte("This is a Site Control & Thinline Core key. It only uploads Thinline Core calls the server asks for; use an upload key for other streams.\n"))
 				return
 			}
 			call.CoreFallback = fallback
