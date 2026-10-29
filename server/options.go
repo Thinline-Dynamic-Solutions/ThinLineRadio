@@ -257,12 +257,16 @@ type Options struct {
 // TranscriptionConfig contains configuration for transcription
 type TranscriptionConfig struct {
 	Enabled                     bool     `json:"enabled"`
+	// TranscribeAllCalls queues STT for every ingested call (all systems/talkgroups),
+	// bypassing the usual “someone has alerts / auto-learn” gate. Per-talkgroup
+	// TranscriptionExclude still skips a channel. Cloud providers will bill more.
+	TranscribeAllCalls          bool     `json:"transcribeAllCalls"`
 	Provider                    string   `json:"provider"`       // "whisper-api", "azure", "google", "assemblyai", "cloudflare", "gemini"
 	BackupProvider              string   `json:"backupProvider"` // same ids as Provider; empty = none. Used only after primary Transcribe fails.
 	Language                    string   `json:"language"` // "en", "auto"
 	Prompt                      string   `json:"prompt"`   // Custom prompt for Whisper to guide transcription (e.g., terminology, formatting)
 	WorkerPoolSize              int      `json:"workerPoolSize"`
-	MinCallDuration             float64  `json:"minCallDuration"`             // Minimum call duration in seconds to transcribe (default: 0 = transcribe all)
+	MinCallDuration             float64  `json:"minCallDuration"`             // Minimum call duration in seconds to transcribe (default: 0 = no duration floor)
 	WhisperAPIURL               string   `json:"whisperAPIURL"`               // Base URL for external Whisper API server (e.g., "http://localhost:8000") or OpenAI API URL
 	WhisperAPIKey               string   `json:"whisperAPIKey"`               // Optional API key for external Whisper API server or OpenAI API key
 	WhisperAPIModel             string   `json:"whisperAPIModel"`             // Model to use for transcription (e.g., "whisper-1", "gpt-4o-transcribe")
@@ -1117,6 +1121,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 	if tc, ok := m["transcriptionConfig"].(map[string]any); ok {
 		if v, ok := tc["enabled"].(bool); ok {
 			options.TranscriptionConfig.Enabled = v
+		}
+		if v, ok := anyToBool(tc["transcribeAllCalls"]); ok {
+			options.TranscriptionConfig.TranscribeAllCalls = v
 		}
 		if v, ok := tc["provider"].(string); ok && v != "" {
 			options.TranscriptionConfig.Provider = v

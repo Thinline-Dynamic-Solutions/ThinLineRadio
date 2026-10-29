@@ -313,6 +313,7 @@ const OPTIONS_FIELD_LABELS: Record<string, string> = {
     stripeBillingPortalConfigurationId: 'Stripe billing portal configuration ID',
     stripeGracePeriodDays: 'Stripe grace period (days)',
     transcriptionEnabled: 'Transcription enabled',
+    'transcriptionConfig.transcribeAllCalls': 'Transcribe all calls',
     'transcriptionConfig.provider': 'Transcription provider',
     'transcriptionConfig.backupProvider': 'Backup transcription provider',
     'transcriptionConfig.whisperAPIURL': 'Whisper API URL',
