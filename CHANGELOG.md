@@ -1,5 +1,33 @@
 # Change log
 
+## Version 26.10.29 - Released October 29, 2026
+
+### Added
+
+- **Thinline Radio Core (multi-site call selection)**
+  - SDRTrunk sites with a **Thinline Radio Core** stream hold each recording and report it to the server as it starts and when it is ready, with its length and voice decode quality. The server groups every site's copy of the same transmission and asks only the best one to upload. The other copies are discarded, so listeners hear each call once.
+  - The longest copy wins. When copies are the same length, the one with the cleaner decode wins.
+  - Works with one site too: when a site hears the same call on more than one tower, Core keeps the best copy.
+  - If a site loses its connection to the server, it uploads its held calls directly, so nothing is lost.
+  - A very short best copy waits up to one second for other sites before it is chosen, so a fragment from one site cannot replace another site's full call.
+  - Requires the Thinline Dynamic Solutions SDRTrunk build.
+- **SDR Health (Admin)**
+  - Live view of each connected SDRTrunk site: tuners, channels, streams, playlist, preferences, and a spectrum display in dB with channel markers.
+  - Change tuner, channel, stream, and preference settings remotely, assign talkgroups to streams, and add or delete streams.
+  - Each site decides what can be changed remotely under **User Preferences → Thinline Radio** in SDRTrunk.
+- **Site control keys**
+  - Admin → API Keys has separate **Uploads** and **Site control** tabs. Site control keys connect SDRTrunk for health and remote control and do not upload calls.
+- **SDRTrunk system alerts**
+  - Control channel lost, tuner error, uploader error, sample overflow, and site offline alerts appear under a new **SDRTrunk** group.
+
+### Changed
+
+- **Transcript training review**
+  - An approval is blocked, with the reason shown, when the clip is over 30 seconds, has no spoken words, uses number words instead of digits, or abbreviates street types, directions, or "route". Problems show on each card and update as you edit.
+  - The editing guide is updated to match these rules.
+
+---
+
 ## Version 26.10.25 - Released October 25, 2026
 
 ### Added
