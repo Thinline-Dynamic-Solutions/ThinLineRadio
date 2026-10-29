@@ -13,7 +13,6 @@ type RecordLike = { [key: string]: unknown };
 const DEFAULT_OPTIONS = {
     defaultSystemDelay: 0,
     userRegistrationEnabled: false,
-    requireListenerSignIn: false,
     publicRegistrationEnabled: false,
     publicRegistrationMode: 'both',
     stripePaywallEnabled: false,

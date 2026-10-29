@@ -565,11 +565,10 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.UserRegistrationEnabled = defaults.options.userRegistrationEnabled
 	}
 
-	switch v := m["requireListenerSignIn"].(type) {
-	case bool:
+	// A missing value (older backups or clients) keeps the current setting so a
+	// locked scanner is never opened by accident.
+	if v, ok := m["requireListenerSignIn"].(bool); ok {
 		options.RequireListenerSignIn = v
-	default:
-		options.RequireListenerSignIn = defaults.options.requireListenerSignIn
 	}
 
 	switch v := m["publicRegistrationEnabled"].(type) {
