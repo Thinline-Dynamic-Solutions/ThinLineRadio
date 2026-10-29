@@ -24,6 +24,9 @@
                 <span class="tr-time">{{ formatTime(t.timestamp) }}</span>
             </div>
             <p class="tr-text">{{ t.transcript || '(no text)' }}</p>
+            <ul class="tr-edit-issues" *ngIf="editingCallId !== t.callId && cardIssues(t).length">
+                <li *ngFor="let issue of cardIssues(t)">{{ issue }}</li>
+            </ul>
             <div class="tr-item-footer">
                 <button *ngIf="t.trainingReviewStatus !== 'submitted'" class="btn-edit"
                     [class.btn-edit--active]="editingCallId === t.callId"
@@ -39,16 +42,20 @@
             <div class="tr-edit-panel" *ngIf="editingCallId === t.callId">
                 <div class="tr-edit-audio">
                     <span *ngIf="editAudioLoading" class="audio-hint">Loading audio…</span>
-                    <audio *ngIf="editAudioSrc" controls [src]="editAudioSrc"></audio>
+                    <audio *ngIf="editAudioSrc" controls [src]="editAudioSrc" (loadedmetadata)="onEditAudioReady($event)"></audio>
                     <span *ngIf="!editAudioSrc && !editAudioLoading" class="audio-hint">Audio unavailable</span>
                 </div>
                 <label class="tr-edit-label">Edit transcript for Whisper training</label>
-                <textarea class="tr-edit-textarea" rows="4" [(ngModel)]="editText" placeholder="Edit transcript…"></textarea>
+                <textarea class="tr-edit-textarea" rows="4" [(ngModel)]="editText" (ngModelChange)="onEditTextChange()"
+                    [class.tr-edit-textarea--invalid]="editIssues.length" placeholder="Edit transcript…"></textarea>
+                <ul class="tr-edit-issues" *ngIf="editIssues.length">
+                    <li *ngFor="let issue of editIssues">{{ issue }}</li>
+                </ul>
                 <div class="tr-edit-actions">
                     <button class="btn-draft" (click)="saveDraft()" [disabled]="editSaving || editApproving || !editText.trim()">
                         {{ editSaving ? 'Saving…' : 'Save Draft' }}
                     </button>
-                    <button class="btn-approve" (click)="approve()" [disabled]="editSaving || editApproving || !editText.trim()">
+                    <button class="btn-approve" (click)="approve()" [disabled]="editSaving || editApproving || !editText.trim() || editIssues.length > 0">
                         {{ editApproving ? 'Sending…' : '✓ Approve & Send' }}
                     </button>
                 </div>

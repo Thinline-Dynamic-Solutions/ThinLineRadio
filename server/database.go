@@ -405,6 +405,8 @@ func (db *Database) migrate() error {
 		{"migrateCallsVerifiedDuplicate", migrateCallsVerifiedDuplicate},
 		{"migratePostgresSiteRefToText", migratePostgresSiteRefToText},
 		{"migrateApikeyNoAudioMonitoring", migrateApikeyNoAudioMonitoring},
+		{"migrateApikeyPurpose", migrateApikeyPurpose},
+		{"migrateSdrtrunkHealth", migrateSdrtrunkHealth},
 		{"migrateRetentionDays", migrateRetentionDays},
 		{"migrateSystemDuplicateDetection", migrateSystemDuplicateDetection},
 		{"migrateUserAlertPushPreferences", migrateUserAlertPushPreferences},

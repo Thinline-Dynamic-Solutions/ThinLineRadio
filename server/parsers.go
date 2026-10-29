@@ -253,10 +253,22 @@ func ParseMultipartContent(call *Call, p *multipart.Part, b []byte) {
 	case "audioMime", "audioType":
 		call.AudioMime = string(b)
 
+	case "duration":
+		if i, err := strconv.ParseInt(string(b), 10, 64); err == nil && i > 0 {
+			call.Duration = float64(i) / 1000
+		}
+
+	case "recordingId":
+		call.CoreRecordingId = strings.TrimSpace(string(b))
+
 	case "dateTime":
 		if regexp.MustCompile(`^[0-9]+$`).Match(b) {
-			if i, err := strconv.Atoi(string(b)); err == nil {
-				call.Timestamp = time.Unix(int64(i), 0)
+			if i, err := strconv.ParseInt(string(b), 10, 64); err == nil {
+				if len(b) >= 13 {
+					call.Timestamp = time.UnixMilli(i)
+				} else {
+					call.Timestamp = time.Unix(i, 0)
+				}
 			}
 		} else {
 			if t, err := time.Parse(time.RFC3339, string(b)); err == nil {

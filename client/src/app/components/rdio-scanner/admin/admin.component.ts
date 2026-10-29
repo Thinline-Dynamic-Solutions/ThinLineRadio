@@ -111,6 +111,7 @@ const SETTINGS_INDEX: SearchResult[] = [
     { label: 'Logs', keywords: 'logs errors warnings info system log', breadcrumb: 'Logs', icon: 'article', configSection: 'logs' },
     { label: 'Listeners', keywords: 'listeners listening connected online users devices who is listening roster', breadcrumb: 'Listeners', icon: 'headset', configSection: 'listeners' },
     { label: 'System Health', keywords: 'system health status disk cpu memory alerts', breadcrumb: 'System Health', icon: 'health_and_safety', configSection: 'system-health' },
+    { label: 'SDR Health', keywords: 'sdr sdrtrunk tuner control channel sample overflow uploader health', breadcrumb: 'SDR Health', icon: 'podcasts', configSection: 'sdr-health' },
     { label: 'Import Talkgroups', keywords: 'import talkgroups csv json file upload', breadcrumb: 'Tools → Import Talkgroups', icon: 'description', configSection: 'tools', toolSection: 'import-talkgroups' },
     { label: 'Import Units', keywords: 'import units csv json file upload', breadcrumb: 'Tools → Import Units', icon: 'description', configSection: 'tools', toolSection: 'import-units' },
     { label: 'Radio Reference', keywords: 'radio reference rr login username password premium account import download talkgroups sites', breadcrumb: 'Tools → Radio Reference', icon: 'cloud_download', configSection: 'tools', toolSection: 'radio-reference' },

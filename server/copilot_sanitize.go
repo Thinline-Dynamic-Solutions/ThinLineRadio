@@ -75,7 +75,7 @@ func copilotSanitizeToolResult(raw string) string {
 	// Prefer structured truncation for objects.
 	if m, ok := parsed.(map[string]any); ok {
 		summary := map[string]any{
-			"truncated": true,
+			"truncated":  true,
 			"totalBytes": len(b),
 			"keys":       mapKeys(m),
 			"hint":       "Result was too large; re-query a narrower section or use filters.",
@@ -139,15 +139,16 @@ func copilotApikeysPublicView(list []*Apikey) []map[string]any {
 			}
 		}
 		out = append(out, map[string]any{
-			"id":                       a.Id,
-			"ident":                    a.Ident,
-			"disabled":                 a.Disabled,
-			"order":                    a.Order,
-			"keyPreview":               keyPreview,
-			"systems":                  a.Systems,
-			"noAudioAlertsEnabled":     a.NoAudioAlertsEnabled,
-			"noAudioThresholdMinutes":  a.NoAudioThresholdMinutes,
-			"lastCallAt":               a.LastCallAt,
+			"id":                      a.Id,
+			"ident":                   a.Ident,
+			"disabled":                a.Disabled,
+			"order":                   a.Order,
+			"keyPreview":              keyPreview,
+			"systems":                 a.Systems,
+			"noAudioAlertsEnabled":    a.NoAudioAlertsEnabled,
+			"noAudioThresholdMinutes": a.NoAudioThresholdMinutes,
+			"purpose":                 a.Purpose,
+			"lastCallAt":              a.LastCallAt,
 		})
 	}
 	return out

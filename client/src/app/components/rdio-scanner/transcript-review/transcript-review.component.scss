@@ -106,6 +106,24 @@
     min-height: 90px;
 
     &:focus { outline: none; border-color: #8ab4f8; }
+
+    &--invalid {
+        border-color: #f28b82;
+        &:focus { border-color: #f28b82; }
+    }
+}
+
+.tr-edit-issues {
+    margin: 10px 0 0;
+    padding: 10px 12px 10px 28px;
+    background: #3a221f;
+    border: 1px solid #8a3b32;
+    border-radius: 6px;
+    color: #f6c7c1;
+    font-size: 13px;
+    line-height: 1.45;
+
+    li + li { margin-top: 4px; }
 }
 
 .tr-edit-actions {

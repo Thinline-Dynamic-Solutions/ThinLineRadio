@@ -18,12 +18,16 @@
  */
 /* ── Config layout: sidebar + content ─────────────────────── */
 rdio-scanner-admin-config {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
 
     .config-layout {
         display: flex;
+        flex: 1;
         gap: 0;
         min-height: 360px;
-        align-items: flex-start;
+        align-items: stretch;
     }
 
     /* Loading spinner shown while config fetch + form build is in progress */
@@ -94,18 +98,22 @@ rdio-scanner-admin-config {
 
     /* ── Sidebar ───────────────────────────────────────────── */
     .config-sidebar {
-        width: 188px;
+        width: 212px;
         flex-shrink: 0;
-        background: #161616;
+        box-sizing: border-box;
+        background: #141414;
         border-right: 1px solid #2a2a2a;
         border-radius: 0;
-        padding: 8px 0 10px;
+        padding: 10px 0 12px;
         display: flex;
         flex-direction: column;
         gap: 2px;
         position: sticky;
-        top: 0;
+        top: var(--admin-header-height, 50px);
         align-self: flex-start;
+        height: calc(100vh - var(--admin-header-height, 50px));
+        overflow-y: auto;
+        scrollbar-width: thin;
 
         .sidebar-section-label {
             font-size: 10px;
@@ -318,7 +326,7 @@ rdio-scanner-admin-config {
     /* ── Content area ──────────────────────────────────────── */
     .config-content {
         flex: 1;
-        padding: 12px 14px 14px;
+        padding: 16px 20px 20px;
         min-width: 0;
 
         &--flush {
@@ -477,6 +485,7 @@ rdio-scanner-admin-config {
             border-bottom: 1px solid #2a2a2a;
             border-radius: 0;
             position: static;
+            height: auto;
             flex-direction: row;
             flex-wrap: wrap;
             padding: 8px 4px;

@@ -158,6 +158,13 @@
     </button>
 
     <button type="button" class="sidebar-item"
+      [class.active]="activeSection === 'sdr-health'"
+      (click)="setSection('sdr-health')">
+      <mat-icon>podcasts</mat-icon>
+      <span>SDR Health</span>
+    </button>
+
+    <button type="button" class="sidebar-item"
       [class.active]="activeSection === 'tools'"
       (click)="setSection('tools')">
       <mat-icon>build</mat-icon>
@@ -191,6 +198,8 @@
       <rdio-scanner-admin-listeners></rdio-scanner-admin-listeners>
     } @else if (activeSection === 'system-health') {
       <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
+    } @else if (activeSection === 'sdr-health') {
+      <rdio-scanner-admin-sdr-health></rdio-scanner-admin-sdr-health>
     } @else if (activeSection === 'tools') {
       <rdio-scanner-admin-tools
         (config)="onConfigFromTools($event)"

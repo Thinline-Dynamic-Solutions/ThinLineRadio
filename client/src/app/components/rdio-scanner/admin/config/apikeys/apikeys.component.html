@@ -16,6 +16,18 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>
 * ****************************************************************************
 -->
+<div class="apikey-tabs">
+  <button type="button" [class.active]="keyTab === 'upload'" (click)="setTab('upload')">Uploads</button>
+  <button type="button" [class.active]="keyTab === 'site'" (click)="setTab('site')">Site control</button>
+</div>
+<p class="apikey-hint">
+  @if (keyTab === 'site') {
+    Site control keys connect SDRTrunk for health and remote control. They do not upload calls.
+  } @else {
+    Upload keys are for recorders and streams. Use a separate site control key for SDRTrunk health.
+  }
+</p>
+
 <div class="admin-section-bar">
   <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
     <mat-icon matPrefix>search</mat-icon>
@@ -38,19 +50,24 @@
     </button>
     <button type="button" mat-stroked-button (click)="add()">
       <mat-icon>add</mat-icon>
-      New API Key
+      {{ keyTab === 'site' ? 'New site key' : 'New upload key' }}
     </button>
   </div>
 </div>
 
-@if (!apikeys?.length) {
+@if (!tabApikeys.length) {
   <div class="empty-state">
     <mat-icon>vpn_key</mat-icon>
-    <p class="mat-body">No API keys defined</p>
-    <p class="mat-caption">Create one above to allow recorders and downstreams to authenticate.</p>
+    @if (keyTab === 'site') {
+      <p class="mat-body">No site control keys</p>
+      <p class="mat-caption">Create one and paste it into SDRTrunk under User Preferences, Thinline Radio.</p>
+    } @else {
+      <p class="mat-body">No upload keys</p>
+      <p class="mat-caption">Create one to let recorders and streams authenticate.</p>
+    }
     <button type="button" mat-raised-button color="primary" (click)="add()">
       <mat-icon>add</mat-icon>
-      Add First API Key
+      {{ keyTab === 'site' ? 'Add site key' : 'Add upload key' }}
     </button>
   </div>
 }

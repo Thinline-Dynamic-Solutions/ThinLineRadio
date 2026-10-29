@@ -1,0 +1,999 @@
+<div class="sdr-health">
+  <header class="sdr-hero">
+    <div class="sdr-hero-title">
+      <span class="sdr-hero-icon"><mat-icon>settings_input_antenna</mat-icon></span>
+      <div>
+        <h2>SDR Health</h2>
+        <p>Live status from every SDRTrunk connected over Thinline Radio Core.</p>
+      </div>
+    </div>
+    <div class="sdr-hero-actions">
+      @if (loadedAt) {
+        <span class="sdr-updated">Updated {{ loadedAt | date:'h:mm:ss a' }}</span>
+      }
+      <button mat-stroked-button type="button" class="sdr-btn" (click)="load()" [disabled]="loading">
+        <mat-icon [class.sdr-spin]="loading">refresh</mat-icon>
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  @if (commandError) {
+    <div class="sdr-alert" data-tone="bad">
+      <mat-icon>error</mat-icon>
+      <span>{{ commandError }}</span>
+      <button type="button" class="sdr-alert-close" (click)="commandError = null"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  @if (error) {
+    <div class="sdr-alert" data-tone="bad">
+      <mat-icon>error</mat-icon>
+      <span>{{ error }}</span>
+    </div>
+  }
+
+  @if (loading && sources.length === 0) {
+    <div class="sdr-placeholder">
+      <mat-spinner diameter="28"></mat-spinner>
+      <p>Loading SDR health…</p>
+    </div>
+  }
+
+  @if (!loading && !error && sources.length === 0) {
+    <div class="sdr-placeholder">
+      <mat-icon>podcasts</mat-icon>
+      <p>No SDRTrunk reports yet.</p>
+      <span>Sites appear here once SDRTrunk connects with a Thinline Radio Core stream.</span>
+    </div>
+  }
+
+  @if (sources.length) {
+    <div class="sdr-kpis">
+      <div class="sdr-kpi" [attr.data-tone]="ratioTone(totals.sitesOk, totals.sites)">
+        <mat-icon>hub</mat-icon>
+        <div>
+          <span class="sdr-kpi-value">{{ totals.sitesOk }}<small>/{{ totals.sites }}</small></span>
+          <span class="sdr-kpi-label">Sites healthy</span>
+        </div>
+        <span class="sdr-kpi-note">{{ totals.live }} connected</span>
+      </div>
+      <div class="sdr-kpi" [attr.data-tone]="ratioTone(totals.tunersOk, totals.tuners)">
+        <mat-icon>router</mat-icon>
+        <div>
+          <span class="sdr-kpi-value">{{ totals.tunersOk }}<small>/{{ totals.tuners }}</small></span>
+          <span class="sdr-kpi-label">Tuners running</span>
+        </div>
+      </div>
+      <div class="sdr-kpi" [attr.data-tone]="totals.controlLost ? 'warn' : ratioTone(totals.channelsOk, totals.channels)">
+        <mat-icon>cell_tower</mat-icon>
+        <div>
+          <span class="sdr-kpi-value">{{ totals.channelsOk }}<small>/{{ totals.channels }}</small></span>
+          <span class="sdr-kpi-label">Channels decoding</span>
+        </div>
+        @if (totals.controlLost) {
+          <span class="sdr-kpi-note">{{ totals.controlLost }} lost control</span>
+        }
+      </div>
+      <div class="sdr-kpi" [attr.data-tone]="ratioTone(totals.streamsOk, totals.streams)">
+        <mat-icon>cloud_upload</mat-icon>
+        <div>
+          <span class="sdr-kpi-value">{{ totals.streamsOk }}<small>/{{ totals.streams }}</small></span>
+          <span class="sdr-kpi-label">Streams connected</span>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sdr-sites">
+      @for (source of sites; track source.apiKeyId) {
+        <button type="button" class="sdr-site" [class.active]="!showingUploads && selected?.apiKeyId === source.apiKeyId"
+          [attr.data-tone]="statusTone(source.status)" (click)="selectSite(source)">
+          <span class="sdr-site-top">
+            <span class="sdr-dot" [attr.data-tone]="statusTone(source.status)"></span>
+            <strong>{{ source.apiKeyIdent || ('API key ' + source.apiKeyId) }}</strong>
+            @if (source.connected) { <span class="sdr-live-tag">Live</span> }
+          </span>
+          <span class="sdr-site-status">{{ statusLabel(source.status) }}</span>
+          <span class="sdr-site-meta">
+            <span><mat-icon>router</mat-icon>{{ stats(source).tunersOk }}/{{ stats(source).tuners }}</span>
+            <span><mat-icon>cell_tower</mat-icon>{{ stats(source).channelsOk }}/{{ stats(source).channels }}</span>
+            <span><mat-icon>cloud_upload</mat-icon>{{ stats(source).streamsOk }}/{{ stats(source).streams }}</span>
+            <span class="sdr-site-age">{{ age(source) }}</span>
+          </span>
+        </button>
+      }
+      @if (uploads.length) {
+        <button type="button" class="sdr-site sdr-site--uploads" [class.active]="showingUploads || !sites.length" (click)="showUploads()">
+          <span class="sdr-site-top">
+            <mat-icon>key</mat-icon>
+            <strong>Upload keys</strong>
+          </span>
+          <span class="sdr-site-status">{{ uploads.length }} checking in</span>
+          <span class="sdr-site-meta">
+            <span>Keeps no-upload alerts quiet while a system is idle</span>
+          </span>
+        </button>
+      }
+    </nav>
+  }
+
+  @if (selected; as source) {
+    @if (!showingUploads) {
+      <section class="sdr-panel">
+        <header class="sdr-panel-head">
+          <div class="sdr-panel-title">
+            <div class="sdr-panel-name">
+              <h3>{{ source.apiKeyIdent || ('API key ' + source.apiKeyId) }}</h3>
+              <span class="sdr-pill" [attr.data-tone]="statusTone(source.status)">{{ statusLabel(source.status) }}</span>
+              <span class="sdr-pill" [attr.data-tone]="source.connected ? 'good' : 'bad'">{{ source.connected ? 'Connected' : 'Disconnected' }}</span>
+            </div>
+            <div class="sdr-panel-meta">
+              <span><mat-icon>memory</mat-icon>{{ source.version || 'SDRTrunk' }}</span>
+              <span><mat-icon>schedule</mat-icon>Up {{ uptime(source) }}</span>
+              <span><mat-icon>update</mat-icon>Report {{ age(source) }} · {{ formatDate(source.receivedAt) }}</span>
+            </div>
+          </div>
+          <div class="sdr-panel-actions">
+            <button mat-stroked-button type="button" class="sdr-btn" (click)="command(source, 'report')" [disabled]="commanding || !source.connected">
+              <mat-icon>sync</mat-icon>
+              Request report
+            </button>
+            <button mat-flat-button type="button" class="sdr-btn sdr-btn--primary" (click)="setTab(tab === 'control' ? 'overview' : 'control', source)" [disabled]="!source.connected">
+              <mat-icon>{{ tab === 'control' ? 'close' : 'tune' }}</mat-icon>
+              {{ tab === 'control' ? 'Close remote control' : 'Remote control' }}
+            </button>
+          </div>
+        </header>
+
+        <nav class="sdr-tabs">
+          <button type="button" [class.active]="tab === 'overview'" (click)="setTab('overview', source)">
+            <mat-icon>dashboard</mat-icon>Overview
+            @if (issues(source).length) { <span class="sdr-count" data-tone="warn">{{ issues(source).length }}</span> }
+          </button>
+          <button type="button" [class.active]="tab === 'tuners'" (click)="setTab('tuners', source)">
+            <mat-icon>router</mat-icon>Tuners <span class="sdr-count">{{ stats(source).tuners }}</span>
+          </button>
+          <button type="button" [class.active]="tab === 'channels'" (click)="setTab('channels', source)">
+            <mat-icon>cell_tower</mat-icon>Channels <span class="sdr-count">{{ stats(source).channels }}</span>
+          </button>
+          <button type="button" [class.active]="tab === 'streams'" (click)="setTab('streams', source)">
+            <mat-icon>cloud_upload</mat-icon>Streams <span class="sdr-count">{{ stats(source).streams }}</span>
+          </button>
+          <button type="button" [class.active]="tab === 'control'" (click)="setTab('control', source)" [disabled]="!source.connected">
+            <mat-icon>tune</mat-icon>Remote control
+            @if (liveId === source.apiKeyId && liveConnected) { <span class="sdr-dot" data-tone="good"></span> }
+          </button>
+        </nav>
+
+        <div class="sdr-panel-body">
+          @if (tab === 'overview') {
+            <div class="sdr-overview">
+              <div class="sdr-card">
+                <h4>Checks</h4>
+                @if (issues(source).length === 0) {
+                  <div class="sdr-check" data-tone="good">
+                    <mat-icon>check_circle</mat-icon>
+                    <span>Everything on this site looks good.</span>
+                  </div>
+                }
+                @for (issue of issues(source); track issue.text) {
+                  <div class="sdr-check" [attr.data-tone]="issue.tone">
+                    <mat-icon>{{ issue.tone === 'bad' ? 'error' : issue.tone === 'warn' ? 'warning' : 'info' }}</mat-icon>
+                    <span>{{ issue.text }}</span>
+                  </div>
+                }
+              </div>
+              <div class="sdr-card">
+                <h4>Tuners</h4>
+                @for (tuner of list(source, 'tuners'); track tuner.id) {
+                  <div class="sdr-line">
+                    <span class="sdr-dot" [attr.data-tone]="tunerTone(tuner)"></span>
+                    <span class="sdr-line-main">{{ tuner.name || tuner.id }}</span>
+                    <span class="sdr-mono">{{ mhz(tuner.frequencyHz) }}</span>
+                  </div>
+                } @empty {
+                  <p class="sdr-empty">No tuners in the last report.</p>
+                }
+              </div>
+              <div class="sdr-card">
+                <h4>Channels</h4>
+                @for (channel of list(source, 'channels'); track channel.system + channel.site + channel.name) {
+                  <div class="sdr-line">
+                    <span class="sdr-dot" [attr.data-tone]="channelTone(channel)"></span>
+                    <span class="sdr-line-main">{{ channelLabel(channel) }}</span>
+                    <span class="sdr-muted">{{ channel.state || '—' }}</span>
+                  </div>
+                } @empty {
+                  <p class="sdr-empty">No channels in the last report.</p>
+                }
+              </div>
+              <div class="sdr-card">
+                <h4>Streams</h4>
+                @for (stream of list(source, 'streams'); track stream.name + stream.system) {
+                  <div class="sdr-line">
+                    <span class="sdr-dot" [attr.data-tone]="streamTone(stream)"></span>
+                    <span class="sdr-line-main">{{ stream.name || '—' }}</span>
+                    <span class="sdr-muted">{{ stream.enabled === false ? 'Off' : (stream.stateLabel || stream.state || '—') }}</span>
+                  </div>
+                } @empty {
+                  <p class="sdr-empty">No streams in the last report.</p>
+                }
+              </div>
+            </div>
+          }
+
+          @if (tab === 'tuners') {
+            @if (list(source, 'tuners').length === 0) {
+              <p class="sdr-empty">No tuners in the last report.</p>
+            } @else {
+              <div class="sdr-tuner-grid">
+                @for (tuner of list(source, 'tuners'); track tuner.id) {
+                  <div class="sdr-tuner-card" [attr.data-tone]="tunerTone(tuner)">
+                    <div class="sdr-tuner-card-head">
+                      <mat-icon>router</mat-icon>
+                      <div>
+                        <strong>{{ tuner.name || tuner.id || '—' }}</strong>
+                        @if (tuner.name && tuner.id) { <span class="sdr-muted">{{ tuner.id }}</span> }
+                      </div>
+                      <span class="sdr-pill" [attr.data-tone]="tunerTone(tuner)">{{ tuner.statusLabel || tuner.status || '—' }}</span>
+                    </div>
+                    <dl>
+                      <div><dt>Center</dt><dd class="sdr-mono">{{ mhz(tuner.frequencyHz) }}</dd></div>
+                      <div><dt>Channels</dt><dd>{{ tuner.channelCount ?? '—' }}</dd></div>
+                      <div><dt>PPM error</dt><dd class="sdr-mono">{{ ppm(tuner.frequencyErrorPpm) }}</dd></div>
+                    </dl>
+                    @if (tuner.error) { <p class="sdr-tuner-error">{{ tuner.error }}</p> }
+                  </div>
+                }
+              </div>
+            }
+          }
+
+          @if (tab === 'channels') {
+            @if (list(source, 'channels').length === 0) {
+              <p class="sdr-empty">No channels in the last report.</p>
+            } @else {
+              <div class="sdr-table-wrap">
+                <table class="sdr-table">
+                  <thead>
+                    <tr>
+                      <th>Channel</th>
+                      <th>Decoder</th>
+                      <th>State</th>
+                      <th>Control</th>
+                      <th>Tuner</th>
+                      <th>Samples</th>
+                      <th>Frequencies</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (channel of list(source, 'channels'); track channel.system + channel.site + channel.name) {
+                      <tr>
+                        <td>
+                          <span class="sdr-cell-name">
+                            <span class="sdr-dot" [attr.data-tone]="channelTone(channel)"></span>
+                            {{ channelLabel(channel) }}
+                          </span>
+                        </td>
+                        <td>{{ channel.decoder || '—' }}</td>
+                        <td>{{ channel.state || '—' }}</td>
+                        <td>
+                          @if (!channel.trunking) {
+                            <span class="sdr-muted">—</span>
+                          } @else if (channel.controlLost) {
+                            <span class="sdr-pill" data-tone="warn">Lost {{ channel.secondsSinceControl }}s</span>
+                          } @else {
+                            <span class="sdr-pill" data-tone="good">Locked</span>
+                          }
+                        </td>
+                        <td>
+                          <span class="sdr-pill" [attr.data-tone]="channel.noTuner ? 'bad' : (channel.processing ? 'good' : 'idle')">
+                            {{ channel.noTuner ? 'None' : (channel.processing ? 'Running' : 'Idle') }}
+                          </span>
+                        </td>
+                        <td>
+                          <span class="sdr-pill" [attr.data-tone]="channel.overflow ? 'warn' : 'good'">{{ channel.overflow ? 'Overflow' : 'OK' }}</span>
+                        </td>
+                        <td>
+                          @for (frequency of channel.frequencies || []; track frequency) {
+                            <span class="sdr-freq">{{ mhz(frequency) }}</span>
+                          } @empty {
+                            <span class="sdr-muted">—</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+          @if (tab === 'streams') {
+            @if (list(source, 'streams').length === 0) {
+              <p class="sdr-empty">No streams in the last report.</p>
+            } @else {
+              <div class="sdr-table-wrap">
+                <table class="sdr-table">
+                  <thead>
+                    <tr>
+                      <th>Stream</th>
+                      <th>Type</th>
+                      <th>System</th>
+                      <th>State</th>
+                      <th class="sdr-col-action">Enabled</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (stream of list(source, 'streams'); track stream.name + stream.system) {
+                      <tr>
+                        <td>
+                          <span class="sdr-cell-name">
+                            <span class="sdr-dot" [attr.data-tone]="streamTone(stream)"></span>
+                            {{ stream.name || '—' }}
+                          </span>
+                        </td>
+                        <td>{{ stream.kind || 'Upload' }}</td>
+                        <td>{{ stream.system || '—' }}</td>
+                        <td><span class="sdr-pill" [attr.data-tone]="streamTone(stream)">{{ stream.enabled === false ? 'Off' : (stream.stateLabel || stream.state || '—') }}</span></td>
+                        <td class="sdr-col-action">
+                          @if (source.connected && stream.name) {
+                            <button type="button" class="sdr-switch" [class.on]="stream.enabled"
+                              [disabled]="commanding" (click)="command(source, 'setStream', stream.name, !stream.enabled)"
+                              [attr.aria-label]="stream.enabled ? 'Turn off ' + stream.name : 'Turn on ' + stream.name">
+                              <span></span>
+                            </button>
+                          } @else {
+                            <span class="sdr-muted">{{ stream.enabled ? 'On' : 'Off' }}</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+          @if (tab === 'control' && liveId === source.apiKeyId) {
+            <section class="sdr-live">
+              <div class="sdr-live-bar">
+                <span class="sdr-pill" [attr.data-tone]="liveConnected ? 'good' : 'warn'">
+                  {{ liveConnected ? 'Live session' : 'Connecting…' }}
+                </span>
+                @if (notice) { <span class="sdr-notice"><mat-icon>check</mat-icon>{{ notice }}</span> }
+                @if (commandError) { <span class="sdr-notice sdr-notice--bad"><mat-icon>error_outline</mat-icon>{{ commandError }}</span> }
+              </div>
+              @if (blockedRemote.length) {
+                <p class="sdr-blocked"><mat-icon>lock</mat-icon>This site doesn't let Thinline Radio change: {{ blockedRemote.join(', ') }}. Change this in SDRTrunk under User Preferences, Thinline Radio.</p>
+              }
+              <nav class="sdr-subtabs sdr-live-tabs">
+                <button type="button" [class.active]="liveView === 'tuners'" (click)="setLiveView('tuners')"><mat-icon>settings_input_antenna</mat-icon>Tuners and spectrum</button>
+                <button type="button" [class.active]="liveView === 'channels'" (click)="setLiveView('channels')"><mat-icon>radio</mat-icon>Channels</button>
+                <button type="button" [class.active]="liveView === 'streams'" (click)="setLiveView('streams')"><mat-icon>cloud_upload</mat-icon>Streams</button>
+                <button type="button" [class.active]="liveView === 'playlist'" (click)="setLiveView('playlist')"><mat-icon>playlist_play</mat-icon>Playlist</button>
+                <button type="button" [class.active]="liveView === 'preferences'" (click)="setLiveView('preferences')"><mat-icon>tune</mat-icon>User preferences</button>
+                <button type="button" [class.active]="liveView === 'desktop'" (click)="setLiveView('desktop')"><mat-icon>desktop_windows</mat-icon>Remote desktop</button>
+              </nav>
+
+              @if (liveView === 'desktop') {
+                @if (!allowed('desktop')) {
+                  <p class="sdr-empty">This site doesn't allow remote desktop.</p>
+                } @else if (desktopOpen) {
+                  <div class="sdr-desktop-stage" #desktopStage>
+                    <img class="sdr-desktop" [src]="desktopUrl" alt="SDRTrunk" tabindex="0" draggable="false"
+                      (pointerdown)="desktopPointer($event, 'down')"
+                      (pointerup)="desktopPointer($event, 'up')"
+                      (pointermove)="desktopPointer($event, 'move')"
+                      (wheel)="desktopWheel($event)"
+                      (contextmenu)="$event.preventDefault()"
+                      (keydown)="desktopKey($event, true)"
+                      (keyup)="desktopKey($event, false)">
+                    <button type="button" class="sdr-desktop-mute" (click)="toggleDesktopMute()">
+                      {{ desktopMuted ? 'Unmute' : 'Mute' }}
+                    </button>
+                    <button type="button" class="sdr-desktop-full" (click)="toggleDesktopFullscreen()">
+                      {{ desktopFullscreen ? 'Exit full screen' : 'Full screen' }}
+                    </button>
+                  </div>
+                  <p class="sdr-empty">This is the screen on the SDRTrunk computer, with the audio SDRTrunk is playing. Clicks and keys go there. Click the picture first, then type. Escape leaves full screen.</p>
+                } @else {
+                  <button mat-stroked-button type="button" class="sdr-btn" (click)="toggleDesktop()"><mat-icon>desktop_windows</mat-icon>Show desktop</button>
+                }
+              }
+
+              @if (liveView === 'tuners') {
+                @if (spectrumTunerId) {
+                  <canvas #spectrum class="sdr-spectrum" (mousemove)="moveSpectrumCursor($event)" (mouseleave)="clearSpectrumCursor()"></canvas>
+                  <p class="sdr-legend"><span class="sdr-legend-control"></span>Control channel <span class="sdr-legend-traffic"></span>Traffic channel</p>
+                }
+                <div class="sdr-card">
+                  <h4>Tuners</h4>
+                  @for (tuner of tuners; track tuner.id) {
+                    <div class="sdr-control-row">
+                      <div class="sdr-control-name">
+                        <span class="sdr-dot" [attr.data-tone]="tunerTone(tuner)"></span>
+                        <div>
+                          <strong>{{ tuner.name || tuner.id }}</strong>
+                          <span class="sdr-muted">{{ tuner.statusLabel || tuner.status }} · {{ mhz(tuner.sampleRate) }} · {{ tuner.channelCount }} ch</span>
+                          @if (tuner.error) { <span class="sdr-tuner-error">{{ tuner.error }}</span> }
+                        </div>
+                      </div>
+                      <label class="sdr-field">Center MHz
+                        <input [value]="tuner.frequencyMHz" [disabled]="!allowed('tuners')" (change)="tuner.frequencyMHz = $any($event.target).value; applyTuner(tuner, 'frequency')">
+                      </label>
+                      <label class="sdr-field">PPM
+                        <input [value]="tuner.ppm" [disabled]="!allowed('tuners')" (change)="tuner.ppm = $any($event.target).value; applyTuner(tuner, 'ppm')">
+                      </label>
+                      <span class="sdr-muted sdr-measured">measured {{ ppm(tuner.measuredPpm) }}</span>
+                      <label class="sdr-check-label">
+                        <input type="checkbox" [checked]="tuner.enabled" [disabled]="!allowed('tuners')" (change)="liveCommand('setTuner', { tunerId: tuner.id, enabled: !tuner.enabled })"> Enabled
+                      </label>
+                      <button mat-stroked-button type="button" class="sdr-btn" [class.sdr-btn--on]="spectrumTunerId === tuner.id" (click)="showSpectrum(tuner)" [disabled]="!tuner.enabled || !allowed('spectrum')">
+                        <mat-icon>graphic_eq</mat-icon>
+                        {{ spectrumTunerId === tuner.id ? 'Hide spectrum' : 'Spectrum' }}
+                      </button>
+                      <button mat-stroked-button type="button" class="sdr-btn" (click)="openTunerSettings(tuner)">
+                        <mat-icon>settings</mat-icon>
+                        Settings
+                      </button>
+                    </div>
+                  } @empty {
+                    <p class="sdr-empty">{{ liveConnected ? 'No tuners.' : 'Waiting for SDRTrunk…' }}</p>
+                  }
+                </div>
+              }
+
+              @if (liveView === 'channels') {
+                <div class="sdr-card">
+                  <h4>Channels</h4>
+                  @for (channel of channels; track channel.id) {
+                    <div class="sdr-control-row sdr-control-row--compact">
+                      <div class="sdr-control-name">
+                        <span class="sdr-dot" [attr.data-tone]="channel.processing ? 'good' : 'idle'"></span>
+                        <div>
+                          <strong>{{ channelLabel(channel) }}</strong>
+                          <span class="sdr-muted">{{ channel.decoder || '—' }} · {{ channel.processing ? 'Running' : 'Stopped' }}</span>
+                        </div>
+                      </div>
+                      <button mat-stroked-button type="button" class="sdr-btn" (click)="openChannelSettings(channel)">
+                        <mat-icon>settings</mat-icon>
+                        Settings
+                      </button>
+                      <button mat-stroked-button type="button" class="sdr-btn" (click)="toggleChannel(channel)" [disabled]="!allowed('channels')">
+                        <mat-icon>{{ channel.processing ? 'stop' : 'play_arrow' }}</mat-icon>
+                        {{ channel.processing ? 'Stop' : 'Start' }}
+                      </button>
+                    </div>
+                  } @empty {
+                    <p class="sdr-empty">No channels.</p>
+                  }
+                  <p class="sdr-empty">Add, clone or delete channels in the Playlist tab.</p>
+                </div>
+              }
+
+              @if (liveView === 'streams') {
+                <div class="sdr-card">
+                  <h4>Streams</h4>
+                  @for (stream of streams; track stream.name + stream.system) {
+                    <div class="sdr-control-row sdr-control-row--compact">
+                      <div class="sdr-control-name">
+                        <span class="sdr-dot" [attr.data-tone]="streamTone(stream)"></span>
+                        <div>
+                          <strong>{{ stream.name }}</strong>
+                          <span class="sdr-muted">{{ stream.kind || 'Upload' }} · system {{ stream.system }} · {{ stream.stateLabel || stream.state }}</span>
+                        </div>
+                      </div>
+                      <button mat-stroked-button type="button" class="sdr-btn" [class.sdr-btn--on]="streamAliasesFor === stream.name" (click)="openStreamAliases(stream)">
+                        <mat-icon>record_voice_over</mat-icon>
+                        Talkgroups
+                      </button>
+                      <button mat-stroked-button type="button" class="sdr-btn" (click)="openStreamSettings(stream)">
+                        <mat-icon>settings</mat-icon>
+                        Settings
+                      </button>
+                      <button type="button" class="sdr-switch" [class.on]="stream.enabled" [disabled]="!allowed('streams')"
+                        (click)="liveCommand('setStream', { name: stream.name, enabled: !stream.enabled })"
+                        [attr.aria-label]="stream.enabled ? 'Turn off ' + stream.name : 'Turn on ' + stream.name">
+                        <span></span>
+                      </button>
+                    </div>
+                  } @empty {
+                    <p class="sdr-empty">No streams.</p>
+                  }
+                  @if (allowed('streams')) {
+                    <div class="sdr-actions sdr-add-stream">
+                      <select [(ngModel)]="newStreamType">
+                        @for (type of streamTypes; track type.value) { <option [value]="type.value">{{ type.label }}</option> }
+                      </select>
+                      <input placeholder="New stream name" [(ngModel)]="newStreamName" (keyup.enter)="addStream()">
+                      <button mat-stroked-button type="button" (click)="addStream()" [disabled]="!newStreamName.trim()">Add stream</button>
+                      <span class="sdr-muted">New streams start turned off. Fill in their settings, then turn them on.</span>
+                    </div>
+                  }
+                </div>
+
+                @if (streamAliasesFor) {
+                  <div class="sdr-card">
+                    <div class="sdr-card-head">
+                      <h4>Talkgroups uploaded on {{ streamAliasesFor }}</h4>
+                      <button mat-icon-button type="button" (click)="streamAliasesFor = ''" aria-label="Close"><mat-icon>close</mat-icon></button>
+                    </div>
+                    <p class="sdr-empty">An alias is uploaded when this stream is checked on it, the same as the Streaming setting on the alias in SDRTrunk.</p>
+                    <div class="sdr-actions">
+                      <select [(ngModel)]="streamAliasList" (ngModelChange)="loadStreamAliases(0)">
+                        <option value="">Every alias list</option>
+                        @for (list of aliasLists; track list.name) { <option [value]="list.name">{{ list.name }} ({{ list.count }})</option> }
+                      </select>
+                      <input placeholder="Search name, group or talkgroup" [(ngModel)]="streamAliasQuery" (keyup.enter)="loadStreamAliases(0)">
+                      <button mat-stroked-button type="button" (click)="loadStreamAliases(0)">Search</button>
+                      <span class="sdr-live-spacer"></span>
+                      <button mat-stroked-button type="button" (click)="setAllAliasesStreamed(true)" [disabled]="!allowed('streams') || !streamAliasTotal">Upload all matching</button>
+                      <button mat-stroked-button type="button" (click)="setAllAliasesStreamed(false)" [disabled]="!allowed('streams') || !streamAliasTotal">Stop all matching</button>
+                    </div>
+                    <div class="sdr-table-wrap">
+                      <table class="sdr-table">
+                        <thead>
+                          <tr><th>Upload</th><th>Alias</th><th>Group</th><th>Talkgroups</th><th>List</th></tr>
+                        </thead>
+                        <tbody>
+                          @for (alias of streamAliases; track alias.id) {
+                            <tr>
+                              <td><input type="checkbox" [checked]="streamed(alias)" [disabled]="!allowed('streams')" (change)="setAliasStreamed(alias, $any($event.target).checked)"></td>
+                              <td>{{ alias.name }}</td>
+                              <td>{{ alias.group || '—' }}</td>
+                              <td>{{ talkgroupLabel(alias) }}</td>
+                              <td>{{ alias.list }}</td>
+                            </tr>
+                          } @empty {
+                            <tr><td colspan="5" class="sdr-empty">No aliases found.</td></tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                    @if (streamAliasTotal > streamAliases.length) {
+                      <div class="sdr-actions">
+                        <button mat-stroked-button type="button" (click)="loadStreamAliases(streamAliasOffset - 200)" [disabled]="streamAliasOffset === 0">Previous</button>
+                        <span>{{ streamAliasOffset + 1 }}–{{ streamAliasOffset + streamAliases.length }} of {{ streamAliasTotal }}</span>
+                        <button mat-stroked-button type="button" (click)="loadStreamAliases(streamAliasOffset + 200)" [disabled]="streamAliasOffset + streamAliases.length >= streamAliasTotal">Next</button>
+                      </div>
+                    }
+                  </div>
+                }
+              }
+
+              @if (liveView === 'playlist') {
+                <div class="sdr-playlist sdr-card">
+                  <div class="sdr-subtabs">
+                    <button type="button" [class.active]="playlistTab === 'channels'" (click)="playlistTab = 'channels'">Channels</button>
+                    <button type="button" [class.active]="playlistTab === 'aliases'" (click)="playlistTab = 'aliases'">Aliases</button>
+                    <button type="button" [class.active]="playlistTab === 'maps'" (click)="playlistTab = 'maps'">Channel maps</button>
+                  </div>
+                  @if (playlistTab === 'channels') {
+                    <div class="sdr-editor">
+                      <div>
+                        <div class="sdr-actions">
+                          <input placeholder="Search channels" [(ngModel)]="channelQuery">
+                          <button mat-stroked-button type="button" (click)="newChannel()">New channel</button>
+                        </div>
+                        @for (channel of visibleChannels; track channel.id) {
+                          <button type="button" class="sdr-pick" (click)="editChannel(channel)">
+                            <strong>{{ channelLabel(channel) }}</strong>
+                            <span>{{ channel.decoderLabel || channel.decoder }}</span>
+                            <span>{{ channel.processing ? 'Running' : 'Stopped' }}</span>
+                          </button>
+                        }
+                        @if (!visibleChannels.length) { <p class="sdr-empty">No channels in this playlist.</p> }
+                      </div>
+                      @if (draft) {
+                        <form class="sdr-form" (ngSubmit)="saveDraft()">
+                          <h4>{{ draftMode === 'new' ? 'New channel' : 'Edit channel' }}</h4>
+                          <label>Decoder
+                            <select [(ngModel)]="draft.decoder" name="decoder">
+                              @for (decoder of playlistOptions.decoders || []; track decoder.name) {
+                                <option [value]="decoder.name">{{ decoder.label }}</option>
+                              }
+                            </select>
+                          </label>
+                          <label>System <input [(ngModel)]="draft.system" name="system"></label>
+                          <label>Site <input [(ngModel)]="draft.site" name="site"></label>
+                          <label>Name <input [(ngModel)]="draft.name" name="name"></label>
+                          <label>Alias list
+                            <input [(ngModel)]="draft.aliasList" name="aliasList" list="sdr-alias-lists">
+                            <datalist id="sdr-alias-lists">
+                              @for (list of aliasLists; track list.name) { <option [value]="list.name"></option> }
+                            </datalist>
+                          </label>
+                          <label><input type="checkbox" [(ngModel)]="draft.autoStart" name="autoStart"> Auto start</label>
+                          <label>Order <input type="number" [(ngModel)]="draft.order" name="order"></label>
+                          <label>Frequencies, MHz, one per line
+                            <textarea [(ngModel)]="draft.frequencyText" name="frequencies" rows="4"></textarea>
+                          </label>
+                          <label>Preferred tuner
+                            <input [(ngModel)]="draft.preferredTuner" name="preferredTuner" list="sdr-tuners">
+                            <datalist id="sdr-tuners">
+                              @for (tuner of playlistOptions.tuners || []; track tuner) { <option [value]="tuner"></option> }
+                            </datalist>
+                          </label>
+                          <label>Control rotation, ms <input type="number" [(ngModel)]="draft.rotationDelay" name="rotationDelay"></label>
+                          @if (shows('modulation')) {
+                            <label>Modulation
+                              <select [(ngModel)]="draft.modulation" name="modulation">
+                                @for (item of playlistOptions.modulations || []; track item.name) {
+                                  <option [value]="item.name">{{ item.label }}</option>
+                                }
+                              </select>
+                            </label>
+                          }
+                          @if (shows('ignoreData')) { <label><input type="checkbox" [(ngModel)]="draft.ignoreDataCalls" name="ignoreData"> Ignore data calls</label> }
+                          @if (shows('pool')) { <label>Traffic channel pool <input type="number" [(ngModel)]="draft.trafficChannelPoolSize" name="pool"></label> }
+                          @if (shows('scramble')) { <label><input type="checkbox" [(ngModel)]="draft.autoDetectScramble" name="scramble"> Auto-detect scramble</label> }
+                          @if (shows('bandwidth')) {
+                            <label>Bandwidth
+                              <select [(ngModel)]="draft.bandwidth" name="bandwidth">
+                                @for (item of bandwidthChoices(); track item.name) { <option [value]="item.name">{{ item.label }}</option> }
+                              </select>
+                            </label>
+                          }
+                          @if (shows('talkgroup')) { <label>Talkgroup <input type="number" [(ngModel)]="draft.talkgroup" name="talkgroup"></label> }
+                          @if (shows('squelch')) {
+                            <label>Squelch <input type="number" [(ngModel)]="draft.squelchThreshold" name="squelch"></label>
+                            <label><input type="checkbox" [(ngModel)]="draft.squelchAutoTrack" name="squelchTrack"> Auto-track squelch</label>
+                          }
+                          @if (shows('audioFilter')) { <label><input type="checkbox" [(ngModel)]="draft.audioFilter" name="audioFilter"> Audio filter</label> }
+                          @if (shows('direction')) {
+                            <label>Direction
+                              <select [(ngModel)]="draft.messageDirection" name="direction">
+                                @for (item of playlistOptions.directions || []; track item.name) { <option [value]="item.name">{{ item.label }}</option> }
+                              </select>
+                            </label>
+                          }
+                          @if (shows('channelMap')) {
+                            <label>Channel map
+                              <select [(ngModel)]="draft.channelMap" name="channelMap">
+                                <option value=""></option>
+                                @for (map of channelMaps; track map.name) { <option [value]="map.name">{{ map.name }}</option> }
+                              </select>
+                            </label>
+                            <label>Sync
+                              <select [(ngModel)]="draft.sync" name="sync">
+                                @for (item of playlistOptions.mptSync || []; track item.name) { <option [value]="item.name">{{ item.label }}</option> }
+                              </select>
+                            </label>
+                            <label>Call timeout, seconds <input type="number" [(ngModel)]="draft.callTimeout" name="timeout"></label>
+                          }
+                          @if (shows('nxdnMode')) {
+                            <label>Transmission
+                              <select [(ngModel)]="draft.transmissionMode" name="nxdnMode">
+                                @for (item of playlistOptions.nxdnModes || []; track item.name) { <option [value]="item.name">{{ item.label }}</option> }
+                              </select>
+                            </label>
+                          }
+                          @if (shows('timeslots')) {
+                            <div class="sdr-rows">
+                              <strong>Logical channels</strong>
+                              @for (row of draft.timeslots; track $index) {
+                                <div>
+                                  <input type="number" [(ngModel)]="row.number" [name]="'lcn' + $index" placeholder="LCN">
+                                  <input [(ngModel)]="row.downlinkMHz" [name]="'down' + $index" placeholder="Downlink MHz">
+                                  <input [(ngModel)]="row.uplinkMHz" [name]="'up' + $index" placeholder="Uplink MHz">
+                                  <button type="button" (click)="removeRow('timeslots', $index)">Remove</button>
+                                </div>
+                              }
+                              <button type="button" (click)="addRow('timeslots')">Add logical channel</button>
+                            </div>
+                          }
+                          @if (shows('nxdn')) {
+                            <div class="sdr-rows">
+                              <strong>NXDN channels</strong>
+                              @for (row of draft.nxdnChannels; track $index) {
+                                <div>
+                                  <input type="number" [(ngModel)]="row.channel" [name]="'nx' + $index" placeholder="Channel">
+                                  <input [(ngModel)]="row.downlinkMHz" [name]="'nxdown' + $index" placeholder="Downlink MHz">
+                                  <input [(ngModel)]="row.uplinkMHz" [name]="'nxup' + $index" placeholder="Uplink MHz">
+                                  <button type="button" (click)="removeRow('nxdnChannels', $index)">Remove</button>
+                                </div>
+                              }
+                              <button type="button" (click)="addRow('nxdnChannels')">Add channel</button>
+                            </div>
+                          }
+                          <div class="sdr-actions">
+                            <button mat-flat-button color="primary" type="submit">Save channel</button>
+                            @if (draftMode === 'edit') {
+                              <button mat-stroked-button type="button" (click)="toggleChannel(draft)">
+                                {{ draft.processing ? 'Stop' : 'Start' }}
+                              </button>
+                              <button mat-stroked-button type="button" (click)="cloneDraft()">Clone</button>
+                              <button mat-stroked-button type="button" (click)="openChannelSettings(draft)">All settings</button>
+                              <button mat-stroked-button type="button" (click)="deleteDraft()">Delete</button>
+                            }
+                          </div>
+                        </form>
+                      }
+                    </div>
+                  }
+                  @if (playlistTab === 'aliases') {
+                    <div class="sdr-editor">
+                      <div>
+                        <div class="sdr-actions">
+                          <select [(ngModel)]="aliasListName" name="aliasListPick" (ngModelChange)="loadAliases(0)">
+                            <option value="">Alias list</option>
+                            @for (list of aliasLists; track list.name) { <option [value]="list.name">{{ list.name }} ({{ list.count }})</option> }
+                          </select>
+                          <input placeholder="Search aliases" [(ngModel)]="aliasQuery" name="aliasQuery" (keyup.enter)="loadAliases(0)">
+                          <button mat-stroked-button type="button" (click)="loadAliases(0)">Search</button>
+                          <button mat-stroked-button type="button" (click)="newAlias()">New alias</button>
+                        </div>
+                        @for (alias of aliases; track alias.id) {
+                          <button type="button" class="sdr-pick" (click)="editAlias(alias)">
+                            <strong>{{ alias.name }}</strong>
+                            <span>{{ alias.group }}</span>
+                            <span>{{ talkgroupLabel(alias) }}</span>
+                          </button>
+                        }
+                        @if (aliasTotal > aliases.length) {
+                          <div class="sdr-actions">
+                            <button mat-stroked-button type="button" (click)="loadAliases(aliasOffset - 200)" [disabled]="aliasOffset === 0">Previous</button>
+                            <span>{{ aliasOffset + 1 }}–{{ aliasOffset + aliases.length }} of {{ aliasTotal }}</span>
+                            <button mat-stroked-button type="button" (click)="loadAliases(aliasOffset + 200)" [disabled]="aliasOffset + aliases.length >= aliasTotal">Next</button>
+                          </div>
+                        }
+                      </div>
+                      @if (aliasDraft) {
+                        <form class="sdr-form" (ngSubmit)="saveAlias()">
+                          <h4>{{ aliasDraft.id ? 'Edit alias' : 'New alias' }}</h4>
+                          <label>Alias list
+                            <input [(ngModel)]="aliasDraft.list" name="aliasDraftList" list="sdr-alias-lists-editor">
+                            <datalist id="sdr-alias-lists-editor">
+                              @for (list of aliasLists; track list.name) { <option [value]="list.name"></option> }
+                            </datalist>
+                          </label>
+                          <label>Name <input [(ngModel)]="aliasDraft.name" name="aliasName"></label>
+                          <label>Group <input [(ngModel)]="aliasDraft.group" name="aliasGroup"></label>
+                          <label><input type="checkbox" [(ngModel)]="aliasDraft.record" name="aliasRecord"> Record</label>
+                          <label>Priority <input type="number" [(ngModel)]="aliasDraft.priority" name="aliasPriority"></label>
+                          @for (row of aliasDraft.talkgroups; track $index) {
+                            <div class="sdr-rows">
+                              <select [(ngModel)]="row.kind" [name]="'kind' + $index">
+                                <option value="talkgroup">Talkgroup</option>
+                                <option value="range">Range</option>
+                              </select>
+                              <select [(ngModel)]="row.protocol" [name]="'protocol' + $index">
+                                @for (item of playlistOptions.protocols || []; track item.name) { <option [value]="item.name">{{ item.label }}</option> }
+                              </select>
+                              @if (row.kind === 'range') {
+                                <input type="number" [(ngModel)]="row.min" [name]="'min' + $index" placeholder="From">
+                                <input type="number" [(ngModel)]="row.max" [name]="'max' + $index" placeholder="To">
+                              } @else {
+                                <input type="number" [(ngModel)]="row.value" [name]="'value' + $index" placeholder="Talkgroup">
+                              }
+                              <button type="button" (click)="aliasDraft.talkgroups.splice($index, 1)">Remove</button>
+                            </div>
+                          }
+                          <button type="button" (click)="aliasDraft.talkgroups.push({ kind: 'talkgroup', protocol: 'APCO25', value: '', min: '', max: '' })">Add talkgroup</button>
+                          @if (streams.length) {
+                            <div class="sdr-rows sdr-rows--checks">
+                              <strong>Upload to streams</strong>
+                              @for (stream of streams; track stream.name) {
+                                <label><input type="checkbox" [checked]="aliasStreamChecked(stream.name)" (change)="toggleAliasDraftStream(stream.name, $any($event.target).checked)"> {{ stream.name }}</label>
+                              }
+                            </div>
+                          }
+                          @if (aliasDraft.extras) { <p class="sdr-empty">This alias also has {{ aliasDraft.extras }} other identifiers. Those stay in place.</p> }
+                          <div class="sdr-actions">
+                            <button mat-flat-button color="primary" type="submit">Save alias</button>
+                            @if (aliasDraft.id) { <button mat-stroked-button type="button" (click)="deleteAlias()">Delete</button> }
+                          </div>
+                        </form>
+                      }
+                    </div>
+                  }
+                  @if (playlistTab === 'maps') {
+                    <div class="sdr-editor">
+                      <div>
+                        <button mat-stroked-button type="button" (click)="newMap()">New channel map</button>
+                        @for (map of channelMaps; track map.name) {
+                          <button type="button" class="sdr-pick" (click)="editMap(map)">
+                            <strong>{{ map.name }}</strong>
+                            <span>{{ map.ranges?.length || 0 }} ranges</span>
+                          </button>
+                        }
+                      </div>
+                      @if (mapDraft) {
+                        <form class="sdr-form" (ngSubmit)="saveMap()">
+                          <h4>{{ mapDraft.originalName ? 'Edit channel map' : 'New channel map' }}</h4>
+                          <label>Name <input [(ngModel)]="mapDraft.name" name="mapName"></label>
+                          @for (range of mapDraft.ranges; track $index) {
+                            <div class="sdr-rows">
+                              <input type="number" [(ngModel)]="range.first" [name]="'first' + $index" placeholder="First">
+                              <input type="number" [(ngModel)]="range.last" [name]="'last' + $index" placeholder="Last">
+                              <input [(ngModel)]="range.baseMHz" [name]="'base' + $index" placeholder="Base MHz">
+                              <input [(ngModel)]="range.stepKHz" [name]="'step' + $index" placeholder="Step kHz">
+                              <button type="button" (click)="mapDraft.ranges.splice($index, 1)">Remove</button>
+                            </div>
+                          }
+                          <button type="button" (click)="mapDraft.ranges.push({ first: 1, last: 2, baseMHz: '', stepKHz: 12.5 })">Add range</button>
+                          <div class="sdr-actions">
+                            <button mat-flat-button color="primary" type="submit">Save map</button>
+                            @if (mapDraft.originalName) { <button mat-stroked-button type="button" (click)="deleteMap()">Delete</button> }
+                          </div>
+                        </form>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (liveView === 'preferences') {
+                <div class="sdr-card">
+                  <div class="sdr-card-head">
+                    <h4>User preferences</h4>
+                    <input class="sdr-search" placeholder="Search preferences" [(ngModel)]="preferenceQuery">
+                  </div>
+                  @if (!allowed('preferences')) { <p class="sdr-empty">This site lets you look at its preferences but not change them.</p> }
+                  @for (section of visiblePreferenceSections; track section.id) {
+                    <div class="sdr-pref" [class.open]="section.open || preferenceQuery">
+                      <button type="button" class="sdr-pref-head" (click)="section.open = !section.open">
+                        <mat-icon>{{ section.open || preferenceQuery ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                        <strong>{{ section.title }}</strong>
+                        <span class="sdr-muted">{{ section.fields.length }} settings</span>
+                      </button>
+                      @if (section.open || preferenceQuery) {
+                        <div class="sdr-settings">
+                          <ng-container *ngTemplateOutlet="settingsFields; context: { $implicit: section.fields, locked: !allowed('preferences') }"></ng-container>
+                        </div>
+                        @if (allowed('preferences')) {
+                          <div class="sdr-actions"><button mat-flat-button color="primary" type="button" (click)="savePreferenceSection(section)">Save {{ section.title }}</button></div>
+                        }
+                      }
+                    </div>
+                  } @empty {
+                    <p class="sdr-empty">{{ preferenceSections.length ? 'No preferences match.' : 'Loading preferences…' }}</p>
+                  }
+                </div>
+              }
+
+              @if (settingsPanel) {
+                <div class="sdr-drawer-scrim" (click)="closeSettings()"></div>
+                <aside class="sdr-drawer">
+                  <header class="sdr-drawer-head">
+                    <div>
+                      <span class="sdr-muted">{{ settingsPanel.scope === 'tuner' ? 'Tuner' : settingsPanel.scope === 'stream' ? 'Stream' : 'Channel' }} settings</span>
+                      <h3>{{ settingsPanel.title }}</h3>
+                    </div>
+                    <button mat-icon-button type="button" (click)="closeSettings()" aria-label="Close"><mat-icon>close</mat-icon></button>
+                  </header>
+                  <div class="sdr-drawer-body sdr-settings">
+                    @if (!settingsAllowed(settingsPanel)) { <p class="sdr-blocked"><mat-icon>lock</mat-icon>This site doesn't let Thinline Radio change these.</p> }
+                    @if (settingsPanel.scope === 'channel') { <p class="sdr-empty">Saving stops the channel, applies the change and starts it again if it was running.</p> }
+                    <ng-container *ngTemplateOutlet="settingsFields; context: { $implicit: settingsPanel.fields, locked: !settingsAllowed(settingsPanel) }"></ng-container>
+                  </div>
+                  <footer class="sdr-drawer-foot">
+                    @if (settingsError) { <span class="sdr-notice sdr-notice--bad"><mat-icon>error_outline</mat-icon>{{ settingsError }}</span> }
+                    <span class="sdr-live-spacer"></span>
+                    @if (settingsPanel.scope === 'stream' && settingsAllowed(settingsPanel)) {
+                      <button mat-stroked-button type="button" (click)="deleteStream()">Delete stream</button>
+                    }
+                    <button mat-stroked-button type="button" (click)="closeSettings()">Close</button>
+                    @if (settingsAllowed(settingsPanel)) {
+                      <button mat-flat-button color="primary" type="button" (click)="saveSettings()">Save</button>
+                    }
+                  </footer>
+                </aside>
+              }
+            </section>
+          }
+        </div>
+      </section>
+    }
+  }
+
+  @if (showingUploads || (!sites.length && uploads.length)) {
+    <section class="sdr-panel">
+      <header class="sdr-panel-head">
+        <div class="sdr-panel-title">
+          <div class="sdr-panel-name">
+            <h3>Upload keys</h3>
+            <span class="sdr-pill" [attr.data-tone]="ratioTone(uploadsOk, uploads.length)">{{ uploads.length }} checking in</span>
+          </div>
+          <div class="sdr-panel-meta">
+            <span>These keys check in on their own. A fresh check-in keeps the no-upload alert from firing while that system is quiet.</span>
+          </div>
+        </div>
+      </header>
+      <div class="sdr-panel-body">
+        <div class="sdr-table-wrap">
+          <table class="sdr-table">
+            <thead>
+              <tr>
+                <th>API key</th>
+                <th>System</th>
+                <th>Uploader</th>
+                <th>State</th>
+                <th>Last check-in</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (source of uploads; track source.apiKeyId) {
+                <tr>
+                  <td>
+                    <span class="sdr-cell-name">
+                      <span class="sdr-dot" [attr.data-tone]="statusTone(source.status)"></span>
+                      {{ source.apiKeyIdent || source.apiKeyId }}
+                    </span>
+                  </td>
+                  <td>{{ source.systemLabel || source.systemRef || '—' }}</td>
+                  <td>{{ source.report?.uploader?.name || '—' }}</td>
+                  <td>{{ source.report?.uploader?.stateLabel || source.uploaderState || '—' }}</td>
+                  <td>{{ age(source) }}</td>
+                  <td><span class="sdr-pill" [attr.data-tone]="statusTone(source.status)">{{ statusLabel(source.status) }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  }
+</div>
+
+<ng-template #settingsFields let-fields let-locked="locked">
+  @for (field of fields; track field.name) {
+    @switch (field.kind) {
+      @case ('object') {
+        <fieldset class="sdr-settings-group">
+          <legend>{{ field.label }}@if (field.type) { <span class="sdr-muted"> · {{ field.type }}</span> }</legend>
+          <ng-container *ngTemplateOutlet="settingsFields; context: { $implicit: field.fields, locked: locked }"></ng-container>
+        </fieldset>
+      }
+      @case ('boolean') {
+        <label class="sdr-setting sdr-setting--check">
+          <input type="checkbox" [(ngModel)]="field.edit" [disabled]="locked || field.readOnly"> {{ field.label }}
+        </label>
+      }
+      @case ('enum') {
+        <label class="sdr-setting">{{ field.label }}
+          <select [(ngModel)]="field.edit" [disabled]="locked || field.readOnly">
+            @for (option of field.options || []; track option.value) { <option [value]="option.value">{{ option.label }}</option> }
+          </select>
+        </label>
+      }
+      @case ('enumList') {
+        <div class="sdr-setting">{{ field.label }}
+          <div class="sdr-setting-checks">
+            @for (option of field.options || []; track option.value) {
+              <label><input type="checkbox" [checked]="field.edit?.includes(option.value)" [disabled]="locked || field.readOnly"
+                (change)="toggleEnumList(field, option.value, $any($event.target).checked)"> {{ option.label }}</label>
+            }
+          </div>
+        </div>
+      }
+      @case ('list') {
+        <label class="sdr-setting sdr-setting--wide">{{ field.label }} <span class="sdr-muted">one per line</span>
+          <textarea rows="3" [(ngModel)]="field.edit" [disabled]="locked || field.readOnly"></textarea>
+        </label>
+      }
+      @case ('json') {
+        <label class="sdr-setting sdr-setting--wide">{{ field.label }} <span class="sdr-muted">advanced, JSON</span>
+          <textarea rows="4" class="sdr-mono" [(ngModel)]="field.edit" [disabled]="locked || field.readOnly"></textarea>
+        </label>
+      }
+      @case ('integer') {
+        <label class="sdr-setting">{{ field.label }}
+          <input type="number" step="1" [(ngModel)]="field.edit" [disabled]="locked || field.readOnly">
+        </label>
+      }
+      @case ('number') {
+        <label class="sdr-setting">{{ field.label }}
+          <input type="number" step="any" [(ngModel)]="field.edit" [disabled]="locked || field.readOnly">
+        </label>
+      }
+      @default {
+        <label class="sdr-setting">{{ field.label }}
+          <input [type]="secretField(field) ? 'password' : 'text'" autocomplete="off" [(ngModel)]="field.edit" [disabled]="locked || field.readOnly">
+        </label>
+      }
+    }
+  }
+</ng-template>

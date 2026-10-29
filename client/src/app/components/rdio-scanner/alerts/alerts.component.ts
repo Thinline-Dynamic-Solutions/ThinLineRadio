@@ -28,6 +28,7 @@ import { SettingsService } from '../settings/settings.service';
 import { TranscriptAnnotation, renderAnnotatedTranscript } from '../transcript-utils';
 import { RdioScannerAdminService } from '../admin/admin.service';
 import { TranscriptReviewService } from '../transcript-review/transcript-review.service';
+import { trainingSubmitIssues } from '../transcript-review/transcript-training-rules';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { TagColorService } from '../tag-color.service';
 import { withInstanceZone } from '../instance-time';
@@ -190,6 +191,9 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     editApproving = false;
     editAudioSrc = '';
     editAudioLoading = false;
+    editAudioSeconds: number | null = null;
+    editIssues: string[] = [];
+    private serverIssues: string[] = [];
     private editAudioObjectUrl: string | null = null;
 
     // Transcript collector (global server setting)
@@ -497,6 +501,8 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         this.cancelEdit();
         this.editingCallId = transcript.callId ?? null;
         this.editText = transcript.reviewedTranscript?.trim() || transcript.transcript || '';
+        this.serverIssues = [];
+        this.refreshEditIssues();
         if (transcript.callId != null) {
             void this.ensureAdminToken().then((ok) => {
                 if (ok && transcript.callId != null) {
@@ -509,7 +515,47 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     cancelEdit(): void {
         this.editingCallId = null;
         this.editText = '';
+        this.editIssues = [];
+        this.serverIssues = [];
+        this.editAudioSeconds = null;
         this.revokeEditAudio();
+    }
+
+    cardTrainingIssues(transcript: RdioScannerTranscript): string[] {
+        if (this.isTrainingSubmitted(transcript) || this.editingCallId === transcript.callId) {
+            return [];
+        }
+        const text = transcript.transcript || '';
+        return trainingSubmitIssues(text, null);
+    }
+
+    onEditTextChange(): void {
+        this.serverIssues = this.serverIssues.filter((issue) =>
+            issue.startsWith('This clip is') || issue.startsWith('The audio length'));
+        this.refreshEditIssues();
+    }
+
+    onEditAudioReady(event: Event): void {
+        const el = event.target as HTMLAudioElement;
+        const seconds = el?.duration;
+        this.editAudioSeconds = Number.isFinite(seconds) ? seconds : null;
+        this.refreshEditIssues();
+    }
+
+    private refreshEditIssues(): void {
+        const live = trainingSubmitIssues(this.editText, this.editAudioSeconds);
+        const liveHasDuration = live.some((issue) =>
+            issue.startsWith('This clip is') || issue.startsWith('The audio length'));
+        const extra = this.serverIssues.filter((issue) => {
+            if (live.includes(issue)) {
+                return false;
+            }
+            if (liveHasDuration && (issue.startsWith('This clip is') || issue.startsWith('The audio length'))) {
+                return false;
+            }
+            return true;
+        });
+        this.editIssues = live.concat(extra);
     }
 
     isTrainingSubmitted(transcript: RdioScannerTranscript): boolean {
@@ -547,7 +593,8 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     }
 
     async approveEdit(): Promise<void> {
-        if (this.editingCallId == null || !this.editText.trim()) return;
+        this.refreshEditIssues();
+        if (this.editingCallId == null || !this.editText.trim() || this.editIssues.length) return;
         if (!(await this.ensureAdminToken())) {
             this.snackBar.open('Could not authorize — sign in as system admin', '', { duration: 5000 });
             return;
@@ -576,6 +623,12 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
             void this.loadCollectorSettings();
             void this.loadGlobalTrainingProgress();
         } catch (e: any) {
+            const issues = e?.error?.issues;
+            if (Array.isArray(issues) && issues.length) {
+                this.serverIssues = issues.map((issue: unknown) => String(issue));
+                this.refreshEditIssues();
+                return;
+            }
             this.snackBar.open(e?.error?.error || 'Approve failed', '', { duration: 6000 });
         } finally {
             this.editApproving = false;
@@ -608,6 +661,7 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
         }
         this.editAudioSrc = '';
         this.editAudioLoading = false;
+        this.editAudioSeconds = null;
     }
 
     // ── Transcript collector (global server config) ─────────────────────────────
@@ -1205,6 +1259,12 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
                 return 'No audio';
             case 'api_key_no_audio':
                 return 'API key';
+            case 'sdrtrunk_control_lost':
+            case 'sdrtrunk_tuner_error':
+            case 'sdrtrunk_uploader_error':
+            case 'sdrtrunk_offline':
+            case 'sdrtrunk_sample_overflow':
+                return 'SDRTrunk';
             case 'tone_detection_issue':
                 return 'Tone detection';
             case 'transcription_failure':

@@ -402,6 +402,11 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 	msg := []byte(fmt.Sprintf("Invalid API key for system %v talkgroup %v.\n", systemRef, talkgroupRef))
 
 	if apikey, ok := api.Controller.Apikeys.GetApikey(key); ok {
+		if apikey.IsSite() && !api.Controller.core().allowSiteUpload(apikey.Id, call.CoreRecordingId) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("This API key is for site control, not call uploads.\n"))
+			return
+		}
 		if apikey.HasAccess(call) {
 			// Store API key ID in call metadata for preferred API key logic
 			apikeyId := apikey.Id
@@ -417,6 +422,11 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 						call.Meta.SiteLabel = site.Label
 					}
 				}
+			}
+
+			if !apikey.IsSite() && call.CoreRecordingId == "" && api.Controller.core().offerOrdinary(call) {
+				w.Write([]byte("Call imported successfully.\n"))
+				return
 			}
 
 			// Use a non-blocking send to avoid deadlocks
@@ -9656,7 +9666,8 @@ func isSystemAlertVisibleToUser(alertType string, systemAdmin bool) bool {
 		return true
 	}
 	switch alertType {
-	case "manual", "no_audio", "no_audio_received", "api_key_no_audio", "tone_detection_issue":
+	case "manual", "no_audio", "no_audio_received", "api_key_no_audio", "tone_detection_issue",
+		"sdrtrunk_control_lost", "sdrtrunk_tuner_error", "sdrtrunk_uploader_error", "sdrtrunk_offline", "sdrtrunk_sample_overflow":
 		return true
 	default:
 		return false

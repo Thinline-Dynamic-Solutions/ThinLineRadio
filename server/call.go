@@ -118,6 +118,13 @@ type Call struct {
 	// the receiving server from re-forwarding the call, breaking circular loops.
 	IsForwarded bool `json:"-"`
 
+	// CoreRecordingId is the SDRTrunk Thinline Radio Core recording id.
+	// CoreAccepted is set once that recording has been stored.
+	// CoreRejectReason says why it was not stored.
+	CoreRecordingId  string `json:"-"`
+	CoreAccepted     bool   `json:"-"`
+	CoreRejectReason string `json:"-"`
+
 	// ToneSourceTalkgroupId is runtime-only. When pending tones from one talkgroup
 	// attach to a voice call on another (linked-voice), this is the DB id of the
 	// talkgroup where tones were detected — used for alertCooldownSeconds lookup.
@@ -437,8 +444,10 @@ func (calls *Calls) CheckDuplicateByHash(call *Call, db *Database) (bool, error)
 // matching. It looks for a prior call on the same system+talkgroup whose radio
 // (P25) timestamp is within ±windowMs. Soft radio-ID guard: known different
 // unit IDs do not match; missing sources still allow a timestamp match. Feeder
-// and API key are never considered. windowMs 0 disables this pass.
-func (calls *Calls) CheckDuplicateByTimestamp(call *Call, db *Database, windowMs uint) (bool, error) {
+// and API key are never considered. windowMs 0 disables this pass. When spanMs
+// is positive, a prior call with a known length only matches if its audio
+// overlaps [timestamp, timestamp+spanMs].
+func (calls *Calls) CheckDuplicateByTimestamp(call *Call, db *Database, windowMs uint, spanMs int64) (bool, error) {
 	if call.System == nil || call.Talkgroup == nil || windowMs == 0 {
 		return false, nil
 	}
@@ -461,7 +470,7 @@ func (calls *Calls) CheckDuplicateByTimestamp(call *Call, db *Database, windowMs
 			SELECT cu."unitRef" FROM "callUnits" cu
 			WHERE cu."callId" = c."callId" AND cu."unitRef" > 0
 			ORDER BY cu."offset" ASC LIMIT 1
-		) AS "source"
+		) AS "source", c."timestamp", c."audioDuration"
 		FROM "calls" c
 		WHERE c."timestamp" BETWEEN %d AND %d
 		  AND c."systemId" = %d AND c."talkgroupId" = %d`,
@@ -476,21 +485,32 @@ func (calls *Calls) CheckDuplicateByTimestamp(call *Call, db *Database, windowMs
 
 	for rows.Next() {
 		var priorSource sql.NullInt64
-		if err := rows.Scan(&priorSource); err != nil {
+		var priorStart int64
+		var priorDuration sql.NullFloat64
+		if err := rows.Scan(&priorSource, &priorStart, &priorDuration); err != nil {
 			return false, formatError(err, query)
 		}
 		var prior uint
 		if priorSource.Valid && priorSource.Int64 > 0 {
 			prior = uint(priorSource.Int64)
 		}
-		if !sourcesDisproveReceivedAtDuplicate(incomingSource, prior) {
-			return true, nil
+		if sourcesDisproveReceivedAtDuplicate(incomingSource, prior) {
+			continue
 		}
+		if spanMs > 0 && priorDuration.Valid && priorDuration.Float64 > 0 &&
+			!timestampSpansOverlap(priorStart, int64(priorDuration.Float64*1000), ts, spanMs) {
+			continue
+		}
+		return true, nil
 	}
 	if err := rows.Err(); err != nil {
 		return false, formatError(err, query)
 	}
 	return false, nil
+}
+
+func timestampSpansOverlap(aStart int64, aDuration int64, bStart int64, bDuration int64) bool {
+	return aStart < bStart+bDuration && bStart < aStart+aDuration
 }
 
 // receivedAtDuplicateWindowFromMs converts the admin "arrival match window"

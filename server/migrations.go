@@ -3254,6 +3254,35 @@ func backfillLogsCategory(db *Database) {
 	writeLogStdout(fmt.Sprintf("logs category backfill completed (%d rows categorized)", updated))
 }
 
+// migrateSdrtrunkHealth stores the latest one-way health report from each SDRTrunk API key.
+func migrateSdrtrunkHealth(db *Database) error {
+	query := `CREATE TABLE IF NOT EXISTS "sdrtrunkHealth" (
+		"apikeyId" bigint PRIMARY KEY,
+		"systemRef" integer NOT NULL DEFAULT 0,
+		"receivedAt" bigint NOT NULL DEFAULT 0,
+		"reporting" boolean NOT NULL DEFAULT true,
+		"version" text NOT NULL DEFAULT '',
+		"uploaderState" text NOT NULL DEFAULT '',
+		"controlLost" boolean NOT NULL DEFAULT false,
+		"tunerError" boolean NOT NULL DEFAULT false,
+		"uploaderError" boolean NOT NULL DEFAULT false,
+		"report" text NOT NULL DEFAULT ''
+	)`
+	if _, err := db.Sql.Exec(query); err != nil {
+		log.Printf("migration note (sdrtrunk health): %v", err)
+	}
+	return nil
+}
+
+// migrateApikeyPurpose separates call-upload keys from SDRTrunk site control keys.
+func migrateApikeyPurpose(db *Database) error {
+	query := `ALTER TABLE "apikeys" ADD COLUMN IF NOT EXISTS "purpose" text NOT NULL DEFAULT 'upload'`
+	if _, err := db.Sql.Exec(query); err != nil {
+		log.Printf("migration note (apikey purpose): %v", err)
+	}
+	return nil
+}
+
 // migrateApikeyNoAudioMonitoring adds per-API-key ingest liveness tracking and alert settings.
 func migrateApikeyNoAudioMonitoring(db *Database) error {
 	queries := []string{

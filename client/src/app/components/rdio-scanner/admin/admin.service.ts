@@ -152,6 +152,7 @@ export interface Apikey {
     lastCallAt?: number;
     noAudioAlertsEnabled?: boolean;
     noAudioThresholdMinutes?: number;
+    purpose?: 'upload' | 'site';
     systems?: {
         id: number;
         talkgroups: number[] | '*';
@@ -827,6 +828,8 @@ enum url {
     noAudioMultiplier = 'no-audio-multiplier',
     systemHealthAlertsEnabled = 'system-health-alerts-enabled',
     systemHealthAlertSettings = 'system-health-alert-settings',
+    sdrtrunkHealth = 'sdrtrunk-health',
+    sdrtrunkCommand = 'sdrtrunk-command',
 }
 
 const SESSION_STORAGE_KEY = 'rdio-scanner-admin-token';
@@ -1067,6 +1070,32 @@ export class RdioScannerAdminService implements OnDestroy {
             try { localStorage.setItem(ALERTS_CACHE_KEY, JSON.stringify(this.Alerts)); } catch (_) { /* ignore */ }
         } catch (error) {
             this.errorHandler(error);
+        }
+    }
+
+    async sendSdrtrunkCommand(body: { apiKeyId: number; command: string; name?: string; enabled?: boolean }): Promise<{ ok: boolean; error?: string }> {
+        try {
+            return await firstValueFrom(this.ngHttpClient.post<{ ok: boolean; error?: string }>(
+                this.getUrl(url.sdrtrunkCommand),
+                body,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error) {
+            this.errorHandler(error);
+            throw error;
+        }
+    }
+
+    async getSdrtrunkHealth(): Promise<{ sources: any[] }> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.get<{ sources: any[] }>(
+                this.getUrl(url.sdrtrunkHealth),
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res;
+        } catch (error) {
+            this.errorHandler(error);
+            throw error;
         }
     }
 
@@ -2060,6 +2089,7 @@ export class RdioScannerAdminService implements OnDestroy {
             lastCallAt: this.ngFormBuilder.control(apikey?.lastCallAt ?? 0),
             noAudioAlertsEnabled: this.ngFormBuilder.control(apikey?.noAudioAlertsEnabled ?? false),
             noAudioThresholdMinutes: this.ngFormBuilder.control(apikey?.noAudioThresholdMinutes ?? 10, [Validators.min(1)]),
+            purpose: this.ngFormBuilder.control(apikey?.purpose === 'site' ? 'site' : 'upload'),
             systems: this.ngFormBuilder.control(apikey?.systems, Validators.required),
         });
     }

@@ -26,22 +26,28 @@ import (
 )
 
 type Apikey struct {
-	Id                       uint64
-	Disabled                 bool
-	Ident                    string
-	Key                      string
-	Order                    uint
-	Systems                  any
-	LastCallAt               int64
-	NoAudioAlertsEnabled     bool
-	NoAudioThresholdMinutes  uint
+	Id                      uint64
+	Disabled                bool
+	Ident                   string
+	Key                     string
+	Order                   uint
+	Systems                 any
+	LastCallAt              int64
+	NoAudioAlertsEnabled    bool
+	NoAudioThresholdMinutes uint
+	Purpose                 string
 }
 
 func NewApikey() *Apikey {
 	return &Apikey{
 		Systems:                 "*",
 		NoAudioThresholdMinutes: 10,
+		Purpose:                 "upload",
 	}
+}
+
+func (apikey *Apikey) IsSite() bool {
+	return apikey != nil && apikey.Purpose == "site"
 }
 
 func (apikey *Apikey) FromMap(m map[string]any) *Apikey {
@@ -85,6 +91,13 @@ func (apikey *Apikey) FromMap(m map[string]any) *Apikey {
 		apikey.NoAudioThresholdMinutes = uint(v)
 	} else if apikey.NoAudioThresholdMinutes == 0 {
 		apikey.NoAudioThresholdMinutes = 10
+	}
+
+	if v, ok := m["purpose"].(string); ok && v == "site" {
+		apikey.Purpose = "site"
+		apikey.NoAudioAlertsEnabled = false
+	} else {
+		apikey.Purpose = "upload"
 	}
 
 	apikey.Systems = m["systems"]
@@ -152,14 +165,15 @@ func (apikey *Apikey) HasAccess(call *Call) bool {
 
 func (apikey *Apikey) MarshalJSON() ([]byte, error) {
 	m := map[string]any{
-		"id":                       apikey.Id,
-		"disabled":                 apikey.Disabled,
-		"ident":                    apikey.Ident,
-		"key":                      apikey.Key,
-		"systems":                  apikey.Systems,
-		"lastCallAt":               apikey.LastCallAt,
-		"noAudioAlertsEnabled":     apikey.NoAudioAlertsEnabled,
-		"noAudioThresholdMinutes":  apikey.NoAudioThresholdMinutes,
+		"id":                      apikey.Id,
+		"disabled":                apikey.Disabled,
+		"ident":                   apikey.Ident,
+		"key":                     apikey.Key,
+		"systems":                 apikey.Systems,
+		"lastCallAt":              apikey.LastCallAt,
+		"noAudioAlertsEnabled":    apikey.NoAudioAlertsEnabled,
+		"noAudioThresholdMinutes": apikey.NoAudioThresholdMinutes,
+		"purpose":                 apikey.Purpose,
 	}
 
 	if apikey.Order > 0 {
@@ -185,12 +199,25 @@ func (apikeys *Apikeys) FromMap(f []any) *Apikeys {
 	apikeys.mutex.Lock()
 	defer apikeys.mutex.Unlock()
 
+	previous := map[uint64]string{}
+	for _, apikey := range apikeys.List {
+		if apikey != nil && apikey.Id > 0 {
+			previous[apikey.Id] = apikey.Purpose
+		}
+	}
+
 	apikeys.List = []*Apikey{}
 
 	for _, r := range f {
 		switch m := r.(type) {
 		case map[string]any:
 			apikey := NewApikey().FromMap(m)
+			if _, ok := m["purpose"]; !ok {
+				if purpose, found := previous[apikey.Id]; found && purpose == "site" {
+					apikey.Purpose = "site"
+					apikey.NoAudioAlertsEnabled = false
+				}
+			}
 			apikeys.List = append(apikeys.List, apikey)
 		}
 	}
@@ -255,7 +282,7 @@ func (apikeys *Apikeys) Read(db *Database) error {
 
 	formatError := apikeys.errorFormatter("read")
 
-	query = `SELECT "apikeyId", "disabled", "ident", "key", "order", "systems", "lastCallAt", "noAudioAlertsEnabled", "noAudioThresholdMinutes" FROM "apikeys"`
+	query = `SELECT "apikeyId", "disabled", "ident", "key", "order", "systems", "lastCallAt", "noAudioAlertsEnabled", "noAudioThresholdMinutes", "purpose" FROM "apikeys"`
 	if rows, err = db.Sql.Query(query); err != nil {
 		return formatError(err, query)
 	}
@@ -266,8 +293,11 @@ func (apikeys *Apikeys) Read(db *Database) error {
 			systems string
 		)
 
-		if err = rows.Scan(&apikey.Id, &apikey.Disabled, &apikey.Ident, &apikey.Key, &apikey.Order, &systems, &apikey.LastCallAt, &apikey.NoAudioAlertsEnabled, &apikey.NoAudioThresholdMinutes); err != nil {
+		if err = rows.Scan(&apikey.Id, &apikey.Disabled, &apikey.Ident, &apikey.Key, &apikey.Order, &systems, &apikey.LastCallAt, &apikey.NoAudioAlertsEnabled, &apikey.NoAudioThresholdMinutes, &apikey.Purpose); err != nil {
 			break
+		}
+		if apikey.Purpose != "site" {
+			apikey.Purpose = "upload"
 		}
 
 		if len(systems) > 0 {
@@ -392,18 +422,25 @@ func (apikeys *Apikeys) Write(db *Database) error {
 			}
 		}
 
+		if apikey.Purpose != "site" {
+			apikey.Purpose = "upload"
+		}
+		if apikey.IsSite() {
+			apikey.NoAudioAlertsEnabled = false
+		}
+
 		if count == 0 {
 			if apikey.Id > 0 {
-				query = fmt.Sprintf(`INSERT INTO "apikeys" ("apikeyId", "disabled", "ident", "key", "order", "systems", "noAudioAlertsEnabled", "noAudioThresholdMinutes") VALUES (%d, %t, '%s', '%s', %d, '%s', %t, %d)`, apikey.Id, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes)
+				query = fmt.Sprintf(`INSERT INTO "apikeys" ("apikeyId", "disabled", "ident", "key", "order", "systems", "noAudioAlertsEnabled", "noAudioThresholdMinutes", "purpose") VALUES (%d, %t, '%s', '%s', %d, '%s', %t, %d, '%s')`, apikey.Id, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes, apikey.Purpose)
 			} else {
-				query = fmt.Sprintf(`INSERT INTO "apikeys" ("disabled", "ident", "key", "order", "systems", "noAudioAlertsEnabled", "noAudioThresholdMinutes") VALUES (%t, '%s', '%s', %d, '%s', %t, %d)`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes)
+				query = fmt.Sprintf(`INSERT INTO "apikeys" ("disabled", "ident", "key", "order", "systems", "noAudioAlertsEnabled", "noAudioThresholdMinutes", "purpose") VALUES (%t, '%s', '%s', %d, '%s', %t, %d, '%s')`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes, apikey.Purpose)
 			}
 			if _, err = tx.Exec(query); err != nil {
 				break
 			}
 
 		} else {
-			query = fmt.Sprintf(`UPDATE "apikeys" SET "disabled" = %t, "ident" = '%s', "key" = '%s', "order" = %d, "systems" = '%s', "noAudioAlertsEnabled" = %t, "noAudioThresholdMinutes" = %d WHERE "apikeyId" = %d`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes, apikey.Id)
+			query = fmt.Sprintf(`UPDATE "apikeys" SET "disabled" = %t, "ident" = '%s', "key" = '%s', "order" = %d, "systems" = '%s', "noAudioAlertsEnabled" = %t, "noAudioThresholdMinutes" = %d, "purpose" = '%s' WHERE "apikeyId" = %d`, apikey.Disabled, apikey.Ident, apikey.Key, apikey.Order, systems, apikey.NoAudioAlertsEnabled, apikey.NoAudioThresholdMinutes, apikey.Purpose, apikey.Id)
 			if _, err = tx.Exec(query); err != nil {
 				break
 			}

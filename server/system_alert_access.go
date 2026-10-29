@@ -43,7 +43,7 @@ func (controller *Controller) userHasSystemAlertAccess(user *User, alert *System
 			return false
 		}
 		return user.HasSystemNoAudioAlertSystemId(data.SystemId)
-	case "api_key_no_audio":
+	case "api_key_no_audio", "sdrtrunk_control_lost", "sdrtrunk_tuner_error", "sdrtrunk_uploader_error", "sdrtrunk_offline", "sdrtrunk_sample_overflow":
 		if data == nil || data.ApiKeyId == 0 {
 			return false
 		}
@@ -85,7 +85,7 @@ func (controller *Controller) userShouldReceiveSystemAlertPush(user *User, alert
 			return false
 		}
 		return user.HasSystemNoAudioAlertSystemId(data.SystemId)
-	case "api_key_no_audio":
+	case "api_key_no_audio", "sdrtrunk_control_lost", "sdrtrunk_tuner_error", "sdrtrunk_uploader_error", "sdrtrunk_offline", "sdrtrunk_sample_overflow":
 		if !user.PushApiKeyNoAudioAlerts || data.ApiKeyId == 0 {
 			return false
 		}

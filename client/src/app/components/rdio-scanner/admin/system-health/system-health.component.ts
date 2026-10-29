@@ -55,7 +55,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
     alerts: SystemAlert[] = [];
     loading = false;
     error: string | null = null;
-    
+
     stats = {
         total: 0,
         critical: 0,
@@ -110,6 +110,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
     readonly alertCategoryOrder = [
         'no_audio',
         'api_key_no_audio',
+        'sdrtrunk',
         'tone_detection_issue',
         'transcription_failure',
         'other',
@@ -287,6 +288,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
             no_audio: [],
             no_audio_received: [],
             api_key_no_audio: [],
+            sdrtrunk: [],
             tone_detection_issue: [],
             transcription_failure: [],
             other: [],
@@ -295,6 +297,8 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
         for (const alert of activeAlerts) {
             if (alert.alertType === 'no_audio_received') {
                 grouped['no_audio'].push(alert);
+            } else if (alert.alertType.startsWith('sdrtrunk_')) {
+                grouped['sdrtrunk'].push(alert);
             } else if (alert.alertType in grouped) {
                 grouped[alert.alertType].push(alert);
             } else {
@@ -388,6 +392,8 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
                 return 'No Audio Received';
             case 'api_key_no_audio':
                 return 'API Key No Uploads';
+            case 'sdrtrunk':
+                return 'SDRTrunk';
             case 'tone_detection_issue':
                 return 'Tone Detection Issues';
             case 'transcription_failure':

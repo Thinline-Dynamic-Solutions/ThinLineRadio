@@ -17,6 +17,32 @@
  * ****************************************************************************
  */
 
+.apikey-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    button {
+        background: transparent;
+        color: #aaa;
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 6px 14px;
+        cursor: pointer;
+
+        &.active {
+            color: #fff;
+            border-color: #4caf50;
+        }
+    }
+}
+
+.apikey-hint {
+    margin: 0 0 12px;
+    color: #888;
+    font-size: 12px;
+}
+
 .admin-section-bar {
     display: flex;
     align-items: center;

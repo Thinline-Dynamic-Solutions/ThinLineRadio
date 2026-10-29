@@ -511,6 +511,17 @@
             }
             <p class="transcript-copy"
               [innerHTML]="renderTranscript(transcript.transcript, transcript.transcriptAnnotations, filterSearch)"></p>
+            @if (adminAuthenticated) {
+              @if (cardTrainingIssues(transcript); as cardIssues) {
+                @if (cardIssues.length) {
+                  <ul class="training-issues">
+                    @for (issue of cardIssues; track issue) {
+                      <li>{{ issue }}</li>
+                    }
+                  </ul>
+                }
+              }
+            }
           </div>
           @if (adminAuthenticated) {
             <div class="transcript-footer">
@@ -544,19 +555,27 @@
                 <span class="audio-status">Loading audio…</span>
               }
               @if (editAudioSrc && !editAudioLoading) {
-                <audio controls [src]="editAudioSrc" class="edit-audio-player"></audio>
+                <audio controls [src]="editAudioSrc" class="edit-audio-player" (loadedmetadata)="onEditAudioReady($event)"></audio>
               }
               @if (!editAudioSrc && !editAudioLoading) {
                 <span class="audio-status audio-status--unavail">Audio unavailable</span>
               }
             </div>
             <label class="training-edit-label">Edit transcript for Whisper training:</label>
-            <textarea class="training-edit-textarea" rows="5" [(ngModel)]="editText" placeholder="Edit transcript text…"></textarea>
+            <textarea class="training-edit-textarea" rows="5" [(ngModel)]="editText" (ngModelChange)="onEditTextChange()"
+              [class.training-edit-textarea--invalid]="editIssues.length" placeholder="Edit transcript text…"></textarea>
+            @if (editIssues.length) {
+              <ul class="training-issues">
+                @for (issue of editIssues; track issue) {
+                  <li>{{ issue }}</li>
+                }
+              </ul>
+            }
             <div class="training-edit-actions">
               <button class="btn-save-draft" (click)="saveEditDraft()" [disabled]="editSaving || editApproving || !editText.trim()">
                 {{ editSaving ? 'Saving…' : 'Save Draft' }}
               </button>
-              <button class="btn-approve" (click)="approveEdit()" [disabled]="editSaving || editApproving || !editText.trim()">
+              <button class="btn-approve" (click)="approveEdit()" [disabled]="editSaving || editApproving || !editText.trim() || editIssues.length > 0">
                 {{ editApproving ? 'Sending…' : '✓ Approve & Send' }}
               </button>
             </div>

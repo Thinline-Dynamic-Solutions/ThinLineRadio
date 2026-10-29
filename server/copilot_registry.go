@@ -51,6 +51,8 @@ func copilotAdminRouteRegistry() []copilotAdminRoute {
 		{ID: "fs_browse", Method: "GET", Path: "/api/admin/fs/browse", Description: "Browse server filesystem folders"},
 		{ID: "search_logs", Method: "POST", Path: "/api/admin/logs", Description: "Search logs"},
 		{ID: "get_system_health", Method: "GET", Path: "/api/admin/systemhealth", Description: "System health alerts"},
+		{ID: "get_sdrtrunk_health", Method: "GET", Path: "/api/admin/sdrtrunk-health", Description: "SDRTrunk health reports"},
+		{ID: "sdrtrunk_command", Method: "POST", Path: "/api/admin/sdrtrunk-command", Description: "Send a command to a connected SDRTrunk"},
 		{ID: "purge", Method: "POST", Path: "/api/admin/purge", Write: true, Description: "Purge data (destructive)"},
 		{ID: "stripe_sync", Method: "POST", Path: "/api/admin/stripe-sync", Write: true, Description: "Stripe sync"},
 		// Users / groups
@@ -245,14 +247,14 @@ func (admin *Admin) copilotToolRunAdminAction(authToken string, argsJSON string)
 	}
 
 	out := map[string]any{
-		"ok":         rr.Code >= 200 && rr.Code < 300,
-		"status":     rr.Code,
-		"actionId":   route.ID,
-		"method":     route.Method,
-		"path":       path,
-		"write":      route.Write,
-		"applied":    route.Write && rr.Code >= 200 && rr.Code < 300,
-		"response":   parsed,
+		"ok":       rr.Code >= 200 && rr.Code < 300,
+		"status":   rr.Code,
+		"actionId": route.ID,
+		"method":   route.Method,
+		"path":     path,
+		"write":    route.Write,
+		"applied":  route.Write && rr.Code >= 200 && rr.Code < 300,
+		"response": parsed,
 	}
 	b, _ := json.Marshal(out)
 	return string(b), nil

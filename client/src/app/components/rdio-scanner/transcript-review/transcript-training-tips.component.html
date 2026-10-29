@@ -1,24 +1,31 @@
 <div class="training-edit-guide">
     <p class="training-edit-guide-title">Training transcript tips</p>
-    <p class="training-edit-guide-intro">Listen to the audio and fix the text to match what was actually said. ALL CAPS is fine — the transcript collector converts everything to lowercase for training.</p>
+    <p class="training-edit-guide-intro">Listen to the audio and fix the text to match what was actually said. ALL CAPS is fine — the transcript collector converts everything to lowercase for training. Approve &amp; Send stays off if the clip is over 30 seconds, the text is only a no-voice or tones label, a street abbreviation is still short, or a number is written as a word.</p>
     <ul>
         <li>
-            <strong>Numbers as digits</strong> — addresses, units, plates, times, codes.
-            <span class="guide-eg"><span class="guide-bad">forty two main street</span> → <span class="guide-good">42 main st</span></span>
+            <strong>30 seconds or less</strong> — longer calls cannot be sent. Whisper trains on 30-second windows, so a longer clip would no longer match the transcript.
         </li>
         <li>
-            <strong>Streets &amp; places</strong> — check spelling of roads, cities, landmarks, highways.
-            <span class="guide-eg"><span class="guide-bad">brodway &amp; magnolia av</span> → <span class="guide-good">broadway &amp; magnolia ave</span></span>
+            <strong>Spoken words only</strong> — do not send a clip with no voice, or only tones. A label such as “no voice” or “tones only” cannot be sent.
         </li>
         <li>
-            <strong>Highways &amp; routes</strong> — use digits for route numbers.
-            <span class="guide-eg"><span class="guide-bad">interstate seventy one north</span> → <span class="guide-good">i-71 north</span></span>
-            <span class="guide-eg"><span class="guide-bad">state route three fifteen</span> → <span class="guide-good">sr 315</span></span>
+            <strong>Numbers as digits</strong> — addresses, units, plates, times, and codes. Number words cannot be sent.
+            <span class="guide-eg"><span class="guide-bad">forty two main street</span> → <span class="guide-good">42 main street</span></span>
+        </li>
+        <li>
+            <strong>Streets &amp; places</strong> — spell out street types and directions.
+            <span class="guide-eg"><span class="guide-bad">broadway &amp; magnolia ave</span> → <span class="guide-good">broadway and magnolia avenue</span></span>
+            <span class="guide-eg"><span class="guide-bad">410 n 8th ave</span> → <span class="guide-good">410 north 8th avenue</span></span>
+        </li>
+        <li>
+            <strong>Highways &amp; routes</strong> — use digits for route numbers, and spell out route.
+            <span class="guide-eg"><span class="guide-bad">interstate seventy one north</span> → <span class="guide-good">interstate 71 north</span></span>
+            <span class="guide-eg"><span class="guide-bad">rt three fifteen</span> → <span class="guide-good">route 315</span></span>
         </li>
         <li>
             <strong>Sound-alike words</strong> — pick the word that fits dispatch context.
             <span class="guide-eg"><span class="guide-bad">white mail suspect</span> → <span class="guide-good">white male suspect</span></span>
-            <span class="guide-eg"><span class="guide-bad">two units two scene</span> → <span class="guide-good">two units to scene</span></span>
+            <span class="guide-eg"><span class="guide-bad">two units two scene</span> → <span class="guide-good">2 units to scene</span></span>
             <span class="guide-eg"><span class="guide-bad">en route two the seen</span> → <span class="guide-good">en route to the scene</span></span>
             <span class="guide-eg"><span class="guide-bad">red break lights</span> → <span class="guide-good">red brake lights</span></span>
         </li>
@@ -29,6 +36,7 @@
         <li>
             <strong>License plates</strong> — letters and digits exactly as read on the air.
             <span class="guide-eg"><span class="guide-bad">plate oh four seven kay en</span> → <span class="guide-good">plate oh 047 kn</span></span>
+            <span class="guide-eg">Keep “oh” when it is the letter O.</span>
         </li>
         <li>
             <strong>10-codes &amp; signals</strong> — match how they're spoken on your system.

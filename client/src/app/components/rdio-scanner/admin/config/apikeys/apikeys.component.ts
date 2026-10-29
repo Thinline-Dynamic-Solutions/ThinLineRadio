@@ -38,11 +38,17 @@ export class RdioScannerAdminApikeysComponent {
     @Input() form: FormArray | undefined;
     @Input() rawSystems: any[] | undefined;
 
-    displayedColumns: string[] = ['drag', 'status', 'ident', 'key', 'access', 'systems', 'alerts', 'time', 'actions'];
-
     readonly pageSize = 10;
     pageIndex = 0;
     searchQuery = '';
+    keyTab: 'upload' | 'site' = 'upload';
+
+    get displayedColumns(): string[] {
+        if (this.keyTab === 'site') {
+            return ['drag', 'status', 'ident', 'key', 'actions'];
+        }
+        return ['drag', 'status', 'ident', 'key', 'access', 'systems', 'alerts', 'time', 'actions'];
+    }
 
     /** Per-key visibility keyed by the key string (stable across pagination). */
     private keyVisibleMap: Record<string, boolean> = {};
@@ -54,12 +60,16 @@ export class RdioScannerAdminApikeysComponent {
             .sort((a, b) => (a.value.order || 0) - (b.value.order || 0)) as FormGroup[];
     }
 
+    get tabApikeys(): FormGroup[] {
+        return this.apikeys.filter((apikey) => (apikey.value.purpose === 'site' ? 'site' : 'upload') === this.keyTab);
+    }
+
     get filteredApikeys(): FormGroup[] {
         const q = this.searchQuery.trim().toLowerCase();
         if (!q) {
-            return this.apikeys;
+            return this.tabApikeys;
         }
-        return this.apikeys.filter((apikey) => {
+        return this.tabApikeys.filter((apikey) => {
             const ident = String(apikey.value.ident || '').toLowerCase();
             const key = String(apikey.value.key || '').toLowerCase();
             return ident.includes(q) || key.includes(q);
@@ -81,6 +91,12 @@ export class RdioScannerAdminApikeysComponent {
         private matDialog: MatDialog,
         private snackBar: MatSnackBar
     ) { }
+
+    setTab(tab: 'upload' | 'site'): void {
+        this.keyTab = tab;
+        this.pageIndex = 0;
+        this.cdr.markForCheck();
+    }
 
     onSearch(value: string): void {
         this.searchQuery = value ?? '';
@@ -104,7 +120,9 @@ export class RdioScannerAdminApikeysComponent {
         const key = this.uuid();
         const apikey = this.adminService.newApikeyForm({
             key,
+            purpose: this.keyTab,
             systems: '*',
+            noAudioAlertsEnabled: false,
         });
 
         apikey.markAsDirty({ onlySelf: false });
@@ -123,7 +141,10 @@ export class RdioScannerAdminApikeysComponent {
             return;
         }
         const ident = (apikey.get('ident')?.value || '').toString().trim() || 'this API key';
-        if (!confirm(`Are you sure you want to delete API key "${ident}"?\n\nRecorders using this key will stop uploading.`)) {
+        const warning = apikey.get('purpose')?.value === 'site'
+            ? 'SDRTrunk will disconnect from site control.'
+            : 'Recorders using this key will stop uploading.';
+        if (!confirm(`Are you sure you want to delete API key "${ident}"?\n\n${warning}`)) {
             return;
         }
         const key = String(apikey.get('key')?.value || '');
@@ -141,7 +162,7 @@ export class RdioScannerAdminApikeysComponent {
         if (this.searchQuery.trim() || event.previousIndex === event.currentIndex) {
             return;
         }
-        const all = this.apikeys;
+        const all = this.filteredApikeys;
         const from = this.pageIndex * this.pageSize + event.previousIndex;
         const to = this.pageIndex * this.pageSize + event.currentIndex;
         if (from === to || from < 0 || from >= all.length) {

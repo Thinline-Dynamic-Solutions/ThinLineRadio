@@ -126,6 +126,14 @@ type Controller struct {
 	apikeyNoAudioMonitorStarted map[uint64]int64
 	apikeyNoAudioMonitorStopsMu sync.Mutex
 
+	sdrtrunkHealth     map[uint64]*SdrtrunkHealthRecord
+	sdrtrunkHealthMu   sync.Mutex
+	sdrtrunkHealthStop chan struct{}
+	sdrtrunkSessions   *sdrtrunkHub
+	sdrtrunkHubOnce    sync.Once
+	coreCoord          *coreCoordinator
+	coreOnce           sync.Once
+
 	// Rate limiting
 	RateLimiter         *RateLimiter
 	LoginAttemptTracker *LoginAttemptTracker
@@ -453,6 +461,16 @@ func (controller *Controller) resolveTagIdForLabel(tagLabel string) (uint64, err
 }
 
 func (controller *Controller) IngestCall(call *Call) {
+	if call != nil && call.CoreRecordingId != "" {
+		defer func() {
+			if call.CoreAccepted {
+				controller.core().stored(call)
+			} else {
+				controller.core().rejected(call)
+			}
+		}()
+	}
+
 	var (
 		err         error
 		groupId     uint64
@@ -468,6 +486,7 @@ func (controller *Controller) IngestCall(call *Call) {
 	)
 
 	logCall := func(call *Call, level string, message string) {
+		call.CoreRejectReason = message
 		var systemRef interface{} = "nil"
 		var talkgroupIdForLog uint = 0
 		if system != nil {
@@ -486,6 +505,7 @@ func (controller *Controller) IngestCall(call *Call) {
 	}
 
 	logError := func(err error) {
+		call.CoreRejectReason = err.Error()
 		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("controller.ingestcall: %v", err.Error()))
 	}
 
@@ -872,9 +892,14 @@ func (controller *Controller) IngestCall(call *Call) {
 		windowMs := controller.Options.DuplicateTimestampWindow
 		source := callPrimarySource(call)
 
+		// Core has already chosen one copy per transmission, and a site that
+		// reconnects uploads its backlog back to back, so arrival time says
+		// nothing about a Core upload. Only the radio timestamp pass applies.
+		arrivalChecks := call.CoreRecordingId == ""
+
 		// Pass 1: in-memory cache — catches simultaneous arrivals before either
 		// has been written to the database (closes the race window).
-		if !call.IsDuplicate && controller.DedupCache != nil && call.System != nil && call.Talkgroup != nil {
+		if arrivalChecks && !call.IsDuplicate && controller.DedupCache != nil && call.System != nil && call.Talkgroup != nil {
 			if controller.DedupCache.CheckAndMarkReceivedAt(call.System.Id, call.Talkgroup.Id, source) {
 				logCall(call, LogLevelWarn, "duplicate (receivedAt cache)")
 				call.IsDuplicate = true
@@ -883,7 +908,7 @@ func (controller *Controller) IngestCall(call *Call) {
 
 		// Pass 2: database — catches near-simultaneous arrivals where the first
 		// call was already committed before the second arrived.
-		if !call.IsDuplicate {
+		if arrivalChecks && !call.IsDuplicate {
 			isDupRA, raErr := controller.Calls.CheckDuplicateByReceivedAt(call, controller.Database, windowMs)
 			if raErr != nil {
 				logError(raErr)
@@ -896,7 +921,14 @@ func (controller *Controller) IngestCall(call *Call) {
 		// Pass 3: radio timestamp — last check for delayed multi-site copies.
 		if !call.IsDuplicate {
 			radioWin := controller.Options.DuplicateRadioTimestampWindow
-			isDupTS, tsErr := controller.Calls.CheckDuplicateByTimestamp(call, controller.Database, radioWin)
+			// A Core upload is one transmission, so a short call just before it is not its copy.
+			var spanMs int64
+			if call.CoreRecordingId != "" {
+				if seconds, err := controller.getCallDuration(call); err == nil && seconds > 0 {
+					spanMs = int64(seconds * 1000)
+				}
+			}
+			isDupTS, tsErr := controller.Calls.CheckDuplicateByTimestamp(call, controller.Database, radioWin, spanMs)
 			if tsErr != nil {
 				logError(tsErr)
 			} else if isDupTS {
@@ -922,6 +954,7 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 	}
 
 	logError := func(err error) {
+		call.CoreRejectReason = err.Error()
 		logCall(call, "error", err.Error())
 	}
 
@@ -953,6 +986,7 @@ func (controller *Controller) processCallAfterDuplicateCheck(call *Call) {
 
 	if id, err := controller.Calls.WriteCall(call, controller.Database); err == nil {
 		call.Id = id
+		call.CoreAccepted = true
 		// After writing, query the database to get the talkgroup ID that was actually written
 		// This ensures we have the correct database ID for logging (like v6 did)
 		// First try to get from cache, fallback to database query if needed
@@ -4157,6 +4191,9 @@ func (controller *Controller) Terminate() {
 	// Stop system health monitoring ticker
 	if controller.healthMonitorStop != nil {
 		close(controller.healthMonitorStop)
+	}
+	if controller.sdrtrunkHealthStop != nil {
+		close(controller.sdrtrunkHealthStop)
 	}
 
 	// Stop all per-system no-audio monitoring goroutines

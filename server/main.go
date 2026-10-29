@@ -366,6 +366,9 @@ func main() {
 	http.HandleFunc("/api/admin/listeners", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ListenersHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/systemhealth", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemHealthHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/sdrtrunk-health", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SdrtrunkHealthAdminHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/sdrtrunk-command", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SdrtrunkCommandHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/sdrtrunk-live", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SdrtrunkLiveHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/system-no-audio-settings", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemNoAudioSettingsHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/system-retention-settings", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.SystemRetentionSettingsHandler)).ServeHTTP)
@@ -737,6 +740,8 @@ func main() {
 	// These endpoints handle their own validation and need to accept frequent uploads
 	// Match v6 registration pattern exactly - pass handler directly without wrapping
 	http.HandleFunc("/api/call-upload", controller.Api.CallUploadHandler)
+	http.HandleFunc("/api/sdrtrunk-health", controller.Api.SdrtrunkHealthHandler)
+	http.HandleFunc("/api/sdrtrunk", controller.Api.SdrtrunkSocketHandler)
 
 	http.HandleFunc("/api/trunk-recorder-call-upload", controller.Api.TrunkRecorderCallUploadHandler)
 

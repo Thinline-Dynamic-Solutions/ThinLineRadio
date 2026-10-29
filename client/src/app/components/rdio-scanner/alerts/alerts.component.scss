@@ -891,6 +891,23 @@
     color: var(--tlr-text, #e9edf4);
     font-size: 13px;
     text-transform: uppercase;
+
+    .training-issues {
+        margin: 10px 0 0;
+        padding: 10px 12px 10px 28px;
+        background: rgba(242, 139, 130, 0.12);
+        border: 1px solid rgba(242, 139, 130, 0.45);
+        border-radius: 8px;
+        color: #f6c7c1;
+        font-size: 13px;
+        line-height: 1.45;
+        text-transform: none;
+        letter-spacing: 0;
+
+        li + li {
+            margin-top: 4px;
+        }
+    }
 }
 
 .transcript-header {
@@ -1470,6 +1487,32 @@
             outline: none;
             border-color: #8ab4f8;
             box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.2);
+        }
+
+        &--invalid {
+            border-color: #f28b82;
+
+            &:focus {
+                border-color: #f28b82;
+                box-shadow: 0 0 0 2px rgba(242, 139, 130, 0.25);
+            }
+        }
+    }
+
+    .training-issues {
+        margin: 10px 0 0;
+        padding: 10px 12px 10px 28px;
+        background: rgba(242, 139, 130, 0.12);
+        border: 1px solid rgba(242, 139, 130, 0.45);
+        border-radius: 8px;
+        color: #f6c7c1;
+        font-size: 13px;
+        line-height: 1.45;
+        text-transform: none;
+        letter-spacing: 0;
+
+        li + li {
+            margin-top: 4px;
         }
     }
 

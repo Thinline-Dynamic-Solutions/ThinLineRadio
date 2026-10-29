@@ -4,6 +4,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerTranscript } from '../rdio-scanner';
 import { AlertsService } from '../alerts/alerts.service';
 import { TranscriptReviewService } from './transcript-review.service';
+import { trainingSubmitIssues } from './transcript-training-rules';
 
 @Component({
     selector: 'rdio-scanner-transcript-review',
@@ -29,6 +30,8 @@ export class RdioScannerTranscriptReviewComponent implements OnInit, OnDestroy {
     editApproving = false;
     editAudioSrc = '';
     editAudioLoading = false;
+    editAudioSeconds: number | null = null;
+    serverIssues: string[] = [];
     showTrainingTips = false;
     private editAudioObjectUrl: string | null = null;
 
@@ -97,6 +100,13 @@ export class RdioScannerTranscriptReviewComponent implements OnInit, OnDestroy {
         return t.callId ?? _i;
     }
 
+    cardIssues(t: RdioScannerTranscript): string[] {
+        if (t.trainingReviewStatus === 'submitted' || this.editingCallId === t.callId) {
+            return [];
+        }
+        return trainingSubmitIssues(t.transcript || '', null);
+    }
+
     // ── Admin edit ────────────────────────────────────────────────────────────
 
     toggleEdit(t: RdioScannerTranscript): void {
@@ -118,7 +128,36 @@ export class RdioScannerTranscriptReviewComponent implements OnInit, OnDestroy {
     cancelEdit(): void {
         this.editingCallId = null;
         this.editText = '';
+        this.serverIssues = [];
+        this.editAudioSeconds = null;
         this.revokeEditAudio();
+    }
+
+    get editIssues(): string[] {
+        const live = trainingSubmitIssues(this.editText, this.editAudioSeconds);
+        const liveHasDuration = live.some((issue) =>
+            issue.startsWith('This clip is') || issue.startsWith('The audio length'));
+        const extra = this.serverIssues.filter((issue) => {
+            if (live.includes(issue)) {
+                return false;
+            }
+            if (liveHasDuration && (issue.startsWith('This clip is') || issue.startsWith('The audio length'))) {
+                return false;
+            }
+            return true;
+        });
+        return live.concat(extra);
+    }
+
+    onEditTextChange(): void {
+        this.serverIssues = this.serverIssues.filter((issue) =>
+            issue.startsWith('This clip is') || issue.startsWith('The audio length'));
+    }
+
+    onEditAudioReady(event: Event): void {
+        const el = event.target as HTMLAudioElement;
+        const seconds = el?.duration;
+        this.editAudioSeconds = Number.isFinite(seconds) ? seconds : null;
     }
 
     saveDraft(): void {
@@ -135,7 +174,7 @@ export class RdioScannerTranscriptReviewComponent implements OnInit, OnDestroy {
     }
 
     approve(): void {
-        if (this.editingCallId == null || !this.editText.trim()) return;
+        if (this.editingCallId == null || !this.editText.trim() || this.editIssues.length) return;
         if (!this.collectorConfigured) {
             this.snackBar.open('Connecting to transcript collector…', '', { duration: 3000 });
             this.requestCollectorSetup.emit();
@@ -150,6 +189,12 @@ export class RdioScannerTranscriptReviewComponent implements OnInit, OnDestroy {
                 this.load();
             })
             .catch((e: any) => {
+                const issues = e?.error?.issues;
+                if (Array.isArray(issues) && issues.length) {
+                    this.serverIssues = issues.map((issue: unknown) => String(issue));
+                    this.snackBar.open('This clip was not sent. Fix the issues below.', '', { duration: 5000 });
+                    return;
+                }
                 this.snackBar.open(e?.error?.error || 'Approve failed', '', { duration: 6000 });
             })
             .finally(() => { this.editApproving = false; });
@@ -181,5 +226,6 @@ export class RdioScannerTranscriptReviewComponent implements OnInit, OnDestroy {
         }
         this.editAudioSrc = '';
         this.editAudioLoading = false;
+        this.editAudioSeconds = null;
     }
 }

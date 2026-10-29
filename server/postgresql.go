@@ -26,7 +26,8 @@ var PostgresqlSchema = []string{
     "systems" text NOT NULL DEFAULT '',
     "lastCallAt" bigint NOT NULL DEFAULT 0,
     "noAudioAlertsEnabled" boolean NOT NULL DEFAULT false,
-    "noAudioThresholdMinutes" integer NOT NULL DEFAULT 10
+    "noAudioThresholdMinutes" integer NOT NULL DEFAULT 10,
+    "purpose" text NOT NULL DEFAULT 'upload'
   );`,
 
 	`CREATE TABLE IF NOT EXISTS "downstreams" (

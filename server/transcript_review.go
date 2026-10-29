@@ -308,10 +308,34 @@ func (admin *Admin) approveTranscriptReview(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	reviewedUpper := mapping.NormalizeTranscriptPlainText(reviewed)
+	if reviewedUpper == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "reviewed transcript is empty"})
+		return
+	}
 
 	if call.TrainingReviewStatus == "submitted" {
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{"error": "this call was already submitted for training"})
+		return
+	}
+
+	durationSeconds := 0.0
+	durationKnown := false
+	if d, err := admin.Controller.getCallDuration(call); err != nil {
+		log.Printf("transcript review: duration check failed for call %d: %v", callId, err)
+	} else if d > 0 {
+		durationSeconds = d
+		durationKnown = true
+	}
+	if issues := trainingSubmitIssues(reviewed, durationSeconds, durationKnown); len(issues) > 0 {
+		log.Printf("transcript review: blocked call %d: %s", callId, strings.Join(issues, " | "))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error":  strings.Join(issues, " "),
+			"issues": issues,
+		})
 		return
 	}
 
