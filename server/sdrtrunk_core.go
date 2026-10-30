@@ -710,14 +710,20 @@ func (core *coreCoordinator) splitBackToBackLocked(group *coreGroup) *coreGroup 
 	if group == nil || len(group.members) < 2 || !core.readyLocked(group) {
 		return nil
 	}
-	anchor := group.members[0]
-	var kept []*coreMember
-	var moved []*coreMember
-	for _, member := range group.members {
-		if member == anchor || transmissionMatch(anchor, member.system, member.talkgroup, member.radioId, member.patches, member.startMs, member.durationMs) {
-			kept = append(kept, member)
-		} else {
-			moved = append(moved, member)
+	// Keep every copy linked to the first one through any chain of matches.
+	// groupsMatch merges groups when any pair matches, so a copy that matches
+	// any kept copy would be merged straight back in after the split.
+	kept := []*coreMember{group.members[0]}
+	moved := append([]*coreMember(nil), group.members[1:]...)
+	for changed := true; changed; {
+		changed = false
+		for i := 0; i < len(moved); i++ {
+			if membersMatch(kept, moved[i]) {
+				kept = append(kept, moved[i])
+				moved = append(moved[:i], moved[i+1:]...)
+				i--
+				changed = true
+			}
 		}
 	}
 	if len(moved) == 0 {
@@ -1174,6 +1180,16 @@ func transmissionMatch(member *coreMember, system int, talkgroup int, radioId in
 		return false
 	}
 	return coreIntervalsOverlap(member.startMs, member.durationMs, start, duration)
+}
+
+func membersMatch(kept []*coreMember, member *coreMember) bool {
+	for _, other := range kept {
+		if transmissionMatch(other, member.system, member.talkgroup, member.radioId, member.patches, member.startMs, member.durationMs) ||
+			transmissionMatch(member, other.system, other.talkgroup, other.radioId, other.patches, other.startMs, other.durationMs) {
+			return true
+		}
+	}
+	return false
 }
 
 func groupsMatch(a *coreGroup, b *coreGroup) bool {

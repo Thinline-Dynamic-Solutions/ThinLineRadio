@@ -1,5 +1,14 @@
 # Change log
 
+## Version 26.10.30 - Released October 30, 2026
+
+### Fixed
+
+- **Thinline Radio Core stall**
+  - A call with back-to-back key-ups could be split apart and merged back together endlessly. This tied up Core, so SDRTrunk sites took turns showing **SDRTrunk offline**, upload requests went unanswered, and held calls arrived late. Calls are now split so the parts can't merge back.
+
+---
+
 ## Version 26.10.29 - Released October 29, 2026
 
 ### Added

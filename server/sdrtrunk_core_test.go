@@ -115,6 +115,27 @@ func TestSplitBackToBackUnits(t *testing.T) {
 	}
 }
 
+func TestBackToBackSplitDoesNotMergeStraightBack(t *testing.T) {
+	// A site with no radio id overlaps both units, so the second unit only
+	// matches the first through it. Splitting the second unit off looped
+	// forever, because absorbLocked merged it straight back.
+	core := &coreCoordinator{}
+	group := &coreGroup{updated: time.Now(), members: []*coreMember{
+		siteMember(1, 7891310, 10_000, 400),
+		siteMember(2, 0, 10_100, 1500),
+		siteMember(3, 7890442, 10_990, 900),
+	}}
+	core.groups = []*coreGroup{group}
+	if next := core.splitBackToBackLocked(group); next != nil {
+		if groupsMatch(group, next) || groupsMatch(next, group) {
+			t.Fatal("a split-off call must not merge straight back")
+		}
+	}
+	if got := core.absorbLocked(group); got != group || len(core.groups) == 0 {
+		t.Fatal("the group should still be there")
+	}
+}
+
 func TestClosedCallDiscardsALateCopy(t *testing.T) {
 	core := &coreCoordinator{}
 	group := &coreGroup{members: []*coreMember{member(7891310, 34_478, 1260)}}
