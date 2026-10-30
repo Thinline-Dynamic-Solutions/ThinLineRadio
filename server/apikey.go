@@ -358,27 +358,22 @@ func (apikeys *Apikeys) Write(db *Database) error {
 		return formatError(err, "")
 	}
 
-	query = `SELECT "apikeyId" FROM "apikeys"`
+	query = `SELECT "apikeyId", "key" FROM "apikeys"`
 	if rows, err = tx.Query(query); err != nil {
 		tx.Rollback()
 		return formatError(err, query)
 	}
 
+	existing := map[uint64]string{}
 	for rows.Next() {
-		var apikeyId uint64
-		if err = rows.Scan(&apikeyId); err != nil {
+		var (
+			apikeyId uint64
+			key      string
+		)
+		if err = rows.Scan(&apikeyId, &key); err != nil {
 			break
 		}
-		remove := true
-		for _, apikey := range apikeys.List {
-			if apikey.Id == 0 || apikey.Id == apikeyId {
-				remove = false
-				break
-			}
-		}
-		if remove {
-			apikeyIds = append(apikeyIds, apikeyId)
-		}
+		existing[apikeyId] = key
 	}
 
 	rows.Close()
@@ -386,6 +381,33 @@ func (apikeys *Apikeys) Write(db *Database) error {
 	if err != nil {
 		tx.Rollback()
 		return formatError(err, "")
+	}
+
+	// A page that saved a new key and kept the list it had sends that key again
+	// without its id; match it by key so it is updated, not inserted twice.
+	for _, apikey := range apikeys.List {
+		if apikey.Id > 0 || apikey.Key == "" {
+			continue
+		}
+		for apikeyId, key := range existing {
+			if key == apikey.Key {
+				apikey.Id = apikeyId
+				break
+			}
+		}
+	}
+
+	for apikeyId := range existing {
+		remove := true
+		for _, apikey := range apikeys.List {
+			if apikey.Id == apikeyId {
+				remove = false
+				break
+			}
+		}
+		if remove {
+			apikeyIds = append(apikeyIds, apikeyId)
+		}
 	}
 
 	if len(apikeyIds) > 0 {

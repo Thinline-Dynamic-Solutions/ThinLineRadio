@@ -220,6 +220,7 @@ export class RdioScannerAdminApikeysComponent {
         this.saving = false;
 
         if (updated) {
+            this.applySavedIds(updated);
             this.form.markAsPristine();
             if (showToast) {
                 this.snackBar.open('API keys saved', 'Close', { duration: 1500 });
@@ -228,6 +229,22 @@ export class RdioScannerAdminApikeysComponent {
             this.snackBar.open('Failed to save API keys. Please try again.', 'Close', { duration: 4000 });
         }
         this.cdr.markForCheck();
+    }
+
+    /** New keys get their id on save; without it the next save would add them again. */
+    private applySavedIds(saved: any[]): void {
+        const ids = new Map<string, number>();
+        for (const apikey of saved) {
+            if (apikey?.key && apikey?.id) {
+                ids.set(String(apikey.key), apikey.id);
+            }
+        }
+        for (const control of this.form?.controls || []) {
+            const id = ids.get(String(control.get('key')?.value || ''));
+            if (id && !control.get('id')?.value) {
+                control.get('id')?.setValue(id, { emitEvent: false });
+            }
+        }
     }
 
     isKeyVisible(apikey: FormGroup): boolean {

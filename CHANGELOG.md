@@ -1,5 +1,15 @@
 # Change log
 
+## Version 26.10.31 - Released October 30, 2026
+
+### Fixed
+
+- **Duplicate API keys**
+  - A new API key could be saved more than once. After the first save the Admin → API Keys page kept the key without its id, so changing its systems, toggling it, reordering, or saving another key added it again. The page now picks up the saved id, and the server updates a key it already has instead of adding a copy, even from a page that was opened before the upgrade.
+  - Deleting an API key while a newly added key had not been saved yet could leave the deleted key in place.
+
+---
+
 ## Version 26.10.30 - Released October 30, 2026
 
 ### Fixed
