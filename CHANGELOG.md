@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.10.32 - Released October 30, 2026
+
+### Fixed
+
+- **Deleted API keys in SDR Health**
+  - Deleting an API key now removes its SDR Health entry and dismisses its open SDRTrunk alerts. Before, a deleted key stayed in SDR Health with no name and could keep an "SDRTrunk offline" alert open.
+  - An SDRTrunk still connected with a deleted key is disconnected, so it can't keep reporting under that key.
+  - Entries left behind by keys deleted before this update are cleaned up when the server starts.
+
+---
+
 ## Version 26.10.31 - Released October 30, 2026
 
 ### Fixed

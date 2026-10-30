@@ -738,6 +738,7 @@ func (admin *Admin) copilotSaveApikeys(payloadJSON []byte) error {
 	}
 	err = admin.Controller.Apikeys.Read(admin.Controller.Database)
 	if err == nil {
+		admin.Controller.forgetDeletedSdrtrunkKeys()
 		admin.copilotFinishWrite("save_apikeys")
 	}
 	return err

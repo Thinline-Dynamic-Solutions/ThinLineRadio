@@ -1706,6 +1706,8 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 					err = admin.Controller.Apikeys.Read(admin.Controller.Database)
 					if err != nil {
 						logError(err)
+					} else {
+						admin.Controller.forgetDeletedSdrtrunkKeys()
 					}
 				}
 			}
@@ -2722,6 +2724,9 @@ func (admin *Admin) ApikeysHandler(w http.ResponseWriter, r *http.Request) {
 		err := admin.Controller.Apikeys.Write(admin.Controller.Database)
 		if err == nil {
 			err = admin.Controller.Apikeys.Read(admin.Controller.Database)
+		}
+		if err == nil {
+			admin.Controller.forgetDeletedSdrtrunkKeys()
 		}
 		admin.mutex.Unlock()
 

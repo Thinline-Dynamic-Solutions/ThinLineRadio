@@ -102,6 +102,26 @@ func (hub *sdrtrunkHub) unregister(apiKeyId uint64, session *sdrtrunkSession) {
 	hub.mu.Unlock()
 }
 
+func (hub *sdrtrunkHub) sessionKeys() []uint64 {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	keys := make([]uint64, 0, len(hub.sessions))
+	for apiKeyId := range hub.sessions {
+		keys = append(keys, apiKeyId)
+	}
+	return keys
+}
+
+func (hub *sdrtrunkHub) disconnect(apiKeyId uint64) {
+	hub.mu.Lock()
+	session := hub.sessions[apiKeyId]
+	delete(hub.sessions, apiKeyId)
+	hub.mu.Unlock()
+	if session != nil {
+		_ = session.conn.Close()
+	}
+}
+
 func (hub *sdrtrunkHub) connected(apiKeyId uint64) bool {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()

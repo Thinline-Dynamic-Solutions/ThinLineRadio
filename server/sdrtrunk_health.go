@@ -584,8 +584,57 @@ func (controller *Controller) dismissOpenSystemAlerts(alertType string, apiKeyId
 	}
 }
 
+// forgetDeletedSdrtrunkKeys removes the SDR Health record, open SDRTrunk alerts
+// and connection of every API key that no longer exists. A connected SDRTrunk
+// is only checked against its key when it connects, so it is disconnected too;
+// otherwise its next report would bring the record back.
+func (controller *Controller) forgetDeletedSdrtrunkKeys() {
+	if controller.Apikeys == nil {
+		return
+	}
+	controller.Apikeys.mutex.Lock()
+	loaded := len(controller.Apikeys.List) > 0
+	controller.Apikeys.mutex.Unlock()
+	if !loaded {
+		return
+	}
+
+	hub := controller.sdrtrunkHub()
+	ids := map[uint64]bool{}
+	controller.sdrtrunkHealthMu.Lock()
+	for apiKeyId := range controller.sdrtrunkHealth {
+		ids[apiKeyId] = true
+	}
+	controller.sdrtrunkHealthMu.Unlock()
+	for _, apiKeyId := range hub.sessionKeys() {
+		ids[apiKeyId] = true
+	}
+
+	for apiKeyId := range ids {
+		if _, ok := controller.Apikeys.GetById(apiKeyId); ok {
+			continue
+		}
+		controller.sdrtrunkHealthMu.Lock()
+		delete(controller.sdrtrunkHealth, apiKeyId)
+		controller.sdrtrunkHealthMu.Unlock()
+		hub.disconnect(apiKeyId)
+
+		if controller.Database != nil && controller.Database.Sql != nil {
+			if _, err := controller.Database.Sql.Exec(`DELETE FROM "sdrtrunkHealth" WHERE "apikeyId" = $1`, apiKeyId); err != nil {
+				controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to remove sdrtrunk health for deleted API key %d: %v", apiKeyId, err))
+			}
+		}
+		for _, alertType := range []string{sdrtrunkAlertControlLost, sdrtrunkAlertTunerError, sdrtrunkAlertUploaderError,
+			sdrtrunkAlertOffline, sdrtrunkAlertSampleOverflow} {
+			controller.dismissOpenSystemAlerts(alertType, apiKeyId)
+		}
+		controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("removed sdrtrunk health and alerts for deleted API key %d", apiKeyId))
+	}
+}
+
 func (controller *Controller) StartSdrtrunkHealthMonitor() {
 	controller.loadSdrtrunkHealth()
+	controller.forgetDeletedSdrtrunkKeys()
 	controller.sdrtrunkHealthStop = make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
