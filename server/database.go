@@ -419,6 +419,7 @@ func (db *Database) migrate() error {
 		{"migrateTalkgroupTranscriptionExclude", migrateTalkgroupTranscriptionExclude},
 		{"migrateRequireListenerSignIn", migrateRequireListenerSignIn},
 		{"migratePublicApi", migratePublicApi},
+		{"migratePublicApiUsageAtIndex", migratePublicApiUsageAtIndex},
 	}
 	for _, step := range lateSteps {
 		if err := db.runMigrationStep(step.name, step.fn); err != nil {

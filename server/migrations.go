@@ -3450,6 +3450,7 @@ func migratePublicApi(db *Database) error {
 			"at" bigint NOT NULL DEFAULT 0
 		)`,
 		`CREATE INDEX IF NOT EXISTS "publicApiKeyUsage_keyId_at_idx" ON "publicApiKeyUsage" ("keyId", "at" DESC)`,
+		`CREATE INDEX IF NOT EXISTS "publicApiKeyUsage_at_idx" ON "publicApiKeyUsage" ("at")`,
 		`CREATE TABLE IF NOT EXISTS "publicApiWebhooks" (
 			"webhookId" bigserial NOT NULL PRIMARY KEY,
 			"userId" bigint NOT NULL,
@@ -3467,6 +3468,15 @@ func migratePublicApi(db *Database) error {
 		if _, err := db.Sql.Exec(q); err != nil {
 			return fmt.Errorf("migratePublicApi: %w", err)
 		}
+	}
+	return nil
+}
+
+// migratePublicApiUsageAtIndex adds a standalone "at" index for hourly usage pruning.
+// Idempotent for hosts that already got the index from a later migratePublicApi revision.
+func migratePublicApiUsageAtIndex(db *Database) error {
+	if _, err := db.Sql.Exec(`CREATE INDEX IF NOT EXISTS "publicApiKeyUsage_at_idx" ON "publicApiKeyUsage" ("at")`); err != nil {
+		return fmt.Errorf("migratePublicApiUsageAtIndex: %w", err)
 	}
 	return nil
 }

@@ -166,6 +166,11 @@ func (scheduler *Scheduler) run() {
 
 	// Disable tone auto-learn when the rollout timer elapses
 	go scheduler.Controller.expireAutoLearnToneSets()
+
+	// Prune public API usage rows older than 30 days (hourly, not per-request)
+	if scheduler.Controller.PublicApi != nil {
+		go scheduler.Controller.PublicApi.pruneUsageRows()
+	}
 }
 
 func (scheduler *Scheduler) Start() error {

@@ -52,7 +52,7 @@ X-API-Key: tlr_…your_key…</pre>
     @if (hasAlertWebhooks) {
       <section>
         <h3>Alert webhooks</h3>
-        <p class="hint">Push alerts to Slack, Discord, email, PagerDuty, or a custom HTTPS URL.</p>
+        <p class="hint">Push alerts to Slack, Discord, your verified account email, PagerDuty, or a custom HTTPS URL. Private/local URLs are blocked.</p>
         <div class="row wrap">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Type</mat-label>
@@ -65,14 +65,17 @@ X-API-Key: tlr_…your_key…</pre>
             </mat-select>
           </mat-form-field>
           @if (webhookType === 'email') {
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Email</mat-label>
-              <input matInput [(ngModel)]="webhookEmail" />
-            </mat-form-field>
-          } @else {
+            <p class="hint email-dest">
+              @if (emailVerified) {
+                Alerts go to your verified account email: <strong>{{ accountEmail }}</strong>
+              } @else {
+                Verify your account email before adding an email destination.
+              }
+            </p>
+          } @else if (webhookType !== 'pagerduty') {
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="grow">
-              <mat-label>Webhook URL</mat-label>
-              <input matInput [(ngModel)]="webhookUrl" />
+              <mat-label>Webhook URL (https)</mat-label>
+              <input matInput [(ngModel)]="webhookUrl" placeholder="https://…" />
             </mat-form-field>
           }
           <mat-form-field appearance="outline" subscriptSizing="dynamic">

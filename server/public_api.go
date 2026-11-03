@@ -135,7 +135,8 @@ func extractPublicApiKeyFromRequest(r *http.Request) string {
 	if k := strings.TrimSpace(r.Header.Get("X-API-Key")); k != "" {
 		return k
 	}
-	return strings.TrimSpace(r.URL.Query().Get("api_key"))
+	// Query-string keys are rejected: they land in proxy/access logs.
+	return ""
 }
 
 func (svc *PublicApiService) lookupKey(plaintext string) (*PublicApiKey, *User, error) {
@@ -192,9 +193,18 @@ func (svc *PublicApiService) recordUsage(key *PublicApiKey, path string, status 
 		`INSERT INTO "publicApiKeyUsage" ("keyId", "path", "status", "at") VALUES ($1, $2, $3, $4)`,
 		key.Id, path, status, now,
 	)
-	// Best-effort prune older than 30 days
-	cutoff := now - int64(30*24*time.Hour/time.Millisecond)
-	_, _ = svc.controller.Database.Sql.Exec(`DELETE FROM "publicApiKeyUsage" WHERE "at" < $1`, cutoff)
+}
+
+// pruneUsageRows deletes public API usage rows older than 30 days. Called from the
+// hourly scheduler — not on the request path.
+func (svc *PublicApiService) pruneUsageRows() {
+	if svc == nil || svc.controller == nil || svc.controller.Database == nil {
+		return
+	}
+	cutoff := time.Now().UnixMilli() - int64(30*24*time.Hour/time.Millisecond)
+	if _, err := svc.controller.Database.Sql.Exec(`DELETE FROM "publicApiKeyUsage" WHERE "at" < $1`, cutoff); err != nil {
+		svc.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("public api usage prune failed: %v", err))
+	}
 }
 
 func (svc *PublicApiService) requireAuth(w http.ResponseWriter, r *http.Request, capability string) *publicApiAuthContext {
@@ -378,29 +388,55 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 	}
 
 	where := []string{`(c."transcript" IS NOT NULL AND c."transcript" <> '')`}
+	args := []any{}
+	argN := 1
+	accessClause, accessArgs, accessOK := svc.transcriptAccessFilter(ctx.User)
+	if !accessOK {
+		svc.recordUsage(ctx.Key, r.URL.Path, http.StatusOK)
+		svc.writeJSON(w, http.StatusOK, map[string]any{"results": []any{}, "count": 0})
+		return
+	}
+	if accessClause != "" {
+		where = append(where, accessClause)
+		args = append(args, accessArgs...)
+		argN += len(accessArgs)
+	}
 	if s := r.URL.Query().Get("systemId"); s != "" {
 		if v, err := strconv.ParseUint(s, 10, 64); err == nil {
 			var resolved uint64
 			if err := svc.controller.Database.Sql.QueryRow(`SELECT "systemId" FROM "systems" WHERE "systemRef" = $1`, v).Scan(&resolved); err == nil {
-				where = append(where, fmt.Sprintf(`c."systemId" = %d`, resolved))
+				where = append(where, fmt.Sprintf(`c."systemId" = $%d`, argN))
+				args = append(args, resolved)
 			} else {
-				where = append(where, fmt.Sprintf(`c."systemId" = %d`, v))
+				where = append(where, fmt.Sprintf(`c."systemId" = $%d`, argN))
+				args = append(args, v)
 			}
+			argN++
 		}
 	}
 	if df := r.URL.Query().Get("dateFrom"); df != "" {
 		if v, err := strconv.ParseInt(df, 10, 64); err == nil {
-			where = append(where, fmt.Sprintf(`c."timestamp" >= %d`, v))
+			where = append(where, fmt.Sprintf(`c."timestamp" >= $%d`, argN))
+			args = append(args, v)
+			argN++
 		}
 	}
 	if dt := r.URL.Query().Get("dateTo"); dt != "" {
 		if v, err := strconv.ParseInt(dt, 10, 64); err == nil {
-			where = append(where, fmt.Sprintf(`c."timestamp" <= %d`, v))
+			where = append(where, fmt.Sprintf(`c."timestamp" <= $%d`, argN))
+			args = append(args, v)
+			argN++
 		}
 	}
 	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
-		where = append(where, fmt.Sprintf(`c."transcript" ILIKE '%%%s%%'`, escapeQuotes(search)))
+		where = append(where, fmt.Sprintf(`c."transcript" ILIKE $%d`, argN))
+		args = append(args, "%"+search+"%")
+		argN++
 	}
+
+	limitPlaceholder := argN
+	offsetPlaceholder := argN + 1
+	args = append(args, limit, offset)
 
 	query := fmt.Sprintf(
 		`SELECT c."callId", c."systemId", c."talkgroupId", c."timestamp", c."transcript", c."transcriptionStatus", c."alertSummary",
@@ -410,11 +446,12 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 		 LEFT JOIN "talkgroups" AS t ON t."talkgroupId" = c."talkgroupId"
 		 WHERE %s
 		 ORDER BY c."timestamp" DESC
-		 LIMIT %d OFFSET %d`,
-		strings.Join(where, " AND "), limit*3, offset, // over-fetch then filter by access
+		 LIMIT $%d OFFSET $%d`,
+		strings.Join(where, " AND "),
+		limitPlaceholder, offsetPlaceholder,
 	)
 
-	rows, err := svc.controller.Database.Sql.Query(query)
+	rows, err := svc.controller.Database.Sql.Query(query, args...)
 	if err != nil {
 		svc.recordUsage(ctx.Key, r.URL.Path, http.StatusInternalServerError)
 		svc.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
@@ -425,12 +462,12 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 	results := []map[string]any{}
 	for rows.Next() {
 		var (
-			id, sysId, tgId             uint64
-			ts                          int64
-			transcript, status, summary string
-			sysRefN                     sql.NullInt64
+			id, sysId, tgId              uint64
+			ts                           int64
+			transcript, status, summary  string
+			sysRefN                      sql.NullInt64
 			sysLabelN, tgLabelN, tgNameN sql.NullString
-			tgRefN                      sql.NullInt64
+			tgRefN                       sql.NullInt64
 		)
 		if err := rows.Scan(&id, &sysId, &tgId, &ts, &transcript, &status, &summary, &sysRefN, &sysLabelN, &tgRefN, &tgLabelN, &tgNameN); err != nil {
 			continue
@@ -442,18 +479,6 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 		tgRef := uint(0)
 		if tgRefN.Valid {
 			tgRef = uint(tgRefN.Int64)
-		}
-		sys, _ := svc.controller.Systems.GetSystemById(sysId)
-		var tg *Talkgroup
-		if sys != nil {
-			tg, _ = sys.Talkgroups.GetTalkgroupById(tgId)
-			if sysRef == 0 {
-				sysRef = sys.SystemRef
-			}
-		}
-		call := &Call{System: sys, Talkgroup: tg, SystemId: sysRef, Id: id}
-		if !svc.controller.userHasAccess(ctx.User, call) {
-			continue
 		}
 		results = append(results, map[string]any{
 			"callId":              id,
@@ -469,13 +494,52 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 			"talkgroupLabel":      tgLabelN.String,
 			"talkgroupName":       tgNameN.String,
 		})
-		if uint(len(results)) >= limit {
-			break
-		}
 	}
 
 	svc.recordUsage(ctx.Key, r.URL.Path, http.StatusOK)
 	svc.writeJSON(w, http.StatusOK, map[string]any{"results": results, "count": len(results)})
+}
+
+// transcriptAccessFilter returns a SQL clause + args restricting calls to the
+// user's systems/talkgroups. ok=false means the user can see nothing.
+func (svc *PublicApiService) transcriptAccessFilter(user *User) (clause string, args []any, ok bool) {
+	if user == nil {
+		return "", nil, false
+	}
+	if user.SystemAdmin {
+		return "", nil, true
+	}
+	// Unrestricted user-level scope and no group ceiling → no SQL filter needed.
+	unrestricted := user.systemsData == nil
+	if s, is := user.systemsData.(string); is {
+		unrestricted = strings.TrimSpace(s) == "" || s == "*"
+	}
+	if unrestricted && len(svc.controller.userGroups(user)) == 0 {
+		return "", nil, true
+	}
+
+	ids := make([]any, 0, 64)
+	for _, sys := range svc.controller.Systems.List {
+		if sys == nil || sys.Talkgroups == nil {
+			continue
+		}
+		for _, tg := range sys.Talkgroups.List {
+			if tg == nil {
+				continue
+			}
+			if svc.controller.userHasAccess(user, &Call{System: sys, Talkgroup: tg, SystemId: sys.SystemRef}) {
+				ids = append(ids, tg.Id)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return "", nil, false
+	}
+	placeholders := make([]string, len(ids))
+	for i := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	return fmt.Sprintf(`c."talkgroupId" IN (%s)`, strings.Join(placeholders, ",")), ids, true
 }
 
 func (svc *PublicApiService) handleSingleTranscript(w http.ResponseWriter, r *http.Request, ctx *publicApiAuthContext, callId uint64) {
@@ -544,9 +608,11 @@ func (svc *PublicApiService) handleKeys(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		svc.writeJSON(w, http.StatusOK, map[string]any{
-			"keys":         keys,
-			"capabilities": user.PublicApiCaps(),
-			"enabled":      user.PublicApiEnabled,
+			"keys":          keys,
+			"capabilities":  user.PublicApiCaps(),
+			"enabled":       user.PublicApiEnabled,
+			"accountEmail":  user.Email,
+			"emailVerified": user.Verified,
 		})
 	case http.MethodPost:
 		var body struct {
@@ -685,14 +751,24 @@ func (svc *PublicApiService) handleWebhooks(w http.ResponseWriter, r *http.Reque
 			svc.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid destinationType"})
 			return
 		}
+		urlVal := strings.TrimSpace(body.Url)
+		emailVal := ""
 		if dest == "email" {
-			if strings.TrimSpace(body.Email) == "" {
-				svc.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "email required"})
+			if !user.Verified || strings.TrimSpace(user.Email) == "" {
+				svc.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "email destinations require a verified account email"})
 				return
 			}
-		} else if strings.TrimSpace(body.Url) == "" {
-			svc.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url required"})
-			return
+			// Always pin to the account holder's verified email — never an arbitrary address.
+			emailVal = strings.TrimSpace(user.Email)
+			urlVal = ""
+		} else if dest == "pagerduty" {
+			// PagerDuty posts to a fixed HTTPS host; URL field is unused.
+			urlVal = ""
+		} else {
+			if err := validatePublicWebhookURL(urlVal, dest); err != nil {
+				svc.writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
 		}
 		alertTypes := body.AlertTypes
 		if len(alertTypes) == 0 {
@@ -708,7 +784,7 @@ func (svc *PublicApiService) handleWebhooks(w http.ResponseWriter, r *http.Reque
 		err := svc.controller.Database.Sql.QueryRow(
 			`INSERT INTO "publicApiWebhooks" ("userId", "destinationType", "url", "email", "secret", "enabled", "alertTypes", "createdAt")
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "webhookId"`,
-			user.Id, dest, strings.TrimSpace(body.Url), strings.TrimSpace(body.Email),
+			user.Id, dest, urlVal, emailVal,
 			strings.TrimSpace(body.Secret), enabled, string(typesJson), now,
 		).Scan(&id)
 		if err != nil {
@@ -717,7 +793,7 @@ func (svc *PublicApiService) handleWebhooks(w http.ResponseWriter, r *http.Reque
 		}
 		svc.writeJSON(w, http.StatusCreated, PublicApiWebhook{
 			Id: id, UserId: user.Id, DestinationType: dest,
-			Url: strings.TrimSpace(body.Url), Email: strings.TrimSpace(body.Email),
+			Url: urlVal, Email: emailVal,
 			Secret: strings.TrimSpace(body.Secret), Enabled: enabled,
 			AlertTypes: alertTypes, CreatedAt: now,
 		})

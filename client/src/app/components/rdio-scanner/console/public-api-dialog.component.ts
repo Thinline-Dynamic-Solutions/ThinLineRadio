@@ -48,8 +48,9 @@ export class RdioScannerPublicApiDialogComponent implements OnInit {
   createdKeyPlain: string | null = null;
   webhookType = 'slack';
   webhookUrl = '';
-  webhookEmail = '';
   webhookSecret = '';
+  accountEmail = '';
+  emailVerified = false;
 
   constructor(
     private dialogRef: MatDialogRef<RdioScannerPublicApiDialogComponent>,
@@ -85,6 +86,8 @@ export class RdioScannerPublicApiDialogComponent implements OnInit {
       );
       this.keys = Array.isArray(res?.keys) ? res.keys : [];
       this.capabilities = res?.capabilities || {};
+      this.accountEmail = res?.accountEmail || '';
+      this.emailVerified = !!res?.emailVerified;
       if (this.hasAlertWebhooks) {
         const wh = await firstValueFrom(
           this.http.get<any>('/api/public/v1/webhooks', { headers: this.authHeaders() }),
@@ -135,10 +138,13 @@ export class RdioScannerPublicApiDialogComponent implements OnInit {
   }
 
   async createWebhook(): Promise<void> {
+    if (this.webhookType === 'email' && !this.emailVerified) {
+      this.snack.open('Verify your account email before adding an email destination', 'Close', { duration: 4000 });
+      return;
+    }
     const body: any = {
       destinationType: this.webhookType,
       url: this.webhookUrl,
-      email: this.webhookEmail,
       secret: this.webhookSecret,
       enabled: true,
       alertTypes: ['*'],
@@ -148,7 +154,6 @@ export class RdioScannerPublicApiDialogComponent implements OnInit {
         this.http.post('/api/public/v1/webhooks', body, { headers: this.authHeaders() }),
       );
       this.webhookUrl = '';
-      this.webhookEmail = '';
       this.webhookSecret = '';
       this.snack.open('Webhook saved', 'Close', { duration: 2500 });
       await this.reload();

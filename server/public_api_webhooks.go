@@ -15,7 +15,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+)
+
+var (
+	publicApiWebhookHTTPClient = newSafeWebhookHTTPClient()
+	publicApiWebhookDedupMu    sync.Mutex
+	publicApiWebhookDedup      = map[string]int64{} // key -> unix milli last sent
 )
 
 type publicApiAlertPayload struct {
@@ -29,6 +36,8 @@ type publicApiAlertPayload struct {
 
 // DispatchAlertWebhooks fans out outbound alert webhooks for users who have the
 // alertWebhooks capability. Failures are logged and never block the alert path.
+// Dedupes per user/call/alertType so sendPushNotification and the batched path
+// cannot deliver the same webhook twice when both fire for one alert.
 func (svc *PublicApiService) DispatchAlertWebhooks(userIds []uint64, alertType string, call *Call, systemLabel, talkgroupLabel, toneSetName string, keywords []string) {
 	if svc == nil || svc.controller == nil || len(userIds) == 0 || call == nil {
 		return
@@ -51,6 +60,7 @@ func (svc *PublicApiService) DispatchAlertWebhooks(userIds []uint64, alertType s
 			continue
 		}
 		payload := svc.buildAlertPayload(alertType, call, systemLabel, talkgroupLabel, toneSetName, keywords)
+		delivered := false
 		for _, hook := range hooks {
 			if !hook.Enabled {
 				continue
@@ -58,10 +68,37 @@ func (svc *PublicApiService) DispatchAlertWebhooks(userIds []uint64, alertType s
 			if !webhookAlertTypeMatches(hook.AlertTypes, alertType) {
 				continue
 			}
+			if !delivered && !publicApiWebhookClaimDelivery(userId, call.Id, alertType) {
+				break
+			}
+			delivered = true
 			h := hook
-			go svc.deliverWebhook(h, payload)
+			go svc.deliverWebhook(user, h, payload)
 		}
 	}
+}
+
+// publicApiWebhookClaimDelivery returns false if this user/call/alert was already
+// claimed within the dedupe window (so push + batched push cannot double-send).
+func publicApiWebhookClaimDelivery(userId, callId uint64, alertType string) bool {
+	key := fmt.Sprintf("%d:%d:%s", userId, callId, strings.ToLower(strings.TrimSpace(alertType)))
+	now := time.Now().UnixMilli()
+	const windowMs = int64(30_000)
+	publicApiWebhookDedupMu.Lock()
+	defer publicApiWebhookDedupMu.Unlock()
+	if prev, ok := publicApiWebhookDedup[key]; ok && now-prev < windowMs {
+		return false
+	}
+	publicApiWebhookDedup[key] = now
+	if len(publicApiWebhookDedup) > 4096 {
+		cutoff := now - windowMs
+		for k, t := range publicApiWebhookDedup {
+			if t < cutoff {
+				delete(publicApiWebhookDedup, k)
+			}
+		}
+	}
+	return true
 }
 
 func webhookAlertTypeMatches(types []string, alertType string) bool {
@@ -158,7 +195,7 @@ func (svc *PublicApiService) buildAlertPayload(alertType string, call *Call, sys
 	}
 }
 
-func (svc *PublicApiService) deliverWebhook(hook PublicApiWebhook, payload publicApiAlertPayload) {
+func (svc *PublicApiService) deliverWebhook(user *User, hook PublicApiWebhook, payload publicApiAlertPayload) {
 	defer func() {
 		if r := recover(); r != nil {
 			svc.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("public api webhook panic: %v", r))
@@ -167,6 +204,10 @@ func (svc *PublicApiService) deliverWebhook(hook PublicApiWebhook, payload publi
 
 	switch strings.ToLower(hook.DestinationType) {
 	case "slack":
+		if err := validatePublicWebhookURL(hook.Url, "slack"); err != nil {
+			svc.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("public api slack webhook skipped: %v", err))
+			return
+		}
 		svc.postJSON(hook.Url, map[string]any{
 			"text": fmt.Sprintf("[%s] %s", strings.ToUpper(payload.Severity), payload.Message),
 			"blocks": []map[string]any{
@@ -174,6 +215,10 @@ func (svc *PublicApiService) deliverWebhook(hook PublicApiWebhook, payload publi
 			},
 		})
 	case "discord":
+		if err := validatePublicWebhookURL(hook.Url, "discord"); err != nil {
+			svc.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("public api discord webhook skipped: %v", err))
+			return
+		}
 		content := fmt.Sprintf("**[%s]** %s", strings.ToUpper(payload.Severity), payload.Message)
 		if payload.Transcription != "" {
 			content += "\n" + payload.Transcription
@@ -200,9 +245,15 @@ func (svc *PublicApiService) deliverWebhook(hook PublicApiWebhook, payload publi
 			},
 		})
 	case "email":
-		if svc.controller.EmailService == nil || strings.TrimSpace(hook.Email) == "" {
+		if svc.controller.EmailService == nil || user == nil {
 			return
 		}
+		to := strings.TrimSpace(user.Email)
+		if to == "" || !user.Verified {
+			svc.controller.Logs.LogEvent(LogLevelWarn, "public api email webhook skipped: account email not verified")
+			return
+		}
+		// Always send to the account holder — never an arbitrary destination address.
 		body := fmt.Sprintf("<p><strong>%s</strong></p><p>%s</p>", htmlEscape(payload.Message), htmlEscape(payload.Transcription))
 		fromName := "ThinLine Radio"
 		fromEmail := ""
@@ -215,10 +266,14 @@ func (svc *PublicApiService) deliverWebhook(hook PublicApiWebhook, payload publi
 				fromEmail = svc.controller.Options.Email
 			}
 		}
-		if err := svc.controller.EmailService.sendEmail(fromName, fromEmail, hook.Email, "[Alert] "+payload.Message, body); err != nil {
+		if err := svc.controller.EmailService.sendEmail(fromName, fromEmail, to, "[Alert] "+payload.Message, body); err != nil {
 			svc.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("public api email webhook failed: %v", err))
 		}
 	default: // custom
+		if err := validatePublicWebhookURL(hook.Url, "custom"); err != nil {
+			svc.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("public api custom webhook skipped: %v", err))
+			return
+		}
 		headers := map[string]string{}
 		if s := strings.TrimSpace(hook.Secret); s != "" {
 			headers["X-Webhook-Secret"] = s
@@ -254,8 +309,7 @@ func (svc *PublicApiService) postJSONWithHeaders(url string, body any, headers m
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := publicApiWebhookHTTPClient.Do(req)
 	if err != nil {
 		svc.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("public api webhook POST failed: %v", err))
 		return

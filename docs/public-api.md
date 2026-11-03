@@ -6,7 +6,7 @@ Access is granted by a server owner in **Admin → Users → Public API**. Users
 
 ## Auth
 
-Send the key on every request:
+Send the key on every request via header only (query-string keys are rejected so secrets do not appear in logs):
 
 ```http
 Authorization: Bearer tlr_…
@@ -102,11 +102,11 @@ When **Alert webhooks** is granted, configure destinations in the console API di
 
 | Type | Notes |
 |------|--------|
-| `slack` | Incoming webhook URL; Slack message JSON |
-| `discord` | Discord webhook URL; `content` field |
-| `email` | Uses server email settings; set `email` on the destination |
+| `slack` | `https://hooks.slack.com/…` only; Slack message JSON |
+| `discord` | `https://discord.com` / `discordapp.com` webhook URLs; `content` field |
+| `email` | Uses the server email provider; always sends to the user’s **verified account email** (arbitrary addresses are rejected) |
 | `pagerduty` | Events API v2; put routing key in `secret` |
-| `custom` | Raw JSON POST; optional `secret` sent as `X-Webhook-Secret` |
+| `custom` | Raw JSON POST to an `https://` URL; private/loopback/LAN/CGNAT targets are refused at dial time; optional `secret` sent as `X-Webhook-Secret` |
 
 ### Slack example
 
