@@ -143,8 +143,27 @@
           <input matInput type="number" formControlName="maxUsers" min="0" autocomplete="off">
           <mat-hint>Maximum number of users allowed in this group (0 = unlimited). Only system admin can modify.</mat-hint>
         </mat-form-field>
-        <mat-checkbox formControlName="billingEnabled">Billing Enabled</mat-checkbox>
-        @if (groupForm.get('billingEnabled')?.value) {
+        <mat-checkbox formControlName="isFreeGroup">This is a free group</mat-checkbox>
+        <p class="mat-caption" style="margin-top: -8px; margin-bottom: 12px;">
+          Anonymous visitors can use this group's systems and feature flags without signing in (even when listener sign-in is required). Billing is disabled.
+        </p>
+        <div class="form-section" formGroupName="features">
+          <h4>Feature access</h4>
+          <p class="mat-caption">Turn off surfaces this group cannot use. Multi-group users get the union of their groups.</p>
+          <div class="feature-toggles">
+            <mat-checkbox formControlName="liveFeed">Live feed</mat-checkbox>
+            <mat-checkbox formControlName="replay">Transmissions replay / archive</mat-checkbox>
+            <mat-checkbox formControlName="channels">Channels picker</mat-checkbox>
+            <mat-checkbox formControlName="alerts">Alerts</mat-checkbox>
+            <mat-checkbox formControlName="transcripts">Transcripts</mat-checkbox>
+            <mat-checkbox formControlName="stats">Stats</mat-checkbox>
+            <mat-checkbox formControlName="map">Map</mat-checkbox>
+            <mat-checkbox formControlName="settings">Settings</mat-checkbox>
+            <mat-checkbox formControlName="alertsSideRail">Alerts side rail</mat-checkbox>
+          </div>
+        </div>
+        <mat-checkbox formControlName="billingEnabled" [disabled]="groupForm.get('isFreeGroup')?.value">Billing Enabled</mat-checkbox>
+        @if (groupForm.get('billingEnabled')?.value && !groupForm.get('isFreeGroup')?.value) {
           <div class="form-section">
             <h4>Billing Settings</h4>
             <mat-form-field appearance="outline" class="full-width">
@@ -379,6 +398,14 @@
         <th mat-header-cell *matHeaderCellDef>Description</th>
         <td mat-cell *matCellDef="let group">{{ group.description }}</td>
       </ng-container>
+      <ng-container matColumnDef="isFreeGroup">
+        <th mat-header-cell *matHeaderCellDef>Free</th>
+        <td mat-cell *matCellDef="let group">
+          <mat-icon [class.enabled]="group.isFreeGroup" [class.disabled]="!group.isFreeGroup">
+            {{ group.isFreeGroup ? 'check_circle' : 'cancel' }}
+          </mat-icon>
+        </td>
+      </ng-container>
       <ng-container matColumnDef="billingEnabled">
         <th mat-header-cell *matHeaderCellDef>Billing</th>
         <td mat-cell *matCellDef="let group">
@@ -412,8 +439,8 @@
           </button>
         </td>
       </ng-container>
-      <tr mat-header-row *matHeaderRowDef="['name', 'description', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
-      <tr mat-row *matRowDef="let row; columns: ['name', 'description', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
+      <tr mat-header-row *matHeaderRowDef="['name', 'description', 'isFreeGroup', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
+      <tr mat-row *matRowDef="let row; columns: ['name', 'description', 'isFreeGroup', 'billingEnabled', 'isPublicRegistration', 'actions']"></tr>
     </table>
   }
 

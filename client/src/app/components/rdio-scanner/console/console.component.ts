@@ -91,6 +91,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
 
     @Output() toggleFullscreen = new EventEmitter<void>();
     @Output() signOut = new EventEmitter<void>();
+    @Output() requestSubscribe = new EventEmitter<void>();
 
     /** Skips user-visible side effects when this view is not active. */
     @Input() viewActive = true;
@@ -298,9 +299,62 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         return !!this.config?.options?.incidentMappingEnabled;
     }
 
+    get groupFeatures() {
+        const f = this.config?.options?.features;
+        if (!f) {
+            return {
+                liveFeed: true, replay: true, channels: true, alerts: true,
+                transcripts: true, stats: true, map: true, settings: true, alertsSideRail: true,
+            };
+        }
+        return {
+            liveFeed: f.liveFeed !== false,
+            replay: f.replay !== false,
+            channels: f.channels !== false,
+            alerts: f.alerts !== false,
+            transcripts: f.transcripts !== false,
+            stats: f.stats !== false,
+            map: f.map !== false,
+            settings: f.settings !== false,
+            alertsSideRail: f.alertsSideRail !== false,
+        };
+    }
+
+    get freeListening(): boolean {
+        return !!this.config?.options?.freeListening;
+    }
+
+    get upgradeAvailable(): boolean {
+        return !!this.config?.options?.upgradeAvailable;
+    }
+
     /** Map tab requires transcription UI plus the server-wide incident mapping switch. */
     get showIncidentMapTab(): boolean {
-        return this.isTranscriptionEnabled && this.isIncidentMappingEnabled;
+        return this.isTranscriptionEnabled && this.isIncidentMappingEnabled && this.groupFeatures.map;
+    }
+
+    get showAlertsTab(): boolean {
+        return this.isTranscriptionEnabled && this.groupFeatures.alerts;
+    }
+
+    get showTranscriptsTab(): boolean {
+        return this.isTranscriptionEnabled && this.groupFeatures.transcripts;
+    }
+
+    get showStatsTab(): boolean {
+        return this.isTranscriptionEnabled && this.groupFeatures.stats;
+    }
+
+    get showChannelsTab(): boolean {
+        return this.groupFeatures.channels;
+    }
+
+    get showSettingsTab(): boolean {
+        return this.groupFeatures.settings;
+    }
+
+    get showReplayArchive(): boolean {
+        return this.groupFeatures.replay;
     }
 
     get isUserAuthenticated(): boolean {
@@ -337,7 +391,7 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
 
     /** Recent-alerts rail stays on Transmissions only so Map / Stats / other tabs can use the width. */
     get alertsSidebarVisible(): boolean {
-        return this.isTranscriptionEnabled && this.boardTabIndex === TAB.Transmissions;
+        return this.isTranscriptionEnabled && this.groupFeatures.alertsSideRail && this.boardTabIndex === TAB.Transmissions;
     }
 
     get showScanningAnimation(): boolean {
@@ -711,6 +765,10 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
         this.showCheckout = false;
         this.isGroupAdminManaged = false;
         this.signOut.emit();
+    }
+
+    onUpgradeSubscribe(): void {
+        this.requestSubscribe.emit();
     }
 
     showHelp(): void {

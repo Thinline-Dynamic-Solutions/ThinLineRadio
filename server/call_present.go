@@ -49,9 +49,22 @@ func (controller *Controller) presentCallForClient(call *Call, livefeed *Livefee
 
 	restricted := controller.requiresUserAuth()
 
+	allowed := func(c *Call) bool {
+		if !restricted {
+			return true
+		}
+		if user != nil {
+			return controller.userHasAccess(user, c)
+		}
+		if controller.allowAnonymousFreeListening() {
+			return controller.featuresForAnonymous().LiveFeed && controller.anonymousHasCallAccess(c)
+		}
+		return false
+	}
+
 	// No formal patches: keep existing primary-only payload (still ACL-check).
 	if len(call.Patches) == 0 {
-		if restricted && (user == nil || !controller.userHasAccess(user, call)) {
+		if !allowed(call) {
 			return nil
 		}
 		return call
@@ -62,7 +75,7 @@ func (controller *Controller) presentCallForClient(call *Call, livefeed *Livefee
 		if presented == nil {
 			continue
 		}
-		if restricted && (user == nil || !controller.userHasAccess(user, presented)) {
+		if !allowed(presented) {
 			continue
 		}
 		return presented

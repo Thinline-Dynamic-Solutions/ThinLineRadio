@@ -1297,8 +1297,14 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if enforcePlaybackACL && client.User == nil {
+	if !calls.controller.clientHasFeature(client, "replay") {
 		return searchResults, nil
+	}
+
+	if enforcePlaybackACL && client.User == nil {
+		if !(calls.controller.allowAnonymousFreeListening() && calls.controller.clientHasFeature(client, "replay")) {
+			return searchResults, nil
+		}
 	}
 
 	if !enforcePlaybackACL {

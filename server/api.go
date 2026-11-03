@@ -133,7 +133,14 @@ func (api *Api) ReadyHandler(w http.ResponseWriter, r *http.Request) {
 
 	if ready {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"ready":true}`)
+		freeListening := api.Controller.allowAnonymousFreeListening()
+		upgradeAvailable := freeListening && api.Controller.UserGroups != nil &&
+			api.Controller.UserGroups.HasPublicPaidRegistrationTier()
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ready":            true,
+			"freeListening":    freeListening,
+			"upgradeAvailable": upgradeAvailable,
+		})
 		return
 	}
 	w.Header().Set("Retry-After", "1")
@@ -3138,6 +3145,10 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 			api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
+		if !api.Controller.clientHasFeature(client, "alerts") {
+			api.exitWithError(w, http.StatusForbidden, "alerts not available for your group")
+			return
+		}
 
 		// Parse since parameter (timestamp in milliseconds)
 		var sinceTimestamp int64 = 0
@@ -3716,6 +3727,10 @@ func (api *Api) TranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 	client := api.getClient(r)
 	if client == nil || client.User == nil {
 		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !api.Controller.clientHasFeature(client, "transcripts") {
+		api.exitWithError(w, http.StatusForbidden, "transcripts not available for your group")
 		return
 	}
 
@@ -7197,6 +7212,8 @@ func (api *Api) AdminGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			"isPublicRegistration":    group.IsPublicRegistration,
 			"allowAddExistingUsers":   group.AllowAddExistingUsers,
 			"autoEnableNewTalkgroups": group.AutoEnableNewTalkgroups,
+			"isFreeGroup":             group.IsFreeGroup,
+			"features":                group.GetFeatures(),
 			"createdAt":               group.CreatedAt,
 		})
 	}
@@ -7241,9 +7258,11 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		CollectSalesTax         bool            `json:"collectSalesTax"`
 		TaxMode                 string          `json:"taxMode"`
 		StripeTaxRateId         string          `json:"stripeTaxRateId"`
-		IsPublicRegistration    bool            `json:"isPublicRegistration"`
-		AllowAddExistingUsers   bool            `json:"allowAddExistingUsers"`
-		AutoEnableNewTalkgroups bool            `json:"autoEnableNewTalkgroups"`
+		IsPublicRegistration    bool              `json:"isPublicRegistration"`
+		AllowAddExistingUsers   bool              `json:"allowAddExistingUsers"`
+		AutoEnableNewTalkgroups bool              `json:"autoEnableNewTalkgroups"`
+		IsFreeGroup             bool              `json:"isFreeGroup"`
+		Features                UserGroupFeatures `json:"features"`
 		// Group admin assignment
 		AssignExistingUserAsAdmin bool   `json:"assignExistingUserAsAdmin"`
 		GroupAdminUserId          uint64 `json:"groupAdminUserId"`
@@ -7263,6 +7282,10 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	if request.Name == "" {
 		api.exitWithError(w, http.StatusBadRequest, "Group name is required")
 		return
+	}
+
+	if request.IsFreeGroup {
+		request.BillingEnabled = false
 	}
 
 	// Validate: If billing is enabled, at least one pricing option is required
@@ -7300,6 +7323,13 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		billingMode = "all_users"
 	}
 
+	featuresJSON := request.Features.ToJSON()
+	if request.IsFreeGroup && request.Features == (UserGroupFeatures{}) {
+		featuresJSON = FreeGroupDefaultFeatures().ToJSON()
+	} else if !request.IsFreeGroup && request.Features == (UserGroupFeatures{}) {
+		featuresJSON = AllFeaturesOn().ToJSON()
+	}
+
 	group := &UserGroup{
 		Name:                    request.Name,
 		Description:             request.Description,
@@ -7319,6 +7349,8 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		IsPublicRegistration:    request.IsPublicRegistration,
 		AllowAddExistingUsers:   request.AllowAddExistingUsers,
 		AutoEnableNewTalkgroups: request.AutoEnableNewTalkgroups,
+		IsFreeGroup:             request.IsFreeGroup,
+		Features:                featuresJSON,
 		CreatedAt:               time.Now().Unix(),
 	}
 	group.NormalizeSystemAccess(api.Controller.Systems)
@@ -7554,9 +7586,11 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		CollectSalesTax         bool            `json:"collectSalesTax"`
 		TaxMode                 string          `json:"taxMode"`
 		StripeTaxRateId         string          `json:"stripeTaxRateId"`
-		IsPublicRegistration    bool            `json:"isPublicRegistration"`
-		AllowAddExistingUsers   bool            `json:"allowAddExistingUsers"`
-		AutoEnableNewTalkgroups bool            `json:"autoEnableNewTalkgroups"`
+		IsPublicRegistration    bool              `json:"isPublicRegistration"`
+		AllowAddExistingUsers   bool              `json:"allowAddExistingUsers"`
+		AutoEnableNewTalkgroups bool              `json:"autoEnableNewTalkgroups"`
+		IsFreeGroup             bool              `json:"isFreeGroup"`
+		Features                UserGroupFeatures `json:"features"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -7568,6 +7602,10 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	if group == nil {
 		api.exitWithError(w, http.StatusNotFound, "Group not found")
 		return
+	}
+
+	if request.IsFreeGroup {
+		request.BillingEnabled = false
 	}
 
 	// Validate: If billing is enabled, at least one pricing option is required
@@ -7621,6 +7659,11 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	group.IsPublicRegistration = request.IsPublicRegistration
 	group.AllowAddExistingUsers = request.AllowAddExistingUsers
 	group.AutoEnableNewTalkgroups = request.AutoEnableNewTalkgroups
+	group.IsFreeGroup = request.IsFreeGroup
+	group.Features = request.Features.ToJSON()
+	if request.IsFreeGroup && request.Features == (UserGroupFeatures{}) {
+		group.Features = FreeGroupDefaultFeatures().ToJSON()
+	}
 	group.NormalizeSystemAccess(api.Controller.Systems)
 
 	if err := api.Controller.UserGroups.Update(group, api.Controller.Database); err != nil {
@@ -7677,6 +7720,10 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	// Refresh configuration for all active clients belonging to users in this group
 	// This ensures they get updated system access and delay settings immediately
 	api.Controller.Clients.RefreshConfigForGroup(api.Controller, group.Id)
+	// Free-group changes also affect anonymous listeners.
+	if group.IsFreeGroup || api.Controller.allowAnonymousFreeListening() {
+		api.Controller.EmitConfig()
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{

@@ -1818,6 +1818,8 @@ export class RdioScannerService implements OnDestroy {
 
     private rebuildLivefeedMap(): void {
         const autoEnable = !!this.config?.options?.autoEnableNewTalkgroups;
+        // No Channels picker: force all scoped talkgroups on for listening.
+        const forceAllChannels = this.config?.options?.features?.channels === false;
         const currentKeys = new Set<string>();
 
         const lfm = this.config.systems.reduce((sysMap, sys) => {
@@ -1836,11 +1838,15 @@ export class RdioScannerService implements OnDestroy {
                 const newlyInScope = this.hasScopedLivefeedBaseline &&
                     !this.previousScopedLivefeedKeys.has(key);
 
-                tgMap[tg.id] = existsInSavedMap && !newlyInScope
-                    ? this.livefeedMap[sys.id][tg.id]
-                    : {
-                        active: autoEnable,
-                    } as RdioScannerLivefeed;
+                if (forceAllChannels) {
+                    tgMap[tg.id] = { active: true } as RdioScannerLivefeed;
+                } else {
+                    tgMap[tg.id] = existsInSavedMap && !newlyInScope
+                        ? this.livefeedMap[sys.id][tg.id]
+                        : {
+                            active: autoEnable,
+                        } as RdioScannerLivefeed;
+                }
 
                 return tgMap;
             }, sysMap[sys.id] || {} as { [key: number]: RdioScannerLivefeed });

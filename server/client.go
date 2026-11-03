@@ -318,15 +318,29 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 	// Get the user's group pricing options if user is authenticated and has a group
 	var pricingOptions []PricingOption
 	autoEnableNewTalkgroups := false
-	if client.User != nil && client.Controller != nil {
-		for _, userGroup := range client.Controller.userGroups(client.User) {
-			if userGroup != nil && userGroup.AutoEnableNewTalkgroups {
-				autoEnableNewTalkgroups = true
+	features := AllFeaturesOn()
+	freeListening := false
+	upgradeAvailable := false
+	if client.Controller != nil {
+		features = client.Controller.featuresForClient(client)
+		freeListening = client.User == nil && client.Controller.allowAnonymousFreeListening()
+		upgradeAvailable = freeListening && client.Controller.UserGroups.HasPublicPaidRegistrationTier()
+		if client.User != nil {
+			for _, userGroup := range client.Controller.userGroups(client.User) {
+				if userGroup != nil && userGroup.AutoEnableNewTalkgroups {
+					autoEnableNewTalkgroups = true
+				}
 			}
-		}
-		if client.User.UserGroupId > 0 {
-			if userGroup := client.Controller.UserGroups.Get(client.User.UserGroupId); userGroup != nil && userGroup.BillingEnabled {
-				pricingOptions = userGroup.GetPricingOptions()
+			if client.User.UserGroupId > 0 {
+				if userGroup := client.Controller.UserGroups.Get(client.User.UserGroupId); userGroup != nil && userGroup.BillingEnabled {
+					pricingOptions = userGroup.GetPricingOptions()
+				}
+			}
+		} else if freeListening {
+			for _, g := range client.Controller.UserGroups.GetFreeGroups() {
+				if g != nil && g.AutoEnableNewTalkgroups {
+					autoEnableNewTalkgroups = true
+				}
 			}
 		}
 	}
@@ -358,6 +372,9 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 			"relayServerURL":            getRelayServerURL(),
 			"audioClientToken":          client.Controller.AudioClientToken,
 			"autoEnableNewTalkgroups":   autoEnableNewTalkgroups,
+			"features":                  features,
+			"freeListening":             freeListening,
+			"upgradeAvailable":          upgradeAvailable,
 		},
 		"playbackGoesLive":   options.PlaybackGoesLive,
 		"showListenersCount": options.ShowListenersCount,
@@ -501,8 +518,19 @@ func (clients *Clients) EmitIncidentUpdate(controller *Controller, call *Call, p
 	var targets []*Client
 	restricted := controller.requiresUserAuth()
 	for c := range clients.Map {
+		if !controller.clientHasFeature(c, "map") {
+			continue
+		}
 		if restricted {
-			if c.User == nil || !controller.userHasAccess(c.User, call) {
+			if c.User != nil {
+				if !controller.userHasAccess(c.User, call) {
+					continue
+				}
+			} else if controller.allowAnonymousFreeListening() {
+				if !controller.anonymousHasCallAccess(call) {
+					continue
+				}
+			} else {
 				continue
 			}
 		}
@@ -556,10 +584,11 @@ func (clients *Clients) EmitConfig(controller *Controller) {
 
 	count := len(clients.Map)
 	restricted := controller.requiresUserAuth()
+	freeListening := controller.allowAnonymousFreeListening()
 	showListenersCount := controller.Options.ShowListenersCount
 
 	for c := range clients.Map {
-		if restricted && c.User == nil {
+		if restricted && c.User == nil && !freeListening {
 			// Don't PIN-poke unauthenticated clients on every config broadcast
 			// (incoming calls). They already get a PIN challenge from CFG.
 			continue

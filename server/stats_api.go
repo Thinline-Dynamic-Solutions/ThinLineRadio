@@ -345,6 +345,10 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !api.Controller.clientHasFeature(client, "stats") {
+		api.exitWithError(w, http.StatusForbidden, "stats not available for your group")
+		return
+	}
 
 	statsCache.warmerOnce.Do(func() {
 		go api.startStatsBackgroundWarmer()

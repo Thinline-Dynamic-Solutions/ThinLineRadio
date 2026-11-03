@@ -1,0 +1,24 @@
+@if (visible) {
+  @if (showModal) {
+    <div class="upgrade-backdrop" role="dialog" aria-modal="true" aria-labelledby="upgrade-title">
+      <div class="upgrade-card">
+        <h2 id="upgrade-title">Unlock the full scanner</h2>
+        <p>
+          You are listening on the free live feed. Subscribe for archive replay, alerts,
+          transcripts, stats, the map, and more.
+        </p>
+        <div class="actions">
+          <button mat-raised-button color="primary" type="button" (click)="onSubscribe()">
+            View plans
+          </button>
+          <button mat-button type="button" (click)="dismiss()">Not now</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <button type="button" class="upgrade-chip" (click)="reopen()" [class.pulse]="!showModal">
+    <mat-icon>workspace_premium</mat-icon>
+    <span>Full access</span>
+  </button>
+}

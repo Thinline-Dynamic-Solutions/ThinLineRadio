@@ -2987,6 +2987,7 @@ func (controller *Controller) LogClientsCount() {
 
 func (controller *Controller) ProcessMessage(client *Client, message *Message) error {
 	restricted := controller.requiresUserAuth()
+	freeAnon := restricted && client.User == nil && controller.allowAnonymousFreeListening()
 
 	if message.Command == MessageCommandVersion {
 		controller.ProcessMessageCommandVersion(client)
@@ -2998,12 +2999,15 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		default:
 		}
 
-	} else if restricted && client.User == nil && message.Command != MessageCommandPin {
+	} else if restricted && client.User == nil && message.Command != MessageCommandPin && !freeAnon {
 		msg := &Message{Command: MessageCommandPin}
 		select {
 		case client.Send <- msg:
 		default:
 		}
+
+	} else if freeAnon && !controller.anonymousCommandAllowed(client, message.Command) {
+		return nil
 
 	} else if client.PinExpired && message.Command != MessageCommandPin && message.Command != MessageCommandVersion && message.Command != MessageCommandPing {
 		// PIN is expired - ignore all messages except PIN (for re-authentication), Version, and Ping
@@ -3011,6 +3015,9 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		return nil
 
 	} else if message.Command == MessageCommandCall {
+		if !controller.clientHasFeature(client, "liveFeed") && !controller.clientHasFeature(client, "replay") {
+			return nil
+		}
 		if err := controller.ProcessMessageCommandCall(client, message); err != nil {
 			return err
 		}
@@ -3022,11 +3029,17 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		client.SendConfig(controller.Groups, controller.Options, controller.Systems, controller.Tags)
 
 	} else if message.Command == MessageCommandListCall {
+		if !controller.clientHasFeature(client, "replay") {
+			return nil
+		}
 		if err := controller.ProcessMessageCommandListCall(client, message); err != nil {
 			return err
 		}
 
 	} else if message.Command == MessageCommandLivefeedMap {
+		if !controller.clientHasFeature(client, "liveFeed") {
+			return nil
+		}
 		controller.ProcessMessageCommandLivefeedMap(client, message)
 
 	} else if message.Command == MessageCommandPin {
@@ -3045,6 +3058,21 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 	}
 
 	return nil
+}
+
+func (controller *Controller) anonymousCommandAllowed(client *Client, command any) bool {
+	switch command {
+	case MessageCommandVersion, MessageCommandPing, MessageCommandConfig, MessageCommandPin:
+		return true
+	case MessageCommandLivefeedMap:
+		return controller.clientHasFeature(client, "liveFeed")
+	case MessageCommandCall:
+		return controller.clientHasFeature(client, "liveFeed") || controller.clientHasFeature(client, "replay")
+	case MessageCommandListCall:
+		return controller.clientHasFeature(client, "replay")
+	default:
+		return false
+	}
 }
 
 func (controller *Controller) ProcessMessageCommandCall(client *Client, message *Message) error {
@@ -3087,7 +3115,13 @@ func (controller *Controller) ProcessMessageCommandCall(client *Client, message 
 
 	// Check user access (includes group access restrictions)
 	if controller.requiresUserAuth() {
-		if client.User == nil || !controller.userHasAccess(client.User, call) {
+		allowed := false
+		if client.User != nil {
+			allowed = controller.userHasAccess(client.User, call)
+		} else if controller.allowAnonymousFreeListening() {
+			allowed = controller.anonymousHasCallAccess(call)
+		}
+		if !allowed {
 			msg := &Message{Command: MessageCommandError, Payload: "access denied"}
 			select {
 			case client.Send <- msg:
@@ -3194,7 +3228,10 @@ func (controller *Controller) ProcessMessageCommandLivefeedMap(client *Client, m
 
 // sendAvailableCallsToClient sends calls that are currently available to a newly connected client
 func (controller *Controller) sendAvailableCallsToClient(client *Client) {
-	if controller.requiresUserAuth() && client.User == nil {
+	if controller.requiresUserAuth() && client.User == nil && !controller.allowAnonymousFreeListening() {
+		return
+	}
+	if !controller.clientHasFeature(client, "liveFeed") {
 		return
 	}
 

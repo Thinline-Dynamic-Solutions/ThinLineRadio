@@ -449,10 +449,16 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 
 	user := client.User
 
-	// Resolve all of the user's group memberships; visible scope is the UNION.
+	// Resolve group memberships; visible scope is the UNION.
+	// Anonymous clients with free groups use those groups as the ceiling
+	// (empty membership would otherwise mean All systems).
 	var memberGroups []*UserGroup
-	if user != nil && client.Controller != nil {
-		memberGroups = client.Controller.userGroups(user)
+	if client.Controller != nil {
+		if user != nil {
+			memberGroups = client.Controller.userGroups(user)
+		} else if client.Controller.allowAnonymousFreeListening() {
+			memberGroups = client.Controller.UserGroups.GetFreeGroups()
+		}
 	}
 
 	// Helper: a system is allowed when the user has no groups, or ANY group grants it.

@@ -256,6 +256,18 @@ export interface CallNaturePhraseScanResponse {
     message?: string;
 }
 
+export interface UserGroupFeatures {
+    liveFeed?: boolean;
+    replay?: boolean;
+    channels?: boolean;
+    alerts?: boolean;
+    transcripts?: boolean;
+    stats?: boolean;
+    map?: boolean;
+    settings?: boolean;
+    alertsSideRail?: boolean;
+}
+
 export interface UserGroup {
     id?: number;
     name?: string;
@@ -267,6 +279,9 @@ export interface UserGroup {
     /** When true, new systems/talkgroups are auto-granted (wildcards) and clients default them on. */
     autoEnableNewTalkgroups?: boolean;
     isPublicRegistration?: boolean;
+    /** Anonymous live access for this group's systems/features without signup. */
+    isFreeGroup?: boolean;
+    features?: UserGroupFeatures;
     billingEnabled?: boolean;
     billingMode?: string;
     stripePriceId?: string;
@@ -2203,6 +2218,18 @@ export class RdioScannerAdminService implements OnDestroy {
             allowAddExistingUsers: this.ngFormBuilder.control(userGroup?.allowAddExistingUsers),
             autoEnableNewTalkgroups: this.ngFormBuilder.control(userGroup?.autoEnableNewTalkgroups ?? false),
             isPublicRegistration: this.ngFormBuilder.control(userGroup?.isPublicRegistration),
+            isFreeGroup: this.ngFormBuilder.control(userGroup?.isFreeGroup ?? false),
+            features: this.ngFormBuilder.group({
+                liveFeed: this.ngFormBuilder.control(userGroup?.features?.liveFeed ?? true),
+                replay: this.ngFormBuilder.control(userGroup?.features?.replay ?? true),
+                channels: this.ngFormBuilder.control(userGroup?.features?.channels ?? true),
+                alerts: this.ngFormBuilder.control(userGroup?.features?.alerts ?? true),
+                transcripts: this.ngFormBuilder.control(userGroup?.features?.transcripts ?? true),
+                stats: this.ngFormBuilder.control(userGroup?.features?.stats ?? true),
+                map: this.ngFormBuilder.control(userGroup?.features?.map ?? true),
+                settings: this.ngFormBuilder.control(userGroup?.features?.settings ?? true),
+                alertsSideRail: this.ngFormBuilder.control(userGroup?.features?.alertsSideRail ?? true),
+            }),
             billingEnabled: this.ngFormBuilder.control(userGroup?.billingEnabled),
             billingMode: this.ngFormBuilder.control(userGroup?.billingMode || ''),
             stripePriceId: this.ngFormBuilder.control(userGroup?.stripePriceId || ''),

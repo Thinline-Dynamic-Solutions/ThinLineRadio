@@ -6,15 +6,17 @@
     </rdio-scanner-email-verification>
   }
 
-  <!-- Auth Screen (shown when authentication is required and user is not authenticated) -->
-  @if (!hasVerificationToken() && authRequired && !userAuthenticated) {
+  <!-- Auth Screen (required sign-in, or free-listener subscribe overlay) -->
+  @if (!hasVerificationToken() && ((authRequired && !userAuthenticated) || showSubscribeAuth)) {
     <rdio-scanner-auth-screen
-      (authenticated)="onUserAuthenticated()">
+      [preferRegister]="showSubscribeAuth"
+      (authenticated)="onUserAuthenticated()"
+      (dismissed)="showSubscribeAuth = false">
     </rdio-scanner-auth-screen>
   }
 
   <!-- Mobile web: no scanner UI — account, billing, app links only -->
-  @if (!hasVerificationToken() && (!authRequired || userAuthenticated) && isMobileRestrictedBrowser) {
+  @if (!hasVerificationToken() && (!authRequired || userAuthenticated) && !showSubscribeAuth && isMobileRestrictedBrowser) {
     <rdio-scanner-mobile-web-hub
       (signOut)="onSignOut()">
     </rdio-scanner-mobile-web-hub>
@@ -26,7 +28,8 @@
       <rdio-scanner-chassis class="thinline-skin">
         <rdio-scanner-console
           (toggleFullscreen)="toggleFullscreen()"
-          (signOut)="onSignOut()">
+          (signOut)="onSignOut()"
+          (requestSubscribe)="onRequestSubscribe()">
         </rdio-scanner-console>
       </rdio-scanner-chassis>
     </div>

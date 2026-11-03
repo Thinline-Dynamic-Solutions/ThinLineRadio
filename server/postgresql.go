@@ -364,6 +364,8 @@ var PostgresqlSchema = []string{
     "isPublicRegistration" boolean NOT NULL DEFAULT false,
     "allowAddExistingUsers" boolean NOT NULL DEFAULT false,
     "autoEnableNewTalkgroups" boolean NOT NULL DEFAULT false,
+    "isFreeGroup" boolean NOT NULL DEFAULT false,
+    "features" text NOT NULL DEFAULT '',
     "createdAt" bigint NOT NULL DEFAULT 0
   );`,
 

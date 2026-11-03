@@ -36,6 +36,17 @@
     }
   }
 
+  .feature-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 16px;
+
+    mat-checkbox {
+      min-width: 180px;
+    }
+  }
+
   .create-form {
     background: #242424;
     padding: 20px;

@@ -1,0 +1,80 @@
+:host {
+  display: contents;
+}
+
+.upgrade-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.upgrade-card {
+  width: min(420px, 100%);
+  padding: 24px 28px;
+  border-radius: 12px;
+  background: #1a1f24;
+  color: #f2f4f6;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+
+  h2 {
+    margin: 0 0 10px;
+    font-size: 1.35rem;
+    font-weight: 650;
+  }
+
+  p {
+    margin: 0 0 20px;
+    line-height: 1.45;
+    color: #c5ccd3;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+.upgrade-chip {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1100;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: #24303a;
+  color: #f5f7f9;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &:hover {
+    background: #2c3a46;
+  }
+
+  &.pulse {
+    animation: chip-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes chip-pulse {
+  0%, 100% { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+  50% { box-shadow: 0 6px 24px rgba(64, 158, 255, 0.45); }
+}

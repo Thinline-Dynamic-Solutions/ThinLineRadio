@@ -263,6 +263,22 @@ export interface RdioScannerConfig {
         incidentMappingEnabled?: boolean;
         /** From the user's usergroup(s): default-on for newly scoped channels. */
         autoEnableNewTalkgroups?: boolean;
+        /** Per-group feature gates (union across memberships / free groups). */
+        features?: {
+            liveFeed?: boolean;
+            replay?: boolean;
+            channels?: boolean;
+            alerts?: boolean;
+            transcripts?: boolean;
+            stats?: boolean;
+            map?: boolean;
+            settings?: boolean;
+            alertsSideRail?: boolean;
+        };
+        /** Anonymous free-group listening is active for this session. */
+        freeListening?: boolean;
+        /** Show upgrade CTA to public paid registration tiers. */
+        upgradeAvailable?: boolean;
     };
     playbackGoesLive: boolean;
     showListenersCount: boolean;

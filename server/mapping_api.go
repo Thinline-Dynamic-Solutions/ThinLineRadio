@@ -423,6 +423,10 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !api.Controller.clientHasFeature(client, "map") {
+		api.exitWithError(w, http.StatusForbidden, "map not available for your group")
+		return
+	}
 	since := int64(0)
 	until := int64(0)
 	if v := r.URL.Query().Get("since"); v != "" {

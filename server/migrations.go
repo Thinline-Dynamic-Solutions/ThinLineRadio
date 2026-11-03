@@ -3422,3 +3422,18 @@ func migrateRequireListenerSignIn(db *Database) error {
 	}
 	return nil
 }
+
+// migrateUserGroupFeatures adds free-group + per-surface feature flags on userGroups.
+// Existing rows keep empty features (= all-on) and isFreeGroup=false.
+func migrateUserGroupFeatures(db *Database) error {
+	queries := []string{
+		`ALTER TABLE "userGroups" ADD COLUMN IF NOT EXISTS "isFreeGroup" boolean NOT NULL DEFAULT false`,
+		`ALTER TABLE "userGroups" ADD COLUMN IF NOT EXISTS "features" text NOT NULL DEFAULT ''`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			return fmt.Errorf("migrateUserGroupFeatures: %w", err)
+		}
+	}
+	return nil
+}
