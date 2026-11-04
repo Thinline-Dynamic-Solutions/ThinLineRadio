@@ -5,7 +5,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-//go:build !windows
+//go:build linux || darwin || freebsd
 
 package main
 
