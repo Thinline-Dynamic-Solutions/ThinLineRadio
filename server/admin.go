@@ -6970,12 +6970,11 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	// Multi-group membership (union access). Applied after the primary so it is
 	// folded into the set; SetGroupIds keeps the primary if present.
 	if request.UserGroupIds != nil {
-		ids := append([]uint64{}, *request.UserGroupIds...)
-		for _, gid := range ids {
-			if gid != 0 && admin.Controller.UserGroups.Get(gid) == nil {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Invalid group in memberships"})
-				return
+		// Groups deleted since the form loaded are dropped rather than rejected.
+		ids := []uint64{}
+		for _, gid := range *request.UserGroupIds {
+			if gid != 0 && admin.Controller.UserGroups.Get(gid) != nil {
+				ids = append(ids, gid)
 			}
 		}
 		if effectiveUserGroupId != 0 {

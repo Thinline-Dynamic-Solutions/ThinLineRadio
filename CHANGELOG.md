@@ -1,5 +1,18 @@
 # Change log
 
+## Version 26.11.02 - Released November 4, 2026
+
+### Fixed
+
+- **Deleted user groups left on users**
+  - Deleting a user group now removes it from every member. Before, the deleted group stayed on the user, so saving the user failed with "Invalid group in memberships", and a user whose only group was deleted got access to every system allowed by their own Systems setting.
+  - Groups deleted before this update are removed from users when the server starts.
+  - Saving a user no longer fails when one of their groups was deleted while the editor was open; the deleted group is skipped.
+- **No systems for a user**
+  - Unticking everything in a user's Systems picker now saves as no systems. Before, an empty selection showed and loaded back as **All systems**. The user editor shows "No systems" and the user list shows **Systems: None**.
+
+---
+
 ## Version 26.11.01 - Released November 4, 2026
 
 ### Added

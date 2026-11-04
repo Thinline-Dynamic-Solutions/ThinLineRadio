@@ -7561,6 +7561,7 @@ func (api *Api) AdminDeleteGroupHandler(w http.ResponseWriter, r *http.Request) 
 	if err := api.Controller.UserGroups.Load(api.Controller.Database); err != nil {
 		log.Printf("WARNING: Failed to reload groups after delete: %v", err)
 	}
+	api.Controller.pruneDeletedGroupMemberships()
 
 	// Sync config to file if enabled (delayed)
 	go func() {

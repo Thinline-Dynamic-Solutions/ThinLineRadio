@@ -369,7 +369,9 @@
                   <span><strong>Delay:</strong> {{ user.delay > 0 ? user.delay + ' min' : 'None' }}</span>
                   <span><strong>Connections:</strong> {{ getConnectionLimitLabel(user.effectiveConnectionLimit ?? user.connectionLimit) }}</span>
                   <span><strong>Registered:</strong> {{ formatDate(user.createdAt) }}</span>
-                  @if (user.systems && user.systems !== '*') {
+                  @if (user.systems && user.systems.trim() === '[]') {
+                    <span><strong>Systems:</strong> None</span>
+                  } @else if (user.systems && user.systems !== '*') {
                     <span><strong>Systems:</strong> Custom</span>
                   }
                   @if (!user.systems || user.systems === '*') {

@@ -281,6 +281,7 @@ func (admin *Admin) copilotDeleteBillingGroup(payloadJSON []byte) (map[string]an
 	if err := admin.Controller.UserGroups.Delete(req.GroupID, admin.Controller.Database); err != nil {
 		return nil, err
 	}
+	admin.Controller.pruneDeletedGroupMemberships()
 	return map[string]any{"deletedGroupId": req.GroupID}, nil
 }
 

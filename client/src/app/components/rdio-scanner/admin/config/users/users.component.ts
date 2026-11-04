@@ -656,7 +656,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 return '*';
             }
         }
-        if (!Array.isArray(parsed) || parsed.length === 0) {
+        if (!Array.isArray(parsed)) {
             return '*';
         }
         if (typeof parsed[0] === 'number') {
@@ -675,6 +675,9 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             return 'All systems';
         }
         const n = access.length;
+        if (n === 0) {
+            return 'No systems';
+        }
         return n === 1 ? '1 system (custom)' : `${n} systems (custom)`;
     }
 

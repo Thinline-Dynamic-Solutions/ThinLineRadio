@@ -140,6 +140,27 @@ func TestListenLinkScopesSignedOutClient(t *testing.T) {
 	}
 }
 
+func TestUngroupedUserUsesOwnSystems(t *testing.T) {
+	controller := freeGroupController(&UserGroup{SystemAccess: "[1]"})
+	user := &User{Systems: "*", UserGroupIds: "[99]"}
+	user.loadSystemScopes()
+	if !controller.userHasAccess(user, testCall(2, 10)) {
+		t.Fatal("a user in no group with all systems must hear everything")
+	}
+
+	user.Systems = "[]"
+	user.loadSystemScopes()
+	if controller.userHasAccess(user, testCall(1, 10)) {
+		t.Fatal("a user with no systems selected must hear nothing")
+	}
+
+	member := &User{Systems: "*", UserGroupId: 1}
+	member.loadSystemScopes()
+	if !controller.userHasAccess(member, testCall(1, 10)) || controller.userHasAccess(member, testCall(2, 10)) {
+		t.Fatal("a group member must get their group's channels")
+	}
+}
+
 func TestListenLinkTokens(t *testing.T) {
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {

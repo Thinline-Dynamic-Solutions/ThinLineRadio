@@ -3877,6 +3877,8 @@ func (controller *Controller) readAllData() error {
 	// created systems/talkgroups are not silently included in existing groups.
 	controller.freezeUserGroupWildcards()
 
+	controller.pruneDeletedGroupMemberships()
+
 	// Update reconnection manager settings from options
 	if controller.ReconnectionMgr != nil {
 		controller.ReconnectionMgr.HoldDuration = time.Duration(controller.Options.ReconnectionGracePeriod) * time.Second
@@ -3925,7 +3927,49 @@ func (controller *Controller) freezeUserGroupWildcards() {
 	}
 }
 
-// Helper method to check if user has access to a call (uses group settings if available)
+// pruneDeletedGroupMemberships removes groups that no longer exist from every
+// user's memberships, so a deleted group can't linger as a membership that
+// matches nothing.
+func (controller *Controller) pruneDeletedGroupMemberships() {
+	if controller == nil || controller.Users == nil || controller.UserGroups == nil || controller.Database == nil {
+		return
+	}
+	changed := 0
+	for _, user := range controller.Users.GetAllUsers() {
+		if user == nil {
+			continue
+		}
+		ids := user.GroupIds()
+		kept := make([]uint64, 0, len(ids))
+		for _, id := range ids {
+			if controller.UserGroups.Get(id) != nil {
+				kept = append(kept, id)
+			}
+		}
+		if len(kept) == len(ids) {
+			continue
+		}
+		oldPrimary := user.UserGroupId
+		if controller.UserGroups.Get(user.UserGroupId) == nil {
+			user.UserGroupId = 0
+		}
+		user.SetGroupIds(kept)
+		if user.UserGroupId != oldPrimary {
+			user.IsGroupAdmin = false
+		}
+		controller.Users.Update(user)
+		changed++
+	}
+	if changed == 0 {
+		return
+	}
+	if err := controller.Users.Write(controller.Database); err != nil {
+		log.Printf("pruneDeletedGroupMemberships: failed to write users: %v", err)
+		return
+	}
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("removed deleted user groups from %d users' memberships", changed))
+}
+
 // userGroups resolves all of a user's group memberships to live *UserGroup.
 func (controller *Controller) userGroups(user *User) []*UserGroup {
 	if user == nil {
@@ -3943,8 +3987,8 @@ func (controller *Controller) userGroups(user *User) []*UserGroup {
 
 // groupsGrantAccess reports whether ANY of the user's groups grants access to
 // the system (and talkgroup when present). With multiple memberships a user's
-// access is the UNION of their groups. Returns true when the user has no groups
-// (no group ceiling to apply).
+// access is the UNION of their groups. Returns true when there is no group
+// ceiling to apply.
 func (controller *Controller) groupsGrantAccess(user *User, systemRef uint, talkgroup *Talkgroup) bool {
 	groups := controller.userGroups(user)
 	if len(groups) == 0 {
