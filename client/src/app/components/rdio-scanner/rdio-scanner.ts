@@ -263,6 +263,22 @@ export interface RdioScannerConfig {
         incidentMappingEnabled?: boolean;
         /** From the user's usergroup(s): default-on for newly scoped channels. */
         autoEnableNewTalkgroups?: boolean;
+        /** Per-group feature gates (union across memberships / free groups). */
+        features?: {
+            liveFeed?: boolean;
+            replay?: boolean;
+            channels?: boolean;
+            alerts?: boolean;
+            transcripts?: boolean;
+            stats?: boolean;
+            map?: boolean;
+            settings?: boolean;
+            alertsSideRail?: boolean;
+        };
+        /** Anonymous free-group listening is active for this session. */
+        freeListening?: boolean;
+        /** Show upgrade CTA to public paid registration tiers. */
+        upgradeAvailable?: boolean;
     };
     playbackGoesLive: boolean;
     showListenersCount: boolean;
@@ -272,6 +288,17 @@ export interface RdioScannerConfig {
     time12hFormat: boolean;
     timeZone?: string; // IANA zone of this instance; empty = browser zone
     userSettings?: { [key: string]: any }; // User-specific settings (tag colors, etc.)
+    /** Server owner granted user-scoped public REST API access. */
+    publicApiEnabled?: boolean;
+    /** Admin lets this listener review and remove delayed calls. */
+    delayModerator?: boolean;
+    /** Admin console permissions granted by this listener's admin role. */
+    adminPermissions?: string[];
+    publicApiCapabilities?: {
+        health?: boolean;
+        transcripts?: boolean;
+        alertWebhooks?: boolean;
+    };
 }
 
 export interface RdioScannerEvent {

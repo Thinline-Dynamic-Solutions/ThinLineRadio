@@ -18,7 +18,10 @@ func (api *Api) canManageIncidentPins(client *Client) bool {
 	if api.isAdmin(client) {
 		return true
 	}
-	return client != nil && client.User != nil && client.User.SystemAdmin
+	if client == nil || client.User == nil {
+		return false
+	}
+	return client.User.SystemAdmin || api.Controller.AdminRoles.UserCan(client.User.Id, "content.incidentPins")
 }
 
 // IncidentPinHandler handles PUT/DELETE /api/incidents/pin/{callId} — system
@@ -56,6 +59,8 @@ func (api *Api) IncidentPinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	original, source, query := api.loadIncidentOriginal(callId)
+
 	switch r.Method {
 	case http.MethodDelete:
 		if err := store.ClearCallIncident(callId); err != nil {
@@ -63,6 +68,7 @@ func (api *Api) IncidentPinHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		api.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("incident pin for call %d removed by %s", callId, pinAdminActor(client)))
+		api.reportAdminPinChange(call, original, source, query, incidentCorrectionPin{}, true)
 		api.Controller.IncidentMappingQueue.broadcastIncidentUpdate(call, nil, "skipped")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "removed"})
@@ -127,6 +133,11 @@ func (api *Api) IncidentPinHandler(w http.ResponseWriter, r *http.Request) {
 				Lon:        fmt.Sprintf("%.6f", lon),
 			}
 			api.Controller.IncidentMappingQueue.broadcastIncidentUpdate(call, primary, "manual")
+			corrected := incidentCorrectionPin{Address: addr, Nature: nature}
+			if lat != 0 || lon != 0 {
+				corrected.Lat, corrected.Lon = &lat, &lon
+			}
+			api.reportAdminPinChange(call, original, source, query, corrected, false)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{

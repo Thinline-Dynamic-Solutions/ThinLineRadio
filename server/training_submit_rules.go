@@ -51,16 +51,6 @@ var trainingStreetWords = map[string]bool{
 	"ST": true, "AVE": true, "RD": true, "BLVD": true, "LN": true, "DR": true,
 }
 
-// Cardinals only. "oh" stays, because reviewers use it for the letter O.
-var trainingNumberWords = map[string]bool{
-	"ZERO": true, "ONE": true, "TWO": true, "THREE": true, "FOUR": true, "FIVE": true,
-	"SIX": true, "SEVEN": true, "EIGHT": true, "NINE": true, "TEN": true, "ELEVEN": true,
-	"TWELVE": true, "THIRTEEN": true, "FOURTEEN": true, "FIFTEEN": true, "SIXTEEN": true,
-	"SEVENTEEN": true, "EIGHTEEN": true, "NINETEEN": true, "TWENTY": true, "THIRTY": true,
-	"FORTY": true, "FIFTY": true, "SIXTY": true, "SEVENTY": true, "EIGHTY": true,
-	"NINETY": true, "HUNDRED": true, "THOUSAND": true,
-}
-
 // A transcript made only of these words is a label, not speech.
 var trainingNonSpeechWords = map[string]bool{
 	"NO": true, "NOT": true, "VOICE": true, "VOICES": true, "AUDIO": true, "SPEECH": true,
@@ -108,9 +98,6 @@ func trainingSubmitIssues(transcript string, durationSeconds float64, durationKn
 	}
 	if abbrevs := trainingAbbreviationParts(normalized); len(abbrevs) > 0 {
 		issues = append(issues, "Spell out abbreviations: "+strings.Join(abbrevs, ", ")+".")
-	}
-	if words := trainingNumberWordHits(normalized); len(words) > 0 {
-		issues = append(issues, "Write numbers as digits, not words: "+strings.Join(words, ", ")+".")
 	}
 	return issues
 }
@@ -200,21 +187,4 @@ func wordBefore(s string, idx int) string {
 		return prev[i+1:]
 	}
 	return prev
-}
-
-func trainingNumberWordHits(normalized string) []string {
-	seen := map[string]bool{}
-	var words []string
-	for _, tok := range strings.Fields(normalized) {
-		if !trainingNumberWords[tok] {
-			continue
-		}
-		low := strings.ToLower(tok)
-		if seen[low] {
-			continue
-		}
-		seen[low] = true
-		words = append(words, low)
-	}
-	return words
 }

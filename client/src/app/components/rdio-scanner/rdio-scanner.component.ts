@@ -28,6 +28,7 @@ import { RdioScannerNativeComponent } from './native/native.component';
 import { isMobileRestrictedBrowser } from './mobile-browser.util';
 import { AppFontService } from './app-font.service';
 import { AppAccentService } from './app-accent.service';
+import { clearListenLinkToken, withListenLink } from './listen-link';
 
 @Component({
     selector: 'rdio-scanner',
@@ -43,6 +44,8 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
     
     userRegistrationEnabled = false;
     userAuthenticated = false;
+    freeListening = false;
+    showSubscribeAuth = false;
     private pinAuthRequired = false;
     private connectionLimitAlertShown = false;
 
@@ -93,9 +96,15 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
         console.log('User authenticated, switching to main component');
         this.userAuthenticated = true;
         this.pinAuthRequired = false;
+        this.showSubscribeAuth = false;
+        this.freeListening = false;
         if (!this.tryAuthenticateWithStoredPin()) {
             console.warn('No stored PIN available immediately after login; waiting for server challenge.');
         }
+    }
+
+    onRequestSubscribe(): void {
+        this.showSubscribeAuth = true;
     }
 
     @HostListener('window:beforeunload', ['$event'])
@@ -115,6 +124,20 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
         // Re-apply after .scanner-shell exists (APP_INITIALIZER may run before it mounts).
         this.appFontService.apply(this.appFontService.getCurrentFont());
         this.appAccentService.setSiteColor(this.appAccentService.getSiteColor());
+
+        // Know about free listening before CFG so we don't flash the auth wall.
+        fetch(withListenLink('/api/ready'), { cache: 'no-store' })
+            .then((r) => r.ok ? r.json() : null)
+            .then((body: { freeListening?: boolean; listenLinkInvalid?: boolean } | null) => {
+                if (body?.listenLinkInvalid) {
+                    clearListenLinkToken();
+                }
+                if (body?.freeListening) {
+                    this.freeListening = true;
+                    this.pinAuthRequired = false;
+                }
+            })
+            .catch(() => { /* CFG will still set this */ });
 
         /*
          * BEGIN OF RED TAPE:
@@ -262,8 +285,14 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
             if (event.config?.options && 'userRegistrationEnabled' in event.config.options) {
                 this.userRegistrationEnabled = !!event.config.options.userRegistrationEnabled;
             }
+            if (event.config?.options && 'freeListening' in event.config.options) {
+                this.freeListening = !!event.config.options.freeListening;
+                if (this.freeListening) {
+                    this.pinAuthRequired = false;
+                }
+            }
 
-            if (this.userRegistrationEnabled) {
+            if (this.userRegistrationEnabled && !this.freeListening) {
                 // Check if we're coming from a route that requires explicit authentication
                 // (like /verify) - if so, don't auto-authenticate even if PIN exists
                 const currentPath = this.route.snapshot.url.map(segment => segment.path).join('/');
@@ -297,6 +326,10 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
     }
 
     get authRequired(): boolean {
+        // Free-group anonymous listening skips the signup/PIN wall.
+        if (this.freeListening && !this.userAuthenticated) {
+            return false;
+        }
         return this.userRegistrationEnabled || this.pinAuthRequired;
     }
 

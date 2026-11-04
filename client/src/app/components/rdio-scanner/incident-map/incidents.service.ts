@@ -110,6 +110,36 @@ export class IncidentsService {
         );
     }
 
+    /** Any signed-in listener: send a pin / incident-type fix to the geocode server for review. */
+    reportIncidentCorrection(
+        callId: number,
+        report: { kind: string; address?: string; nature?: string; lat?: number; lon?: number; note?: string },
+        pin?: string,
+    ): Observable<unknown> {
+        let url = `${this.getFullUrl('/api/incidents/report/')}${callId}`;
+        if (pin) {
+            url += `?pin=${encodeURIComponent(pin)}`;
+        }
+        const headers = pin ? new HttpHeaders().set('Authorization', `Bearer ${pin}`) : undefined;
+        return this.http.post(url, report, { headers });
+    }
+
+    /** Address lookup for the Suggest correction form. */
+    searchReportAddress(
+        callId: number,
+        query: string,
+        pin?: string,
+    ): Observable<{ label: string; lat: number; lon: number }[]> {
+        let url = `${this.getFullUrl('/api/incidents/report/')}${callId}/search?q=${encodeURIComponent(query)}`;
+        if (pin) {
+            url += `&pin=${encodeURIComponent(pin)}`;
+        }
+        const headers = pin ? new HttpHeaders().set('Authorization', `Bearer ${pin}`) : undefined;
+        return this.http.get<{ results: { label: string; lat: number; lon: number }[] }>(url, { headers }).pipe(
+            map(res => res?.results || []),
+        );
+    }
+
     /** System-admin removal of an incident pin from the map. */
     removeIncidentPin(callId: number, pin?: string): Observable<unknown> {
         let url = `${this.getFullUrl('/api/incidents/pin/')}${callId}`;

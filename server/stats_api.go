@@ -103,7 +103,16 @@ type statsRecentIncident struct {
 	Address        string `json:"address"`
 	SystemLabel    string `json:"systemLabel"`
 	TalkgroupLabel string `json:"talkgroupLabel"`
+	SystemId       uint64 `json:"systemId"`
+	TalkgroupId    uint64 `json:"talkgroupId"`
 }
+
+// recentIncidentsShown is how many recent incidents a listener sees; the
+// shared cache keeps more so filtering by access still fills the list.
+const (
+	recentIncidentsShown  = 12
+	recentIncidentsCached = 100
+)
 
 var mappedCategoryOrder = []string{
 	"Medical / EMS",
@@ -345,6 +354,10 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !api.Controller.clientHasFeature(client, "stats") {
+		api.exitWithError(w, http.StatusForbidden, "stats not available for your group")
+		return
+	}
 
 	statsCache.warmerOnce.Do(func() {
 		go api.startStatsBackgroundWarmer()
@@ -371,8 +384,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		if age <= statsCacheFreshTTL {
 			payload := entry.payload
 			statsCache.Unlock()
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(payload)
+			api.writeStatsFor(w, client.User, payload)
 			return
 		}
 		if age <= statsCacheStaleTTL {
@@ -394,8 +406,7 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 				}(cacheKey, systemID, rangeKey, mappingEnabled)
 			}
 			statsCache.Unlock()
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(payload)
+			api.writeStatsFor(w, client.User, payload)
 			return
 		}
 	}
@@ -410,7 +421,45 @@ func (api *Api) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	statsCache.items[cacheKey] = &statsCacheEntry{at: time.Now(), payload: payload}
 	statsCache.Unlock()
 
+	api.writeStatsFor(w, client.User, payload)
+}
+
+// writeStatsFor sends the shared stats payload with recentIncidents cut down
+// to calls user can access and whose delay has ended for them.
+func (api *Api) writeStatsFor(w http.ResponseWriter, user *User, payload []byte) {
 	w.Header().Set("Content-Type", "application/json")
+	var stats map[string]json.RawMessage
+	var recent []statsRecentIncident
+	if json.Unmarshal(payload, &stats) != nil || json.Unmarshal(stats["recentIncidents"], &recent) != nil {
+		_, _ = w.Write(payload)
+		return
+	}
+	now := time.Now()
+	shown := make([]statsRecentIncident, 0, recentIncidentsShown)
+	for _, inc := range recent {
+		if len(shown) == recentIncidentsShown {
+			break
+		}
+		system, ok := api.Controller.Systems.GetSystemById(inc.SystemId)
+		if !ok {
+			continue
+		}
+		talkgroup, ok := system.Talkgroups.GetTalkgroupById(inc.TalkgroupId)
+		if !ok {
+			continue
+		}
+		call := &Call{Id: inc.CallId, System: system, Talkgroup: talkgroup, Timestamp: time.UnixMilli(inc.Timestamp)}
+		if !api.Controller.userHasAccess(user, call) || now.Before(api.Controller.callReleaseFor(user, call)) {
+			continue
+		}
+		shown = append(shown, inc)
+	}
+	if b, err := json.Marshal(shown); err == nil {
+		stats["recentIncidents"] = b
+	}
+	if out, err := json.Marshal(stats); err == nil {
+		payload = out
+	}
 	_, _ = w.Write(payload)
 }
 
@@ -473,6 +522,8 @@ func (api *Api) computeStatsJSON(systemID int, rangeKey string, mappingEnabled b
 		systemFilter = fmt.Sprintf(` AND c."systemId" = %d`, systemID)
 		toneSystemFilter = fmt.Sprintf(` AND a."systemId" = %d`, systemID)
 	}
+	systemFilter += api.Controller.heldCallsFilter(nowTime, "c", "timestamp")
+	toneSystemFilter += api.Controller.heldCallsFilter(nowTime, "a", "createdAt")
 
 	// 0. Available systems from in-memory controller
 	var availableSystems []statsSystemItem
@@ -832,7 +883,7 @@ func (api *Api) computeStatsJSON(systemID int, rangeKey string, mappingEnabled b
 						uniqueIncidentLocations++
 					}
 
-					if len(recentIncidents) < 12 {
+					if len(recentIncidents) < recentIncidentsCached {
 						cat, col := categorizeCallNatureLabel(nat)
 						dispAddr := strings.TrimSpace(addr)
 						if dispAddr == "" {
@@ -861,6 +912,8 @@ func (api *Api) computeStatsJSON(systemID int, rangeKey string, mappingEnabled b
 							Address:        dispAddr,
 							SystemLabel:    sysLbl,
 							TalkgroupLabel: tgLbl,
+							SystemId:       sysID,
+							TalkgroupId:    tgID,
 						})
 					}
 				}

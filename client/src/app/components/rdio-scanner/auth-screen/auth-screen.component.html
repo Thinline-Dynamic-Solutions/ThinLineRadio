@@ -1,5 +1,10 @@
 <div class="auth-screen" [class.cm-mode]="cmMode">
   <div class="auth-container">
+    @if (preferRegister) {
+      <div class="auth-continue-free">
+        <button mat-button type="button" (click)="dismissed.emit()">Continue free listening</button>
+      </div>
+    }
     <!-- Blocked Message with Countdown -->
     @if (isBlocked) {
       <div class="auth-blocked">

@@ -127,6 +127,50 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         return (this.form?.get('options') as FormGroup) || new FormGroup({});
     }
 
+    get limited(): boolean {
+        return this.adminService.limited;
+    }
+
+    /** Sidebar sections a role holder may open; every other section is system admin only. */
+    private static readonly SECTION_PERMISSIONS: Record<string, string[]> = {
+        'user-groups': ['groups.view'],
+        'users': ['users.view'],
+        'groups-tags': ['tags.edit'],
+        'systems': ['systems.view'],
+        'system-detail': ['systems.view'],
+        'logs': ['logs.view'],
+        'listeners': ['listeners.view'],
+        'share-links': ['shareLinks.manage'],
+        'dispatch-alerts': ['dispatch.send'],
+        'system-health': ['health.view'],
+        'sdr-health': ['health.view'],
+        'call-natures': ['content.callNatures'],
+    };
+
+    sectionAllowed(section: string): boolean {
+        if (!this.limited) {
+            return section !== 'call-natures';
+        }
+        const perms = RdioScannerAdminConfigComponent.SECTION_PERMISSIONS[section];
+        return !!perms?.some(p => this.adminService.can(p));
+    }
+
+    can(permission: string): boolean {
+        return this.adminService.can(permission);
+    }
+
+    private ensureAllowedSection(): void {
+        if (this.sectionAllowed(this.activeSection)) {
+            return;
+        }
+        const first = Object.keys(RdioScannerAdminConfigComponent.SECTION_PERMISSIONS)
+            .find(s => s !== 'system-detail' && this.sectionAllowed(s));
+        if (first) {
+            this.activeSection = first;
+            this.ngChangeDetectorRef.markForCheck();
+        }
+    }
+
     get isCentrallyManaged(): boolean {
         const v = this.options?.get('centralManagementEnabled')?.value;
         return v === true || v === 'true' || v === 1;
@@ -216,6 +260,11 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             if ('docker' in event) {
                 this.docker = event.docker ?? false;
             }
+
+            if ('session' in event) {
+                this.ensureAllowedSection();
+                this.ngChangeDetectorRef.markForCheck();
+            }
         });
     }
 
@@ -238,6 +287,11 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         this.loading = true;
         this.ngChangeDetectorRef.markForCheck(); // show spinner immediately
 
+        if (this.limited && !this.adminService.session) {
+            await this.adminService.loadSession();
+        }
+        this.ensureAllowedSection();
+
         this.config = await this.adminService.getConfig();
 
         // Yield one animation frame so the browser can paint the loading
@@ -257,6 +311,9 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
     // ─── Section navigation ───────────────────────────────────────────────────
 
     setSection(section: string): void {
+        if (!this.sectionAllowed(section === 'groups' || section === 'tags' ? 'groups-tags' : section === 'keyword-lists' ? 'options' : section)) {
+            return;
+        }
         // When navigating away from Systems, close the sub-nav and clear selection
         if (section !== 'systems' && section !== 'system-detail') {
             this.systemsNavExpanded = false;
@@ -301,6 +358,9 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
 
     /** Open Tools and select a specific tool chip (search / deep-link). */
     selectTool(toolId: string): void {
+        if (!this.sectionAllowed('tools')) {
+            return;
+        }
         this.activeSection = 'tools';
         this.systemsNavExpanded = false;
         this.activeSystemForm = null;
@@ -372,20 +432,49 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         const system = this.convertSystemForSave(raw);
 
         this.savingSystem = true;
-        const systems = await this.adminService.saveSystem(system);
+        const saved = await this.adminService.saveSystem(system);
         this.savingSystem = false;
 
-        if (systems) {
+        if (saved?.error) {
+            this.matSnackBar.open(saved.error, 'Close', { duration: 15000 });
+        } else if (saved) {
             this.activeSystemForm.markAsPristine();
-            this.applySavedSystems(systems, raw);
+            this.applySavedSystems(saved.systems, raw);
             // Suppress the EmitConfig echo (arrives within ~5 s) so the open system
             // view isn't torn down and rebuilt right after our own save.
             this._lastResetTime = Date.now();
             this.showSystemSaveSuccess();
+            if (saved.accessWarnings.length) {
+                this.showSystemAccessWarnings(saved.accessWarnings);
+            }
         } else {
             this.matSnackBar.open('Failed to save system. Please try again.', 'Close', { duration: 4000 });
         }
         this.ngChangeDetectorRef.markForCheck();
+    }
+
+    /** The server changed systems (Radio Reference updates); reload and reopen the same system. */
+    async reloadAndOpenSystem(systemId: number): Promise<void> {
+        const config = await this.adminService.getConfig();
+        if (!config) {
+            return;
+        }
+        this.config = config;
+        this.reset();
+        const form = this.systemsList.find((s) => s.value.id === systemId);
+        if (form) {
+            this.selectSystem(form);
+        }
+    }
+
+    private showSystemAccessWarnings(warnings: string[]): void {
+        const shown = warnings.slice(0, 3).join('; ');
+        const more = warnings.length > 3 ? ` (+${warnings.length - 3} more)` : '';
+        this.matSnackBar.open(
+            `Listeners won't see all of this system. ${shown}${more}. Grant access in User Groups or turn on Auto-enable new systems / talkgroups.`,
+            'Close',
+            { duration: 12000 },
+        );
     }
 
     private showSystemSaveSuccess(): void {

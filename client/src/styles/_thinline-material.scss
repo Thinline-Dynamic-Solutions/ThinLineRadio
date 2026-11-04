@@ -16,11 +16,6 @@
     --mat-slider-hover-handle-color: var(--tlr-accent);
     --mat-slider-focus-handle-color: var(--tlr-accent);
     --mat-slider-label-container-color: var(--tlr-accent);
-    --mdc-slider-handle-color: var(--tlr-accent);
-    --mdc-slider-focus-handle-color: var(--tlr-accent);
-    --mdc-slider-hover-handle-color: var(--tlr-accent);
-    --mdc-slider-active-track-color: var(--tlr-accent);
-    --mdc-slider-inactive-track-color: rgba(var(--tlr-accent-rgb), 0.18);
 
     /* ── Tab bodies / board canvas ───────────────────────────────────── */
     .mat-mdc-tab-body,
@@ -30,88 +25,128 @@
         color: var(--tlr-text);
     }
 
-    /* ── LCD tab strip ───────────────────────────────────────────────── */
+    /* ── Tab strip — underline nav ─────────────────────────────────── */
     .mat-mdc-tab-header {
-        background: var(--tlr-panel) !important;
+        background: transparent !important;
         border-bottom: 1px solid var(--tlr-header-divider) !important;
     }
 
     .mat-mdc-tab-labels {
-        gap: 6px;
-        padding: 8px 10px 0 !important;
+        gap: 2px;
+        padding: 0 8px !important;
     }
 
     .mat-mdc-tab {
         opacity: 1 !important;
         min-width: 0 !important;
-        height: 36px !important;
+        height: 48px !important;
         padding: 0 14px !important;
-        border-radius: 999px !important;
-        transition: background 0.15s var(--tlr-ease, ease), color 0.15s ease;
+        border-radius: 0 !important;
+        transition: color 0.15s ease;
     }
 
     .mat-mdc-tab .mdc-tab__text-label {
         color: var(--tlr-nav-inactive) !important;
         font-family: var(--tlr-font-primary) !important;
-        font-size: 12px !important;
+        font-size: 13px !important;
         font-weight: 600 !important;
-        letter-spacing: 0.02em !important;
+        letter-spacing: 0 !important;
         text-transform: none !important;
+        transition: color 0.15s ease;
     }
 
-    .mat-mdc-tab.mdc-tab--active {
-        background: rgba(var(--tlr-accent-rgb), 0.12) !important;
+    .mat-mdc-tab .mdc-tab__text-label mat-icon {
+        opacity: 0.8;
     }
 
     .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
-        color: var(--tlr-accent) !important;
+        color: var(--tlr-text) !important;
         text-shadow: none;
     }
 
-    .mat-mdc-tab:not(.mdc-tab--active):hover {
-        background: rgba(255, 255, 255, 0.04) !important;
+    .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label mat-icon {
+        color: var(--tlr-accent);
+        opacity: 1;
+    }
+
+    .mat-mdc-tab:not(.mdc-tab--active):hover .mdc-tab__text-label {
+        color: var(--tlr-text-soft) !important;
+    }
+
+    .mat-mdc-tab .mdc-tab__ripple::before,
+    .mat-mdc-tab .mat-ripple-element {
+        background-color: rgba(255, 255, 255, 0.06) !important;
     }
 
     .mdc-tab-indicator .mdc-tab-indicator__content--underline {
         border-color: var(--tlr-accent) !important;
         border-top-width: 2px !important;
-        box-shadow: none;
+        border-radius: 2px 2px 0 0;
+        box-shadow: 0 0 12px rgba(var(--tlr-accent-rgb), 0.5);
     }
 
     /* ── Buttons ─────────────────────────────────────────────────────── */
     .mat-mdc-raised-button.mat-primary,
     .mat-mdc-unelevated-button.mat-primary {
-        --mdc-protected-button-container-color: var(--tlr-accent);
-        --mdc-protected-button-label-text-color: #1a0a08;
-        --mdc-filled-button-container-color: var(--tlr-accent);
-        --mdc-filled-button-label-text-color: #1a0a08;
+        --mat-button-protected-container-color: var(--tlr-accent);
+        --mat-button-protected-label-text-color: #0b0f15;
+        --mat-button-filled-container-color: var(--tlr-accent);
+        --mat-button-filled-label-text-color: #0b0f15;
         font-weight: 700;
         letter-spacing: 0.04em;
     }
 
+    .mat-mdc-button {
+        --mat-button-text-label-text-color: var(--tlr-text);
+    }
+
+    .mat-mdc-button.mat-primary,
+    .mat-mdc-button.mat-accent {
+        --mat-button-text-label-text-color: var(--tlr-accent);
+    }
+
     .mat-mdc-outlined-button {
-        --mdc-outlined-button-outline-color: rgba(var(--tlr-accent-rgb), 0.4);
-        --mdc-outlined-button-label-text-color: var(--tlr-accent);
+        --mat-button-outlined-outline-color: rgba(var(--tlr-accent-rgb), 0.4);
+        --mat-button-outlined-label-text-color: var(--tlr-accent);
     }
 
     .mat-mdc-button.mat-warn,
     .mat-mdc-outlined-button.mat-warn {
-        --mdc-text-button-label-text-color: var(--tlr-error);
-        --mdc-outlined-button-label-text-color: var(--tlr-error);
-        --mdc-outlined-button-outline-color: rgba(255, 23, 68, 0.4);
+        --mat-button-text-label-text-color: var(--tlr-error);
+        --mat-button-outlined-label-text-color: var(--tlr-error);
+        --mat-button-outlined-outline-color: rgba(255, 23, 68, 0.4);
     }
 
     /* ── Form fields (outline) ───────────────────────────────────────── */
-    .mat-mdc-form-field {
-        --mdc-outlined-text-field-container-shape: 8px;
-        --mdc-outlined-text-field-outline-color: rgba(255, 255, 255, 0.18);
-        --mdc-outlined-text-field-hover-outline-color: rgba(var(--tlr-accent-rgb), 0.45);
-        --mdc-outlined-text-field-focus-outline-color: var(--tlr-accent);
-        --mdc-outlined-text-field-label-text-color: var(--tlr-text-secondary);
-        --mdc-outlined-text-field-input-text-color: var(--tlr-text);
-        --mdc-filled-text-field-container-color: rgba(0, 0, 0, 0.35);
-        --mdc-filled-text-field-input-text-color: var(--tlr-text);
-        --mdc-filled-text-field-label-text-color: var(--tlr-text-secondary);
+    .mat-mdc-form-field,
+    .mat-mdc-form-field.mat-accent,
+    .mat-mdc-form-field.mat-warn {
+        --mat-form-field-outlined-container-shape: 8px;
+        --mat-form-field-outlined-outline-color: rgba(255, 255, 255, 0.18);
+        --mat-form-field-outlined-hover-outline-color: rgba(var(--tlr-accent-rgb), 0.45);
+        --mat-form-field-outlined-focus-outline-color: var(--tlr-accent);
+        --mat-form-field-outlined-label-text-color: var(--tlr-text-secondary);
+        --mat-form-field-outlined-hover-label-text-color: var(--tlr-text-soft);
+        --mat-form-field-outlined-focus-label-text-color: var(--tlr-accent);
+        --mat-form-field-outlined-input-text-color: var(--tlr-text);
+        --mat-form-field-outlined-input-text-placeholder-color: var(--tlr-text-secondary);
+        --mat-form-field-outlined-caret-color: var(--tlr-accent);
+        --mat-form-field-outlined-disabled-input-text-color: rgba(255, 255, 255, 0.38);
+        --mat-form-field-outlined-disabled-label-text-color: rgba(255, 255, 255, 0.38);
+        --mat-form-field-outlined-disabled-outline-color: rgba(255, 255, 255, 0.08);
+        --mat-form-field-filled-container-color: rgba(0, 0, 0, 0.35);
+        --mat-form-field-filled-input-text-color: var(--tlr-text);
+        --mat-form-field-filled-input-text-placeholder-color: var(--tlr-text-secondary);
+        --mat-form-field-filled-label-text-color: var(--tlr-text-secondary);
+        --mat-form-field-filled-focus-label-text-color: var(--tlr-accent);
+        --mat-form-field-filled-caret-color: var(--tlr-accent);
+        --mat-form-field-filled-active-indicator-color: rgba(255, 255, 255, 0.18);
+        --mat-form-field-filled-focus-active-indicator-color: var(--tlr-accent);
+        --mat-select-enabled-trigger-text-color: var(--tlr-text);
+        --mat-select-disabled-trigger-text-color: rgba(255, 255, 255, 0.38);
+        --mat-select-placeholder-text-color: var(--tlr-text-secondary);
+        --mat-select-enabled-arrow-color: var(--tlr-text-secondary);
+        --mat-select-focused-arrow-color: var(--tlr-accent);
     }
 
     .mat-mdc-form-field .mat-mdc-text-field-wrapper {
@@ -136,9 +171,10 @@
         box-shadow: none !important;
     }
 
-    .mat-mdc-snack-bar-container {
-        --mdc-snackbar-container-color: #1a222a;
-        --mdc-snackbar-supporting-text-color: var(--tlr-text);
+    .mat-mdc-progress-spinner,
+    .mat-mdc-progress-bar {
+        --mat-progress-spinner-active-indicator-color: var(--tlr-accent);
+        --mat-progress-bar-active-indicator-color: var(--tlr-accent);
     }
 
     .mat-mdc-progress-spinner circle,
@@ -176,21 +212,62 @@
     }
 
     /* ── Checkbox / slide-toggle accents ─────────────────────────────── */
-    .mat-mdc-checkbox.mat-primary {
-        --mdc-checkbox-selected-checkmark-color: #1a0a08;
-        --mdc-checkbox-selected-focus-icon-color: var(--tlr-accent);
-        --mdc-checkbox-selected-hover-icon-color: var(--tlr-accent);
-        --mdc-checkbox-selected-icon-color: var(--tlr-accent);
-        --mdc-checkbox-selected-pressed-icon-color: var(--tlr-accent);
+    .mat-mdc-checkbox,
+    .mat-mdc-checkbox.mat-primary,
+    .mat-mdc-checkbox.mat-accent {
+        --mat-checkbox-selected-checkmark-color: #0b0f15;
+        --mat-checkbox-selected-focus-icon-color: var(--tlr-accent);
+        --mat-checkbox-selected-hover-icon-color: var(--tlr-accent);
+        --mat-checkbox-selected-icon-color: var(--tlr-accent);
+        --mat-checkbox-selected-focus-state-layer-color: var(--tlr-accent);
+        --mat-checkbox-selected-hover-state-layer-color: var(--tlr-accent);
+        --mat-checkbox-selected-pressed-state-layer-color: var(--tlr-accent);
+        --mat-checkbox-unselected-icon-color: rgba(255, 255, 255, 0.45);
+        --mat-checkbox-unselected-hover-icon-color: rgba(255, 255, 255, 0.7);
+        --mat-checkbox-unselected-focus-icon-color: rgba(255, 255, 255, 0.7);
+        --mat-checkbox-label-text-color: var(--tlr-text);
     }
 
-    .mat-mdc-slide-toggle.mat-primary {
-        --mdc-switch-selected-track-color: rgba(var(--tlr-accent-rgb), 0.45);
-        --mdc-switch-selected-handle-color: var(--tlr-accent);
-        --mdc-switch-selected-hover-handle-color: var(--tlr-accent);
-        --mdc-switch-selected-pressed-handle-color: var(--tlr-accent);
-        --mdc-switch-selected-focus-handle-color: var(--tlr-accent);
+    .mat-mdc-slide-toggle,
+    .mat-mdc-slide-toggle.mat-primary,
+    .mat-mdc-slide-toggle.mat-accent {
+        --mat-slide-toggle-selected-track-color: var(--tlr-accent);
+        --mat-slide-toggle-selected-hover-track-color: var(--tlr-accent);
+        --mat-slide-toggle-selected-focus-track-color: var(--tlr-accent);
+        --mat-slide-toggle-selected-pressed-track-color: var(--tlr-accent);
+        --mat-slide-toggle-selected-handle-color: #fff;
+        --mat-slide-toggle-selected-hover-handle-color: #fff;
+        --mat-slide-toggle-selected-focus-handle-color: #fff;
+        --mat-slide-toggle-selected-pressed-handle-color: #fff;
+        --mat-slide-toggle-selected-icon-color: #0b0f15;
+        --mat-slide-toggle-unselected-track-color: rgba(255, 255, 255, 0.14);
+        --mat-slide-toggle-unselected-hover-track-color: rgba(255, 255, 255, 0.18);
+        --mat-slide-toggle-unselected-focus-track-color: rgba(255, 255, 255, 0.18);
+        --mat-slide-toggle-unselected-pressed-track-color: rgba(255, 255, 255, 0.18);
+        --mat-slide-toggle-unselected-handle-color: #aeb7c3;
+        --mat-slide-toggle-unselected-hover-handle-color: #c5ccd6;
+        --mat-slide-toggle-unselected-focus-handle-color: #c5ccd6;
+        --mat-slide-toggle-unselected-pressed-handle-color: #c5ccd6;
+        --mat-slide-toggle-unselected-icon-color: #0b0f15;
+        --mat-slide-toggle-label-text-color: var(--tlr-text);
     }
+}
+
+/* Overlays render in .cdk-overlay-container, outside .thinline-skin. */
+.mat-mdc-snack-bar-container {
+    --mat-snack-bar-container-color: #1a222a;
+    --mat-snack-bar-supporting-text-color: var(--tlr-text);
+    --mat-snack-bar-button-color: var(--tlr-accent);
+}
+
+.mat-mdc-select-panel:not(.admin-select-panel):not(.tlr-settings-select-panel) {
+    --mat-select-panel-background-color: #151b24;
+    --mat-option-label-text-color: var(--tlr-text);
+    --mat-option-hover-state-layer-color: rgba(255, 255, 255, 0.06);
+    --mat-option-focus-state-layer-color: rgba(255, 255, 255, 0.08);
+    --mat-option-selected-state-layer-color: rgba(var(--tlr-accent-rgb), 0.14);
+    --mat-option-selected-state-label-text-color: var(--tlr-accent);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Alerts groups — feed rows, not boxed LCD panels */

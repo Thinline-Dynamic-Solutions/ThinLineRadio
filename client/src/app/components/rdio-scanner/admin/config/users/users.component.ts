@@ -26,6 +26,8 @@ import { PageEvent } from '@angular/material/paginator';
 import { RdioScannerAdminService, System, Apikey } from '../../admin.service';
 import { InviteUserDialogComponent, InvitationResultsDialogComponent, CreateUserDialogComponent, ResetPasswordDialogComponent } from './invite-user-dialog.component';
 import { TransferUserDialogComponent } from './transfer-user-dialog.component';
+import { DelayModerationDialogComponent, DelayModerationDialogData } from './delay-moderation-dialog.component';
+import { AdminRoleDialogComponent, AdminRoleDialogData } from './admin-role-dialog.component';
 import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
 
 export interface FCMToken {
@@ -65,6 +67,12 @@ export interface User {
     userGroupName?: string;
     isGroupAdmin?: boolean;
     systemAdmin?: boolean;
+    publicApiEnabled?: boolean;
+    publicApiCapabilities?: {
+        health?: boolean;
+        transcripts?: boolean;
+        alertWebhooks?: boolean;
+    };
     pushSystemNoAudioAlerts?: boolean;
     pushApiKeyNoAudioAlerts?: boolean;
     systemNoAudioAlertSystems?: string;
@@ -134,11 +142,21 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     availableGroups: any[] = [];
     inviting = false;
     systems: System[] = [];
+    defaultSystemDelay = 0;
     apikeys: Apikey[] = [];
     configGroups: any[] = [];
     configTags: any[] = [];
     systemDelayEntries: Array<{systemId: number, delay: number}> = [];
     talkgroupDelayEntries: Array<{systemId: number, talkgroupId: number, delay: number}> = [];
+    publicApiKeysForEdit: Array<{
+        id: number;
+        name: string;
+        keyPrefix: string;
+        lastUsedAt: number;
+        requestCount: number;
+        disabled: boolean;
+    }> = [];
+    publicApiKeysLoading = false;
 
     /** Only validate ZIP format when the field has a value — blank is allowed. */
     private static optionalZipValidator(control: AbstractControl): ValidationErrors | null {
@@ -222,6 +240,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             userGroupIds: [[] as number[]],
             isGroupAdmin: [false],
             systemAdmin: [false],
+            publicApiEnabled: [false],
+            publicApiHealth: [false],
+            publicApiTranscripts: [false],
+            publicApiAlertWebhooks: [false],
             systemNoAudioAlertSystemIds: [[] as number[]],
             apiKeyNoAudioAlertApiKeyIds: [[] as number[]],
             pushSystemNoAudioAlerts: [false],
@@ -280,6 +302,8 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 userGroupIds: RdioScannerAdminUsersComponent.normalizeGroupIds(user.userGroupIds, user.userGroupId),
                 isGroupAdmin: user.isGroupAdmin || false,
                 systemAdmin: user.systemAdmin || false,
+                publicApiEnabled: user.publicApiEnabled || false,
+                publicApiCapabilities: user.publicApiCapabilities || {},
                 systemNoAudioAlertSystemIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.systemNoAudioAlertSystems),
                 apiKeyNoAudioAlertApiKeyIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.apiKeyNoAudioAlertApiKeys),
                 pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
@@ -340,6 +364,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     async loadSystems(): Promise<void> {
         const config = await this.adminService.getConfig();
         this.systems = config.systems || [];
+        this.defaultSystemDelay = config.options?.defaultSystemDelay || 0;
         
         // Also store groups and tags for the system selection dialog
         this.configGroups = config.groups || [];
@@ -943,6 +968,10 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             userGroupIds: RdioScannerAdminUsersComponent.normalizeGroupIds(user.userGroupIds, user.userGroupId),
             isGroupAdmin: user.isGroupAdmin || false,
             systemAdmin: user.systemAdmin || false,
+            publicApiEnabled: user.publicApiEnabled || false,
+            publicApiHealth: !!user.publicApiCapabilities?.health,
+            publicApiTranscripts: !!user.publicApiCapabilities?.transcripts,
+            publicApiAlertWebhooks: !!user.publicApiCapabilities?.alertWebhooks,
             systemNoAudioAlertSystemIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.systemNoAudioAlertSystems),
             apiKeyNoAudioAlertApiKeyIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.apiKeyNoAudioAlertApiKeys),
             pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
@@ -953,6 +982,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             stripeSubscriptionId: user.stripeSubscriptionId || '',
             subscriptionStatus: user.subscriptionStatus || ''
         });
+        void this.loadPublicApiKeysForUser(user.id);
 
         // Parse system delays JSON
         this.systemDelayEntries = [];
@@ -1065,6 +1095,12 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             ),
             isGroupAdmin: !!formValue.isGroupAdmin,
             systemAdmin: !!formValue.systemAdmin,
+            publicApiEnabled: !!formValue.publicApiEnabled,
+            publicApiCapabilities: {
+                health: !!formValue.publicApiHealth,
+                transcripts: !!formValue.publicApiTranscripts,
+                alertWebhooks: !!formValue.publicApiAlertWebhooks,
+            },
             systemNoAudioAlertSystems: RdioScannerAdminUsersComponent.serializeNoAudioAlertIds(formValue.systemNoAudioAlertSystemIds),
             apiKeyNoAudioAlertApiKeys: RdioScannerAdminUsersComponent.serializeNoAudioAlertIds(formValue.apiKeyNoAudioAlertApiKeyIds),
             pushSystemNoAudioAlerts: !!formValue.pushSystemNoAudioAlerts,
@@ -1412,6 +1448,109 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         });
     }
 
+    copyMobileSetupLink(user: User): void {
+        this.http.post<{ url: string }>(`/api/admin/users/${user.id}/mobile-setup-link`, {}, { headers: this.adminService.getAuthHeaders() }).subscribe({
+            next: async (response) => {
+                try {
+                    await navigator.clipboard.writeText(response.url);
+                    this.matSnackBar.open(`App setup link for ${user.email} copied. It works once, with their password; any earlier link stops working.`, 'Close', {
+                        duration: 8000,
+                        panelClass: ['success-snackbar']
+                    });
+                } catch {
+                    window.prompt('Copy this app setup link:', response.url);
+                }
+            },
+            error: (error) => {
+                const message = error.error?.error || error.error?.message || 'Failed to create app setup link';
+                this.matSnackBar.open(message, 'Close', {
+                    duration: 5000,
+                    panelClass: ['error-snackbar']
+                });
+            }
+        });
+    }
+
+    get limited(): boolean {
+        return this.adminService.limited;
+    }
+
+    can(permission: string): boolean {
+        return this.adminService.can(permission);
+    }
+
+    async editAdminRole(user: User): Promise<void> {
+        const fail = (error: any) => this.matSnackBar.open(error?.error?.error || 'Failed to update admin role', 'Close', {
+            duration: 5000,
+            panelClass: ['error-snackbar']
+        });
+        try {
+            const [current, catalog] = await Promise.all([
+                this.adminService.getUserAdminRole(user.id),
+                this.adminService.getAdminRoles(),
+            ]);
+            const data: AdminRoleDialogData = {
+                email: user.email,
+                roleId: current.roleId,
+                systemAdmin: current.systemAdmin,
+                roles: catalog.roles,
+            };
+            this.matDialog.open(AdminRoleDialogComponent, { data, width: '440px' }).afterClosed().subscribe(async (roleId?: number) => {
+                if (roleId === undefined) {
+                    return;
+                }
+                try {
+                    await this.adminService.setUserAdminRole(user.id, roleId);
+                    const role = catalog.roles.find(r => r.id === roleId);
+                    this.matSnackBar.open(
+                        role ? `${user.email} now has the ${role.name} role.` : `${user.email} no longer has admin access.`,
+                        'Close',
+                        { duration: 5000, panelClass: ['success-snackbar'] }
+                    );
+                } catch (error) {
+                    fail(error);
+                }
+            });
+        } catch (error) {
+            fail(error);
+        }
+    }
+
+    editDelayModeration(user: User): void {
+        const url = `/api/admin/users/${user.id}/delay-moderation`;
+        const headers = this.adminService.getAuthHeaders();
+        const fail = (error: any) => this.matSnackBar.open(error.error?.error || 'Failed to update delay moderation', 'Close', {
+            duration: 5000,
+            panelClass: ['error-snackbar']
+        });
+        this.http.get<{ scope: string[] }>(url, { headers }).subscribe({
+            next: (current) => {
+                const data: DelayModerationDialogData = {
+                    email: user.email,
+                    scope: current.scope || [],
+                    systems: this.systems,
+                    defaultDelay: this.defaultSystemDelay,
+                };
+                this.matDialog.open(DelayModerationDialogComponent, { data, width: '520px' }).afterClosed().subscribe((scope?: string[]) => {
+                    if (!scope) {
+                        return;
+                    }
+                    this.http.put<{ scope: string[] }>(url, { scope }, { headers }).subscribe({
+                        next: (saved) => this.matSnackBar.open(
+                            saved.scope.length > 0
+                                ? `${user.email} can now moderate delayed calls.`
+                                : `${user.email} is no longer a delay moderator.`,
+                            'Close',
+                            { duration: 5000, panelClass: ['success-snackbar'] }
+                        ),
+                        error: fail,
+                    });
+                });
+            },
+            error: fail,
+        });
+    }
+
     deleteDeviceToken(userId: number, tokenId: number): void {
         if (!confirm('Are you sure you want to delete this device token? The user will need to re-register their device.')) {
             return;
@@ -1437,5 +1576,55 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 });
             }
         });
+    }
+
+    async loadPublicApiKeysForUser(userId: number): Promise<void> {
+        if (this.limited) {
+            this.publicApiKeysForEdit = [];
+            return;
+        }
+        this.publicApiKeysLoading = true;
+        this.publicApiKeysForEdit = [];
+        try {
+            const keys = await this.adminService.listPublicApiKeys();
+            this.publicApiKeysForEdit = (keys || [])
+                .filter((k: any) => Number(k.userId) === Number(userId))
+                .map((k: any) => ({
+                    id: Number(k.id),
+                    name: k.name || '',
+                    keyPrefix: k.keyPrefix || '',
+                    lastUsedAt: Number(k.lastUsedAt) || 0,
+                    requestCount: Number(k.requestCount) || 0,
+                    disabled: !!k.disabled,
+                }));
+        } catch (err) {
+            console.error('Failed to load public API keys', err);
+        } finally {
+            this.publicApiKeysLoading = false;
+            this.cdr.detectChanges();
+        }
+    }
+
+    async disablePublicApiKey(keyId: number): Promise<void> {
+        if (!confirm('Disable this public API key? The user will need to mint a new one.')) {
+            return;
+        }
+        try {
+            await this.adminService.disablePublicApiKey(keyId);
+            this.matSnackBar.open('API key disabled', 'Close', { duration: 3000 });
+            if (this.editingUser) {
+                await this.loadPublicApiKeysForUser(this.editingUser.id);
+            }
+        } catch (err: any) {
+            this.matSnackBar.open(err?.error?.error || 'Failed to disable key', 'Close', { duration: 5000 });
+        }
+    }
+
+    formatPublicApiLastUsed(ts: number): string {
+        if (!ts || ts <= 0) {
+            return 'Never';
+        }
+        const ms = ts > 1e12 ? ts : ts * 1000;
+        return new Date(ms).toLocaleString();
     }
 }

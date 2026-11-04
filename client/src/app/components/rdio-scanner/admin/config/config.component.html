@@ -26,31 +26,46 @@
   <nav class="config-sidebar">
     <div class="sidebar-section-label">Configuration Sections</div>
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'user-groups'"
-      (click)="setSection('user-groups')">
-      <mat-icon>group_work</mat-icon>
-      <span>User Groups</span>
-    </button>
+    @if (sectionAllowed('user-groups')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'user-groups'"
+        (click)="setSection('user-groups')">
+        <mat-icon>group_work</mat-icon>
+        <span>User Groups</span>
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'users'"
-      (click)="setSection('users')">
-      <mat-icon>people</mat-icon>
-      <span>Users</span>
-    </button>
+    @if (sectionAllowed('users')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'users'"
+        (click)="setSection('users')">
+        <mat-icon>people</mat-icon>
+        <span>Users</span>
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'apikeys'"
-      (click)="setSection('apikeys')">
-      <mat-icon>vpn_key</mat-icon>
-      <span>API Keys</span>
-      @if (form?.dirty && form?.get('apikeys')?.invalid) {
-        <mat-icon class="error-dot" color="warn">error</mat-icon>
-      }
-    </button>
+    @if (!limited) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'admin-roles'"
+        (click)="setSection('admin-roles')">
+        <mat-icon>admin_panel_settings</mat-icon>
+        <span>Admin Roles</span>
+      </button>
+    }
 
-    @if (!docker) {
+    @if (sectionAllowed('apikeys')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'apikeys'"
+        (click)="setSection('apikeys')">
+        <mat-icon>vpn_key</mat-icon>
+        <span>API Keys</span>
+        @if (form?.dirty && form?.get('apikeys')?.invalid) {
+          <mat-icon class="error-dot" color="warn">error</mat-icon>
+        }
+      </button>
+    }
+
+    @if (!docker && !limited) {
       <button type="button" class="sidebar-item"
         [class.active]="activeSection === 'dirwatch'"
         (click)="setSection('dirwatch')">
@@ -62,37 +77,44 @@
       </button>
     }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'downstreams'"
-      (click)="setSection('downstreams')">
-      <mat-icon>share</mat-icon>
-      <span>Downstreams</span>
-      @if (form?.dirty && form?.get('downstreams')?.invalid) {
-        <mat-icon class="error-dot" color="warn">error</mat-icon>
-      }
-    </button>
+    @if (sectionAllowed('downstreams')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'downstreams'"
+        (click)="setSection('downstreams')">
+        <mat-icon>share</mat-icon>
+        <span>Downstreams</span>
+        @if (form?.dirty && form?.get('downstreams')?.invalid) {
+          <mat-icon class="error-dot" color="warn">error</mat-icon>
+        }
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'groups-tags'"
-      (click)="setSection('groups-tags')">
-      <mat-icon>workspaces</mat-icon>
-      <span>Groups &amp; Tags</span>
-      @if (form?.dirty && (form?.get('groups')?.invalid || form?.get('tags')?.invalid)) {
-        <mat-icon class="error-dot" color="warn">error</mat-icon>
-      }
-    </button>
+    @if (sectionAllowed('groups-tags')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'groups-tags'"
+        (click)="setSection('groups-tags')">
+        <mat-icon>workspaces</mat-icon>
+        <span>Groups &amp; Tags</span>
+        @if (form?.dirty && (form?.get('groups')?.invalid || form?.get('tags')?.invalid)) {
+          <mat-icon class="error-dot" color="warn">error</mat-icon>
+        }
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'options'"
-      (click)="setSection('options')">
-      <mat-icon>tune</mat-icon>
-      <span>Options and Settings</span>
-      @if (form?.dirty && form?.get('options')?.invalid) {
-        <mat-icon class="error-dot" color="warn">error</mat-icon>
-      }
-    </button>
+    @if (sectionAllowed('options')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'options'"
+        (click)="setSection('options')">
+        <mat-icon>tune</mat-icon>
+        <span>Options and Settings</span>
+        @if (form?.dirty && form?.get('options')?.invalid) {
+          <mat-icon class="error-dot" color="warn">error</mat-icon>
+        }
+      </button>
+    }
 
     <!-- ── Systems expandable nav group ── -->
+    @if (sectionAllowed('systems')) {
     <div class="sidebar-nav-group">
       <button type="button" class="sidebar-item sidebar-group-toggle"
         [class.active]="activeSection === 'systems' || activeSection === 'system-detail'"
@@ -109,10 +131,12 @@
 
       <div class="sidebar-sub-nav" [class.visible]="systemsNavExpanded">
         <!-- Add System -->
-        <button type="button" class="sidebar-sub-item add-system-btn" (click)="addNewSystem()">
-          <mat-icon>add_circle_outline</mat-icon>
-          <span>Add System</span>
-        </button>
+        @if (can('systems.edit')) {
+          <button type="button" class="sidebar-sub-item add-system-btn" (click)="addNewSystem()">
+            <mat-icon>add_circle_outline</mat-icon>
+            <span>Add System</span>
+          </button>
+        }
 
         <!-- Individual systems -->
         @for (sys of systemsList; track sys) {
@@ -133,52 +157,101 @@
         }
       </div>
     </div>
+    }
 
     <div class="sidebar-section-label sidebar-section-label--spaced">Operations</div>
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'logs'"
-      (click)="setSection('logs')">
-      <mat-icon>article</mat-icon>
-      <span>Logs</span>
-    </button>
+    @if (sectionAllowed('logs')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'logs'"
+        (click)="setSection('logs')">
+        <mat-icon>article</mat-icon>
+        <span>Logs</span>
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'listeners'"
-      (click)="setSection('listeners')">
-      <mat-icon>headset</mat-icon>
-      <span>Listeners</span>
-    </button>
+    @if (sectionAllowed('listeners')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'listeners'"
+        (click)="setSection('listeners')">
+        <mat-icon>headset</mat-icon>
+        <span>Listeners</span>
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'system-health'"
-      (click)="setSection('system-health')">
-      <mat-icon>health_and_safety</mat-icon>
-      <span>System Health</span>
-    </button>
+    @if (sectionAllowed('share-links')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'share-links'"
+        (click)="setSection('share-links')">
+        <mat-icon>link</mat-icon>
+        <span>Share Links</span>
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'sdr-health'"
-      (click)="setSection('sdr-health')">
-      <mat-icon>podcasts</mat-icon>
-      <span>SDR Health</span>
-    </button>
+    @if (sectionAllowed('call-natures')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'call-natures'"
+        (click)="setSection('call-natures')">
+        <mat-icon>category</mat-icon>
+        <span>Call Natures</span>
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'tools'"
-      (click)="setSection('tools')">
-      <mat-icon>build</mat-icon>
-      <span>Tools</span>
-    </button>
+    @if (sectionAllowed('system-health')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'system-health'"
+        (click)="setSection('system-health')">
+        <mat-icon>health_and_safety</mat-icon>
+        <span>System Health</span>
+      </button>
+    }
 
-    <button type="button" class="sidebar-item"
-      [class.active]="activeSection === 'assistant'"
-      (click)="setSection('assistant')">
-      <mat-icon>smart_toy</mat-icon>
-      <span>Assistant</span>
-    </button>
+    @if (sectionAllowed('dispatch-alerts')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'dispatch-alerts'"
+        (click)="setSection('dispatch-alerts')">
+        <mat-icon>notification_important</mat-icon>
+        <span>Dispatch Alerts</span>
+      </button>
+    }
 
-    @if (isCentrallyManaged) {
+    @if (sectionAllowed('server-alerts')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'server-alerts'"
+        (click)="setSection('server-alerts')">
+        <mat-icon>campaign</mat-icon>
+        <span>Server Alerts</span>
+      </button>
+    }
+
+    @if (sectionAllowed('sdr-health')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'sdr-health'"
+        (click)="setSection('sdr-health')">
+        <mat-icon>podcasts</mat-icon>
+        <span>SDR Health</span>
+      </button>
+    }
+
+    @if (sectionAllowed('tools')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'tools'"
+        (click)="setSection('tools')">
+        <mat-icon>build</mat-icon>
+        <span>Tools</span>
+      </button>
+    }
+
+    @if (sectionAllowed('assistant')) {
+      <button type="button" class="sidebar-item"
+        [class.active]="activeSection === 'assistant'"
+        (click)="setSection('assistant')">
+        <mat-icon>smart_toy</mat-icon>
+        <span>Assistant</span>
+      </button>
+    }
+
+    @if (isCentrallyManaged && !limited) {
       <button type="button" class="sidebar-item"
         [class.active]="activeSection === 'central-management'"
         (click)="setSection('central-management')">
@@ -196,6 +269,12 @@
       <rdio-scanner-admin-logs #logsComponent></rdio-scanner-admin-logs>
     } @else if (activeSection === 'listeners') {
       <rdio-scanner-admin-listeners></rdio-scanner-admin-listeners>
+    } @else if (activeSection === 'share-links') {
+      <rdio-scanner-admin-share-links></rdio-scanner-admin-share-links>
+    } @else if (activeSection === 'dispatch-alerts') {
+      <rdio-scanner-admin-dispatch-alerts></rdio-scanner-admin-dispatch-alerts>
+    } @else if (activeSection === 'server-alerts') {
+      <rdio-scanner-admin-server-alerts></rdio-scanner-admin-server-alerts>
     } @else if (activeSection === 'system-health') {
       <rdio-scanner-admin-system-health></rdio-scanner-admin-system-health>
     } @else if (activeSection === 'sdr-health') {
@@ -205,6 +284,10 @@
         (config)="onConfigFromTools($event)"
         (configSaved)="onConfigSavedFromTools($event)">
       </rdio-scanner-admin-tools>
+    } @else if (activeSection === 'admin-roles') {
+      <rdio-scanner-admin-roles></rdio-scanner-admin-roles>
+    } @else if (activeSection === 'call-natures') {
+      <rdio-scanner-admin-call-natures></rdio-scanner-admin-call-natures>
     } @else if (activeSection === 'assistant') {
       <rdio-scanner-admin-assistant></rdio-scanner-admin-assistant>
     } @else if (activeSection === 'central-management') {
@@ -293,6 +376,9 @@
                   [systemData]="getSystemData(activeSystemForm)"
                   [saving]="savingSystem"
                   [saveSuccess]="systemSaveSuccess"
+                  [systems]="systemsList"
+                  [savedSystems]="originalConfig.systems || []"
+                  (serverChanged)="reloadAndOpenSystem($event)"
                   (remove)="removeCurrentSystem()"
                   (save)="saveCurrentSystem()"
                   (onTalkgroupsLoaded)="markSystemTalkgroupsLoaded(activeSystemForm)">

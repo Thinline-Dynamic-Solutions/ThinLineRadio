@@ -38,6 +38,8 @@ func (controller *Controller) userHasSystemAlertAccess(user *User, alert *System
 	switch alert.AlertType {
 	case "manual":
 		return true
+	case dispatchAlertType:
+		return userIsDispatchRecipient(user, data)
 	case "no_audio", "no_audio_received":
 		if data == nil || data.SystemId == 0 {
 			return false

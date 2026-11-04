@@ -129,8 +129,29 @@ export interface CopilotChatResponse {
     error?: string;
 }
 
+export interface AdminSession {
+    systemAdmin: boolean;
+    actor?: string;
+    role?: string;
+    permissions: string[];
+}
+
+export interface AdminPermission {
+    key: string;
+    label: string;
+    group: string;
+}
+
+export interface AdminRole {
+    id: number;
+    name: string;
+    permissions: string[];
+    members?: number;
+}
+
 export interface AdminEvent {
     authenticated?: boolean;
+    session?: AdminSession;
     config?: Config;
     docker?: boolean;
     passwordNeedChange?: boolean;
@@ -256,6 +277,18 @@ export interface CallNaturePhraseScanResponse {
     message?: string;
 }
 
+export interface UserGroupFeatures {
+    liveFeed?: boolean;
+    replay?: boolean;
+    channels?: boolean;
+    alerts?: boolean;
+    transcripts?: boolean;
+    stats?: boolean;
+    map?: boolean;
+    settings?: boolean;
+    alertsSideRail?: boolean;
+}
+
 export interface UserGroup {
     id?: number;
     name?: string;
@@ -267,6 +300,9 @@ export interface UserGroup {
     /** When true, new systems/talkgroups are auto-granted (wildcards) and clients default them on. */
     autoEnableNewTalkgroups?: boolean;
     isPublicRegistration?: boolean;
+    /** Anonymous live access for this group's systems/features without signup. */
+    isFreeGroup?: boolean;
+    features?: UserGroupFeatures;
     billingEnabled?: boolean;
     billingMode?: string;
     stripePriceId?: string;
@@ -725,6 +761,72 @@ export interface System {
     autoLearnUnitAliasesAutoOffDays?: number;
     autoLearnUnitAliasesExpiresAt?: number;
     incidentMapping?: IncidentMappingConfig;
+    /** Takes uploads and hands each call to the subsystem that owns its talkgroup; hidden from listeners. */
+    isMain?: boolean;
+    /** Database ids of the main systems this subsystem is under. */
+    parentIds?: number[];
+    /** Talkgroup ID → main system database id, for subsystems under more than one main system. */
+    talkgroupNetworks?: Record<string, number>;
+    radioReference?: RadioReferenceLink;
+}
+
+export interface RadioReferenceLink {
+    systemId: number;
+    systemName: string;
+    stateId: number;
+    stateName: string;
+    countyId: number;
+    countyName: string;
+}
+
+export interface RRFields {
+    label: string;
+    name: string;
+    group: string;
+    tag: string;
+}
+
+export interface RRReviewItem {
+    systemId: number;
+    systemLabel: string;
+    ref: number;
+    category: string;
+    current: RRFields;
+    proposed: RRFields;
+    changes: string[];
+    reasons?: string[];
+}
+
+export interface RRReview {
+    systemId: number;
+    systemLabel: string;
+    rrSystemId: number;
+    rrSystemName: string;
+    checkedAt: number;
+    error?: string;
+    talkgroups: number;
+    rrTalkgroups: number;
+    fill: RRReviewItem[];
+    differ: RRReviewItem[];
+    missing: RRReviewItem[];
+    notInRR: RRReviewItem[];
+    targets: { id: number; label: string }[];
+    groupMap: Record<string, string>;
+}
+
+export interface RRUpdateSummary {
+    systemId: number;
+    systemLabel: string;
+    isMain: boolean;
+    rrSystemId: number;
+    rrSystemName: string;
+    checkedAt: number;
+    running: boolean;
+    error?: string;
+    fill: number;
+    differ: number;
+    missing: number;
+    notInRR: number;
 }
 
 export interface Tag {
@@ -839,6 +941,7 @@ enum url {
 }
 
 const SESSION_STORAGE_KEY = 'rdio-scanner-admin-token';
+const LIMITED_TOKEN_PREFIX = 'tlr-role-';
 
 /** Fixed relay server URL — must match server/getRelayServerURL() in TLR server. */
 export const RELAY_SERVER_URL = 'https://app.thinlineradio.com';
@@ -866,6 +969,76 @@ export class RdioScannerAdminService implements OnDestroy {
         return !!this.token;
     }
 
+    /** Session opened through an admin role rather than as a system admin. */
+    get limited(): boolean {
+        return this.token.startsWith(LIMITED_TOKEN_PREFIX);
+    }
+
+    session: AdminSession | undefined;
+
+    /** Whether the current session may use a permission. System admins may use all of them. */
+    can(permission: string): boolean {
+        if (!this.limited) return true;
+        return !!this.session?.permissions?.includes(permission);
+    }
+
+    async loadSession(): Promise<AdminSession | undefined> {
+        const token = this.token;
+        if (!token) {
+            this.session = undefined;
+            return undefined;
+        }
+        try {
+            const session = await firstValueFrom(this.ngHttpClient.get<AdminSession>(
+                this.getUrl('session'),
+                { headers: new HttpHeaders({ Authorization: token }), responseType: 'json' },
+            ));
+            if (this.token === token) {
+                this.session = session;
+                this.event.emit({ session });
+            }
+        } catch (error) {
+            // A token replaced while this request was in flight must not log out its successor.
+            if (this.token === token) {
+                this.errorHandler(error);
+            }
+        }
+        return this.session;
+    }
+
+    async getAdminRoles(): Promise<{ roles: AdminRole[]; permissions: AdminPermission[] }> {
+        return firstValueFrom(this.ngHttpClient.get<{ roles: AdminRole[]; permissions: AdminPermission[] }>(
+            this.getUrl('roles'),
+            { headers: this.getHeaders(), responseType: 'json' },
+        ));
+    }
+
+    async saveAdminRole(role: { id?: number; name: string; permissions: string[] }): Promise<AdminRole> {
+        const options = { headers: this.getHeaders(), responseType: 'json' as const };
+        return firstValueFrom(role.id
+            ? this.ngHttpClient.put<AdminRole>(this.getUrl(`roles/${role.id}`), role, options)
+            : this.ngHttpClient.post<AdminRole>(this.getUrl('roles'), role, options));
+    }
+
+    async deleteAdminRole(id: number): Promise<void> {
+        await firstValueFrom(this.ngHttpClient.delete(this.getUrl(`roles/${id}`), { headers: this.getHeaders() }));
+    }
+
+    async getUserAdminRole(userId: number): Promise<{ roleId: number; systemAdmin: boolean }> {
+        return firstValueFrom(this.ngHttpClient.get<{ roleId: number; systemAdmin: boolean }>(
+            this.getUrl(`users/${userId}/admin-role`),
+            { headers: this.getHeaders(), responseType: 'json' },
+        ));
+    }
+
+    async setUserAdminRole(userId: number, roleId: number): Promise<void> {
+        await firstValueFrom(this.ngHttpClient.put(
+            this.getUrl(`users/${userId}/admin-role`),
+            { roleId },
+            { headers: this.getHeaders(), responseType: 'json' },
+        ));
+    }
+
     get docker() {
         return this._docker;
     }
@@ -881,6 +1054,7 @@ export class RdioScannerAdminService implements OnDestroy {
     /** Set a token issued externally (e.g. by Central Management for passwordless admin access). */
     setTokenFromExternal(token: string): void {
         this.token = token;
+        this.loadSession();
         this.event.emit({ authenticated: this.authenticated });
     }
 
@@ -903,6 +1077,9 @@ export class RdioScannerAdminService implements OnDestroy {
         private ngHttpClient: HttpClient,
     ) {
         this.configWebSocketOpen();
+        if (this.token) {
+            this.loadSession();
+        }
     }
 
     ngOnDestroy(): void {
@@ -1514,6 +1691,7 @@ export class RdioScannerAdminService implements OnDestroy {
             ));
             if (!res?.token) return false;
             this.token = res.token;
+            await this.loadSession();
             this.event.emit({ authenticated: true, passwordNeedChange: false });
             this.configWebSocketOpen();
             return true;
@@ -1585,6 +1763,7 @@ export class RdioScannerAdminService implements OnDestroy {
             this.configWebSocketClose();
 
             this.token = '';
+            this.session = undefined;
 
             this.event.emit({ authenticated: this.authenticated });
 
@@ -1710,6 +1889,9 @@ export class RdioScannerAdminService implements OnDestroy {
 
     /** API-driven save for the API Keys list. Sends the full list; server diffs + persists + emits. */
     async getApikeys(): Promise<any[]> {
+        if (this.limited) {
+            return [];
+        }
         try {
             const res = await firstValueFrom(this.ngHttpClient.get<{ apikeys: any[] }>(
                 this.getUrl('apikeys'),
@@ -2009,17 +2191,50 @@ export class RdioScannerAdminService implements OnDestroy {
         }
     }
 
-    async saveSystem(system: any): Promise<any[] | undefined> {
+    async saveSystem(system: any): Promise<{ systems: any[]; accessWarnings: string[]; error?: string } | undefined> {
         try {
-            const res = await firstValueFrom(this.ngHttpClient.put<{ systems: any[] }>(
+            const res = await firstValueFrom(this.ngHttpClient.put<{ systems: any[]; accessWarnings?: string[] }>(
                 this.getUrl('systems/save'), system,
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
-            return res.systems;
+            return { systems: res.systems, accessWarnings: res.accessWarnings || [] };
         } catch (error) {
+            if (error instanceof HttpErrorResponse && error.status === 400 && error.error?.error) {
+                return { systems: [], accessWarnings: [], error: error.error.error };
+            }
             this.errorHandler(error);
             return undefined;
         }
+    }
+
+    async getRRUpdates(): Promise<RRUpdateSummary[]> {
+        const res = await firstValueFrom(this.ngHttpClient.get<{ systems: RRUpdateSummary[] }>(
+            this.getUrl('rr-updates'), { headers: this.getHeaders(), responseType: 'json' },
+        ));
+        return res.systems || [];
+    }
+
+    async getRRReview(systemId: number): Promise<{ review: RRReview | null; running: boolean }> {
+        return firstValueFrom(this.ngHttpClient.get<{ review: RRReview | null; running: boolean }>(
+            this.getUrl(`rr-updates/review?systemId=${systemId}`), { headers: this.getHeaders(), responseType: 'json' },
+        ));
+    }
+
+    async checkRRUpdates(systemId: number): Promise<void> {
+        await firstValueFrom(this.ngHttpClient.post(
+            this.getUrl('rr-updates/check'), { systemId }, { headers: this.getHeaders(), responseType: 'json' },
+        ));
+    }
+
+    async applyRRUpdates(body: {
+        systemId: number;
+        fill: { systemId: number; ref: number }[];
+        differ: { systemId: number; ref: number }[];
+        missing: { systemId: number; ref: number }[];
+    }): Promise<{ review: RRReview | null; applied: number; systems: any[] }> {
+        return firstValueFrom(this.ngHttpClient.post<{ review: RRReview | null; applied: number; systems: any[] }>(
+            this.getUrl('rr-updates/apply'), body, { headers: this.getHeaders(), responseType: 'json' },
+        ));
     }
 
     /** API-driven delete for a SINGLE system by id. Returns the updated systems list. */
@@ -2203,6 +2418,18 @@ export class RdioScannerAdminService implements OnDestroy {
             allowAddExistingUsers: this.ngFormBuilder.control(userGroup?.allowAddExistingUsers),
             autoEnableNewTalkgroups: this.ngFormBuilder.control(userGroup?.autoEnableNewTalkgroups ?? false),
             isPublicRegistration: this.ngFormBuilder.control(userGroup?.isPublicRegistration),
+            isFreeGroup: this.ngFormBuilder.control(userGroup?.isFreeGroup ?? false),
+            features: this.ngFormBuilder.group({
+                liveFeed: this.ngFormBuilder.control(userGroup?.features?.liveFeed ?? true),
+                replay: this.ngFormBuilder.control(userGroup?.features?.replay ?? true),
+                channels: this.ngFormBuilder.control(userGroup?.features?.channels ?? true),
+                alerts: this.ngFormBuilder.control(userGroup?.features?.alerts ?? true),
+                transcripts: this.ngFormBuilder.control(userGroup?.features?.transcripts ?? true),
+                stats: this.ngFormBuilder.control(userGroup?.features?.stats ?? true),
+                map: this.ngFormBuilder.control(userGroup?.features?.map ?? true),
+                settings: this.ngFormBuilder.control(userGroup?.features?.settings ?? true),
+                alertsSideRail: this.ngFormBuilder.control(userGroup?.features?.alertsSideRail ?? true),
+            }),
             billingEnabled: this.ngFormBuilder.control(userGroup?.billingEnabled),
             billingMode: this.ngFormBuilder.control(userGroup?.billingMode || ''),
             stripePriceId: this.ngFormBuilder.control(userGroup?.stripePriceId || ''),
@@ -2482,6 +2709,10 @@ export class RdioScannerAdminService implements OnDestroy {
             autoLearnUnitAliasesAutoOffDays: this.ngFormBuilder.control(system?.autoLearnUnitAliasesAutoOffDays || 0, [Validators.min(0)]),
             autoLearnUnitAliasesExpiresAt: this.ngFormBuilder.control(system?.autoLearnUnitAliasesExpiresAt || 0),
             incidentMapping: this.newIncidentMappingForm(system?.incidentMapping, { inherit: false }),
+            isMain: this.ngFormBuilder.control(system?.isMain === true),
+            parentIds: this.ngFormBuilder.control(system?.parentIds || []),
+            talkgroupNetworks: this.ngFormBuilder.control(system?.talkgroupNetworks || {}),
+            radioReference: this.ngFormBuilder.control(system?.radioReference || null),
         });
     }
 
@@ -2797,7 +3028,7 @@ export class RdioScannerAdminService implements OnDestroy {
     }
 
     private configWebSocketOpen(): void {
-        if (!this.token) {
+        if (!this.token || this.limited) {
             return;
         }
 
@@ -3481,6 +3712,22 @@ export class RdioScannerAdminService implements OnDestroy {
       console.error('Failed to update user:', error);
       throw error;
     }
+  }
+
+  async listPublicApiKeys(): Promise<any[]> {
+    const response = await firstValueFrom(this.ngHttpClient.get<any>(
+      this.getUrl('/public-api/keys'),
+      { headers: this.getHeaders(), responseType: 'json' }
+    ));
+    return Array.isArray(response?.keys) ? response.keys : [];
+  }
+
+  async disablePublicApiKey(keyId: number): Promise<void> {
+    await firstValueFrom(this.ngHttpClient.post<any>(
+      this.getUrl(`/public-api/keys/${keyId}/disable`),
+      {},
+      { headers: this.getHeaders(), responseType: 'json' }
+    ));
   }
 
   async setUserSuspended(userId: number, suspended: boolean): Promise<any> {

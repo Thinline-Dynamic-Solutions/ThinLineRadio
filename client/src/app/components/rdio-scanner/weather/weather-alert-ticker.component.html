@@ -3,6 +3,7 @@
     [class.weather-alert-ticker--test]="testMode"
     [class.weather-alert-ticker--flash]="flashing && (alerts.length || testMode)"
     [class.weather-alert-ticker--ack]="!flashing && (alerts.length || testMode)"
+    [class.weather-alert-ticker--idle]="!alerts.length && !testMode"
     [attr.role]="(alerts.length || testMode) && flashing ? 'button' : null"
     [attr.tabindex]="(alerts.length || testMode) && flashing ? 0 : -1"
     [attr.aria-label]="flashing ? 'Active weather alert. Click to acknowledge.' : null"
@@ -10,7 +11,7 @@
     (click)="onTickerClick()"
     (keydown.enter)="onTickerClick()"
     (keydown.space)="$event.preventDefault(); onTickerClick()">
-    <mat-icon class="weather-alert-ticker__icon" aria-hidden="true">warning</mat-icon>
+    <mat-icon class="weather-alert-ticker__icon" aria-hidden="true">{{ (alerts.length || testMode) ? 'warning' : 'wb_sunny' }}</mat-icon>
     <div class="weather-alert-ticker__viewport" aria-live="polite">
       @if (!loading && (alerts.length || testMode)) {
         <div class="weather-alert-ticker__track">

@@ -6,34 +6,27 @@
   @if (!subscriptionActive && subscriptionChecked && !showCheckout) {
     <div class="lock-overlay">
       <div class="lock-card">
-        <mat-icon class="lock-icon">lock</mat-icon>
+        <div class="lock-card__icon">
+          <mat-icon>lock</mat-icon>
+        </div>
         @if (!isGroupAdminManaged) {
-          <h2>Subscription Required</h2>
-        }
-        @if (isGroupAdminManaged) {
-          <h2>Account Expired</h2>
-        }
-        @if (!isGroupAdminManaged) {
+          <h2>Subscription required</h2>
           <p>An active subscription is required to access the scanner.</p>
         }
         @if (isGroupAdminManaged) {
+          <h2>Account expired</h2>
           <p>Your account has expired. Please contact your group administrator.</p>
-        }
-        @if (isGroupAdminManaged) {
           <div class="lock-actions">
-            <button mat-raised-button color="primary"
+            <button mat-flat-button color="primary"
               (click)="transferToPersonalSubscription()" [disabled]="transferring">
               @if (transferring) {
                 <mat-spinner diameter="18" class="inline-spinner"></mat-spinner>
-              }
-              @if (!transferring) {
-                <span>Transfer to Personal Subscription</span>
-              }
-              @if (transferring) {
                 <span>Transferring…</span>
+              } @else {
+                <span>Transfer to personal subscription</span>
               }
             </button>
-            <button mat-stroked-button (click)="onSignOut()">Sign Out</button>
+            <button mat-stroked-button (click)="onSignOut()">Sign out</button>
           </div>
         }
       </div>
@@ -41,68 +34,116 @@
   }
 
   <!-- ═══════════════════════════════════════════════════════════════════
-  HEADER — brand + identity actions
+  TOP BAR — brand · feed status · weather ticker · actions
   ════════════════════════════════════════════════════════════════════ -->
   @if (isUserAuthenticated) {
-    <header class="console-header">
-      <div class="brand">
+    <header class="topbar">
+      <div class="topbar__brand">
         @if (!toolbarLogoError && toolbarLogoUrl) {
           <img
             [src]="toolbarLogoUrl"
             [style.border-radius]="getToolbarLogoBorderRadius()"
-            class="brand-logo"
+            class="topbar__logo"
             alt=""
             (error)="onToolbarLogoError($event)"
             (load)="toolbarLogoError = false">
         }
-        <span class="brand-text">{{ branding || 'ThinLine Radio' }}</span>
-        <img class="brand-tlr-logo"
-          src="assets/icons/tlr-logo.png"
-          alt="ThinLine Radio"
-          draggable="false">
-        <span class="brand-version">v{{ version }}</span>
+        <div class="topbar__titles">
+          <span class="topbar__name">{{ branding || 'ThinLine Radio' }}</span>
+          <span class="topbar__sub">
+            <img class="topbar__tlr" src="assets/icons/tlr-logo.png" alt="" draggable="false">
+            ThinLine Radio · v{{ version }}
+          </span>
+        </div>
       </div>
-      <rdio-scanner-weather-alert-ticker class="header-ticker"></rdio-scanner-weather-alert-ticker>
-      <div class="header-actions">
-        @if (isSystemAdmin) {
-          <button type="button"
-            mat-flat-button class="header-btn header-btn--admin"
+
+      <div class="status-pill" [attr.data-state]="feedState" [matTooltip]="feedStateTooltip">
+        <span class="status-pill__dot"></span>
+        <span class="status-pill__label">{{ feedStateLabel }}</span>
+      </div>
+
+      <rdio-scanner-weather-alert-ticker class="topbar__ticker"></rdio-scanner-weather-alert-ticker>
+
+      <div class="topbar__actions">
+        @if (delayModerator) {
+          <button type="button" class="icon-btn"
+            (click)="openDelayQueueDialog()"
+            matTooltip="Delay queue"
+            aria-label="Delay queue">
+            <mat-icon>gavel</mat-icon>
+          </button>
+        }
+        @if (publicApiEnabled) {
+          <button type="button" class="icon-btn"
+            (click)="openPublicApiDialog()"
+            matTooltip="API keys and webhooks"
+            aria-label="API keys and webhooks">
+            <mat-icon>api</mat-icon>
+          </button>
+        }
+        <button type="button" class="icon-btn"
+          [matMenuTriggerFor]="shortcutsMenu"
+          #shortcutsTrigger="matMenuTrigger"
+          matTooltip="Keyboard shortcuts (?)"
+          aria-label="Keyboard shortcuts">
+          <mat-icon>keyboard</mat-icon>
+        </button>
+        <button type="button" class="icon-btn"
+          (click)="toggleFullscreen.emit()"
+          matTooltip="Fullscreen"
+          aria-label="Fullscreen">
+          <mat-icon>fullscreen</mat-icon>
+        </button>
+        @if (hasAdminAccess) {
+          <button type="button" class="pill-btn pill-btn--accent"
             (click)="openAdminPanel()"
-            matTooltip="Open admin panel">
+            matTooltip="Open the admin panel in a new tab">
             <mat-icon>admin_panel_settings</mat-icon>
             <span>Admin</span>
           </button>
         }
-        <button type="button" mat-flat-button class="header-btn header-btn--danger"
+        <button type="button" class="pill-btn pill-btn--quiet"
           (click)="onSignOut()"
           matTooltip="Sign out">
           <mat-icon>logout</mat-icon>
-          <span>Sign Out</span>
-        </button>
-        <button type="button" mat-flat-button class="header-btn header-btn--ghost"
-          (click)="toggleFullscreen.emit()"
-          matTooltip="Fullscreen">
-          <mat-icon>fullscreen</mat-icon>
-          <span>Full</span>
+          <span>Sign out</span>
         </button>
       </div>
+
+      <mat-menu #shortcutsMenu="matMenu" class="tlr-lcd-menu tlr-shortcuts-menu" xPosition="before">
+        <div class="shortcuts" (click)="$event.stopPropagation()">
+          <div class="shortcuts__title">Keyboard shortcuts</div>
+          @for (s of shortcutList; track s.keys) {
+            <div class="shortcuts__row">
+              <span class="shortcuts__label">{{ s.label }}</span>
+              <span class="shortcuts__keys">
+                @for (k of s.keys.split(' '); track $index) {
+                  <kbd>{{ k }}</kbd>
+                }
+              </span>
+            </div>
+          }
+        </div>
+      </mat-menu>
     </header>
   }
 
   <!-- ═══════════════════════════════════════════════════════════════════
-  BOARD — scanner column + alerts rail + tabs
+  BOARD — scanner device · tabs · alerts rail
   ════════════════════════════════════════════════════════════════════ -->
   <div class="board" [class.disabled]="!subscriptionActive && subscriptionChecked">
 
     <div class="board-body" [class.board-body--solo]="!isTranscriptionEnabled">
       <aside class="scanner-column"
         [style.--hud-accent]="call ? nowPlayingTagColor(call) : '#4ccf70'">
-        <div class="hud-ambient" aria-hidden="true"></div>
 
-        <section class="hud-panel">
-          <div class="hud-brand" [class.is-linked]="linked">
-            <span class="hud-brand__dot"></span>
-            <span class="hud-brand__name">{{ branding || 'ThinLine Radio' }}</span>
+        <section class="device" [class.is-rx]="!!call">
+          <div class="device__glow" aria-hidden="true"></div>
+
+          <div class="device__head" [class.is-linked]="linked">
+            <span class="device__led" [matTooltip]="linked ? 'Connected to server' : 'Not connected'"></span>
+            <span class="device__name">{{ branding || 'ThinLine Radio' }}</span>
+            <span class="device__grille" aria-hidden="true"><i></i><i></i><i></i></span>
           </div>
 
           <div class="hud-lcd" [class.is-idle]="!call && !showScanningAnimation">
@@ -110,8 +151,8 @@
               <span class="hud-flag" [class.is-lit]="livefeedOnline">LIVE</span>
               <span class="hud-flag" [class.is-lit]="showScanningAnimation">SCAN</span>
               <span class="hud-flag hud-flag--rx" [class.is-lit]="!!call">RX</span>
-              <span class="hud-flag hud-flag--amber" [class.is-lit]="holdSys">HOLD SYS</span>
-              <span class="hud-flag hud-flag--amber" [class.is-lit]="holdTg">HOLD TG</span>
+              <span class="hud-flag hud-flag--amber" [class.is-lit]="holdSys">H·SYS</span>
+              <span class="hud-flag hud-flag--amber" [class.is-lit]="holdTg">H·TG</span>
               <span class="hud-flag hud-flag--amber" [class.is-lit]="livefeedPaused">PAUSE</span>
               <span class="hud-meter" [class.is-on]="!!call" aria-hidden="true">
                 <i></i><i></i><i></i><i></i><i></i>
@@ -119,39 +160,34 @@
             </div>
 
             <div class="hud-stats">
-              <span class="hud-stat">
+              <span class="hud-stat" matTooltip="Server time">
                 <mat-icon>schedule</mat-icon>
-                <span class="hud-stat__k">TIME</span>
                 <span class="hud-stat__v">{{ clock | instanceDate:timeFormat }}</span>
               </span>
-              <span class="hud-stat">
+              <span class="hud-stat" matTooltip="Listeners">
                 <mat-icon>people_outline</mat-icon>
-                <span class="hud-stat__k">LSN</span>
                 <span class="hud-stat__v">{{ showListenersCount ? listeners : '—' }}</span>
               </span>
-              <span class="hud-stat">
-                <mat-icon>playlist_play</mat-icon>
-                <span class="hud-stat__k">Q</span>
+              <span class="hud-stat" matTooltip="Calls waiting in queue">
+                <mat-icon>queue_music</mat-icon>
                 <span class="hud-stat__v">{{ callQueue }}</span>
               </span>
             </div>
 
-            <div class="hud-rule"></div>
-
-            <div class="hud-line">
-              <span class="hud-tag">SYS</span>
-              <span class="hud-line__v" [matTooltip]="lcdSystemLabel">{{ lcdSystemLabel }}</span>
-              <span class="hud-line__side-k">TGID</span>
-              <span class="hud-line__side-v">{{ lcdTgid }}</span>
+            <div class="hud-rows">
+              <div class="hud-line">
+                <span class="hud-tag">SYS</span>
+                <span class="hud-line__v" [matTooltip]="lcdSystemLabel">{{ lcdSystemLabel }}</span>
+                <span class="hud-line__side-k">TGID</span>
+                <span class="hud-line__side-v">{{ lcdTgid }}</span>
+              </div>
+              <div class="hud-line">
+                <span class="hud-tag">TAG</span>
+                <span class="hud-line__v">{{ lcdTagLabel }}</span>
+                <span class="hud-line__side-k">UID</span>
+                <span class="hud-line__side-v">{{ call ? displaySourceForNowPlaying(call) : '—' }}</span>
+              </div>
             </div>
-            <div class="hud-line">
-              <span class="hud-tag">TAG</span>
-              <span class="hud-line__v">{{ lcdTagLabel }}</span>
-              <span class="hud-line__side-k">UID</span>
-              <span class="hud-line__side-v">{{ call ? displaySourceForNowPlaying(call) : '—' }}</span>
-            </div>
-
-            <div class="hud-rule"></div>
 
             <div class="hud-hero">
               @if (showScanningAnimation) {
@@ -188,239 +224,298 @@
                     <i [style.--i]="seg"></i>
                   }
                 </div>
-              } @else {
+              } @else if (call) {
                 <div class="hud-hero__top">
-                  @if (call) {
-                    <span class="hud-tag hud-tag--wide">NOW PLAYING</span>
-                  }
-                  <span class="hud-bars" [class.is-on]="!!call" aria-hidden="true">
+                  <span class="hud-tag hud-tag--wide">NOW PLAYING</span>
+                  <span class="hud-bars is-on" aria-hidden="true">
                     <i></i><i></i><i></i><i></i>
                   </span>
-                  @if (call && (playbackMode || delayed)) {
-                    <span class="hud-delay" [matTooltip]="getDelayedTooltip()">{{ getDelayedText() }}</span>
+                  @if (playbackMode || delayed) {
+                    <span class="hud-chip" [matTooltip]="getDelayedTooltip()">{{ getDelayedText() }}</span>
                   }
                   @if (avoided) {
-                    <span class="hud-chip hud-chip--amber">AVOID</span>
+                    <span class="hud-chip">AVOID</span>
                   }
                   @if (patched) {
-                    <span class="hud-chip">PATCH</span>
+                    <span class="hud-chip hud-chip--cool">PATCH</span>
                   }
                 </div>
                 <div class="hud-hero__name" [matTooltip]="scannerTalkgroupLabel">{{ scannerTalkgroupLabel }}</div>
                 <div class="hud-hero__meta">
-                  <mat-icon>graphic_eq</mat-icon>
-                  <span class="hud-hero__freq">{{ call ? (formatFrequencyMHz(call.frequency) || '—') : '—' }}</span>
-                  <span class="hud-hero__clock">{{ call ? (call.dateTime | instanceDate:timeFormat) : '—' }}</span>
+                  <span class="hud-hero__freq">{{ formatFrequencyMHz(call.frequency) || '—' }}</span>
+                  <span class="hud-hero__clock">{{ call.dateTime | instanceDate:timeFormat }}</span>
+                </div>
+              } @else {
+                <div class="hud-idle">
+                  <span class="hud-idle__title">{{ livefeedPaused ? 'PAUSED' : (livefeedOnline ? 'STANDBY' : 'FEED OFF') }}</span>
+                  <span class="hud-idle__hint">
+                    @if (livefeedPaused) {
+                      Press RESUME or <kbd>Space</kbd>
+                    } @else if (livefeedOnline) {
+                      Waiting for traffic
+                    } @else {
+                      Press LIVE FEED or <kbd>L</kbd> to listen
+                    }
+                  </span>
                 </div>
               }
             </div>
 
             @if (isTranscriptionEnabled) {
               <div class="hud-transcript" [class.is-empty]="!call?.transcript">
-                <span class="hud-transcript__label">Transcript</span>
                 @if (call?.transcript) {
                   <p class="hud-transcript__text"
-                  [innerHTML]="renderTranscript(call!.transcript!, call!.transcriptAnnotations)"></p>
+                    [innerHTML]="renderTranscript(call!.transcript!, call!.transcriptAnnotations)"></p>
                 } @else {
-                  <p class="hud-transcript__text hud-transcript__text--placeholder">—</p>
+                  <p class="hud-transcript__text hud-transcript__text--placeholder">Transcript appears here</p>
                 }
               </div>
             }
           </div>
-        </section>
 
-        <div class="hud-keys">
-          <div class="scanner-keypad-grid">
+          <div class="keypad">
             @for (key of scannerKeyOrder; track key) {
               <button type="button"
                 class="scanner-key"
+                [class.scanner-key--primary]="key === 'liveFeed'"
                 [class.scanner-key--latched]="scannerKeyState(key).latched"
                 [matTooltip]="toolbarTooltip(key)"
+                [attr.aria-pressed]="scannerKeyState(key).latched"
                 (click)="executeButtonAction(key)">
                 @if (scannerKeyState(key).showGreenLed) {
-                  <span
-                    class="scanner-key__led scanner-key__led--green"
-                  [class.scanner-key__led--lit]="scannerKeyState(key).ledGreenLit"></span>
+                  <span class="scanner-key__led scanner-key__led--green"
+                    [class.scanner-key__led--lit]="scannerKeyState(key).ledGreenLit"></span>
                 } @else if (scannerKeyState(key).showRedLed) {
-                  <span
-                    class="scanner-key__led scanner-key__led--red"
-                  [class.scanner-key__led--lit]="scannerKeyState(key).ledRedLit"></span>
-                } @else {
-                  <span class="scanner-key__led scanner-key__led--spacer"></span>
+                  <span class="scanner-key__led scanner-key__led--red"
+                    [class.scanner-key__led--lit]="scannerKeyState(key).ledRedLit"></span>
                 }
                 <mat-icon class="scanner-key__icon">{{ scannerKeyIcon(key) }}</mat-icon>
-                <span class="scanner-key__label">{{ toolbarButtonLabel(key) }}</span>
+                <span class="scanner-key__text">
+                  <span class="scanner-key__label">{{ toolbarButtonLabel(key) }}</span>
+                  @if (key === 'liveFeed') {
+                    <span class="scanner-key__sub">{{ livefeedOnline ? 'On air' : 'Tap to listen' }}</span>
+                  }
+                </span>
               </button>
             }
           </div>
 
-          <div class="scanner-volume" matTooltip="Output volume">
-            <mat-icon>volume_up</mat-icon>
+          <div class="volume">
+            <button type="button" class="volume__mute"
+              (click)="toggleMute()"
+              [matTooltip]="volume === 0 ? 'Unmute (M)' : 'Mute (M)'"
+              [attr.aria-label]="volume === 0 ? 'Unmute' : 'Mute'">
+              <mat-icon>{{ volumeIcon }}</mat-icon>
+            </button>
             <mat-slider class="vol-slider"
               [min]="0" [max]="100" [step]="1" [discrete]="true" [showTickMarks]="false">
-              <input matSliderThumb [(ngModel)]="volume" (ngModelChange)="onVolumeChange($event)">
+              <input matSliderThumb [(ngModel)]="volume" (ngModelChange)="onVolumeChange($event)" aria-label="Volume">
             </mat-slider>
-            <span class="vol-val">{{ volume }}%</span>
+            <span class="volume__val">{{ volume }}</span>
           </div>
-        </div>
+        </section>
 
         <rdio-scanner-weather-widget></rdio-scanner-weather-widget>
       </aside>
 
       <main class="board-center">
-        <!-- Tabs — primary content (Transmissions, Map, Channels, …) -->
         <mat-tab-group class="board-tabs" animationDuration="0ms"
+          mat-stretch-tabs="false" mat-align-tabs="start"
           [selectedIndex]="boardTabIndex"
           (selectedIndexChange)="onBoardIndexChange($event)">
 
           <!-- ─── TRANSMISSIONS (recent + archive search) ─── -->
           <mat-tab>
             <ng-template mat-tab-label>
-              <span class="tab-label tab-label--live">
+              <span class="tab-label">
+                <mat-icon>graphic_eq</mat-icon>
+                Transmissions
                 @if (livefeedOnline) {
                   <span class="live-dot" aria-hidden="true"></span>
                 }
-                Transmissions
               </span>
             </ng-template>
             <div class="tab-panel tab-panel--fill calls-panel">
-              <div class="calls-mode-bar">
-                <div class="calls-mode-toggle" role="tablist" aria-label="Transmissions view">
-                  <button type="button" class="calls-mode-btn"
+              <div class="calls-toolbar">
+                <div class="segmented" role="tablist" aria-label="Transmissions view">
+                  <button type="button" class="segmented__btn"
                     role="tab"
                     [attr.aria-selected]="transmissionsPanelMode === 'recent'"
                     [class.active]="transmissionsPanelMode === 'recent'"
                     (click)="setTransmissionsPanelMode('recent')">
+                    <mat-icon>history</mat-icon>
                     Recent
+                    @if (callsLastHour.length) {
+                      <span class="segmented__count">{{ callsLastHour.length }}</span>
+                    }
                   </button>
-                  <button type="button" class="calls-mode-btn"
+                  <button type="button" class="segmented__btn"
                     role="tab"
                     [attr.aria-selected]="transmissionsPanelMode === 'search'"
                     [class.active]="transmissionsPanelMode === 'search'"
                     (click)="setTransmissionsPanelMode('search')">
-                    Search
+                    <mat-icon>search</mat-icon>
+                    Search archive
+                    @if (replayLocked) {
+                      <mat-icon class="tab-lock" aria-label="Locked">lock</mat-icon>
+                    }
                   </button>
                 </div>
-                @if (transmissionsPanelMode === 'recent') {
-                  <span class="calls-mode-hint">
-                    Last hour · updates live
-                  </span>
-                }
-                @if (transmissionsPanelMode === 'search') {
-                  <span class="calls-mode-hint">
-                    Scroll the results list — more load in batches as you reach the bottom
-                  </span>
-                }
+                <span class="calls-toolbar__hint">
+                  @if (transmissionsPanelMode === 'recent') {
+                    Last hour · click any call to play it
+                  } @else {
+                    Results load as you scroll
+                  }
+                </span>
               </div>
 
               @if (transmissionsPanelMode === 'recent') {
                 <div class="calls-recent">
-                  <div class="board-main">
-                    <div class="history-table-wrap">
+                  @if (callsLastHour.length === 0) {
+                    <div class="empty-state">
+                      <div class="empty-state__icon" [class.is-on]="livefeedOnline">
+                        <mat-icon>{{ livefeedOnline ? 'sensors' : 'podcasts' }}</mat-icon>
+                      </div>
+                      @if (livefeedOnline) {
+                        <h3>Listening for traffic</h3>
+                        <p>Calls you hear are listed here for an hour. Click one to play it again.</p>
+                      } @else {
+                        <h3>The live feed is off</h3>
+                        <p>Start the live feed to hear calls from the channels you've selected.</p>
+                        <button type="button" class="cta" (click)="livefeed()">
+                          <mat-icon>play_arrow</mat-icon>
+                          Start live feed
+                        </button>
+                      }
+                      <div class="empty-state__links">
+                        <button type="button" class="link-btn" (click)="showSelectPanel()">
+                          <mat-icon>tune</mat-icon> Choose channels
+                        </button>
+                        <button type="button" class="link-btn" (click)="setTransmissionsPanelMode('search')">
+                          <mat-icon>search</mat-icon> Search the archive
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="calls-list">
                       <table class="dispatch-table">
                         <thead>
                           <tr>
-                            <th>Time</th>
-                            @if (isSystemAdmin) {
-                              <th>Call ID</th>
-                            }
-                            <th>System</th>
+                            <th class="col-time">Time</th>
                             <th>Talkgroup</th>
-                            <th>TGID</th>
+                            <th class="col-tgid">TGID</th>
                             <th>Unit</th>
-                            <th>MHz</th>
+                            <th class="col-freq">Frequency</th>
+                            @if (isSystemAdmin) {
+                              <th class="col-id">Call ID</th>
+                            }
                           </tr>
                         </thead>
                         <tbody>
-                          @for (c of callsLastHour; track c) {
+                          @for (c of callsLastHour; track c?.id ?? $index) {
                             <tr
                               (click)="onHistoryRowClick(c)"
                               [class.row-playing]="isRowPlaying(c)"
                               [class.row-selected]="selectedHistoryCall?.id === c?.id"
+                              [style.--row-tag]="rowTagColor(c)"
                               [style.background-color]="getTransmissionHistoryBackgroundColor(c)">
-                              <td>{{ $safeNavigationMigration(c?.dateTime) | instanceDate:timeFormat }}</td>
-                              @if (isSystemAdmin) {
-                                <td class="call-id-cell">{{ c?.id ?? '—' }}</td>
-                              }
-                              <td>{{ c?.systemData?.label || c?.system }}</td>
-                              <td>{{ c?.talkgroupData?.label || c?.talkgroup || '0' }}</td>
-                              <td>{{ displayTgidForCall(c) }}</td>
+                              <td class="col-time">
+                                @if (isRowPlaying(c)) {
+                                  <span class="row-eq" aria-label="Playing"><i></i><i></i><i></i></span>
+                                } @else {
+                                  <mat-icon class="row-play" aria-hidden="true">play_arrow</mat-icon>
+                                }
+                                {{ $safeNavigationMigration(c?.dateTime) | instanceDate:timeFormat }}
+                              </td>
+                              <td class="tg-cell">
+                                <span class="tg-cell__name">{{ c?.talkgroupData?.label || c?.talkgroup || '0' }}</span>
+                                <span class="tg-cell__sys">{{ c?.systemData?.label || c?.system }}</span>
+                              </td>
+                              <td class="col-tgid mono">{{ displayTgidForCall(c) }}</td>
                               <td class="src-cell">{{ displayUnitForCall(c) }}</td>
-                              <td>{{ formatFrequencyMHz($safeNavigationMigration(c?.frequency)) || '—' }}</td>
-                            </tr>
-                          }
-                          @if (callsLastHour.length === 0) {
-                            <tr class="empty-row">
-                              <td [attr.colspan]="isSystemAdmin ? 7 : 6">No calls in the last hour</td>
+                              <td class="col-freq mono">{{ formatFrequencyMHz($safeNavigationMigration(c?.frequency)) || '—' }}</td>
+                              @if (isSystemAdmin) {
+                                <td class="col-id mono">{{ c?.id ?? '—' }}</td>
+                              }
                             </tr>
                           }
                         </tbody>
                       </table>
                     </div>
-                    @if (detailCall; as dc) {
-                      @if (showDetailFieldGrid(dc)) {
-                        <div class="detail-card">
-                          <div class="detail-header">Transmission detail</div>
-                          <div class="detail-grid">
-                            <div class="dk">System</div>
-                            <div class="dv">{{ dc.systemData?.label || dc.system }}</div>
-                            <div class="dk">Talkgroup</div>
-                            <div class="dv">{{ dc.talkgroupData?.label || dc.talkgroup }}</div>
-                            <div class="dk">TGID</div>
-                            <div class="dv">{{ displayTgidForCall(dc) }}</div>
-                            <div class="dk">Tag</div>
-                            <div class="dv">{{ dc.talkgroupData?.tag || dc.tagData?.label || '—' }}</div>
-                            <div class="dk">Unit</div>
-                            <div class="dv">{{ displayUnitForCall(dc) }}</div>
-                            <div class="dk">Frequency</div>
-                            <div class="dv">{{ formatFrequencyMHz(dc.frequency) || '—' }}</div>
-                            <div class="dk">Site</div>
-                            <div class="dv">{{ dc.siteData?.label || (dc.site ? 'Site ' + dc.site : '—') }}</div>
-                            <div class="dk">Time</div>
-                            <div class="dv">{{ dc.dateTime | instanceDate:timeFormat }}</div>
-                            @if (isSystemAdmin) {
-                              <div class="dk">Call ID</div>
-                              <div class="dv">{{ dc.id }}</div>
-                            }
+                  }
+
+                  @if (detailCall; as dc) {
+                    @if (showDetailFieldGrid(dc)) {
+                      <div class="detail-card" [style.--row-tag]="rowTagColor(dc)">
+                        <div class="detail-card__head">
+                          <div>
+                            <div class="detail-card__title">{{ dc.talkgroupData?.label || dc.talkgroup }}</div>
+                            <div class="detail-card__sub">{{ dc.systemData?.label || dc.system }} · {{ dc.dateTime | instanceDate:timeFormat }}</div>
                           </div>
-                          @if (isTranscriptionEnabled && dc.transcript) {
-                            <div class="transcript-block">
-                              <div class="dk">Transcript</div>
-                              <p class="transcript-body"
-                              [innerHTML]="renderTranscript(dc.transcript, dc.transcriptAnnotations)"></p>
+                          <button type="button" class="link-btn" (click)="onHistoryRowClick(dc)">
+                            <mat-icon>replay</mat-icon> Play again
+                          </button>
+                        </div>
+                        <div class="detail-grid">
+                          <div class="detail-grid__item">
+                            <span class="dk">TGID</span><span class="dv">{{ displayTgidForCall(dc) }}</span>
+                          </div>
+                          <div class="detail-grid__item">
+                            <span class="dk">Tag</span><span class="dv">{{ dc.talkgroupData?.tag || dc.tagData?.label || '—' }}</span>
+                          </div>
+                          <div class="detail-grid__item">
+                            <span class="dk">Unit</span><span class="dv">{{ displayUnitForCall(dc) }}</span>
+                          </div>
+                          <div class="detail-grid__item">
+                            <span class="dk">Frequency</span><span class="dv">{{ formatFrequencyMHz(dc.frequency) || '—' }}</span>
+                          </div>
+                          <div class="detail-grid__item">
+                            <span class="dk">Site</span><span class="dv">{{ dc.siteData?.label || (dc.site ? 'Site ' + dc.site : '—') }}</span>
+                          </div>
+                          @if (isSystemAdmin) {
+                            <div class="detail-grid__item">
+                              <span class="dk">Call ID</span><span class="dv">{{ dc.id }}</span>
                             </div>
                           }
                         </div>
-                      }
+                        @if (isTranscriptionEnabled && dc.transcript) {
+                          <p class="transcript-body"
+                            [innerHTML]="renderTranscript(dc.transcript, dc.transcriptAnnotations)"></p>
+                        }
+                      </div>
                     }
-                  </div>
+                  }
                 </div>
               }
 
               @if (transmissionsPanelMode === 'search') {
-                <div class="calls-search">
-                  <rdio-scanner-search #archiveSearch></rdio-scanner-search>
-                </div>
+                @if (replayLocked) {
+                  <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'replay' }"></ng-container>
+                } @else {
+                  <div class="calls-search">
+                    <rdio-scanner-search #archiveSearch></rdio-scanner-search>
+                  </div>
+                }
               }
 
               <!-- Inline auth overlay (legacy unlock-code only) -->
               <div class="legacy-auth" [class.visible]="auth">
                 <div class="legacy-auth-form">
-                  <form class="mat-elevation-z6" autocomplete="off"
+                  <form autocomplete="off"
                     [formGroup]="authForm" (ngSubmit)="authenticate()">
-                    <mat-form-field>
+                    <div class="legacy-auth-form__title">
+                      <mat-icon>key</mat-icon> Enter your unlock code
+                    </div>
+                    <mat-form-field appearance="outline">
                       <input #password matInput type="password" autocomplete="off"
                         formControlName="password"
                         placeholder="Unlock code" (blur)="authFocus()">
                       @if (authForm.get('password')?.hasError('expired')) {
-                        <mat-error>
-                          This unlock code has expired
-                        </mat-error>
+                        <mat-error>This unlock code has expired</mat-error>
                       }
                       @if (authForm.get('password')?.hasError('tooMany')) {
-                        <mat-error>
-                          Too many connections
-                        </mat-error>
+                        <mat-error>Too many connections</mat-error>
                       }
                     </mat-form-field>
                   </form>
@@ -430,20 +525,42 @@
           </mat-tab>
 
           <!-- ─── CHANNELS ─── -->
-          <mat-tab label="Channels">
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span class="tab-label"><mat-icon>tune</mat-icon>Channels
+                @if (channelsLocked) {
+                  <mat-icon class="tab-lock" aria-label="Locked">lock</mat-icon>
+                }
+              </span>
+            </ng-template>
             <ng-template matTabContent>
               <div class="tab-panel tab-panel--fill embed-panel">
-                <rdio-scanner-select></rdio-scanner-select>
+                @if (channelsLocked) {
+                  <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'channels' }"></ng-container>
+                } @else {
+                  <rdio-scanner-select></rdio-scanner-select>
+                }
               </div>
             </ng-template>
           </mat-tab>
 
           <!-- ─── ALERTS ─── -->
           @if (isTranscriptionEnabled) {
-            <mat-tab label="Alerts">
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <span class="tab-label"><mat-icon>notifications_none</mat-icon>Alerts
+                  @if (alertsLocked) {
+                    <mat-icon class="tab-lock" aria-label="Locked">lock</mat-icon>
+                  }
+                </span>
+              </ng-template>
               <ng-template matTabContent>
                 <div class="tab-panel tab-panel--fill embed-panel">
-                  <rdio-scanner-alerts panelMode="alertsAndPreferences"></rdio-scanner-alerts>
+                  @if (alertsLocked) {
+                    <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'alerts' }"></ng-container>
+                  } @else {
+                    <rdio-scanner-alerts panelMode="alertsAndPreferences"></rdio-scanner-alerts>
+                  }
                 </div>
               </ng-template>
             </mat-tab>
@@ -451,10 +568,21 @@
 
           <!-- ─── TRANSCRIPTS ─── -->
           @if (isTranscriptionEnabled) {
-            <mat-tab label="Transcripts">
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <span class="tab-label"><mat-icon>subject</mat-icon>Transcripts
+                  @if (transcriptsLocked) {
+                    <mat-icon class="tab-lock" aria-label="Locked">lock</mat-icon>
+                  }
+                </span>
+              </ng-template>
               <ng-template matTabContent>
                 <div class="tab-panel tab-panel--fill embed-panel">
-                  <rdio-scanner-alerts panelMode="transcripts"></rdio-scanner-alerts>
+                  @if (transcriptsLocked) {
+                    <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'transcripts' }"></ng-container>
+                  } @else {
+                    <rdio-scanner-alerts panelMode="transcripts"></rdio-scanner-alerts>
+                  }
                 </div>
               </ng-template>
             </mat-tab>
@@ -462,10 +590,21 @@
 
           <!-- ─── STATS ─── -->
           @if (isTranscriptionEnabled) {
-            <mat-tab label="Stats">
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <span class="tab-label"><mat-icon>insights</mat-icon>Stats
+                  @if (statsLocked) {
+                    <mat-icon class="tab-lock" aria-label="Locked">lock</mat-icon>
+                  }
+                </span>
+              </ng-template>
               <ng-template matTabContent>
                 <div class="tab-panel tab-panel--fill embed-panel">
-                  <rdio-scanner-alerts panelMode="stats"></rdio-scanner-alerts>
+                  @if (statsLocked) {
+                    <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'stats' }"></ng-container>
+                  } @else {
+                    <rdio-scanner-alerts panelMode="stats"></rdio-scanner-alerts>
+                  }
                 </div>
               </ng-template>
             </mat-tab>
@@ -473,39 +612,115 @@
 
           <!-- ─── MAP ─── -->
           @if (showIncidentMapTab) {
-            <mat-tab label="Map">
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <span class="tab-label"><mat-icon>map</mat-icon>Map
+                  @if (mapLocked) {
+                    <mat-icon class="tab-lock" aria-label="Locked">lock</mat-icon>
+                  }
+                </span>
+              </ng-template>
               <ng-template matTabContent>
                 <div class="tab-panel tab-panel--fill embed-panel">
-                  <rdio-scanner-incident-map></rdio-scanner-incident-map>
+                  @if (mapLocked) {
+                    <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'map' }"></ng-container>
+                  } @else {
+                    <rdio-scanner-incident-map></rdio-scanner-incident-map>
+                  }
                 </div>
               </ng-template>
             </mat-tab>
           }
 
           <!-- ─── SETTINGS ─── -->
-          <mat-tab label="Settings">
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span class="tab-label"><mat-icon>settings</mat-icon>Settings
+                @if (settingsLocked) {
+                  <mat-icon class="tab-lock" aria-label="Locked">lock</mat-icon>
+                }
+              </span>
+            </ng-template>
             <ng-template matTabContent>
               <div class="tab-panel tab-panel--fill embed-panel">
-                <rdio-scanner-settings></rdio-scanner-settings>
+                @if (settingsLocked) {
+                  <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'settings' }"></ng-container>
+                } @else {
+                  <rdio-scanner-settings></rdio-scanner-settings>
+                }
               </div>
             </ng-template>
           </mat-tab>
         </mat-tab-group>
       </main>
 
-      @if (isTranscriptionEnabled) {
+      @if (isTranscriptionEnabled && alertsSideRailEnabled) {
         <aside class="alerts-sidebar"
           [class.is-hidden]="!alertsSidebarVisible"
           [attr.aria-hidden]="!alertsSidebarVisible">
-          <rdio-scanner-alerts
-            [boardEmbed]="true"
-            [boardEmbedMax]="24"
-            (openFullAlerts)="showAlertsPanel()">
-          </rdio-scanner-alerts>
+          @if (alertsLocked) {
+            <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'alerts', compact: true }"></ng-container>
+          } @else {
+            <rdio-scanner-alerts
+              [boardEmbed]="true"
+              [boardEmbedMax]="24"
+              (openFullAlerts)="showAlertsPanel()">
+            </rdio-scanner-alerts>
+          }
         </aside>
       }
     </div>
   </div>
+
+  <ng-template #lockedPanel let-feature let-compact="compact">
+    <div class="locked-panel" [class.locked-panel--compact]="compact">
+      <div class="locked-panel__preview" aria-hidden="true">
+        @for (row of lockedPreviewRows; track $index) {
+          <div class="locked-panel__row" [style.width.%]="row"></div>
+        }
+      </div>
+      <div class="locked-panel__card">
+        <div class="locked-panel__icon"><mat-icon>lock</mat-icon></div>
+        <h3>
+          @switch (feature) {
+            @case ('replay') { Archive search }
+            @case ('channels') { Choose your channels }
+            @case ('alerts') { Alerts }
+            @case ('transcripts') { Transcripts }
+            @case ('stats') { Stats }
+            @case ('map') { Incident map }
+            @case ('settings') { Settings }
+          }
+        </h3>
+        @if (!compact) {
+          <p>
+            @switch (feature) {
+              @case ('replay') { Search and replay past calls by channel, unit, and time. }
+              @case ('channels') { Pick exactly which channels you hear. You're hearing every channel on this plan. }
+              @case ('alerts') { Get tone and keyword alerts on your phone the moment they're dispatched. }
+              @case ('transcripts') { Read every call as text and search what was said. }
+              @case ('stats') { See which channels are busiest and how traffic changes through the day. }
+              @case ('map') { See dispatched incidents pinned on a live map. }
+              @case ('settings') { Change themes, sounds, and your account. }
+            }
+          </p>
+        }
+        @if (canUpgradeFromLock) {
+          <button type="button" class="cta" (click)="upgradeFromLock()">
+            <mat-icon>workspace_premium</mat-icon>
+            {{ compact ? 'Upgrade to view' : upgradeLockLabel }}
+          </button>
+        } @else {
+          <p class="locked-panel__note">Not included in your plan.</p>
+        }
+      </div>
+    </div>
+  </ng-template>
+
+  <rdio-scanner-upgrade-prompt
+    [visible]="freeListening && upgradeAvailable"
+    (subscribe)="onUpgradeSubscribe()">
+  </rdio-scanner-upgrade-prompt>
 
   <!-- ═══════════════════════════════════════════════════════════════════
   Checkout overlay

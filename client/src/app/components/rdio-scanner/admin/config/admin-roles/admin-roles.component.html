@@ -1,0 +1,91 @@
+<div class="admin-roles">
+  <div class="header-actions">
+    <div>
+      <h3>Admin roles</h3>
+      <p class="mat-caption intro">
+        A role lets a user into part of this admin console with their own sign-in. System admins always have
+        everything. Options, API keys, imports, purge, billing and roles stay with system admins.
+        Give a role to someone from Users → their menu → Admin Role.
+      </p>
+    </div>
+    @if (!showForm) {
+      <button mat-raised-button color="primary" type="button" (click)="startCreate()">
+        <mat-icon>add</mat-icon>
+        New role
+      </button>
+    }
+  </div>
+
+  @if (showForm) {
+    <div class="role-form">
+      <h4>{{ editing ? 'Edit role' : 'New role' }}</h4>
+
+      @if (!editing) {
+        <div class="presets">
+          <span class="field-label">Start from</span>
+          @for (preset of presets; track preset.name) {
+            <button mat-stroked-button type="button" (click)="applyPreset(preset)">{{ preset.name }}</button>
+          }
+        </div>
+      }
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Name</mat-label>
+        <input matInput [(ngModel)]="name" placeholder="Admin Moderator" autocomplete="off" maxlength="60">
+      </mat-form-field>
+
+      <div class="permission-groups">
+        @for (group of groups; track group.name) {
+          <div class="permission-group">
+            <mat-checkbox class="group-toggle"
+              [checked]="groupChecked(group)"
+              [indeterminate]="groupPartial(group)"
+              (change)="toggleGroup(group, $event.checked)">
+              {{ group.name }}
+            </mat-checkbox>
+            @for (perm of group.permissions; track perm.key) {
+              <mat-checkbox
+                [checked]="selected.has(perm.key)"
+                (change)="toggle(perm.key, $event.checked)">
+                {{ perm.label }}
+              </mat-checkbox>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="form-actions">
+        <button mat-button type="button" (click)="cancel()">Cancel</button>
+        <button mat-raised-button color="primary" type="button" [disabled]="!name.trim() || saving" (click)="save()">
+          {{ editing ? 'Save role' : 'Create role' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (loading && !roles.length) {
+    <mat-spinner diameter="32"></mat-spinner>
+  } @else if (!roles.length && !showForm) {
+    <p class="empty">No roles yet. Create one to give a user part of the admin console.</p>
+  } @else {
+    <div class="role-list">
+      @for (role of roles; track role.id) {
+        <div class="role-row">
+          <div class="role-info">
+            <div class="role-name">
+              {{ role.name }}
+              <span class="members">{{ role.members || 0 }} {{ role.members === 1 ? 'user' : 'users' }}</span>
+            </div>
+            <div class="role-perms">{{ summary(role) }}</div>
+          </div>
+          <button mat-icon-button type="button" matTooltip="Edit role" (click)="startEdit(role)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button type="button" matTooltip="Delete role" (click)="remove(role)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      }
+    </div>
+  }
+</div>

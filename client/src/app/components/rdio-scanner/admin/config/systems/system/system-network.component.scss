@@ -1,0 +1,253 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.net-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.net-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    h4 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    mat-icon {
+        opacity: 0.7;
+    }
+}
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 420px;
+    font-weight: 500;
+}
+
+.hint {
+    font-size: 12px;
+    opacity: 0.7;
+    margin: 6px 0 10px;
+    line-height: 1.45;
+}
+
+.note {
+    font-size: 13px;
+    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.error {
+    font-size: 13px;
+    color: #ef5350;
+}
+
+.muted {
+    opacity: 0.65;
+    font-size: 12px;
+}
+
+.wide-field {
+    min-width: 320px;
+    max-width: 520px;
+    width: 100%;
+}
+
+.filter-field {
+    width: 260px;
+    margin-bottom: 8px;
+}
+
+.sub-list-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+    margin: 8px 0 6px;
+}
+
+.sub-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) 90px 120px;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+}
+
+.network-table {
+    max-height: 420px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.network-row {
+    display: grid;
+    grid-template-columns: 70px minmax(140px, 1fr) 220px;
+    gap: 12px;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+}
+
+.network-select,
+.target-select {
+    font-size: 13px;
+}
+
+.link-row,
+.updates-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.link-name {
+    font-weight: 500;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 8px 0;
+
+    mat-form-field {
+        min-width: 200px;
+    }
+}
+
+.picker-actions,
+.apply-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.updates {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+
+    .muted mat-spinner {
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+}
+
+.review-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+
+    button {
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: transparent;
+        color: inherit;
+        border-radius: 16px;
+        padding: 4px 12px;
+        font-size: 12px;
+        cursor: pointer;
+
+        &.active {
+            background: rgba(100, 181, 246, 0.18);
+            border-color: rgba(100, 181, 246, 0.6);
+        }
+    }
+}
+
+.review-table {
+    max-height: 520px;
+    overflow: auto;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+}
+
+.review-row {
+    display: grid;
+    grid-template-columns: 40px 70px repeat(4, minmax(110px, 1fr)) 170px;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 12px;
+
+    &--head {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #1e1e1e;
+        font-weight: 600;
+        opacity: 0.9;
+    }
+
+    &--info {
+        grid-template-columns: 70px minmax(120px, 1fr) minmax(160px, 2fr) 170px;
+    }
+
+    .cell {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        word-break: break-word;
+    }
+
+    .from {
+        text-decoration: line-through;
+        opacity: 0.5;
+    }
+
+    .to {
+        color: #81c784;
+    }
+
+    .same {
+        opacity: 0.6;
+    }
+}
+
+.group-map {
+    margin-top: 12px;
+    font-size: 12px;
+
+    summary {
+        cursor: pointer;
+        opacity: 0.8;
+    }
+}
+
+.group-map-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+
+    mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        opacity: 0.5;
+    }
+}

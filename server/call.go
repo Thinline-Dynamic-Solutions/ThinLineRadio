@@ -1072,30 +1072,28 @@ func (calls *Calls) playbackSearchRowPlayableNow(client *Client, sr CallsSearchR
 	if client.BypassPlaybackSearchACL {
 		return true
 	}
-	if !calls.controller.requiresUserAuth() {
-		return true
-	}
-	if client.User == nil {
-		return false
-	}
 	call := &Call{
 		Id:        sr.Id,
 		Timestamp: sr.Timestamp,
 		System:    &System{SystemRef: sr.System},
 		Talkgroup: &Talkgroup{TalkgroupRef: sr.Talkgroup},
 	}
-	if !calls.controller.userHasAccess(client.User, call) {
-		return false
+	if system, ok := calls.controller.Systems.GetSystemByRef(sr.System); ok {
+		call.System = system
+		if talkgroup, ok := system.Talkgroups.GetTalkgroupByRef(sr.Talkgroup); ok {
+			call.Talkgroup = talkgroup
+		}
 	}
-	defaultDelay := calls.controller.Options.DefaultSystemDelay
-	effectiveDelay := calls.controller.userEffectiveDelay(client.User, call, defaultDelay)
-	if effectiveDelay > 0 {
-		releaseAt := call.Timestamp.Add(time.Duration(effectiveDelay) * time.Minute)
-		if time.Now().Before(releaseAt) {
+	if calls.controller.scopeRestricted(client) {
+		if client.User == nil {
+			if !calls.controller.anonymousAllowed(client.ListenLink) || !calls.controller.anonymousHasCallAccess(client.ListenLink, call) {
+				return false
+			}
+		} else if !calls.controller.userHasAccess(client.User, call) {
 			return false
 		}
 	}
-	return true
+	return calls.controller.callReleasedForClient(client, call)
 }
 
 func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*CallsSearchResults, error) {
@@ -1221,6 +1219,8 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 		if effectiveDelay == 0 {
 			effectiveDelay = calls.controller.Options.DefaultSystemDelay
 		}
+	} else if client.User == nil && !client.BypassPlaybackSearchACL && calls.controller.anonymousAllowed(client.ListenLink) {
+		effectiveDelay = calls.controller.anonymousMinDelay(client.ListenLink, calls.controller.Options.DefaultSystemDelay)
 	} else {
 		effectiveDelay = calls.controller.Options.DefaultSystemDelay
 	}
@@ -1292,13 +1292,19 @@ func (calls *Calls) Search(searchOptions *CallsSearchOptions, client *Client) (*
 	queryLimit := limit + 1
 	baseSelect := fmt.Sprintf(`SELECT c."callId", c."timestamp", c."systemRef", c."talkgroupRef", c."frequency", c."siteRef", (SELECT cu."unitRef" FROM "callUnits" cu WHERE cu."callId" = c."callId" ORDER BY cu."offset" LIMIT 1) as "source", c."audioDuration" FROM "calls" AS c LEFT JOIN "delayed" AS d ON d."callId" = c."callId" %s ORDER BY c."timestamp" %s`, delayWhere, order)
 
-	enforcePlaybackACL := calls.controller.requiresUserAuth() && !client.BypassPlaybackSearchACL
+	enforcePlaybackACL := calls.controller.scopeRestricted(client) && !client.BypassPlaybackSearchACL
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if enforcePlaybackACL && client.User == nil {
+	if !calls.controller.clientHasFeature(client, "replay") {
 		return searchResults, nil
+	}
+
+	if enforcePlaybackACL && client.User == nil {
+		if !(calls.controller.anonymousAllowed(client.ListenLink) && calls.controller.clientHasFeature(client, "replay")) {
+			return searchResults, nil
+		}
 	}
 
 	if !enforcePlaybackACL {

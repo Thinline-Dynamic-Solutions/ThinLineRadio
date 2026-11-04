@@ -31,6 +31,8 @@ export type IncidentMapStyle = 'voyager' | 'dark' | 'satellite';
 
 export type IncidentTimePreset = '8h' | '16h' | '24h' | 'custom';
 
+export type IncidentCorrectionKind = 'location' | 'nature' | 'both' | 'not_incident';
+
 interface IncidentMapStyleOption {
     id: IncidentMapStyle;
     label: string;
@@ -72,8 +74,27 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     /** Stable deduped list for sidebar, markers, and click handlers. */
     private dedupedFilteredIncidents: IncidentRecord[] = [];
 
-    /** System-admin pin correction state (panel over the map). */
-    pinEdit: { incident: IncidentRecord; address: string; nature: string; lat: number; lon: number } | null = null;
+    /**
+     * Pin correction panel over the map. "admin" edits the live pin; "suggest"
+     * sends a listener's fix to the geocode server for review.
+     */
+    pinEdit: {
+        incident: IncidentRecord;
+        mode: 'admin' | 'suggest';
+        kind: IncidentCorrectionKind;
+        address: string;
+        nature: string;
+        note: string;
+        lat: number;
+        lon: number;
+    } | null = null;
+    readonly correctionKinds: { id: IncidentCorrectionKind; label: string }[] = [
+        { id: 'location', label: 'Wrong location' },
+        { id: 'nature', label: 'Wrong type' },
+        { id: 'both', label: 'Both' },
+        { id: 'not_incident', label: 'Not an incident' },
+    ];
+    natureSuggestions: string[] = [];
     pinEditSaving = false;
     movePinArmed = false;
     pinSearchBusy = false;
@@ -276,6 +297,10 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         return this.rdioScannerService.isSystemAdmin();
     }
 
+    get canManageIncidentPins(): boolean {
+        return this.rdioScannerService.hasAdminPermission('content.incidentPins');
+    }
+
     /** Raw filtered rows before location dedupe (for search across all channels). */
     private filteredIncidentsRaw(): IncidentRecord[] {
         return this.applyIncidentFilters(this.incidents);
@@ -303,31 +328,53 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         return out;
     }
 
-    get systemFilterOptions(): IncidentFilterOption[] {
-        const seen = new Map<number, string>();
+    /**
+     * Rebuilt only when incident data or the system filter changes. Native
+     * <select> dropdowns close and lose the click if their <option>s are
+     * recreated while open. Systems and talkgroups seen in earlier fetches are
+     * kept, because a system-filtered fetch only returns that one system.
+     */
+    systemFilterOptions: IncidentFilterOption[] = [];
+    talkgroupFilterOptions: IncidentFilterOption[] = [];
+    private readonly knownSystems = new Map<number, string>();
+    private readonly knownTalkgroups = new Map<number, Map<number, string>>();
+
+    private rebuildFilterOptions(): void {
         for (const inc of this.incidents) {
-            if (!seen.has(inc.systemId)) {
-                seen.set(inc.systemId, inc.systemLabel || `System ${inc.systemId}`);
+            if (!this.knownSystems.has(inc.systemId)) {
+                this.knownSystems.set(inc.systemId, inc.systemLabel || `System ${inc.systemId}`);
+            }
+            let tgs = this.knownTalkgroups.get(inc.systemId);
+            if (!tgs) {
+                tgs = new Map<number, string>();
+                this.knownTalkgroups.set(inc.systemId, tgs);
+            }
+            if (!tgs.has(inc.talkgroupId)) {
+                tgs.set(inc.talkgroupId, inc.talkgroupLabel || `TG ${inc.talkgroupId}`);
             }
         }
-        return Array.from(seen.entries())
-            .map(([id, label]) => ({ id, label }))
-            .sort((a, b) => a.label.localeCompare(b.label));
+        const toOptions = (entries: Iterable<[number, string]>): IncidentFilterOption[] =>
+            Array.from(entries)
+                .map(([id, label]) => ({ id, label }))
+                .sort((a, b) => a.label.localeCompare(b.label));
+        const systems = toOptions(this.knownSystems.entries());
+        if (!this.sameFilterOptions(systems, this.systemFilterOptions)) {
+            this.systemFilterOptions = systems;
+        }
+        const tgEntries: [number, string][] = [];
+        for (const [systemId, tgs] of this.knownTalkgroups) {
+            if (this.filterSystemId == null || systemId === this.filterSystemId) {
+                tgEntries.push(...tgs.entries());
+            }
+        }
+        const talkgroups = toOptions(new Map(tgEntries).entries());
+        if (!this.sameFilterOptions(talkgroups, this.talkgroupFilterOptions)) {
+            this.talkgroupFilterOptions = talkgroups;
+        }
     }
 
-    get talkgroupFilterOptions(): IncidentFilterOption[] {
-        const seen = new Map<number, string>();
-        for (const inc of this.incidents) {
-            if (this.filterSystemId != null && inc.systemId !== this.filterSystemId) {
-                continue;
-            }
-            if (!seen.has(inc.talkgroupId)) {
-                seen.set(inc.talkgroupId, inc.talkgroupLabel || `TG ${inc.talkgroupId}`);
-            }
-        }
-        return Array.from(seen.entries())
-            .map(([id, label]) => ({ id, label }))
-            .sort((a, b) => a.label.localeCompare(b.label));
+    private sameFilterOptions(a: IncidentFilterOption[], b: IncidentFilterOption[]): boolean {
+        return a.length === b.length && a.every((opt, i) => opt.id === b[i].id && opt.label === b[i].label);
     }
 
     get hasActiveFilters(): boolean {
@@ -444,6 +491,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     onSystemFilterChange(raw: string | number | null): void {
         this.filterSystemId = raw === '' || raw == null ? null : Number(raw);
         this.filterTalkgroupId = null;
+        this.rebuildFilterOptions();
         this.refreshIncidents();
         this.cdr.markForCheck();
         this.notifySidebar();
@@ -464,10 +512,15 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     }
 
     clearAllFilters(): void {
+        const hadServerFilter = this.filterSystemId != null || this.filterTalkgroupId != null;
         this.searchQuery = '';
         this.filterSystemId = null;
         this.filterTalkgroupId = null;
+        this.rebuildFilterOptions();
         this.onFiltersChanged();
+        if (hadServerFilter) {
+            this.refreshIncidents();
+        }
         this.cdr.markForCheck();
         this.notifySidebar();
     }
@@ -1258,6 +1311,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             this.incidents = items || [];
             this.loading = false;
             this.loadError = '';
+            this.rebuildFilterOptions();
             this.rebuildFilteredIncidents();
             if (this.selectedIncident) {
                 const selectedId = this.selectedIncident.callId;
@@ -1514,12 +1568,14 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             ? `<button type="button" class="tlr-map-info__play" id="tlr-map-play-${single.callId}">Play Audio</button>`
             : '';
 
-        const adminActions = this.isSystemAdmin
+        const adminActions = this.canManageIncidentPins
             ? `<div class="tlr-map-info__admin">
                     <button type="button" class="tlr-map-info__admin-btn" id="tlr-map-edit-${incident.callId}">Correct Pin</button>
                     <button type="button" class="tlr-map-info__admin-btn tlr-map-info__admin-btn--danger" id="tlr-map-remove-${incident.callId}">Remove Pin</button>
                </div>`
-            : '';
+            : `<div class="tlr-map-info__admin">
+                    <button type="button" class="tlr-map-info__admin-btn tlr-map-info__admin-btn--suggest" id="tlr-map-suggest-${incident.callId}">Suggest a correction</button>
+               </div>`;
 
         const html = `
             <div class="tlr-map-info${multi ? ' tlr-map-info--multi' : ''}">
@@ -1545,21 +1601,65 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             document.getElementById(`tlr-map-remove-${incident.callId}`)?.addEventListener('click', () => {
                 this.ngZone.run(() => this.removePin(incident));
             });
+            document.getElementById(`tlr-map-suggest-${incident.callId}`)?.addEventListener('click', () => {
+                this.ngZone.run(() => this.startSuggestCorrection(incident));
+            });
         }, 0);
     }
 
     /** Opens the admin correction panel seeded from the incident. */
     startPinEdit(incident: IncidentRecord): void {
-        if (!this.isSystemAdmin) {
+        if (!this.canManageIncidentPins) {
             return;
         }
+        this.openPinEdit(incident, 'admin', 'both');
+    }
+
+    /** Opens the listener correction form; the fix goes to the geocode server for review. */
+    startSuggestCorrection(incident: IncidentRecord): void {
+        this.openPinEdit(incident, 'suggest', 'location');
+    }
+
+    setCorrectionKind(kind: IncidentCorrectionKind): void {
+        if (!this.pinEdit) {
+            return;
+        }
+        this.pinEdit.kind = kind;
+        if (kind === 'nature' || kind === 'not_incident') {
+            this.disarmMovePin();
+            this.clearPinSearch();
+            this.pinEdit.address = this.pinEdit.incident.address || '';
+            this.pinEdit.lat = Number(this.pinEdit.incident.lat) || 0;
+            this.pinEdit.lon = Number(this.pinEdit.incident.lon) || 0;
+            this.updatePinEditMarker();
+        }
+        this.cdr.markForCheck();
+    }
+
+    get correctionEditsLocation(): boolean {
+        const edit = this.pinEdit;
+        return !!edit && (edit.mode === 'admin' || edit.kind === 'location' || edit.kind === 'both');
+    }
+
+    get correctionEditsNature(): boolean {
+        const edit = this.pinEdit;
+        return !!edit && (edit.mode === 'admin' || edit.kind === 'nature' || edit.kind === 'both');
+    }
+
+    private openPinEdit(incident: IncidentRecord, mode: 'admin' | 'suggest', kind: IncidentCorrectionKind): void {
         this.pinEdit = {
             incident,
+            mode,
+            kind,
             address: incident.address || '',
             nature: incident.nature || '',
+            note: '',
             lat: Number(incident.lat) || 0,
             lon: Number(incident.lon) || 0,
         };
+        this.natureSuggestions = [...new Set(
+            this.incidents.map((i) => (i.nature || '').trim().toUpperCase()).filter(Boolean),
+        )].sort();
         this.clearPinSearch();
         this.movePinArmed = false;
         this.map?.closePopup();
@@ -1596,7 +1696,10 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.pinSearchSelected = -1;
         this.renderPinSearchMarkers();
         const pin = this.rdioScannerService.readPin();
-        this.incidentsService.searchPinAddress(edit.incident.callId, query, pin || undefined).subscribe({
+        const search$ = edit.mode === 'admin'
+            ? this.incidentsService.searchPinAddress(edit.incident.callId, query, pin || undefined)
+            : this.incidentsService.searchReportAddress(edit.incident.callId, query, pin || undefined);
+        search$.subscribe({
             next: (results) => {
                 this.pinSearchBusy = false;
                 if (!this.pinEdit || this.pinEdit.incident.callId !== edit.incident.callId) {
@@ -1652,6 +1755,10 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         if (!edit || this.pinEditSaving) {
             return;
         }
+        if (edit.mode === 'suggest') {
+            this.submitCorrection();
+            return;
+        }
         const changes: { address?: string; nature?: string; lat?: number; lon?: number } = {
             address: edit.address.trim(),
             nature: edit.nature.trim(),
@@ -1676,9 +1783,61 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         });
     }
 
+    private submitCorrection(): void {
+        const edit = this.pinEdit;
+        if (!edit) {
+            return;
+        }
+        const orig = edit.incident;
+        const report: { kind: string; address?: string; nature?: string; lat?: number; lon?: number; note?: string } = {
+            kind: edit.kind,
+            note: edit.note.trim(),
+        };
+        if (this.correctionEditsLocation) {
+            const address = edit.address.trim();
+            const moved = (edit.lat !== 0 || edit.lon !== 0)
+                && (Math.abs(edit.lat - Number(orig.lat)) > 1e-6 || Math.abs(edit.lon - Number(orig.lon)) > 1e-6);
+            if (!moved && address === (orig.address || '').trim()) {
+                this.snackBar.open('Enter the correct address or move the pin first', '', { duration: 3500 });
+                return;
+            }
+            report.address = address;
+            if (moved) {
+                report.lat = edit.lat;
+                report.lon = edit.lon;
+            }
+        }
+        if (this.correctionEditsNature) {
+            const nature = edit.nature.trim();
+            if (!nature || nature.toUpperCase() === (orig.nature || '').trim().toUpperCase()) {
+                this.snackBar.open('Enter the correct incident type first', '', { duration: 3500 });
+                return;
+            }
+            report.nature = nature;
+        }
+        this.pinEditSaving = true;
+        const pin = this.rdioScannerService.readPin();
+        this.incidentsService.reportIncidentCorrection(orig.callId, report, pin || undefined).subscribe({
+            next: () => {
+                this.snackBar.open('Thanks — your correction was sent for review', '', { duration: 3000 });
+                this.cancelPinEdit();
+            },
+            error: (err) => {
+                this.pinEditSaving = false;
+                const status = (err as { status?: number })?.status;
+                const body = typeof (err as { error?: unknown })?.error === 'string'
+                    ? (err as { error: string }).error.trim()
+                    : '';
+                const msg = status === 401 ? 'Sign in to suggest corrections' : (body || 'Could not send the correction');
+                this.snackBar.open(msg, '', { duration: 4500 });
+                this.cdr.markForCheck();
+            },
+        });
+    }
+
     /** Removes an incident's pin from the map after confirmation. */
     removePin(incident: IncidentRecord): void {
-        if (!this.isSystemAdmin) {
+        if (!this.canManageIncidentPins) {
             return;
         }
         const label = this.incidentAddress(incident);

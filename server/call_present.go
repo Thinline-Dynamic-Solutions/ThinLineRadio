@@ -37,7 +37,7 @@ func callWithPresentedTalkgroup(call *Call, talkgroupRef uint) *Call {
 // call's primary ∪ patches that are on in their livefeed (prefer primary),
 // checks ACL against that talkgroup, and returns a call payload to emit.
 // Returns nil when the client should not receive the call.
-func (controller *Controller) presentCallForClient(call *Call, livefeed *Livefeed, user *User) *Call {
+func (controller *Controller) presentCallForClient(call *Call, livefeed *Livefeed, user *User, link *ListenLink) *Call {
 	if controller == nil || call == nil || livefeed == nil {
 		return nil
 	}
@@ -47,11 +47,24 @@ func (controller *Controller) presentCallForClient(call *Call, livefeed *Livefee
 		return nil
 	}
 
-	restricted := controller.requiresUserAuth()
+	restricted := controller.requiresUserAuth() || (user == nil && link != nil)
+
+	allowed := func(c *Call) bool {
+		if !restricted {
+			return true
+		}
+		if user != nil {
+			return controller.userHasAccess(user, c)
+		}
+		if controller.anonymousAllowed(link) {
+			return controller.featuresForAnonymous(link).LiveFeed && controller.anonymousHasCallAccess(link, c)
+		}
+		return false
+	}
 
 	// No formal patches: keep existing primary-only payload (still ACL-check).
 	if len(call.Patches) == 0 {
-		if restricted && (user == nil || !controller.userHasAccess(user, call)) {
+		if !allowed(call) {
 			return nil
 		}
 		return call
@@ -62,7 +75,7 @@ func (controller *Controller) presentCallForClient(call *Call, livefeed *Livefee
 		if presented == nil {
 			continue
 		}
-		if restricted && (user == nil || !controller.userHasAccess(user, presented)) {
+		if !allowed(presented) {
 			continue
 		}
 		return presented

@@ -82,14 +82,9 @@ func TestTrainingSubmitIssuesAbbreviationExceptions(t *testing.T) {
 	}
 }
 
-func TestTrainingSubmitIssuesNumberWords(t *testing.T) {
-	issues := trainingSubmitIssues("engine twelve at forty two main street, 4 four", 10, true)
-	if len(issues) != 1 || !strings.Contains(issues[0], "twelve") || !strings.Contains(issues[0], "forty") || !strings.Contains(issues[0], "four") {
-		t.Fatalf("number issues = %v", issues)
-	}
-	plate := trainingSubmitIssues("plate oh 047 kn", 10, true)
-	if len(plate) != 0 {
-		t.Fatalf("letter oh flagged: %v", plate)
+func TestTrainingSubmitIssuesAllowsNumberWords(t *testing.T) {
+	if issues := trainingSubmitIssues("engine twelve at forty two main street", 10, true); len(issues) != 0 {
+		t.Fatalf("number words flagged: %v", issues)
 	}
 }
 

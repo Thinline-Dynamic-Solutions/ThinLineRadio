@@ -14,31 +14,64 @@
   }
 
   @if (!boardEmbed && panelMode === 'alertsAndPreferences') {
-    <div class="alerts-header alerts-chrome">
-      <div class="alerts-chrome__left">
-        <span class="aux-heading">
-          <mat-icon>notifications_active</mat-icon>
-          Dispatch Alerts
-        </span>
-        <div class="alerts-seg" role="tablist" aria-label="Alerts sections">
-          <button type="button" class="alerts-seg__btn" [class.active]="activeTab === 'alerts'" (click)="setTab('alerts')">
-            Feed
-          </button>
-          <button type="button" class="alerts-seg__btn" [class.active]="activeTab === 'preferences'" (click)="setTab('preferences')">
-            Preferences
-          </button>
-        </div>
+    <div class="alerts-chrome">
+      <div class="alerts-seg" role="tablist" aria-label="Alerts sections">
+        <button type="button" role="tab" class="alerts-seg__btn"
+          [class.active]="activeTab === 'alerts'"
+          [attr.aria-selected]="activeTab === 'alerts'"
+          (click)="setTab('alerts')">
+          <mat-icon>notifications_none</mat-icon>
+          Feed
+          @if (totalAlertCount > 0) {
+            <span class="alerts-seg__count">{{ totalAlertCount }}</span>
+          }
+        </button>
+        <button type="button" role="tab" class="alerts-seg__btn"
+          [class.active]="activeTab === 'preferences'"
+          [attr.aria-selected]="activeTab === 'preferences'"
+          (click)="setTab('preferences')">
+          <mat-icon>tune</mat-icon>
+          Preferences
+        </button>
       </div>
-      <div class="alerts-chrome__right">
-        @if (activeTab === 'alerts' && totalAlertCount > 0) {
-          <span class="alerts-count-pill">{{ totalAlertCount }} {{ totalAlertCount === 1 ? 'hit' : 'hits' }}</span>
+
+      @if (activeTab === 'alerts') {
+        @if (canViewSystemAlerts) {
+          <div class="alerts-scope" role="tablist" aria-label="Alert scope">
+            <button type="button" role="tab" class="alerts-scope__btn"
+              [class.active]="alertsViewMode === 'mine'"
+              [attr.aria-selected]="alertsViewMode === 'mine'"
+              (click)="setAlertsViewMode('mine')">Mine</button>
+            <button type="button" role="tab" class="alerts-scope__btn"
+              [class.active]="alertsViewMode === 'system'"
+              [attr.aria-selected]="alertsViewMode === 'system'"
+              (click)="setAlertsViewMode('system')">System</button>
+            <button type="button" role="tab" class="alerts-scope__btn"
+              [class.active]="alertsViewMode === 'all'"
+              [attr.aria-selected]="alertsViewMode === 'all'"
+              (click)="setAlertsViewMode('all')">All</button>
+          </div>
         }
-        @if (activeTab === 'alerts') {
-          <button type="button" class="btn-icon-refresh" (click)="refreshAlertsTab()" [disabled]="alertsTabLoading" title="Refresh alerts">
-            <mat-icon>refresh</mat-icon>
-          </button>
+        @if (showMyAlertsSection || showSystemAlertsSection) {
+          <div class="alerts-find" [class.has-value]="hasActiveAlertSearch">
+            <mat-icon>search</mat-icon>
+            <input type="text"
+              [(ngModel)]="alertSearch"
+              (keydown.escape)="clearAlertSearch()"
+              placeholder="Search channel, keyword, or transcript…"
+              aria-label="Search alerts">
+            @if (hasActiveAlertSearch) {
+              <button type="button" class="alerts-find__clear" (click)="clearAlertSearch()" aria-label="Clear search">
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+          </div>
         }
-      </div>
+        <button type="button" class="alerts-refresh" (click)="refreshAlertsTab()" [disabled]="alertsTabLoading"
+          [class.is-spinning]="alertsTabLoading" title="Refresh alerts" aria-label="Refresh alerts">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      }
     </div>
   }
 
@@ -186,85 +219,40 @@
 
   @if (!boardEmbed && panelMode === 'alertsAndPreferences' && activeTab === 'alerts') {
     <div class="alerts-content">
-      @if (canViewSystemAlerts || showMyAlertsSection || showSystemAlertsSection) {
-        <div class="alerts-toolbar">
-          @if (canViewSystemAlerts) {
-            <div class="alerts-seg alerts-seg--scope" role="tablist" aria-label="Alert scope">
-              <button type="button" class="alerts-seg__btn" [class.active]="alertsViewMode === 'mine'" (click)="setAlertsViewMode('mine')">
-                Mine
-              </button>
-              <button type="button" class="alerts-seg__btn" [class.active]="alertsViewMode === 'system'" (click)="setAlertsViewMode('system')">
-                System
-              </button>
-              <button type="button" class="alerts-seg__btn" [class.active]="alertsViewMode === 'all'" (click)="setAlertsViewMode('all')">
-                All
-              </button>
-            </div>
-          }
-          @if (showMyAlertsSection || showSystemAlertsSection) {
-            <div class="alerts-search-bar">
-              <mat-icon class="alerts-search-icon">search</mat-icon>
-              <input type="text"
-                [(ngModel)]="alertSearch"
-                placeholder="Search channel, keyword, or transcript…"
-                class="alerts-search-input"
-                aria-label="Search alerts">
-              @if (hasActiveAlertSearch) {
-                <button
-                  type="button"
-                  class="alerts-search-clear"
-                  (click)="clearAlertSearch()"
-                  title="Clear search">
-                  <mat-icon>close</mat-icon>
-                </button>
-              }
-            </div>
-          }
-        </div>
-      }
       @if (showMyAlertsSection && alerts.length > 0 && filteredAlertGroups.length === 0 && hasActiveAlertSearch) {
-        <div class="no-alerts">
+        <div class="alerts-empty alerts-empty--compact">
           <mat-icon>search_off</mat-icon>
-          <p>No alerts match your search</p>
+          <span>No alerts match “{{ alertSearch }}”</span>
         </div>
       }
       @if (showSystemAlertsSection && systemAlerts.length > 0 && filteredSystemAlerts.length === 0 && hasActiveAlertSearch) {
-        <div class="no-alerts">
+        <div class="alerts-empty alerts-empty--compact">
           <mat-icon>search_off</mat-icon>
-          <p>No system alerts match your search</p>
+          <span>No system alerts match “{{ alertSearch }}”</span>
         </div>
       }
-      @if (showMyAlertsSection && alerts.length === 0 && !loading && alertsViewMode !== 'all') {
-        <div class="no-alerts">
-          <mat-icon>notifications_off</mat-icon>
-          <p>No alerts</p>
+      @if (showMyAlertsSection && alerts.length === 0 && !loading && !alertsTabLoading) {
+        <div class="alerts-empty" [class.alerts-empty--compact]="alertsViewMode === 'all'">
+          <mat-icon>notifications_none</mat-icon>
+          <strong>No alerts yet</strong>
+          <span>When a channel you follow has dispatch tones or matches one of your keyword lists, it shows up here.</span>
+          <button type="button" class="alerts-empty__cta" (click)="setTab('preferences')">
+            <mat-icon>tune</mat-icon>
+            Choose what alerts you
+          </button>
         </div>
       }
       @if (showSystemAlertsSection && systemAlerts.length === 0 && !loadingSystemAlerts && alertsViewMode === 'system') {
-        <div class="no-alerts">
-          <mat-icon>notifications_off</mat-icon>
-          <p>No system alerts in your access scope</p>
+        <div class="alerts-empty">
+          <mat-icon>check_circle_outline</mat-icon>
+          <strong>All systems healthy</strong>
+          <span>No system alerts in your access scope.</span>
         </div>
       }
-      @if (showMyAlertsSection && alerts.length === 0 && !loading && alertsViewMode === 'all') {
-        <div class="no-alerts">
-          <mat-icon>notifications_off</mat-icon>
-          <p>No alerts</p>
-        </div>
-      }
-      @if (alertsTabLoading && alertsViewMode === 'mine' && alerts.length === 0) {
-        <div class="loading">
-          <p>Loading alerts...</p>
-        </div>
-      }
-      @if (alertsTabLoading && alertsViewMode === 'system' && systemAlerts.length === 0) {
-        <div class="loading">
-          <p>Loading system alerts...</p>
-        </div>
-      }
-      @if (alertsTabLoading && alertsViewMode === 'all' && alerts.length === 0) {
-        <div class="loading">
-          <p>Loading alerts...</p>
+      @if (alertsTabLoading && ((alertsViewMode !== 'system' && alerts.length === 0) || (alertsViewMode === 'system' && systemAlerts.length === 0))) {
+        <div class="alerts-empty alerts-empty--compact">
+          <mat-icon class="spin">autorenew</mat-icon>
+          <span>Loading {{ alertsViewMode === 'system' ? 'system alerts' : 'alerts' }}…</span>
         </div>
       }
       @if (showMyAlertsSection && filteredAlertGroups.length > 0) {
@@ -371,23 +359,24 @@
       }
     @if (showSystemAlertsSection && filteredSystemAlerts.length > 0) {
       <div class="system-alerts-list">
+        <div class="system-alerts-head">
+          <span>System health</span>
+          <span class="system-alerts-head__count">{{ filteredSystemAlerts.length }}</span>
+        </div>
         @for (alert of filteredSystemAlerts; track trackBySystemAlertId($index, alert)) {
-          <div
-            class="system-alert-item"
-            [class.severity-critical]="alert.severity === 'critical'"
-            [class.severity-error]="alert.severity === 'error'"
-            [class.severity-warning]="alert.severity === 'warning'"
-            [class.severity-info]="alert.severity === 'info'">
-            <div class="system-alert-header">
-              <div class="system-alert-header-left">
-                <span class="system-alert-severity">{{ getSystemAlertSeverityIcon(alert.severity) }}</span>
-                <span class="system-alert-type-badge">{{ getSystemAlertTypeLabel(alert) }}</span>
+          <article class="system-alert-item" [attr.data-severity]="alert.severity">
+            <span class="system-alert-icon" aria-hidden="true">
+              <mat-icon>{{ systemAlertIcon(alert.severity) }}</mat-icon>
+            </span>
+            <div class="system-alert-body">
+              <div class="system-alert-header">
                 <span class="system-alert-title">{{ alert.title }}</span>
+                <span class="system-alert-type-badge">{{ getSystemAlertTypeLabel(alert) }}</span>
+                <time class="system-alert-timestamp">{{ formatTimestamp(alert.createdAt) }}</time>
               </div>
-              <span class="system-alert-timestamp">{{ formatTimestamp(alert.createdAt) }}</span>
+              <p class="system-alert-message">{{ alert.message }}</p>
             </div>
-            <p class="system-alert-message">{{ alert.message }}</p>
-          </div>
+          </article>
         }
       </div>
     }
@@ -410,13 +399,13 @@
         </div>
         <span class="collector-bar-muted">{{ globalTrainingProgress.percentOfGoal | number:'1.0-1' }}% · {{ globalTrainingProgress.submissions }} across {{ globalTrainingProgress.serverAccounts }} servers</span>
       }
-      @if (adminAuthenticated && collectorStats) {
+      @if (collectorAdmin && collectorStats) {
         <span class="collector-bar-muted">This server {{ collectorStats.submissions }} · {{ collectorStats.formatted }}</span>
       }
-      @if (adminAuthenticated && collectorLoading && !collectorStats) {
+      @if (collectorAdmin && collectorLoading && !collectorStats) {
         <span class="collector-bar-muted">Collector…</span>
       }
-      @if (adminAuthenticated && !collectorLoading && (!collectorHasApiKey || !collectorConnected)) {
+      @if (collectorAdmin && !collectorLoading && (!collectorHasApiKey || !collectorConnected)) {
         <span class="collector-status collector-status--warn">Not connected</span>
         <button type="button" class="btn-collector-connect"
           (click)="requestCollectorKey()"

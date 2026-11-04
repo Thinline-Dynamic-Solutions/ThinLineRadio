@@ -87,7 +87,7 @@ func (rm *ReconnectionManager) SaveDisconnectedState(client *Client) {
 		MaxBufferSize: rm.MaxBufferSize,
 	}
 
-	log.Printf("[ReconnectionManager] Saved state for user %s (PIN: %s)", userKey, client.User.Pin)
+	log.Printf("[ReconnectionManager] Saved state for user id:%d", client.User.Id)
 }
 
 // BufferCallForDisconnected buffers a call for disconnected clients who should receive it
@@ -109,7 +109,7 @@ func (rm *ReconnectionManager) BufferCallForDisconnected(call *Call) {
 
 		// Check if user's filters would allow this call — present as one TG
 		// when patches are involved, and skip cross-talkgroup copies already buffered.
-		presented := rm.controller.presentCallForClient(call, state.Livefeed, state.User)
+		presented := rm.controller.presentCallForClient(call, state.Livefeed, state.User, nil)
 		if presented == nil {
 			continue
 		}
@@ -147,7 +147,7 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 	if time.Since(state.LastSeen) > rm.HoldDuration {
 		delete(rm.States, userKey)
 		rm.mutex.Unlock()
-		log.Printf("[ReconnectionManager] Grace period expired for user %s (PIN: %s)", userKey, client.User.Pin)
+		log.Printf("[ReconnectionManager] Grace period expired for user id:%d", client.User.Id)
 		return false
 	}
 
@@ -165,8 +165,8 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 	rm.mutex.Unlock()
 
 	if missedCount == 0 {
-		log.Printf("[ReconnectionManager] User %s (PIN: %s) reconnected after %.1fs - no missed calls", 
-			userKey, client.User.Pin, disconnectDuration.Seconds())
+		log.Printf("[ReconnectionManager] User id:%d reconnected after %.1fs - no missed calls",
+			client.User.Id, disconnectDuration.Seconds())
 		return true
 	}
 
@@ -189,8 +189,8 @@ func (rm *ReconnectionManager) RestoreClientState(client *Client) bool {
 			}
 		}
 		
-		log.Printf("[ReconnectionManager] Successfully sent %d buffered calls to user %s (PIN: %s) after %.1fs disconnect", 
-			successCount, userKey, client.User.Pin, disconnectDuration.Seconds())
+		log.Printf("[ReconnectionManager] Successfully sent %d buffered calls to user id:%d after %.1fs disconnect",
+			successCount, client.User.Id, disconnectDuration.Seconds())
 	}()
 
 	return true

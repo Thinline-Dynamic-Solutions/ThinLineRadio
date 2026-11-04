@@ -1,0 +1,149 @@
+<div class="dispatch-admin">
+  <div class="intro-block">
+    <h3>Dispatch alerts</h3>
+    <p class="mat-caption intro">
+      Reach a chosen set of people right away, for example freelancers for a working fire. Recipients get a push with the dispatch tone
+      even if they haven't turned on alerts for any channel, and it shows in the System tab of their alerts on the app and web.
+    </p>
+  </div>
+
+  <section class="block">
+    <h4>Compose</h4>
+    <div class="row">
+      <mat-form-field appearance="outline" class="label-field">
+        <mat-label>Label</mat-label>
+        <input matInput [(ngModel)]="label" maxlength="40" placeholder="Dispatch Alert">
+        <mat-hint>Shown as the notification heading.</mat-hint>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="title-field">
+        <mat-label>Title</mat-label>
+        <input matInput [(ngModel)]="title" maxlength="120" placeholder="Working fire, 239 Mayhead Dr">
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="sev-field">
+        <mat-label>Severity</mat-label>
+        <mat-select [(ngModel)]="severity">
+          @for (s of severities; track s) {
+            <mat-option [value]="s">{{ s | titlecase }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Message</mat-label>
+      <textarea matInput [(ngModel)]="message" rows="3" maxlength="2000" placeholder="Need 2 photographers on scene, stage on Main St."></textarea>
+    </mat-form-field>
+
+    <div class="field-label">Groups</div>
+    <div class="chips">
+      @for (g of groups; track g.id) {
+        <button type="button" class="chip" [class.on]="selectedGroups.has(g.id)" (click)="toggleGroup(g)">
+          <mat-icon>{{ selectedGroups.has(g.id) ? 'check_circle' : 'group' }}</mat-icon>
+          {{ g.name }} <span class="count">{{ g.members }}</span>
+        </button>
+      } @empty {
+        <span class="mat-caption muted">No user groups yet.</span>
+      }
+    </div>
+
+    <div class="field-label">People</div>
+    @if (selectedUserList.length) {
+      <div class="chips">
+        @for (u of selectedUserList; track u.id) {
+          <button type="button" class="chip on" (click)="toggleUser(u)" matTooltip="Remove">
+            {{ u.name }} <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+    }
+    <mat-form-field appearance="outline" class="full-width filter">
+      <mat-label>Find people</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput [(ngModel)]="userFilter" placeholder="Name or email" autocomplete="off">
+    </mat-form-field>
+    <div class="user-list">
+      @if (loading && !users.length) {
+        <div class="muted pad">Loading…</div>
+      }
+      @for (u of filteredUsers; track u.id) {
+        <label class="user-row">
+          <mat-checkbox [checked]="selectedUsers.has(u.id)" (change)="toggleUser(u)"></mat-checkbox>
+          <span class="name">{{ u.name }}</span>
+          <span class="email">{{ u.email }}</span>
+          @if (!u.devices) {
+            <span class="no-device" matTooltip="No phone registered for push">no app</span>
+          }
+        </label>
+      }
+    </div>
+
+    <div class="send-row">
+      <div class="reach">
+        @if (reach.people) {
+          Reaches <strong>{{ reach.people }}</strong> {{ reach.people === 1 ? 'person' : 'people' }} on
+          <strong>{{ reach.devices }}</strong> {{ reach.devices === 1 ? 'device' : 'devices' }}
+          @if (reach.noDevice) {
+            <span class="muted">({{ reach.noDevice }} without the app only see it on the web)</span>
+          }
+        } @else {
+          <span class="muted">Pick groups or people.</span>
+        }
+      </div>
+      <button mat-raised-button color="primary" type="button" (click)="send()" [disabled]="sending || !reach.people || !message.trim()">
+        <mat-icon>campaign</mat-icon>
+        Send dispatch alert
+      </button>
+    </div>
+  </section>
+
+  <section class="block">
+    <h4>Dispatch tone</h4>
+    <p class="mat-caption muted">Every dispatch alert plays this tone, separate from channel alert tones.</p>
+    <div class="tone-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Tone</mat-label>
+        <mat-select [(ngModel)]="sound" [disabled]="!canEditSound">
+          @for (s of sounds; track s) {
+            <mat-option [value]="s">{{ soundName(s) | titlecase }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <button mat-stroked-button type="button" (click)="playSound()"><mat-icon>play_arrow</mat-icon> Preview</button>
+      @if (canEditSound) {
+        <button mat-raised-button color="primary" type="button" (click)="saveSound()" [disabled]="sound === savedSound">Save</button>
+      } @else {
+        <span class="mat-caption muted">Only system admins can change it.</span>
+      }
+    </div>
+  </section>
+
+  <section class="block">
+    <h4>Sent</h4>
+    @if (!history.length) {
+      <p class="mat-caption muted">Nothing sent yet.</p>
+    } @else {
+      <table class="history">
+        <thead>
+          <tr><th>When</th><th>Alert</th><th>To</th><th>By</th></tr>
+        </thead>
+        <tbody>
+          @for (h of history; track h.id) {
+            <tr>
+              <td class="when">{{ h.createdAt | date:'short' }}</td>
+              <td>
+                <div><span class="sev" [attr.data-sev]="h.severity">{{ h.label }}</span> <strong>{{ h.title }}</strong></div>
+                <div class="msg">{{ h.message }}</div>
+              </td>
+              <td>
+                {{ h.recipientCount }} {{ h.recipientCount === 1 ? 'person' : 'people' }}, {{ h.deviceCount }} {{ h.deviceCount === 1 ? 'device' : 'devices' }}
+                @if (h.groups.length) {
+                  <div class="mat-caption muted">{{ h.groups.join(', ') }}</div>
+                }
+              </td>
+              <td class="by">{{ h.sentBy }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
+</div>

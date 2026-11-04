@@ -17,7 +17,7 @@
  * ****************************************************************************
  */
 
-import { Component, OnInit, Output, EventEmitter, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy, ViewChild } from '@angular/core';
+import { Component, OnInit, Input, Output, EventEmitter, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -37,7 +37,9 @@ import { RdioScannerTurnstileComponent } from '../turnstile/turnstile.component'
     standalone: false
 })
 export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy {
+  @Input() preferRegister = false;
   @Output() authenticated = new EventEmitter<void>();
+  @Output() dismissed = new EventEmitter<void>();
 
   @ViewChild('loginTurnstile') loginTurnstile?: RdioScannerTurnstileComponent;
   @ViewChild('registerTurnstile') registerTurnstile?: RdioScannerTurnstileComponent;
@@ -300,6 +302,10 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy {
 
     // Set logo URL once to prevent spam
     this.logoUrl = `${window.location.origin}/email-logo?t=${Date.now()}`;
+
+    if (this.preferRegister) {
+      setTimeout(() => this.setAuthMode('register'), 0);
+    }
     
     // Check for initial config injected by server
     // The script should be in the HTML before Angular loads, but check multiple times
@@ -818,6 +824,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy {
           }
           // Persist system admin flag so the main UI can show the Admin Panel button
           this.rdioScannerService.saveIsSystemAdmin(response?.user?.systemAdmin === true);
+          this.rdioScannerService.savePublicApiEnabled(response?.user?.publicApiEnabled === true);
           console.log('Login successful:', response);
           
           // Reload the page to ensure fresh state and WebSocket connection
@@ -911,6 +918,7 @@ export class RdioScannerAuthScreenComponent implements OnInit, OnDestroy {
         if (typeof session?.pin === 'string' && session.pin.length > 0) {
           this.rdioScannerService.savePin(session.pin);
           this.rdioScannerService.saveIsSystemAdmin(false);
+          this.rdioScannerService.savePublicApiEnabled(false);
           window.location.reload();
           return;
         }

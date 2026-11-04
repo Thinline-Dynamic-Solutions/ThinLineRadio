@@ -76,6 +76,11 @@ export class RdioScannerAdminSystemsComponent {
         this.cdr.markForCheck();
     }
 
+    parentLabels(system: FormGroup): string {
+        const ids: number[] = system.value.parentIds || [];
+        return this.systems.filter((s) => ids.includes(s.value.id)).map((s) => s.value.label).join(', ');
+    }
+
     talkgroupCount(system: FormGroup): number {
         const raw = this.rawFor(system);
         return raw?.talkgroups?.length ?? system.value.talkgroups?.length ?? 0;

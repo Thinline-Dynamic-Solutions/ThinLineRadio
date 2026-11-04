@@ -48,6 +48,8 @@ type Controller struct {
 	Config                           *Config
 	Database                         *Database
 	Delayer                          *Delayer
+	DelayModeration                  *DelayModeration
+	AdminRoles                       *AdminRoles
 	Dirwatches                       *Dirwatches
 	Downstreams                      *Downstreams
 	FFMpeg                           *FFMpeg
@@ -60,6 +62,7 @@ type Controller struct {
 	Tags                             *Tags
 	Users                            *Users
 	UserGroups                       *UserGroups
+	ListenLinks                      *ListenLinks
 	RegistrationCodes                *RegistrationCodes
 	TransferRequests                 *TransferRequests
 	DeviceTokens                     *DeviceTokens
@@ -73,6 +76,7 @@ type Controller struct {
 	HallucinationDetector            *HallucinationDetector
 	CentralManagement                *CentralManagementService
 	Health                           *HealthService
+	PublicApi                        *PublicApiService
 	// Performance caches
 	PreferencesCache  *PreferencesCache
 	KeywordListsCache *KeywordListsCache
@@ -234,13 +238,17 @@ func NewController(config *Config) *Controller {
 	controller.Database = NewDatabase(config)
 	controller.Users = NewUsers()
 	controller.UserGroups = NewUserGroups()
+	controller.ListenLinks = NewListenLinks()
 	controller.RegistrationCodes = NewRegistrationCodes()
 	controller.TransferRequests = NewTransferRequests()
 	controller.DeviceTokens = NewDeviceTokens()
 	controller.EmailService = NewEmailService(controller)
 	controller.CentralManagement = NewCentralManagementService(controller)
 	controller.Health = NewHealthService(controller)
+	controller.PublicApi = NewPublicApiService(controller)
 	controller.Delayer = NewDelayer(controller)
+	controller.DelayModeration = NewDelayModeration(controller)
+	controller.AdminRoles = NewAdminRoles(controller)
 	controller.Downstreams = NewDownstreams(controller)
 	controller.Scheduler = NewScheduler(controller)
 
@@ -325,8 +333,12 @@ func (controller *Controller) EmitCall(call *Call) {
 		return
 	}
 
-	// Always send to downstreams immediately (downstreams should never be delayed)
-	go controller.Downstreams.Send(controller, call)
+	// Downstreams are not delayed, except where a moderator may still remove the call.
+	if controller.DelayModeration.IsModerated(call) {
+		controller.sendDownstreamAfterModeration(call)
+	} else {
+		go controller.Downstreams.Send(controller, call)
+	}
 
 	// Send to clients - Clients.EmitCall will handle per-client delays
 	go controller.Clients.EmitCall(controller, call)
@@ -338,7 +350,7 @@ func (controller *Controller) prepareCallEmit(call *Call, client *Client) *Call 
 	if controller == nil || call == nil || client == nil {
 		return nil
 	}
-	presented := controller.presentCallForClient(call, client.Livefeed, client.User)
+	presented := controller.presentCallForClient(call, client.Livefeed, client.User, linkOf(client))
 	if presented == nil {
 		return nil
 	}
@@ -533,6 +545,18 @@ func (controller *Controller) IngestCall(call *Call) {
 		if system, ok = controller.Systems.GetSystemByRef(systemId); !ok {
 			// Fallback to by Id
 			system, _ = controller.Systems.GetSystemById(uint64(systemId))
+		}
+	}
+
+	// An upload to a main system goes to the subsystem that owns the talkgroup under
+	// that main system. Talkgroups no subsystem owns stay on the main system, which
+	// only stores them when its own auto-populate is on.
+	if system != nil && system.IsMain {
+		if sub, routed := controller.Systems.RouteFromMain(system, talkgroupId, call.Patches); routed {
+			system = sub
+			systemId = sub.SystemRef
+			call.SystemId = sub.SystemRef
+			call.Meta.SystemRef = sub.SystemRef
 		}
 	}
 
@@ -2987,6 +3011,7 @@ func (controller *Controller) LogClientsCount() {
 
 func (controller *Controller) ProcessMessage(client *Client, message *Message) error {
 	restricted := controller.requiresUserAuth()
+	freeAnon := client.User == nil && ((restricted && controller.anonymousAllowed(client.ListenLink)) || client.ListenLink != nil)
 
 	if message.Command == MessageCommandVersion {
 		controller.ProcessMessageCommandVersion(client)
@@ -2998,12 +3023,15 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		default:
 		}
 
-	} else if restricted && client.User == nil && message.Command != MessageCommandPin {
+	} else if restricted && client.User == nil && message.Command != MessageCommandPin && !freeAnon {
 		msg := &Message{Command: MessageCommandPin}
 		select {
 		case client.Send <- msg:
 		default:
 		}
+
+	} else if freeAnon && !controller.anonymousCommandAllowed(client, message.Command) {
+		return nil
 
 	} else if client.PinExpired && message.Command != MessageCommandPin && message.Command != MessageCommandVersion && message.Command != MessageCommandPing {
 		// PIN is expired - ignore all messages except PIN (for re-authentication), Version, and Ping
@@ -3011,6 +3039,9 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		return nil
 
 	} else if message.Command == MessageCommandCall {
+		if !controller.clientHasFeature(client, "liveFeed") && !controller.clientHasFeature(client, "replay") {
+			return nil
+		}
 		if err := controller.ProcessMessageCommandCall(client, message); err != nil {
 			return err
 		}
@@ -3022,11 +3053,17 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		client.SendConfig(controller.Groups, controller.Options, controller.Systems, controller.Tags)
 
 	} else if message.Command == MessageCommandListCall {
+		if !controller.clientHasFeature(client, "replay") {
+			return nil
+		}
 		if err := controller.ProcessMessageCommandListCall(client, message); err != nil {
 			return err
 		}
 
 	} else if message.Command == MessageCommandLivefeedMap {
+		if !controller.clientHasFeature(client, "liveFeed") {
+			return nil
+		}
 		controller.ProcessMessageCommandLivefeedMap(client, message)
 
 	} else if message.Command == MessageCommandPin {
@@ -3045,6 +3082,21 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 	}
 
 	return nil
+}
+
+func (controller *Controller) anonymousCommandAllowed(client *Client, command any) bool {
+	switch command {
+	case MessageCommandVersion, MessageCommandPing, MessageCommandConfig, MessageCommandPin:
+		return true
+	case MessageCommandLivefeedMap:
+		return controller.clientHasFeature(client, "liveFeed")
+	case MessageCommandCall:
+		return controller.clientHasFeature(client, "liveFeed") || controller.clientHasFeature(client, "replay")
+	case MessageCommandListCall:
+		return controller.clientHasFeature(client, "replay")
+	default:
+		return false
+	}
 }
 
 func (controller *Controller) ProcessMessageCommandCall(client *Client, message *Message) error {
@@ -3086,8 +3138,14 @@ func (controller *Controller) ProcessMessageCommandCall(client *Client, message 
 	}
 
 	// Check user access (includes group access restrictions)
-	if controller.requiresUserAuth() {
-		if client.User == nil || !controller.userHasAccess(client.User, call) {
+	if controller.scopeRestricted(client) {
+		allowed := false
+		if client.User != nil {
+			allowed = controller.userHasAccess(client.User, call)
+		} else if controller.anonymousAllowed(client.ListenLink) {
+			allowed = controller.anonymousHasCallAccess(client.ListenLink, call)
+		}
+		if !allowed {
 			msg := &Message{Command: MessageCommandError, Payload: "access denied"}
 			select {
 			case client.Send <- msg:
@@ -3095,25 +3153,15 @@ func (controller *Controller) ProcessMessageCommandCall(client *Client, message 
 			}
 			return nil
 		}
+	}
 
-		// Check user/group-specific delay for playback
-		// Even if the call passed the global delay check, this user might have a longer delay
-		effectiveDelay := controller.Options.DefaultSystemDelay
-		if client.User != nil {
-			effectiveDelay = controller.userEffectiveDelay(client.User, call, controller.Options.DefaultSystemDelay)
+	if !controller.callReleasedForClient(client, call) {
+		msg := &Message{Command: MessageCommandError, Payload: fmt.Sprintf("call %d is still delayed for your account and not available for playback", callId)}
+		select {
+		case client.Send <- msg:
+		default:
 		}
-
-		if effectiveDelay > 0 {
-			delayCompletionTime := call.Timestamp.Add(time.Duration(effectiveDelay) * time.Minute)
-			if time.Now().Before(delayCompletionTime) {
-				msg := &Message{Command: MessageCommandError, Payload: fmt.Sprintf("call %d is still delayed for your account and not available for playback", callId)}
-				select {
-				case client.Send <- msg:
-				default:
-				}
-				return nil
-			}
-		}
+		return nil
 	}
 
 	// Enforce per-client download rate limit when the download flag is present.
@@ -3194,7 +3242,10 @@ func (controller *Controller) ProcessMessageCommandLivefeedMap(client *Client, m
 
 // sendAvailableCallsToClient sends calls that are currently available to a newly connected client
 func (controller *Controller) sendAvailableCallsToClient(client *Client) {
-	if controller.requiresUserAuth() && client.User == nil {
+	if client.User == nil && controller.scopeRestricted(client) && !controller.anonymousAllowed(client.ListenLink) {
+		return
+	}
+	if !controller.clientHasFeature(client, "liveFeed") {
 		return
 	}
 
@@ -3331,7 +3382,7 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 
 		// If user auth is required and no user found, reject
 		if controller.requiresUserAuth() && user == nil {
-			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("invalid user pin %s for ip %s", code, client.GetRemoteAddr()))
+			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("invalid user pin for ip %s", client.GetRemoteAddr()))
 			msg := &Message{Command: MessageCommandPin}
 			select {
 			case client.Send <- msg:
@@ -3576,6 +3627,9 @@ func (controller *Controller) Start() error {
 	// Runs once in the background at startup; deletes in small batches to avoid locking.
 	go controller.purgeLegacyDuplicates()
 
+	// Weekly Radio Reference comparison for linked systems; admins apply changes.
+	go controller.startRadioReferenceUpdateLoop()
+
 	// Create a context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	controller.workerCancel = cancel
@@ -3778,7 +3832,7 @@ func (controller *Controller) readAllData() error {
 		}
 	}
 
-	wg.Add(17)
+	wg.Add(20)
 	go readFunc(func() error { return controller.Apikeys.Read(controller.Database) }, "apikeys")
 	go readFunc(func() error { return controller.Dirwatches.Read(controller.Database) }, "dirwatches")
 	go readFunc(func() error { return controller.Downstreams.Read(controller.Database) }, "downstreams")
@@ -3790,9 +3844,12 @@ func (controller *Controller) readAllData() error {
 	go readFunc(func() error { return controller.Tags.Read(controller.Database) }, "tags")
 	go readFunc(func() error { return controller.Users.Read(controller.Database) }, "users")
 	go readFunc(func() error { return controller.UserGroups.Load(controller.Database) }, "userGroups")
+	go readFunc(func() error { return controller.ListenLinks.Load(controller.Database) }, "listenLinks")
 	go readFunc(func() error { return controller.RegistrationCodes.Load(controller.Database) }, "registrationCodes")
 	go readFunc(func() error { return controller.TransferRequests.Load(controller.Database) }, "transferRequests")
 	go readFunc(func() error { return controller.DeviceTokens.Load(controller.Database) }, "deviceTokens")
+	go readFunc(func() error { return controller.DelayModeration.Read(controller.Database) }, "delayModerators")
+	go readFunc(func() error { return controller.AdminRoles.Read(controller.Database) }, "adminRoles")
 
 	// Load performance caches
 	go readFunc(func() error { return controller.PreferencesCache.Read(controller.Database) }, "preferencesCache")

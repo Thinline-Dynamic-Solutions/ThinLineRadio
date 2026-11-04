@@ -1,0 +1,292 @@
+<!-- Main system / subsystem routing -->
+<div class="net-card">
+  <div class="net-card-head">
+    <mat-icon>account_tree</mat-icon>
+    <h4>Main system</h4>
+  </div>
+
+  <div class="toggle-row">
+    <label>This is a main system</label>
+    <mat-slide-toggle color="primary" [checked]="isMain" (change)="setMain($event.checked)"
+      [disabled]="!isMain && parentIds.length > 0"></mat-slide-toggle>
+  </div>
+  <p class="hint">
+    Uploaders can send calls to a main system's ID. Each call goes to the subsystem below that has its talkgroup.
+    Listeners never see a main system. Talkgroups that no subsystem has stay on the main system, and are only
+    added there when Auto Populate is on for the main system.
+  </p>
+  @if (!isMain && parentIds.length > 0) {
+    <p class="hint">This system is under a main system, so it can't be one itself.</p>
+  }
+
+  @if (isMain) {
+    @if (!systemId) {
+      <p class="note">Save this system first, then put subsystems under it from each subsystem's Network tab.</p>
+    } @else if (!subsystems.length) {
+      <p class="note">No subsystems yet. Open a system and pick this one under “Part of main systems”.</p>
+    } @else {
+      <div class="sub-list">
+        <div class="sub-list-title">Subsystems</div>
+        @for (sub of subsystems; track sub.id) {
+          <div class="sub-row">
+            <span>{{ sub.label }}</span>
+            <code>ID {{ sub.systemRef }}</code>
+            <span class="muted">{{ sub.talkgroups }} talkgroups</span>
+          </div>
+        }
+      </div>
+    }
+  } @else {
+    <mat-form-field appearance="outline" class="wide-field" subscriptSizing="dynamic">
+      <mat-label>Part of main systems</mat-label>
+      <mat-select multiple [value]="parentIds" (selectionChange)="setParents($event.value)" [disabled]="!mainChoices.length">
+        @for (m of mainChoices; track m.id) {
+          <mat-option [value]="m.id">{{ m.label }} (ID {{ m.systemRef }})</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <p class="hint">
+      @if (!mainChoices.length) {
+        No main systems yet. Turn on “This is a main system” on the system uploaders send to, and save it.
+      } @else {
+        Calls uploaded to these main systems come here for talkgroups this system has. Uploads straight to this
+        system's own ID still work. Talkgroups reached through a main system are never auto-populated here.
+      }
+    </p>
+
+    @if (parentChoices.length > 1) {
+      <div class="networks">
+        <div class="sub-list-title">Talkgroup networks</div>
+        <p class="hint">
+          This system is under more than one main system. Pick which one each talkgroup belongs to. A talkgroup left on
+          “All” takes calls from every main system above, so the same talkgroup ID can't also be in another subsystem
+          under one of them.
+        </p>
+        <mat-form-field appearance="outline" class="filter-field" subscriptSizing="dynamic">
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput placeholder="Filter talkgroups" [(ngModel)]="networkFilter" [ngModelOptions]="{standalone: true}">
+        </mat-form-field>
+        <div class="network-table">
+          @for (tg of talkgroups.slice(0, 300); track tg.ref) {
+            <div class="network-row">
+              <code>{{ tg.ref }}</code>
+              <span class="tg-label">{{ tg.label }}</span>
+              <mat-select class="network-select" [value]="networkFor(tg.ref)" (selectionChange)="setNetwork(tg.ref, $event.value)">
+                <mat-option [value]="0">All</mat-option>
+                @for (m of parentChoices; track m.id) {
+                  <mat-option [value]="m.id">{{ m.label }}</mat-option>
+                }
+              </mat-select>
+            </div>
+          } @empty {
+            <p class="note">No talkgroups{{ networkFilter ? ' match' : '' }}.</p>
+          }
+          @if (talkgroups.length > 300) {
+            <p class="note">Showing 300 of {{ talkgroups.length }}. Filter to find others.</p>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<!-- Radio Reference -->
+<div class="net-card">
+  <div class="net-card-head">
+    <mat-icon>cloud_sync</mat-icon>
+    <h4>Radio Reference</h4>
+  </div>
+
+  @if (link && !picking) {
+    <div class="link-row">
+      <div>
+        <div class="link-name">{{ link.systemName }} <span class="muted">#{{ link.systemId }}</span></div>
+        <div class="muted">{{ link.countyName }}, {{ link.stateName }}</div>
+      </div>
+      <span class="spacer"></span>
+      <button mat-stroked-button type="button" (click)="startPicking()">Change</button>
+      <button mat-button type="button" color="warn" (click)="removeLink()">Remove</button>
+    </div>
+  } @else if (!picking) {
+    @if (underLinkedMain) {
+      <p class="hint">Checked with {{ underLinkedMain }}. Link this system only if Radio Reference lists it as its own system.</p>
+    } @else {
+      <p class="hint">Not linked. Pick the Radio Reference system this system follows, and its talkgroups are compared every week.</p>
+    }
+    <button mat-stroked-button type="button" (click)="startPicking()">
+      <mat-icon>search</mat-icon> Choose Radio Reference system
+    </button>
+  }
+
+  @if (picking) {
+    <div class="picker">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>State</mat-label>
+        <mat-select [value]="pickState" (selectionChange)="onState($event.value)">
+          @for (s of rrStates; track s.id) {
+            <mat-option [value]="s">{{ s.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>County</mat-label>
+        <mat-select [value]="pickCounty" (selectionChange)="onCounty($event.value)" [disabled]="!pickState">
+          @for (c of rrCounties; track c.id) {
+            <mat-option [value]="c">{{ c.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="wide-field">
+        <mat-label>Radio Reference system</mat-label>
+        <mat-select [value]="pickSystem" (selectionChange)="pickSystem = $event.value" [disabled]="!pickCounty">
+          @for (s of rrSystems; track s.id) {
+            <mat-option [value]="s">{{ s.name }} (#{{ s.id }})</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+    @if (rrLoading) {
+      <p class="note"><mat-spinner diameter="14"></mat-spinner> Loading {{ rrLoading }}…</p>
+    }
+    @if (rrError) {
+      <p class="error">{{ rrError }}</p>
+    }
+    @if (pickCounty && !rrLoading && !rrSystems.length && !rrError) {
+      <p class="note">Radio Reference lists no trunked systems for this county.</p>
+    }
+    <div class="picker-actions">
+      <button mat-raised-button color="primary" type="button" [disabled]="!pickSystem" (click)="usePicked()">Use this system</button>
+      <button mat-button type="button" (click)="picking = false">Cancel</button>
+    </div>
+  }
+
+  @if (link && !picking) {
+    <div class="updates">
+      <div class="updates-head">
+        <div>
+          <div class="sub-list-title">Updates</div>
+          @if (running) {
+            <div class="muted"><mat-spinner diameter="14"></mat-spinner> Checking Radio Reference… large systems can take a few minutes.</div>
+          } @else if (review?.checkedAt) {
+            <div class="muted">Last checked {{ review!.checkedAt | date: 'MMM d, h:mm a' }}. Checked again every week.</div>
+          } @else {
+            <div class="muted">Not checked yet. The first weekly check runs on its own, or check now.</div>
+          }
+        </div>
+        <span class="spacer"></span>
+        <button mat-stroked-button type="button" (click)="checkNow()" [disabled]="running || !savedAndLinked"
+          [matTooltip]="savedAndLinked ? '' : 'Save the system first'">
+          <mat-icon>refresh</mat-icon> Check now
+        </button>
+      </div>
+
+      @if (form.dirty) {
+        <p class="note">Save this system before checking or applying updates.</p>
+      }
+      @if (review?.error) {
+        <p class="error">Last check failed: {{ review!.error }}</p>
+      }
+
+      @if (review && !running) {
+        <p class="muted">
+          {{ review.talkgroups }} talkgroups here, {{ review.rrTalkgroups }} on Radio Reference.
+          Nothing changes until you apply.
+        </p>
+
+        <nav class="review-tabs">
+          <button type="button" [class.active]="reviewTab === 'fill'" (click)="reviewTab = 'fill'">Fill in ({{ review.fill.length }})</button>
+          <button type="button" [class.active]="reviewTab === 'differ'" (click)="reviewTab = 'differ'">Named differently ({{ review.differ.length }})</button>
+          <button type="button" [class.active]="reviewTab === 'missing'" (click)="reviewTab = 'missing'">Missing ({{ review.missing.length }})</button>
+          <button type="button" [class.active]="reviewTab === 'notInRR'" (click)="reviewTab = 'notInRR'">Not on Radio Reference ({{ review.notInRR.length }})</button>
+        </nav>
+
+        @if (reviewTab === 'fill') {
+          <p class="hint">Talkgroups that still look auto-populated (label is the ID, group Unknown, or untagged) where Radio Reference has details.</p>
+        } @else if (reviewTab === 'differ') {
+          <p class="hint">Talkgroups someone already named that Radio Reference names differently. Groups you pick here are added; existing groups are kept.</p>
+        } @else if (reviewTab === 'missing') {
+          <p class="hint">On Radio Reference in the categories this system already uses, but not here. Pick which system each one goes to.</p>
+        } @else {
+          <p class="hint">Here but not on Radio Reference. Shown for information only.</p>
+        }
+
+        @if (reviewTab !== 'notInRR') {
+          @let list = review[reviewTab];
+          @if (list.length) {
+            <div class="review-table">
+              <div class="review-row review-row--head">
+                <mat-checkbox [checked]="allSelected(reviewTab)" (change)="toggleAll(reviewTab, $event.checked)"></mat-checkbox>
+                <span>Talkgroup</span>
+                <span>Label</span>
+                <span>Name</span>
+                <span>Group</span>
+                <span>Tag</span>
+                <span>{{ reviewTab === 'missing' ? 'Add to' : 'System' }}</span>
+              </div>
+              @for (item of list; track key(item)) {
+                <div class="review-row">
+                  <mat-checkbox [checked]="isSelected(reviewTab, item)" (change)="toggle(reviewTab, item, $event.checked)"></mat-checkbox>
+                  <code>{{ item.ref }}</code>
+                  @for (field of ['label', 'name', 'group', 'tag']; track field) {
+                    <span class="cell">
+                      @if (reviewTab !== 'missing' && changed(item, field)) {
+                        <span class="from">{{ $any(item.current)[field] || '—' }}</span>
+                        <span class="to">{{ $any(item.proposed)[field] }}</span>
+                      } @else if (reviewTab === 'missing') {
+                        <span class="to">{{ $any(item.proposed)[field] }}</span>
+                      } @else {
+                        <span class="same">{{ $any(item.current)[field] }}</span>
+                      }
+                    </span>
+                  }
+                  @if (reviewTab === 'missing') {
+                    <mat-select class="target-select" [value]="missingTargets[item.ref]" (selectionChange)="missingTargets[item.ref] = $event.value">
+                      @for (t of review.targets; track t.id) {
+                        <mat-option [value]="t.id">{{ t.label }}</mat-option>
+                      }
+                    </mat-select>
+                  } @else {
+                    <span class="muted">{{ item.systemLabel }}</span>
+                  }
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="note">Nothing here.</p>
+          }
+        } @else {
+          <div class="review-table">
+            @for (item of review.notInRR; track key(item)) {
+              <div class="review-row review-row--info">
+                <code>{{ item.ref }}</code>
+                <span>{{ item.current.label }}</span>
+                <span class="muted">{{ item.current.name }}</span>
+                <span class="muted">{{ item.systemLabel }}</span>
+              </div>
+            } @empty {
+              <p class="note">Nothing here.</p>
+            }
+          </div>
+        }
+
+        @if (groupMapEntries.length) {
+          <details class="group-map">
+            <summary>Groups used for Radio Reference categories ({{ groupMapEntries.length }})</summary>
+            <p class="hint">Learned from talkgroups already named here, so updates use your groups instead of Radio Reference's category names.</p>
+            @for (g of groupMapEntries; track g.category) {
+              <div class="group-map-row"><span>{{ g.category }}</span><mat-icon>arrow_forward</mat-icon><span>{{ g.group }}</span></div>
+            }
+          </details>
+        }
+
+        <div class="apply-row">
+          <button mat-raised-button color="primary" type="button" (click)="apply()"
+            [disabled]="applying || !selectedCount || form.dirty">
+            <mat-icon>done_all</mat-icon>
+            {{ applying ? 'Applying…' : 'Apply ' + selectedCount + ' selected' }}
+          </button>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -113,6 +113,8 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
         'sdrtrunk',
         'tone_detection_issue',
         'transcription_failure',
+        'disk_space_low',
+        'external',
         'other',
     ] as const;
 
@@ -158,7 +160,7 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
 
         try {
             const response = await this.adminService.getSystemHealth(100, false);
-            this.alerts = response.alerts || [];
+            this.alerts = (response.alerts || []).filter((a: SystemAlert) => a.alertType !== 'dispatch');
             this.updateStats();
             this.rebuildGroupedAlerts();
             
@@ -291,6 +293,8 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
             sdrtrunk: [],
             tone_detection_issue: [],
             transcription_failure: [],
+            disk_space_low: [],
+            external: [],
             other: [],
         };
 
@@ -398,6 +402,10 @@ export class RdioScannerAdminSystemHealthComponent implements OnInit, OnDestroy 
                 return 'Tone Detection Issues';
             case 'transcription_failure':
                 return 'Transcription Failures';
+            case 'disk_space_low':
+                return 'Disk Space';
+            case 'external':
+                return 'From Your Monitors';
             default:
                 return 'Other Alerts';
         }

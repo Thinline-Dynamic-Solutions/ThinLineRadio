@@ -52,6 +52,18 @@ interface UserGroup {
   isPublicRegistration: boolean;
   allowAddExistingUsers: boolean;
   autoEnableNewTalkgroups: boolean;
+  isFreeGroup?: boolean;
+  features?: {
+    liveFeed?: boolean;
+    replay?: boolean;
+    channels?: boolean;
+    alerts?: boolean;
+    transcripts?: boolean;
+    stats?: boolean;
+    map?: boolean;
+    settings?: boolean;
+    alertsSideRail?: boolean;
+  };
   createdAt: number;
 }
 
@@ -181,6 +193,18 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       isPublicRegistration: [false],
       allowAddExistingUsers: [false],
       autoEnableNewTalkgroups: [false],
+      isFreeGroup: [false],
+      features: this.fb.group({
+        liveFeed: [true],
+        replay: [true],
+        channels: [true],
+        alerts: [true],
+        transcripts: [true],
+        stats: [true],
+        map: [true],
+        settings: [true],
+        alertsSideRail: [true],
+      }),
       groupAdminUserId: [0],
       newGroupAdminEmail: [''],
       newGroupAdminPassword: [''],
@@ -196,6 +220,27 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     // Set initial validators based on billingEnabled default value
     const initialBillingEnabled = this.groupForm.get('billingEnabled')?.value ?? false;
     this.updatePricingOptionValidators(initialBillingEnabled);
+
+    this.groupForm.get('isFreeGroup')?.valueChanges.subscribe(isFree => {
+      if (isFree) {
+        this.groupForm.patchValue({ billingEnabled: false }, { emitEvent: true });
+        const features = this.groupForm.get('features');
+        // Only reset to live-only when creating a new free group (features still all-on).
+        if (!this.editingGroup && features?.get('replay')?.value && features?.get('channels')?.value) {
+          features.patchValue({
+            liveFeed: true,
+            replay: false,
+            channels: false,
+            alerts: false,
+            transcripts: false,
+            stats: false,
+            map: false,
+            settings: false,
+            alertsSideRail: false,
+          });
+        }
+      }
+    });
 
     // Add dynamic validation: at least one pricing option required when billingEnabled is true
     this.groupForm.get('billingEnabled')?.valueChanges.subscribe(billingEnabled => {
@@ -524,6 +569,18 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       isPublicRegistration: false,
       allowAddExistingUsers: false,
       autoEnableNewTalkgroups: false,
+      isFreeGroup: false,
+      features: {
+        liveFeed: true,
+        replay: true,
+        channels: true,
+        alerts: true,
+        transcripts: true,
+        stats: true,
+        map: true,
+        settings: true,
+        alertsSideRail: true,
+      },
       groupAdminUserId: 0,
       newGroupAdminEmail: '',
       newGroupAdminPassword: '',
@@ -578,7 +635,11 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     delete (groupForPatch as any).pricingOptions;
     
     // Patch the form (excluding pricingOptions which we'll handle separately)
-    this.groupForm.patchValue(groupForPatch);
+    const features = group.features || {
+      liveFeed: true, replay: true, channels: true, alerts: true,
+      transcripts: true, stats: true, map: true, settings: true, alertsSideRail: true,
+    };
+    this.groupForm.patchValue({ ...groupForPatch, features });
     
     // Parse system access JSON - support both legacy (array of IDs) and new format (array of objects)
     try {
@@ -688,6 +749,10 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
         this.snackBar.open('Please select a user to assign as group admin', 'Close', { duration: 3000 });
         return;
       }
+    }
+
+    if (this.groupForm.get('isFreeGroup')?.value) {
+      this.groupForm.patchValue({ billingEnabled: false }, { emitEvent: false });
     }
 
     // Additional validation: If billing is enabled, at least one pricing option must be set

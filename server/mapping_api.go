@@ -423,6 +423,10 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	if !api.Controller.clientHasFeature(client, "map") {
+		api.exitWithError(w, http.StatusForbidden, "map not available for your group")
+		return
+	}
 	since := int64(0)
 	until := int64(0)
 	if v := r.URL.Query().Get("since"); v != "" {
@@ -528,11 +532,13 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 		if !tgOk {
 			continue
 		}
-		if !api.Controller.userHasAccess(client.User, &Call{
+		incidentCall := &Call{
 			Id:        callId,
 			System:    system,
 			Talkgroup: talkgroup,
-		}) {
+			Timestamp: time.UnixMilli(ts),
+		}
+		if !api.Controller.userHasAccess(client.User, incidentCall) || !api.transcriptReleasedForUser(client.User, incidentCall) {
 			continue
 		}
 		row := map[string]any{

@@ -1,0 +1,127 @@
+<div class="share-links-admin">
+  <div class="header-actions">
+    <div>
+      <h3>Share links</h3>
+      <p class="mat-caption intro">
+        A share link lets anyone listen without signing in, on only the channels you pick.
+        Send it out, post it, or open it in the app. Everything else on the scanner shows as locked with an upgrade prompt.
+      </p>
+    </div>
+    @if (!showForm) {
+      <button mat-raised-button color="primary" type="button" (click)="startCreate()">
+        <mat-icon>add_link</mat-icon>
+        New link
+      </button>
+    }
+  </div>
+
+  @if (showForm) {
+    <form class="link-form" [formGroup]="form" (ngSubmit)="save()">
+      <h4>{{ editing ? 'Edit link' : 'New link' }}</h4>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Name</mat-label>
+        <input matInput formControlName="name" placeholder="Carroll County Fire (public)" autocomplete="off">
+        <mat-hint>Shown to listeners at the top of the page.</mat-hint>
+      </mat-form-field>
+
+      <div class="channels-row">
+        <div>
+          <div class="field-label">Channels</div>
+          <div class="channels-summary" [class.is-empty]="!scope.length">{{ scopeSummary }}</div>
+        </div>
+        <button mat-stroked-button type="button" (click)="pickChannels()">
+          <mat-icon>tune</mat-icon>
+          Pick channels
+        </button>
+      </div>
+
+      <div class="row">
+        <mat-form-field appearance="outline">
+          <mat-label>Delay (minutes)</mat-label>
+          <input matInput type="number" min="0" formControlName="delay">
+          <mat-hint>0 plays calls live.</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Stops working after</mat-label>
+          <input matInput type="date" formControlName="expiresOn">
+          <mat-hint>Leave empty to keep it working.</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <div class="field-label">Listeners can use</div>
+      <div class="feature-toggles" formGroupName="features">
+        <mat-checkbox formControlName="liveFeed">Live feed</mat-checkbox>
+        <mat-checkbox formControlName="replay">Archive search</mat-checkbox>
+        <mat-checkbox formControlName="channels">Turn channels on and off</mat-checkbox>
+        <mat-checkbox formControlName="settings">Settings</mat-checkbox>
+      </div>
+      <p class="mat-caption">Alerts, transcripts, stats and the map need a signed-in account, so they're always locked on a share link.</p>
+
+      <mat-slide-toggle formControlName="enabled">Link is on</mat-slide-toggle>
+
+      <div class="form-actions">
+        <button mat-button type="button" (click)="cancel()">Cancel</button>
+        <button mat-raised-button color="primary" type="submit" [disabled]="saving">
+          {{ editing ? 'Save' : 'Create and copy link' }}
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (loading && !links.length) {
+    <div class="empty"><mat-spinner diameter="32"></mat-spinner></div>
+  } @else if (!links.length && !showForm) {
+    <div class="empty">
+      <mat-icon>link</mat-icon>
+      <p>No share links yet.</p>
+    </div>
+  } @else if (links.length) {
+    <table class="links-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Link</th>
+          <th>Channels</th>
+          <th>Delay</th>
+          <th>Listening now</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (link of links; track link.id) {
+          <tr [class.is-off]="!link.active">
+            <td class="name">{{ link.name }}</td>
+            <td>
+              <button type="button" class="url-btn" (click)="copy(link)" matTooltip="Copy link">
+                <span>/l/{{ link.token }}</span>
+                <mat-icon>content_copy</mat-icon>
+              </button>
+            </td>
+            <td class="scope">{{ linkScopeSummary(link) }}</td>
+            <td>{{ link.delay ? link.delay + ' min' : 'Live' }}</td>
+            <td>{{ link.listeners }}</td>
+            <td>
+              <span class="status" [attr.data-state]="statusLabel(link)">{{ statusLabel(link) }}</span>
+              @if (link.expiresAt) {
+                <div class="mat-caption">until {{ link.expiresAt * 1000 | date:'mediumDate' }}</div>
+              }
+            </td>
+            <td class="actions">
+              <button mat-icon-button type="button" (click)="toggleEnabled(link)" [matTooltip]="link.enabled ? 'Turn off' : 'Turn on'">
+                <mat-icon>{{ link.enabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+              </button>
+              <button mat-icon-button type="button" (click)="startEdit(link)" matTooltip="Edit">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button type="button" (click)="remove(link)" matTooltip="Delete">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

@@ -25,6 +25,7 @@ const (
 	LogCategoryHealth         = "health"
 	LogCategoryCentral        = "central"
 	LogCategoryAdmin          = "admin"
+	LogCategoryAudit          = "audit"
 	LogCategoryWebsocket      = "websocket"
 	LogCategoryAutoLearn      = "auto_learn"
 	LogCategoryRadioReference = "radioreference"
@@ -49,6 +50,7 @@ var AllLogCategories = []string{
 	LogCategoryHealth,
 	LogCategoryCentral,
 	LogCategoryAdmin,
+	LogCategoryAudit,
 	LogCategoryWebsocket,
 	LogCategoryAutoLearn,
 	LogCategoryRadioReference,
@@ -73,6 +75,7 @@ var LogCategoryLabels = map[string]string{
 	LogCategoryHealth:         "System Health",
 	LogCategoryCentral:        "Central Management",
 	LogCategoryAdmin:          "Admin & Config",
+	LogCategoryAudit:          "Admin Audit",
 	LogCategoryWebsocket:      "WebSocket",
 	LogCategoryAutoLearn:      "Auto-Learn",
 	LogCategoryRadioReference: "Radio Reference",
@@ -147,6 +150,8 @@ func categorizeLogPrefix(prefix, body, full string) string {
 		return LogCategoryCalls
 	case strings.HasPrefix(prefix, "newcall"):
 		return LogCategoryCalls
+	case prefix == "admin audit":
+		return LogCategoryAudit
 	case strings.HasPrefix(prefix, "admin"):
 		return categorizeAdminPrefix(body, full)
 	case strings.HasPrefix(prefix, "client."):

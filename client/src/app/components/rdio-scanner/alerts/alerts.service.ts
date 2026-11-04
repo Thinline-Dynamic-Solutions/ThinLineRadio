@@ -239,7 +239,8 @@ export class AlertsService {
 
                             // Update lastFetchTime to most recent alert's createdAt
                             if (alertsToAdd.length > 0) {
-                                this.lastFetchTime = alertsToAdd[0].createdAt || this.lastFetchTime;
+                                // The server also returns older alerts whose delay just ended.
+                                this.lastFetchTime = Math.max(this.lastFetchTime, ...alertsToAdd.map(a => a.createdAt || 0));
                             } else if (this.alertsCache.length > 0) {
                                 // No new alerts, but we have cached ones - use the most recent cached alert
                                 this.lastFetchTime = this.alertsCache[0].createdAt || this.lastFetchTime;

@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -67,6 +68,64 @@ func (api *Api) sendMobileWelcomeEmailOnce(user *User) {
 		return
 	}
 	api.Controller.SyncConfigToFile()
+}
+
+// UserMobileSetupLinkHandler issues a fresh one-time app setup link for a listener so an
+// admin can hand it over without email (self-hosted servers the relay can't reach).
+// Issuing a new link invalidates the previous one.
+// POST /api/admin/users/{id}/mobile-setup-link
+func (admin *Admin) UserMobileSetupLinkHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if !admin.ValidateToken(admin.GetAuthorization(r)) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(pathParts) < 5 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid user ID"})
+		return
+	}
+	userID, err := strconv.ParseUint(pathParts[3], 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid user ID format"})
+		return
+	}
+	user := admin.Controller.Users.GetUserById(userID)
+	if user == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+		return
+	}
+	if user.IsSuspended() {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "User is suspended"})
+		return
+	}
+	if strings.TrimSpace(admin.Controller.Options.BaseUrl) == "" {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Set Base URL in Options first so the link points at this server"})
+		return
+	}
+
+	plain, err := admin.Controller.Api.issueMobileSetupToken(user)
+	if err != nil {
+		admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.users.mobile-setup-link: %v", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create setup link"})
+		return
+	}
+	base := normalizePublicBaseURL(admin.Controller.Options.BaseUrl)
+	json.NewEncoder(w).Encode(map[string]string{
+		"url":    base + "/api/mobile-setup-landing?token=" + url.QueryEscape(plain),
+		"appUrl": fmt.Sprintf("thinlineradio://scanner-setup?token=%s&baseUrl=%s", url.QueryEscape(plain), url.QueryEscape(base)),
+	})
 }
 
 func (api *Api) findUserByMobileSetupToken(plaintext string) *User {

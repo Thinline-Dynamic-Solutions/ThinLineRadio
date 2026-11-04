@@ -20,14 +20,16 @@
   <div class="row top admin-section-bar">
     <p class="admin-section-hint">Manage registered users, profiles, verifications, and access.</p>
     <div class="admin-section-actions top-actions">
-      <button type="button" mat-raised-button color="primary" (click)="openCreateUserDialog()">
-        <mat-icon>person_add</mat-icon>
-        Create User
-      </button>
-      <button type="button" mat-button color="primary" (click)="openInviteDialog()">
-        <mat-icon>mail</mat-icon>
-        Invite
-      </button>
+      @if (can('users.create')) {
+        <button type="button" mat-raised-button color="primary" (click)="openCreateUserDialog()">
+          <mat-icon>person_add</mat-icon>
+          Create User
+        </button>
+        <button type="button" mat-button color="primary" (click)="openInviteDialog()">
+          <mat-icon>mail</mat-icon>
+          Invite
+        </button>
+      }
       <button type="button" mat-icon-button color="accent" (click)="refreshUsers()" [disabled]="loading" matTooltip="Refresh">
         <mat-icon>refresh</mat-icon>
       </button>
@@ -107,12 +109,14 @@
     <div class="bulk-toolbar">
       <span class="mat-body-2">{{ selectedCount }} selected</span>
       <button type="button" mat-button (click)="clearSelection()">Deselect</button>
-      <button type="button" mat-raised-button color="warn"
-        (click)="bulkDeleteSelected()"
-        [disabled]="bulkDeleting">
-        <mat-icon>delete</mat-icon>
-        {{ bulkDeleting ? 'Deleting…' : 'Delete selected' }}
-      </button>
+      @if (can('users.delete')) {
+        <button type="button" mat-raised-button color="warn"
+          (click)="bulkDeleteSelected()"
+          [disabled]="bulkDeleting">
+          <mat-icon>delete</mat-icon>
+          {{ bulkDeleting ? 'Deleting…' : 'Delete selected' }}
+        </button>
+      }
     </div>
   }
 
@@ -277,50 +281,78 @@
           <th mat-header-cell *matHeaderCellDef class="actions-col"></th>
           <td mat-cell *matCellDef="let user" class="actions-col">
             <div class="row-actions">
-              <button mat-icon-button
-                [color]="expandedUser?.id === user.id ? 'accent' : 'primary'"
-                (click)="toggleEditRow(user); $event.stopPropagation()"
-                [matTooltip]="expandedUser?.id === user.id ? 'Close' : 'Edit user'">
-                <mat-icon>{{ expandedUser?.id === user.id ? 'close' : 'edit' }}</mat-icon>
-              </button>
+              @if (can('users.edit')) {
+                <button mat-icon-button
+                  [color]="expandedUser?.id === user.id ? 'accent' : 'primary'"
+                  (click)="toggleEditRow(user); $event.stopPropagation()"
+                  [matTooltip]="expandedUser?.id === user.id ? 'Close' : 'Edit user'">
+                  <mat-icon>{{ expandedUser?.id === user.id ? 'close' : 'edit' }}</mat-icon>
+                </button>
+              }
               <button mat-icon-button [matMenuTriggerFor]="userMenu" (click)="$event.stopPropagation()" matTooltip="More actions">
                 <mat-icon>more_vert</mat-icon>
               </button>
               <mat-menu #userMenu="matMenu">
-                <button mat-menu-item (click)="openTransferDialog(user)">
-                  <mat-icon>swap_horiz</mat-icon>
-                  <span>Transfer to Group</span>
-                </button>
-                <button mat-menu-item (click)="openResetPasswordDialog(user)">
-                  <mat-icon>lock_reset</mat-icon>
-                  <span>Reset Password</span>
-                </button>
-                <button mat-menu-item (click)="sendTestPush(user)">
-                  <mat-icon>notifications</mat-icon>
-                  <span>Send Test Push</span>
-                </button>
-                @if (!user.verified) {
+                @if (can('users.edit') || can('groups.edit')) {
+                  <button mat-menu-item (click)="openTransferDialog(user)">
+                    <mat-icon>swap_horiz</mat-icon>
+                    <span>Transfer to Group</span>
+                  </button>
+                }
+                @if (can('users.password')) {
+                  <button mat-menu-item (click)="openResetPasswordDialog(user)">
+                    <mat-icon>lock_reset</mat-icon>
+                    <span>Reset Password</span>
+                  </button>
+                }
+                @if (can('users.edit')) {
+                  <button mat-menu-item (click)="sendTestPush(user)">
+                    <mat-icon>notifications</mat-icon>
+                    <span>Send Test Push</span>
+                  </button>
+                  <button mat-menu-item (click)="copyMobileSetupLink(user)">
+                    <mat-icon>phone_iphone</mat-icon>
+                    <span>Copy App Setup Link</span>
+                  </button>
+                }
+                @if (can('users.delayModeration')) {
+                  <button mat-menu-item (click)="editDelayModeration(user)">
+                    <mat-icon>gavel</mat-icon>
+                    <span>Delay Moderation…</span>
+                  </button>
+                }
+                @if (!limited) {
+                  <button mat-menu-item (click)="editAdminRole(user)">
+                    <mat-icon>admin_panel_settings</mat-icon>
+                    <span>Admin Role…</span>
+                  </button>
+                }
+                @if (!user.verified && can('users.password')) {
                   <button mat-menu-item (click)="resendVerificationEmail(user)">
                     <mat-icon>email</mat-icon>
                     <span>Resend Verification</span>
                   </button>
                 }
-                @if (user.suspended) {
-                  <button mat-menu-item (click)="setUserSuspended(user, false)">
-                    <mat-icon>check_circle</mat-icon>
-                    <span>Unsuspend User</span>
-                  </button>
-                } @else {
-                  <button mat-menu-item (click)="setUserSuspended(user, true)" class="suspend-menu-item">
-                    <mat-icon color="warn">block</mat-icon>
-                    <span>Suspend User</span>
+                @if (can('users.suspend')) {
+                  @if (user.suspended) {
+                    <button mat-menu-item (click)="setUserSuspended(user, false)">
+                      <mat-icon>check_circle</mat-icon>
+                      <span>Unsuspend User</span>
+                    </button>
+                  } @else {
+                    <button mat-menu-item (click)="setUserSuspended(user, true)" class="suspend-menu-item">
+                      <mat-icon color="warn">block</mat-icon>
+                      <span>Suspend User</span>
+                    </button>
+                  }
+                }
+                @if (can('users.delete')) {
+                  <mat-divider></mat-divider>
+                  <button mat-menu-item (click)="deleteUser(user)" class="delete-menu-item">
+                    <mat-icon color="warn">delete</mat-icon>
+                    <span>Delete User</span>
                   </button>
                 }
-                <mat-divider></mat-divider>
-                <button mat-menu-item (click)="deleteUser(user)" class="delete-menu-item">
-                  <mat-icon color="warn">delete</mat-icon>
-                  <span>Delete User</span>
-                </button>
               </mat-menu>
             </div>
           </td>
@@ -440,6 +472,7 @@
                     </div>
                   </div>
                   <div class="form-row pin-row">
+                    @if (!limited) {
                     <div class="field flex-2">
                       <label class="field-label">PIN</label>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
@@ -452,6 +485,7 @@
                         Regenerate
                       </button>
                     </div>
+                    }
                     <div class="field field-narrow">
                       <label class="field-label">Delay (min)</label>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
@@ -614,10 +648,69 @@
                     <mat-checkbox formControlName="isGroupAdmin" [disabled]="!editingUser || !editingUser.userGroupId">
                       Group Admin
                     </mat-checkbox>
-                    <mat-checkbox formControlName="systemAdmin">System Admin</mat-checkbox>
+                    @if (!limited) {
+                      <mat-checkbox formControlName="systemAdmin">System Admin</mat-checkbox>
+                    }
                     <mat-checkbox formControlName="forcePasswordReset">Require Password Reset</mat-checkbox>
                     <mat-checkbox formControlName="suspended">Suspended</mat-checkbox>
                   </div>
+                  @if (!limited) {
+                  <div class="form-section">
+                    <h6 class="form-section-title">Public API</h6>
+                    <div class="form-row checkboxes-row">
+                      <mat-checkbox formControlName="publicApiEnabled">Enable public API access</mat-checkbox>
+                    </div>
+                    @if (editForm.get('publicApiEnabled')?.value) {
+                      <div class="form-row checkboxes-row">
+                        <mat-checkbox formControlName="publicApiHealth">Health</mat-checkbox>
+                        <mat-checkbox formControlName="publicApiTranscripts">Transcripts</mat-checkbox>
+                        <mat-checkbox formControlName="publicApiAlertWebhooks">Alert webhooks</mat-checkbox>
+                      </div>
+                      <div class="hint-row">
+                        <span class="muted">
+                          Grants /api/public/v1 access scoped to this user’s systems and talkgroups. Users mint their own keys from the console API button.
+                        </span>
+                      </div>
+                      @if (publicApiKeysLoading) {
+                        <p class="muted">Loading API keys…</p>
+                      }
+                      @if (!publicApiKeysLoading && publicApiKeysForEdit.length === 0) {
+                        <p class="muted">No keys minted yet.</p>
+                      }
+                      @if (!publicApiKeysLoading && publicApiKeysForEdit.length > 0) {
+                        <table class="users-table compact-table">
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Prefix</th>
+                              <th>Last used</th>
+                              <th>Requests</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (key of publicApiKeysForEdit; track key.id) {
+                              <tr [class.muted]="key.disabled">
+                                <td>{{ key.name }}</td>
+                                <td><code>{{ key.keyPrefix }}…</code></td>
+                                <td>{{ formatPublicApiLastUsed(key.lastUsedAt) }}</td>
+                                <td>{{ key.requestCount }}</td>
+                                <td>
+                                  @if (!key.disabled) {
+                                    <button mat-button type="button" color="warn" (click)="disablePublicApiKey(key.id)">Disable</button>
+                                  }
+                                  @if (key.disabled) {
+                                    <span class="muted">Disabled</span>
+                                  }
+                                </td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      }
+                    }
+                  </div>
+                  }
                   <div class="hint-row">
                     @if (editingUser && !editingUser.userGroupId) {
                       <span class="muted">

@@ -2,6 +2,14 @@
 <html lang="en">
 
 <head>
+    <script>
+        // Share links: a cached service worker can serve this page at /l/{token},
+        // where the relative base breaks every asset. Hand the token over instead.
+        (function () {
+            var m = /^\/l\/([A-Za-z0-9]{6,32})\/?$/.exec(location.pathname);
+            if (m) location.replace('/?link=' + m[1]);
+        })();
+    </script>
     <base href="./">
     <link rel="apple-touch-icon" sizes="192x192" id="apple-touch-icon" href="assets/icons/icon-192x192.png">
     <link rel="icon" type="image/png" sizes="32x32" id="favicon-32" href="assets/icons/favicon-32x32.png">

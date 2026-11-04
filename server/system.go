@@ -65,6 +65,15 @@ type System struct {
 	AutoLearnUnitAliasesAutoOffDays uint     `json:"autoLearnUnitAliasesAutoOffDays"` // 0 = no auto-off
 	AutoLearnUnitAliasesExpiresAt   int64    `json:"autoLearnUnitAliasesExpiresAt"`   // unix ms
 	IncidentMapping                 IncidentMappingConfig `json:"incidentMapping"`
+	// A main system takes uploads and hands each call to the subsystem that owns its
+	// talkgroup. Listeners never see it.
+	IsMain bool
+	// Database IDs of the main systems this subsystem is under.
+	ParentIds []uint64
+	// For a subsystem under more than one main system: which main system each
+	// talkgroup belongs to. Talkgroups left out route from every main system.
+	TalkgroupNetworks map[uint]uint64
+	RadioReference    RadioReferenceLink
 }
 
 func NewSystem() *System {
@@ -264,6 +273,8 @@ func (system *System) FromMap(m map[string]any) *System {
 		applyIncidentMappingFromMap(&system.IncidentMapping, v)
 	}
 
+	routingFromMap(system, m)
+
 	return system
 }
 
@@ -339,6 +350,7 @@ func (system *System) MarshalJSON() ([]byte, error) {
 	}
 
 	m["incidentMapping"] = incidentMappingToMap(system.IncidentMapping)
+	routingToMap(system, m)
 
 	return json.Marshal(m)
 }
@@ -346,8 +358,9 @@ func (system *System) MarshalJSON() ([]byte, error) {
 type SystemMap map[string]any
 
 type Systems struct {
-	List  []*System
-	mutex sync.RWMutex
+	List   []*System
+	mutex  sync.RWMutex
+	routes map[uint64]map[uint]*System
 }
 
 func NewSystems() *Systems {
@@ -371,6 +384,7 @@ func (systems *Systems) FromMap(f []any) *Systems {
 			systems.List = append(systems.List, system)
 		}
 	}
+	systems.buildRoutesLocked()
 
 	return systems
 }
@@ -449,10 +463,16 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 
 	user := client.User
 
-	// Resolve all of the user's group memberships; visible scope is the UNION.
+	// Resolve group memberships; visible scope is the UNION.
+	// Anonymous clients with free groups use those groups as the ceiling
+	// (empty membership would otherwise mean All systems).
 	var memberGroups []*UserGroup
-	if user != nil && client.Controller != nil {
-		memberGroups = client.Controller.userGroups(user)
+	if client.Controller != nil {
+		if user != nil {
+			memberGroups = client.Controller.userGroups(user)
+		} else if client.ListenLink != nil || client.Controller.allowAnonymousFreeListening() {
+			memberGroups = client.Controller.anonymousScope(client.ListenLink)
+		}
 	}
 
 	// Helper: a system is allowed when the user has no groups, or ANY group grants it.
@@ -593,6 +613,9 @@ func (systems *Systems) GetScopedSystems(client *Client, groups *Groups, tags *T
 	}
 
 	for _, rawSystem := range rawSystems {
+		if rawSystem.IsMain {
+			continue
+		}
 		talkgroupsMap := TalkgroupsMap{}
 
 		for _, rawTalkgroup := range rawSystem.Talkgroups.List {
@@ -881,6 +904,9 @@ func (systems *Systems) Read(db *Database) error {
 	if err := systems.loadTalkgroupIncidentMappingConfigs(db); err != nil {
 		return formatError(err, "loadTalkgroupIncidentMappingConfigs")
 	}
+	if err := systems.loadSystemRouting(db); err != nil {
+		return formatError(err, "loadSystemRouting")
+	}
 
 	return nil
 }
@@ -1093,6 +1119,9 @@ func (systems *Systems) Write(db *Database) error {
 
 	if err := systems.saveIncidentMappingConfigs(db); err != nil {
 		return formatError(err, "saveIncidentMappingConfigs")
+	}
+	if err := systems.saveSystemRouting(db); err != nil {
+		return formatError(err, "saveSystemRouting")
 	}
 
 	return nil

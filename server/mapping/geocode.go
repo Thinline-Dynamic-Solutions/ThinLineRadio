@@ -81,6 +81,12 @@ func geocodeViewboxParam(geo *GeoOptions) string {
 	return fmt.Sprintf("%.5f,%.5f,%.5f,%.5f", minLon, maxLat, maxLon, minLat)
 }
 
+// GeocodeViewbox returns the gateway search box ("minLon,maxLat,maxLon,minLat")
+// for geo, or "" when no coverage area is configured.
+func GeocodeViewbox(geo *GeoOptions) string {
+	return geocodeViewboxParam(geo)
+}
+
 // concatenatedDigitTokenRE matches digit-only tokens long enough to hold a
 // repeated house number (e.g. "563563", "14391439") anywhere in a transcript.
 var concatenatedDigitTokenRE = regexp.MustCompile(`\b\d{4,}\b`)

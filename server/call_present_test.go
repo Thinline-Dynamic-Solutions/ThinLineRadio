@@ -84,7 +84,7 @@ func TestPresentCallForClientSingleWhenMultipleOn(t *testing.T) {
 	lf := NewLivefeed()
 	lf.Matrix[181] = map[uint]bool{56380: true, 56348: true}
 
-	presented := controller.presentCallForClient(call, lf, nil)
+	presented := controller.presentCallForClient(call, lf, nil, nil)
 	if presented == nil {
 		t.Fatal("expected a presented call")
 	}
@@ -97,7 +97,7 @@ func TestPresentCallForClientSingleWhenMultipleOn(t *testing.T) {
 
 	// Avoid primary — should present as the other enabled patch member once
 	lf.Matrix[181][56380] = false
-	presented = controller.presentCallForClient(call, lf, nil)
+	presented = controller.presentCallForClient(call, lf, nil, nil)
 	if presented == nil {
 		t.Fatal("expected present-as patch member")
 	}

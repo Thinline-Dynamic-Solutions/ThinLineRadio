@@ -50,6 +50,19 @@ type SystemAlertData struct {
 	MinutesSinceLast int    `json:"minutesSinceLast,omitempty"`
 	ApiKeyId         uint64 `json:"apiKeyId,omitempty"`
 	ApiKeyIdent      string `json:"apiKeyIdent,omitempty"`
+	// Alerts posted by outside monitors (POST /api/server-alerts).
+	Source     string         `json:"source,omitempty"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+	AlertKey   string         `json:"alertKey,omitempty"`
+	ReportedAt int64          `json:"reportedAt,omitempty"`
+	// Dispatch alerts (admin-sent to chosen users and groups).
+	Label          string   `json:"label,omitempty"`
+	RecipientIds   []uint64 `json:"recipientIds,omitempty"`
+	GroupIds       []uint64 `json:"groupIds,omitempty"`
+	SentBy         string   `json:"sentBy,omitempty"`
+	RecipientCount int      `json:"recipientCount,omitempty"`
+	DeviceCount    int      `json:"deviceCount,omitempty"`
+	Sound          string   `json:"sound,omitempty"`
 }
 
 // CreateSystemAlert creates a new system alert
@@ -85,6 +98,9 @@ func (controller *Controller) CreateSystemAlert(alertType, severity, title, mess
 
 	// Send push notification to all system admins
 	go controller.SendSystemAlertNotification(title, message, alertType, severity, dataJSON)
+	if alertType != "manual" {
+		go controller.DispatchServerAlert(controller.serverAlertFromSystemAlert(alertType, severity, title, message, dataJSON, createdAt))
+	}
 
 	return nil
 }
@@ -1048,6 +1064,8 @@ func (controller *Controller) StartSystemHealthMonitoring() {
 	go controller.StartNoAudioMonitoringForAllApiKeys()
 
 	controller.StartSdrtrunkHealthMonitor()
+
+	controller.startDiskSpaceMonitor(controller.healthMonitorStop)
 
 	controller.Logs.LogEvent(LogLevelInfo, "system health monitoring started")
 }

@@ -472,6 +472,91 @@ select.toolbar-control {
     }
 }
 
+.pin-edit-original {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pin-edit-original__label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8a8f98;
+}
+
+.pin-edit-original__value {
+    font-size: 12px;
+    line-height: 1.35;
+    color: #ddd;
+
+    strong {
+        color: #fff;
+    }
+}
+
+.pin-edit-kinds {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+.pin-edit-kind {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: #ccc;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+        border-color: rgba(255, 255, 255, 0.24);
+        color: #fff;
+    }
+
+    &--on {
+        border-color: var(--tlr-accent, #d9a441);
+        background: rgba(var(--tlr-accent-rgb, 217, 164, 65), 0.14);
+        color: #fff;
+    }
+}
+
+.pin-edit-note {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 52px;
+    font-family: inherit;
+}
+
+.pin-edit-hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #8a8f98;
+}
+
+.pin-edit-panel--suggest {
+    .pin-edit-title mat-icon {
+        color: var(--tlr-accent, #d9a441);
+    }
+
+    .pin-edit-save {
+        background: var(--tlr-accent, #d9a441);
+        border-color: var(--tlr-accent, #d9a441);
+        color: #0b0f15;
+        font-weight: 700;
+    }
+}
+
 .incident-map-layout__sidebar {
     display: flex;
     flex-direction: column;
@@ -547,6 +632,17 @@ select.toolbar-control {
 
         &:hover {
             background: rgba(204, 0, 0, 0.15);
+        }
+    }
+
+    &--suggest {
+        border-color: rgba(128, 128, 128, 0.45);
+        color: inherit;
+        opacity: 0.85;
+
+        &:hover {
+            background: rgba(128, 128, 128, 0.12);
+            opacity: 1;
         }
     }
 }

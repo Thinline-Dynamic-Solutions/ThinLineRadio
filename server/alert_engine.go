@@ -912,6 +912,17 @@ func (engine *AlertEngine) createAlert(alert *AlertRecord) {
 // the actual channel sends happen after the lock is released so that slow or
 // full client queues cannot block other goroutines from acquiring the lock.
 func (engine *AlertEngine) sendAlertNotification(userId uint64, callId uint64, alertType string) {
+	if engine.controller.DelayModeration.IsRemoved(callId) {
+		return
+	}
+	if call := engine.controller.callRefById(callId); call != nil {
+		if len(engine.controller.alertRecipientsReleased([]uint64{userId}, call, func([]uint64) {
+			engine.sendAlertNotification(userId, callId, alertType)
+		})) == 0 {
+			return
+		}
+	}
+
 	// Snapshot matching clients under the shortest possible lock window.
 	engine.controller.Clients.mutex.Lock()
 	var targets []*Client

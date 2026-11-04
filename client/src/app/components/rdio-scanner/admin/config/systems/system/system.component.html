@@ -308,6 +308,27 @@
   }
 
   <!-- ══════════════════════════════════════════════════════════════
+  Network: main system routing and Radio Reference updates
+  ══════════════════════════════════════════════════════════════ -->
+  @if (activePanel === 'network') {
+  <section class="system-panel">
+    <header class="system-panel-header">
+      <div class="system-panel-heading">
+        <h3 class="system-panel-title">{{ panelMeta('network').label }}</h3>
+        <p class="system-panel-desc">{{ panelMeta('network').description }}</p>
+      </div>
+    </header>
+    <rdio-scanner-admin-system-network
+      [form]="form"
+      [systems]="systems"
+      [savedSystems]="savedSystems"
+      [systemData]="systemData"
+      (serverChanged)="serverChanged.emit($event)">
+    </rdio-scanner-admin-system-network>
+  </section>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════
   Incident Mapping
   ══════════════════════════════════════════════════════════════ -->
   @if (activePanel === 'mapping') {

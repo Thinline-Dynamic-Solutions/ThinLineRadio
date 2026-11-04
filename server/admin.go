@@ -103,6 +103,7 @@ type Admin struct {
 	Unregister       chan *websocket.Conn
 	mutex            sync.Mutex
 	running          bool
+	sessions         *adminSessions
 }
 
 // isAdminIPAllowed returns true if the given client IP is permitted to access admin routes.
@@ -216,6 +217,7 @@ func NewAdmin(controller *Controller) *Admin {
 		Tokens:           []string{},
 		Unregister:       make(chan *websocket.Conn),
 		mutex:            sync.Mutex{},
+		sessions:         newAdminSessions(),
 	}
 }
 
@@ -1883,6 +1885,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						if !hasRetention {
 							m["retentionDays"] = existing.RetentionDays
 						}
+						preserveRoutingFields(m, existing)
 						if !hasDuplicateDetection {
 							m["duplicateDetectionEnabled"] = existing.DuplicateDetectionEnabled
 						}
@@ -1914,6 +1917,12 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 				}
 				if len(groupsPayload) > 0 || len(tagsPayload) > 0 {
 					remapTalkgroupRefsInSystemsPayload(v, groupsPayload, tagsPayload, admin.Controller.Groups, admin.Controller.Tags)
+				}
+				if problems := ValidateSystemRouting(NewSystems().FromMap(v).List); len(problems) > 0 {
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(map[string]any{"error": strings.Join(problems, " "), "problems": problems})
+					admin.Controller.Dirwatches.Start(admin.Controller)
+					return
 				}
 				admin.Controller.Systems.FromMap(v)
 				err = admin.Controller.Systems.Write(admin.Controller.Database)
@@ -3007,6 +3016,7 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 		if _, has := incoming["duplicateDetectionEnabled"]; !has {
 			incoming["duplicateDetectionEnabled"] = existing.DuplicateDetectionEnabled
 		}
+		preserveRoutingFields(incoming, existing)
 
 		if tgs, ok := incoming["talkgroups"].([]any); ok {
 			for _, tr := range tgs {
@@ -3056,6 +3066,14 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 				arr = append(arr, incoming)
 			}
 
+			if problems := ValidateSystemRouting(NewSystems().FromMap(arr).List); len(problems) > 0 {
+				admin.mutex.Unlock()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]any{"error": strings.Join(problems, " "), "problems": problems})
+				return
+			}
+
 			admin.Controller.Systems.FromMap(arr)
 			err = admin.Controller.Systems.Write(admin.Controller.Database)
 			if err == nil {
@@ -3086,8 +3104,49 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 	go admin.Controller.EmitConfig()
 	admin.Controller.SyncConfigToFile()
 
+	var accessWarnings []string
+	if refVal, ok := incoming["systemRef"].(float64); ok {
+		if saved, ok := admin.Controller.Systems.GetSystemByRef(uint(refVal)); ok {
+			accessWarnings = systemAccessWarnings(saved, admin.Controller.UserGroups.GetAll())
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"systems": admin.Controller.Systems.List})
+	json.NewEncoder(w).Encode(map[string]any{
+		"systems":        admin.Controller.Systems.List,
+		"accessWarnings": accessWarnings,
+	})
+}
+
+// systemAccessWarnings names the user groups that cannot see a system, or see only
+// part of it. Groups without auto-enable keep a fixed list of systems/talkgroups, so
+// anything added later stays out of their listeners' config until access is granted.
+func systemAccessWarnings(system *System, groups []*UserGroup) []string {
+	warnings := []string{}
+	if system == nil || system.Talkgroups == nil {
+		return warnings
+	}
+	for _, g := range groups {
+		if g == nil {
+			continue
+		}
+		if !g.HasSystemAccess(uint64(system.SystemRef)) {
+			warnings = append(warnings, fmt.Sprintf("%s: system not included", g.Name))
+			continue
+		}
+		missing := 0
+		for _, tg := range system.Talkgroups.List {
+			if tg != nil && !tg.Hidden && !g.HasTalkgroupAccess(uint64(system.SystemRef), tg.TalkgroupRef) {
+				missing++
+			}
+		}
+		if missing == 1 {
+			warnings = append(warnings, fmt.Sprintf("%s: 1 talkgroup not included", g.Name))
+		} else if missing > 1 {
+			warnings = append(warnings, fmt.Sprintf("%s: %d talkgroups not included", g.Name, missing))
+		}
+	}
+	return warnings
 }
 
 // SystemsOrderHandler updates only the display order of systems (admin Systems list drag-reorder).
@@ -3856,10 +3915,11 @@ func (admin *Admin) SSOLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !user.SystemAdmin {
-		admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("admin: SSO login denied for user %s — not a system admin", user.Email))
+	role := admin.Controller.AdminRoles.RoleOf(user.Id)
+	if !user.SystemAdmin && (role == nil || len(role.Permissions) == 0) {
+		admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("admin: SSO login denied for user %s — not a system admin and no admin role", user.Email))
 		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"error": "user is not a system administrator"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "user has no admin access"})
 		return
 	}
 
@@ -3867,6 +3927,17 @@ func (admin *Admin) SSOLoginHandler(w http.ResponseWriter, r *http.Request) {
 		admin.Controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("admin: SSO login denied for user %s — account suspended", user.Email))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{"error": "account suspended"})
+		return
+	}
+
+	if !user.SystemAdmin {
+		limitedToken := admin.sessions.openLimited(user.Id)
+		admin.mutex.Lock()
+		delete(admin.Attempts, remoteAddr)
+		admin.mutex.Unlock()
+		admin.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("admin: SSO login granted for %s with admin role %q from %s", user.Email, role.Name, clientIP))
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"token": limitedToken, "limited": true})
 		return
 	}
 
@@ -3893,6 +3964,7 @@ func (admin *Admin) SSOLoginHandler(w http.ResponseWriter, r *http.Request) {
 	admin.mutex.Unlock()
 
 	admin.Controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("admin: SSO login granted for system admin %s from %s", user.Email, clientIP))
+	admin.sessions.setActor(sToken, user.Email)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"token": sToken})
@@ -4012,6 +4084,7 @@ func (admin *Admin) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			admin.Tokens = append(admin.Tokens[1:], sToken)
 		}
+		admin.sessions.setActor(sToken, "admin password")
 
 		b, err := json.Marshal(map[string]any{
 			"passwordNeedChange": true,
@@ -4165,6 +4238,9 @@ func (admin *Admin) UserEditHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (admin *Admin) ValidateToken(sToken string) bool {
+	if admin.sessions != nil && admin.sessions.isPass(sToken) {
+		return true
+	}
 	found := false
 	for _, t := range admin.Tokens {
 		if t == sToken {
@@ -6468,6 +6544,8 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"userGroupName":            userGroupName,
 			"isGroupAdmin":             user.IsGroupAdmin,
 			"systemAdmin":              user.SystemAdmin,
+			"publicApiEnabled":         user.PublicApiEnabled,
+			"publicApiCapabilities":    user.PublicApiCaps(),
 			"pushSystemNoAudioAlerts": user.PushSystemNoAudioAlerts,
 			"pushApiKeyNoAudioAlerts": user.PushApiKeyNoAudioAlerts,
 			"systemNoAudioAlertSystems": user.SystemNoAudioAlertSystems,
@@ -6801,6 +6879,8 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		UserGroupIds         *[]uint64 `json:"userGroupIds"`
 		IsGroupAdmin         *bool    `json:"isGroupAdmin"`
 		SystemAdmin             *bool   `json:"systemAdmin"`
+		PublicApiEnabled          *bool                 `json:"publicApiEnabled"`
+		PublicApiCapabilities     *PublicApiCapabilities `json:"publicApiCapabilities"`
 		PushSystemNoAudioAlerts   *bool   `json:"pushSystemNoAudioAlerts"`
 		PushApiKeyNoAudioAlerts   *bool   `json:"pushApiKeyNoAudioAlerts"`
 		SystemNoAudioAlertSystems *string `json:"systemNoAudioAlertSystems"`
@@ -6918,6 +6998,16 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if request.SystemAdmin != nil {
 		user.SystemAdmin = *request.SystemAdmin
 	}
+	publicApiDirty := false
+	if request.PublicApiEnabled != nil {
+		user.PublicApiEnabled = *request.PublicApiEnabled
+		publicApiDirty = true
+	}
+	if request.PublicApiCapabilities != nil {
+		capsJson, _ := json.Marshal(*request.PublicApiCapabilities)
+		user.PublicApiCapabilities = string(capsJson)
+		publicApiDirty = true
+	}
 	if request.PushSystemNoAudioAlerts != nil {
 		user.PushSystemNoAudioAlerts = *request.PushSystemNoAudioAlerts
 	}
@@ -6977,6 +7067,14 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update user"})
 		return
+	}
+	if publicApiDirty {
+		if err := admin.Controller.Users.WritePublicApiSettings(user, admin.Controller.Database); err != nil {
+			log.Printf("Failed to update public API settings for user %d: %v", userID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update public API settings"})
+			return
+		}
 	}
 
 	// Kick active sessions when suspending so they cannot keep listening

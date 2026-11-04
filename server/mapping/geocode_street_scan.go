@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var streetScanClient = &http.Client{Timeout: 10 * time.Second}
+var streetScanClient = &http.Client{Timeout: 30 * time.Second}
 
 // StreetScanHit mirrors the gateway's StreetHit response shape.
 type StreetScanHit struct {

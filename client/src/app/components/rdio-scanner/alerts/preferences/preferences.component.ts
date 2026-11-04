@@ -19,6 +19,7 @@
 
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAlertPreference, RdioScannerConfig, RdioScannerKeywordList, RdioScannerService, RdioScannerSystem, RdioScannerTalkgroup, RdioScannerToneSet } from '../../rdio-scanner';
 import { AlertsService } from '../alerts.service';
 import { Subscription } from 'rxjs';
@@ -52,6 +53,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
     detailSystemId: number | null = null;
     systemsRailCollapsed = false;
     expandedTags: Map<string, boolean> = new Map();
+    hasUnsavedChanges = false;
     
     private pin?: string;
     private config?: RdioScannerConfig;
@@ -68,6 +70,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         private tagColorService: TagColorService,
         private cdRef: ChangeDetectorRef,
         private dialog: MatDialog,
+        private snackBar: MatSnackBar,
     ) {
         this.config = this.rdioScannerService.getConfig();
         if (this.config?.systems?.length) {
@@ -167,6 +170,9 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
                 }
                 (preferences || []).forEach(pref => this.storePreference(pref));
                 this.preferencesLoaded = true;
+                if (reset) {
+                    this.hasUnsavedChanges = false;
+                }
                 this.loading = false;
                 this.syncDetailSystemSelection();
             },
@@ -341,7 +347,7 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         this.pin = this.rdioScannerService.readPin();
         
         if (!this.pin) {
-            alert('No PIN available. Please log in first.');
+            this.snackBar.open('Sign in to save alert preferences.', 'OK', { duration: 4000 });
             return;
         }
         
@@ -381,13 +387,16 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         this.alertsService.updatePreferences(prefsArray, this.pin).subscribe({
             next: () => {
                 this.saving = false;
+                this.hasUnsavedChanges = false;
                 console.log('✅ [TONE SET DEBUG] Preferences saved successfully');
-                alert('Preferences saved successfully');
+                this.snackBar.open('Alert preferences saved', 'OK', { duration: 3000 });
+                this.cdRef.markForCheck();
             },
             error: (error) => {
                 console.error('❌ [TONE SET DEBUG] Error saving preferences:', error);
                 this.saving = false;
-                alert('Error saving preferences');
+                this.snackBar.open('Couldn\'t save alert preferences. Try again.', 'OK', { duration: 5000 });
+                this.cdRef.markForCheck();
             },
         });
     }
@@ -573,6 +582,61 @@ export class RdioScannerAlertPreferencesComponent implements OnDestroy, OnInit {
         if (lowerTag.includes('ems') || lowerTag.includes('medical')) return 'medical_services';
         if (lowerTag.includes('public works') || lowerTag.includes('works')) return 'build';
         return 'label';
+    }
+
+    markDirty(): void {
+        this.hasUnsavedChanges = true;
+    }
+
+    onRowToggle(systemId: number, talkgroupId: number, event: Event): void {
+        this.toggleAlertEnabled(systemId, talkgroupId, event);
+        this.markDirty();
+    }
+
+    onToneChip(systemId: number, talkgroup: RdioScannerTalkgroup, event: Event): void {
+        event.stopPropagation();
+        if (!talkgroup.toneDetectionEnabled) {
+            this.snackBar.open('Tone alerts need an administrator to turn on tone detection for this talkgroup.', 'OK', { duration: 5000 });
+            return;
+        }
+        this.toggleToneAlertsWithTalkgroup(systemId, talkgroup.id, talkgroup, event);
+        this.markDirty();
+    }
+
+    systemState(system: RdioScannerSystem): 'all' | 'some' | 'none' {
+        if (this.isAllEnabledInSystem(system)) return 'all';
+        return this.isSomeEnabledInSystem(system) ? 'some' : 'none';
+    }
+
+    tagState(systemId: number, tag: string): 'all' | 'some' | 'none' {
+        if (this.isAllEnabledInTag(systemId, tag)) return 'all';
+        return this.isSomeEnabledInTag(systemId, tag) ? 'some' : 'none';
+    }
+
+    getEnabledCountInTag(systemId: number, talkgroups: RdioScannerTalkgroup[]): number {
+        return talkgroups.filter(tg => this.getPreference(systemId, tg.id).alertEnabled).length;
+    }
+
+    systemPercent(system: RdioScannerSystem): number {
+        const total = this.getFilteredTalkgroups(system).length;
+        return total > 0 ? (this.getEnabledCountInSystem(system) / total) * 100 : 0;
+    }
+
+    ariaChecked(state: 'all' | 'some' | 'none'): 'true' | 'false' | 'mixed' {
+        return state === 'all' ? 'true' : state === 'some' ? 'mixed' : 'false';
+    }
+
+    switchTooltip(state: 'all' | 'some' | 'none'): string {
+        if (state === 'all') return 'Alerts on for all — click to turn off';
+        if (state === 'some') return 'Alerts on for some — click to turn all on';
+        return 'Alerts off — click to turn on';
+    }
+
+    /** Space-to-activate for focusable rows; leaves Space alone for nested controls. */
+    rowSpace(event: Event): boolean {
+        if (event.target !== event.currentTarget) return false;
+        event.preventDefault();
+        return true;
     }
 
     getEnabledCountInSystem(system: RdioScannerSystem): number {

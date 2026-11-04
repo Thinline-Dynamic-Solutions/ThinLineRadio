@@ -68,6 +68,14 @@ func (controller *Controller) handleLegacyOneSignalToken(dt *DeviceToken, notifi
 
 // sendPushNotification sends a push notification to the relay server
 func (controller *Controller) sendPushNotification(userId uint64, alertType string, call *Call, systemLabel, talkgroupLabel string, toneSetName string, keywords []string) {
+	if len(controller.alertRecipientsReleased([]uint64{userId}, call, func([]uint64) {
+		controller.sendPushNotification(userId, alertType, call, systemLabel, talkgroupLabel, toneSetName, keywords)
+	})) == 0 {
+		return
+	}
+	if controller.PublicApi != nil {
+		go controller.PublicApi.DispatchAlertWebhooks([]uint64{userId}, alertType, call, systemLabel, talkgroupLabel, toneSetName, keywords)
+	}
 	// Check if relay server API key is configured (URL is hardcoded)
 	if controller.Options.RelayServerAPIKey == "" {
 		return // Push notifications not configured
@@ -76,6 +84,9 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 	// Get user
 	user := controller.Users.GetUserById(userId)
 	if user == nil {
+		return
+	}
+	if !controller.featuresForUser(user).Alerts {
 		return
 	}
 
@@ -102,21 +113,6 @@ func (controller *Controller) sendPushNotification(userId uint64, alertType stri
 				if subscriptionStatus != "active" && subscriptionStatus != "trialing" {
 					return
 				}
-			}
-		}
-	}
-
-	// Check if call is still delayed for this user (respects group delays)
-	if call != nil && call.System != nil && call.Talkgroup != nil {
-		defaultDelay := controller.Options.DefaultSystemDelay
-		effectiveDelay := controller.userEffectiveDelay(user, call, defaultDelay)
-
-		// Check if call is still delayed
-		if effectiveDelay > 0 {
-			delayCompletionTime := call.Timestamp.Add(time.Duration(effectiveDelay) * time.Minute)
-			if time.Now().Before(delayCompletionTime) {
-				// Call is still delayed for this user, don't send push notification
-				return
 			}
 		}
 	}
@@ -715,6 +711,15 @@ func (controller *Controller) sendBatchedPushNotification(userIds []uint64, aler
 // sendBatchedPushNotificationWithToneSet is the full implementation that accepts a toneSetId
 // so per-tone-set notification sounds can be resolved from each user's alert preferences.
 func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []uint64, alertType string, call *Call, systemLabel, talkgroupLabel string, toneSetName string, toneSetId string, keywords []string) {
+	userIds = controller.alertRecipientsReleased(userIds, call, func(held []uint64) {
+		controller.sendBatchedPushNotificationWithToneSet(held, alertType, call, systemLabel, talkgroupLabel, toneSetName, toneSetId, keywords)
+	})
+	if len(userIds) == 0 {
+		return
+	}
+	if controller.PublicApi != nil {
+		go controller.PublicApi.DispatchAlertWebhooks(userIds, alertType, call, systemLabel, talkgroupLabel, toneSetName, keywords)
+	}
 	// Check if relay server API key is configured (URL is hardcoded)
 	if controller.Options.RelayServerAPIKey == "" {
 		return // Push notifications not configured
@@ -803,6 +808,9 @@ func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []u
 		if user == nil {
 			continue
 		}
+		if !controller.featuresForUser(user).Alerts {
+			continue
+		}
 
 		// Check billing/subscription status if billing is enabled on user's group
 		if user.UserGroupId > 0 {
@@ -827,21 +835,6 @@ func (controller *Controller) sendBatchedPushNotificationWithToneSet(userIds []u
 					if subscriptionStatus != "active" && subscriptionStatus != "trialing" {
 						continue // Block push notification - subscription not active
 					}
-				}
-			}
-		}
-
-		// Check if call is still delayed for this user (respects group delays)
-		if call != nil && call.System != nil && call.Talkgroup != nil {
-			defaultDelay := controller.Options.DefaultSystemDelay
-			effectiveDelay := controller.userEffectiveDelay(user, call, defaultDelay)
-
-			// Check if call is still delayed
-			if effectiveDelay > 0 {
-				delayCompletionTime := call.Timestamp.Add(time.Duration(effectiveDelay) * time.Minute)
-				if time.Now().Before(delayCompletionTime) {
-					// Call is still delayed for this user, skip push notification
-					continue
 				}
 			}
 		}

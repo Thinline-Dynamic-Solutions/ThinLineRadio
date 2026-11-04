@@ -31,7 +31,8 @@ const coreHandoffSlop int64 = 100
 type coreMember struct {
 	keyId       uint64
 	recordingId string
-	system      int
+	system      int // matched on; the subsystem when the site reports a main system
+	siteSystem  int // the system number the site reported
 	talkgroup   int
 	radioId     int
 	patches     map[int]bool
@@ -72,6 +73,7 @@ type coreCoordinator struct {
 	groups     []*coreGroup
 	reserved   map[string]uint64
 	recent     []coreSpan
+	clocks     map[uint64]*coreSiteClock
 }
 
 func (controller *Controller) core() *coreCoordinator {
@@ -204,6 +206,10 @@ func (core *coreCoordinator) onMessage(keyId uint64, kind string, payload []byte
 	if body.RecordingId == "" || body.System == 0 {
 		return
 	}
+	if body.Start > 0 {
+		firstReport := kind == "call.started" && core.groupByRecordingLocked(body.RecordingId) == nil
+		body.Start = core.serverStartLocked(keyId, body.Start, time.Now().UnixMilli(), firstReport)
+	}
 	// SDRTrunk's cancel carries only the recording id, so it is matched before the talkgroup check.
 	if kind == "call.cancelled" {
 		if group, member := core.cancelLocked(keyId, body.RecordingId); group != nil {
@@ -222,6 +228,9 @@ func (core *coreCoordinator) onMessage(keyId uint64, kind string, payload []byte
 		return
 	}
 
+	siteSystem := body.System
+	body.System = core.matchSystem(body.System, body.Talkgroup, body.Patches)
+
 	if core.groupByRecordingLocked(body.RecordingId) == nil &&
 		core.suppressedLocked(keyId, body.System, body.Talkgroup, body.RadioId, patchSet(body.Talkgroup, body.Patches), body.Start, body.Duration) {
 		log.Printf("core: sys %d tg %d late %s from %s (start %s), call already chosen, discarding",
@@ -237,6 +246,7 @@ func (core *coreCoordinator) onMessage(keyId uint64, kind string, payload []byte
 			keyId:       keyId,
 			recordingId: body.RecordingId,
 			system:      body.System,
+			siteSystem:  siteSystem,
 			talkgroup:   body.Talkgroup,
 			radioId:     body.RadioId,
 			patches:     patchSet(body.Talkgroup, body.Patches),
@@ -606,7 +616,7 @@ func (core *coreCoordinator) removeSystemLocked(keyId uint64, system int) []*cor
 		}
 		changed := false
 		for _, member := range group.members {
-			if member.keyId == keyId && member.system == system && !member.ready && !member.cancelled {
+			if member.keyId == keyId && member.siteSystem == system && !member.ready && !member.cancelled {
 				member.cancelled = true
 				changed = true
 			}
@@ -616,6 +626,24 @@ func (core *coreCoordinator) removeSystemLocked(keyId uint64, system int) []*cor
 		}
 	}
 	return pending
+}
+
+// matchSystem is the subsystem a report to a main system routes to, so copies sent
+// to the main system's ID and to the subsystem's own ID are matched as one call.
+func (core *coreCoordinator) matchSystem(system int, talkgroup int, patches []int) int {
+	if core.controller == nil || core.controller.Systems == nil || system <= 0 || talkgroup <= 0 {
+		return system
+	}
+	refs := make([]uint, 0, len(patches))
+	for _, p := range patches {
+		if p > 0 {
+			refs = append(refs, uint(p))
+		}
+	}
+	if sub, ok := core.controller.Systems.RouteUpload(uint(system), uint(talkgroup), refs); ok {
+		return int(sub.SystemRef)
+	}
+	return system
 }
 
 func (core *coreCoordinator) groupForLocked(recordingId string, system int, talkgroup int, radioId int, patches []int, start int64, duration int64) *coreGroup {

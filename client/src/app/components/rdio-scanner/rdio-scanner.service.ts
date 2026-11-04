@@ -24,6 +24,7 @@ import { Subscription, timer } from 'rxjs';
 import { takeWhile } from 'rxjs/operators';
 import { AppUpdateService } from '../../shared/update/update.service';
 import { setInstanceTimeZone } from './instance-time';
+import { withListenLink } from './listen-link';
 import {
     RdioScannerAvoidOptions,
     RdioScannerBeepStyle,
@@ -380,6 +381,7 @@ export class RdioScannerService implements OnDestroy {
 
     clearPin(): void {
         window?.localStorage.removeItem(RdioScannerService.LOCAL_STORAGE_KEY_PIN);
+        this.savePublicApiEnabled(false);
     }
 
     disconnect(): void {
@@ -795,13 +797,32 @@ export class RdioScannerService implements OnDestroy {
     }
 
     static LOCAL_STORAGE_KEY_IS_SYSTEM_ADMIN = 'rdio-scanner-is-system-admin';
+    static LOCAL_STORAGE_KEY_PUBLIC_API_ENABLED = 'rdio-scanner-public-api-enabled';
 
     isSystemAdmin(): boolean {
         return window?.localStorage?.getItem(RdioScannerService.LOCAL_STORAGE_KEY_IS_SYSTEM_ADMIN) === 'true';
     }
 
+    /** System admins, or listeners whose admin role grants the permission. */
+    hasAdminPermission(permission: string): boolean {
+        return this.isSystemAdmin() || !!this.config?.adminPermissions?.includes(permission);
+    }
+
+    /** System admins and admin role holders may open the admin console. */
+    hasAdminAccess(): boolean {
+        return this.isSystemAdmin() || !!this.config?.adminPermissions?.length;
+    }
+
     saveIsSystemAdmin(value: boolean): void {
         window?.localStorage?.setItem(RdioScannerService.LOCAL_STORAGE_KEY_IS_SYSTEM_ADMIN, String(value));
+    }
+
+    isPublicApiEnabled(): boolean {
+        return window?.localStorage?.getItem(RdioScannerService.LOCAL_STORAGE_KEY_PUBLIC_API_ENABLED) === 'true';
+    }
+
+    savePublicApiEnabled(value: boolean): void {
+        window?.localStorage?.setItem(RdioScannerService.LOCAL_STORAGE_KEY_PUBLIC_API_ENABLED, String(!!value));
     }
 
     readPin(): string | undefined {
@@ -1491,7 +1512,14 @@ export class RdioScannerService implements OnDestroy {
                         time12hFormat: typeof config.time12hFormat === 'boolean' ? config.time12hFormat : false,
                         timeZone: typeof config.timeZone === 'string' ? config.timeZone : '',
                         userSettings: typeof config.userSettings === 'object' && config.userSettings !== null ? config.userSettings : undefined,
+                        publicApiEnabled: typeof config.publicApiEnabled === 'boolean' ? config.publicApiEnabled : false,
+                        delayModerator: config.delayModerator === true,
+                        adminPermissions: Array.isArray(config.adminPermissions) ? config.adminPermissions : [],
+                        publicApiCapabilities: typeof config.publicApiCapabilities === 'object' && config.publicApiCapabilities !== null
+                            ? config.publicApiCapabilities
+                            : undefined,
                     };
+                        this.savePublicApiEnabled(!!this.config.publicApiEnabled);
 
                         this.rebuildLivefeedMap();
 
@@ -1818,6 +1846,8 @@ export class RdioScannerService implements OnDestroy {
 
     private rebuildLivefeedMap(): void {
         const autoEnable = !!this.config?.options?.autoEnableNewTalkgroups;
+        // No Channels picker: force all scoped talkgroups on for listening.
+        const forceAllChannels = this.config?.options?.features?.channels === false;
         const currentKeys = new Set<string>();
 
         const lfm = this.config.systems.reduce((sysMap, sys) => {
@@ -1836,11 +1866,15 @@ export class RdioScannerService implements OnDestroy {
                 const newlyInScope = this.hasScopedLivefeedBaseline &&
                     !this.previousScopedLivefeedKeys.has(key);
 
-                tgMap[tg.id] = existsInSavedMap && !newlyInScope
-                    ? this.livefeedMap[sys.id][tg.id]
-                    : {
-                        active: autoEnable,
-                    } as RdioScannerLivefeed;
+                if (forceAllChannels) {
+                    tgMap[tg.id] = { active: true } as RdioScannerLivefeed;
+                } else {
+                    tgMap[tg.id] = existsInSavedMap && !newlyInScope
+                        ? this.livefeedMap[sys.id][tg.id]
+                        : {
+                            active: autoEnable,
+                        } as RdioScannerLivefeed;
+                }
 
                 return tgMap;
             }, sysMap[sys.id] || {} as { [key: number]: RdioScannerLivefeed });
@@ -1882,9 +1916,9 @@ export class RdioScannerService implements OnDestroy {
         const { protocol, hostname, port, origin } = window.location;
         if (/^42\d{2}$/.test(port)) {
             const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-            return `${wsProtocol}//${hostname}:3000`;
+            return withListenLink(`${wsProtocol}//${hostname}:3000`);
         }
-        return origin.replace(/^http/, 'ws');
+        return withListenLink(origin.replace(/^http/, 'ws'));
     }
 
     private saveLivefeedMap(): void {

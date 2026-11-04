@@ -133,7 +133,24 @@ func (api *Api) ReadyHandler(w http.ResponseWriter, r *http.Request) {
 
 	if ready {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"ready":true}`)
+		var link *ListenLink
+		if token := r.URL.Query().Get("link"); token != "" {
+			link = api.Controller.ListenLinks.Lookup(token)
+		}
+		freeListening := api.Controller.anonymousAllowed(link)
+		upgradeAvailable := freeListening && api.Controller.UserGroups != nil &&
+			api.Controller.UserGroups.HasPublicPaidRegistrationTier()
+		body := map[string]any{
+			"ready":            true,
+			"freeListening":    freeListening,
+			"upgradeAvailable": upgradeAvailable,
+		}
+		if link != nil {
+			body["listenLink"] = map[string]any{"name": link.Name}
+		} else if r.URL.Query().Get("link") != "" {
+			body["listenLinkInvalid"] = true
+		}
+		_ = json.NewEncoder(w).Encode(body)
 		return
 	}
 	w.Header().Set("Retry-After", "1")
@@ -390,6 +407,18 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 		}
 	}
 
+	// An upload to a main system is checked and matched as the subsystem it routes to.
+	var mainSystem, subsystem *System
+	if call != nil && call.System != nil && call.System.IsMain {
+		talkgroupRef := call.TalkgroupId
+		if talkgroupRef == 0 {
+			talkgroupRef = call.Meta.TalkgroupRef
+		}
+		if sub, ok := api.Controller.Systems.RouteFromMain(call.System, talkgroupRef, call.Patches); ok {
+			mainSystem, subsystem = call.System, sub
+		}
+	}
+
 	var systemRef, talkgroupRef interface{} = "nil", "nil"
 	if call != nil {
 		if call.System != nil {
@@ -411,7 +440,18 @@ func (api *Api) HandleCall(key string, call *Call, w http.ResponseWriter) {
 			}
 			call.CoreFallback = fallback
 		}
-		if apikey.HasAccess(call) {
+		allowed := apikey.HasAccess(call)
+		if subsystem != nil {
+			// A key for the main system or for the subsystem may upload it.
+			routeCallToSystem(call, subsystem)
+			if !allowed {
+				allowed = apikey.HasAccess(call)
+			}
+			if !allowed {
+				routeCallToSystem(call, mainSystem)
+			}
+		}
+		if allowed {
 			// Store API key ID in call metadata for preferred API key logic
 			apikeyId := apikey.Id
 			call.ApiKeyId = &apikeyId
@@ -1315,13 +1355,16 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Login successful",
 		"user": map[string]interface{}{
-			"id":                 user.Id,
-			"email":              user.Email,
-			"pin":                user.Pin,
-			"subscriptionStatus": user.SubscriptionStatus,
-			"needsSubscription":  needsSubscription,
-			"needsPasswordReset": user.ForcePasswordReset,
-			"systemAdmin":        user.SystemAdmin,
+			"id":                     user.Id,
+			"email":                  user.Email,
+			"pin":                    user.Pin,
+			"subscriptionStatus":     user.SubscriptionStatus,
+			"needsSubscription":      needsSubscription,
+			"needsPasswordReset":     user.ForcePasswordReset,
+			"systemAdmin":            user.SystemAdmin,
+			"adminAccess":            api.Controller.AdminRoles.HoldsAdminPower(user),
+			"publicApiEnabled":       user.PublicApiEnabled,
+			"publicApiCapabilities":  user.PublicApiCaps(),
 		},
 	})
 }
@@ -3138,6 +3181,10 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 			api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
+		if !api.Controller.clientHasFeature(client, "alerts") {
+			api.exitWithError(w, http.StatusForbidden, "alerts not available for your group")
+			return
+		}
 
 		// Parse since parameter (timestamp in milliseconds)
 		var sinceTimestamp int64 = 0
@@ -3185,12 +3232,13 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 		// Use a reasonable maximum (10000) to avoid memory issues
 		maxAlerts := uint(10000)
 
-		// Query alerts with optional since filter
-		// If sinceTimestamp > 0, only fetch alerts created at or after that timestamp
-		// Use >= to ensure we don't miss alerts created at the exact timestamp
+		// since is a visibility cursor: an alert created before it but held by a
+		// delay until after it is still new to this user, so look back far
+		// enough to find those and filter on when each became visible.
 		whereClause := ""
 		if sinceTimestamp > 0 {
-			whereClause = fmt.Sprintf(`WHERE a."createdAt" >= %d`, sinceTimestamp)
+			lookback := api.Controller.maxReleaseDelay(client.User).Milliseconds()
+			whereClause = fmt.Sprintf(`WHERE a."createdAt" >= %d`, sinceTimestamp-lookback)
 		}
 
 		// Query all alerts (no userId filter) with system, talkgroup labels, call transcripts, and tone sequence
@@ -3254,6 +3302,13 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 				minimalCall.Timestamp = time.UnixMilli(callTimestamp.Int64)
 			}
 			if !api.Controller.userHasAccess(client.User, minimalCall) {
+				continue
+			}
+			release := api.Controller.callReleaseFor(client.User, minimalCall)
+			if time.Now().Before(release) {
+				continue
+			}
+			if sinceTimestamp > 0 && max(createdAt, release.UnixMilli()) < sinceTimestamp {
 				continue
 			}
 
@@ -3552,22 +3607,6 @@ func (api *Api) AlertsHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			// Check if alert is still delayed for this user (respects group delays)
-			if callTimestamp.Valid && client.User != nil {
-				// Get user's effective delay (includes group delays)
-				defaultDelay := api.Controller.Options.DefaultSystemDelay
-				effectiveDelay := api.Controller.userEffectiveDelay(client.User, minimalCall, defaultDelay)
-
-				// Check if call is still delayed
-				if effectiveDelay > 0 {
-					delayCompletionTime := minimalCall.Timestamp.Add(time.Duration(effectiveDelay) * time.Minute)
-					if time.Now().Before(delayCompletionTime) {
-						// Alert is still delayed for this user, skip it
-						continue
-					}
-				}
-			}
-
 			// Alert passed all filters, add it
 			allAlerts = append(allAlerts, alertMap)
 		}
@@ -3698,12 +3737,7 @@ func (api *Api) transcriptReleasedForUser(user *User, call *Call) bool {
 	if api.Controller == nil || user == nil || call == nil || call.Timestamp.IsZero() {
 		return true
 	}
-	def := api.Controller.Options.DefaultSystemDelay
-	ed := api.Controller.userEffectiveDelay(user, call, def)
-	if ed == 0 {
-		return true
-	}
-	return !time.Now().Before(call.Timestamp.Add(time.Duration(ed) * time.Minute))
+	return !time.Now().Before(api.Controller.callReleaseFor(user, call))
 }
 
 // TranscriptsHandler handles GET /api/transcripts - list recent call transcripts for user
@@ -3716,6 +3750,10 @@ func (api *Api) TranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 	client := api.getClient(r)
 	if client == nil || client.User == nil {
 		api.exitWithError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !api.Controller.clientHasFeature(client, "transcripts") {
+		api.exitWithError(w, http.StatusForbidden, "transcripts not available for your group")
 		return
 	}
 
@@ -4842,6 +4880,8 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		"userGroupId":               user.UserGroupId,
 		"userGroupName":             groupName,
 		"isGroupAdmin":              user.IsGroupAdmin,
+		"delayModerator":            api.Controller.DelayModeration.IsModerator(user),
+		"adminPermissions":          api.Controller.AdminRoles.Permissions(user.Id),
 		"stripeCustomerId":          user.StripeCustomerId,
 		"stripeSubscriptionId":      user.StripeSubscriptionId,
 		"subscriptionStatus":        user.SubscriptionStatus,
@@ -7197,6 +7237,8 @@ func (api *Api) AdminGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			"isPublicRegistration":    group.IsPublicRegistration,
 			"allowAddExistingUsers":   group.AllowAddExistingUsers,
 			"autoEnableNewTalkgroups": group.AutoEnableNewTalkgroups,
+			"isFreeGroup":             group.IsFreeGroup,
+			"features":                group.GetFeatures(),
 			"createdAt":               group.CreatedAt,
 		})
 	}
@@ -7226,24 +7268,26 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var request struct {
-		Name                    string          `json:"name"`
-		Description             string          `json:"description"`
-		SystemAccess            string          `json:"systemAccess"`
-		Delay                   int             `json:"delay"`
-		SystemDelays            string          `json:"systemDelays"`
-		TalkgroupDelays         string          `json:"talkgroupDelays"`
-		ConnectionLimit         uint            `json:"connectionLimit"`
-		MaxUsers                uint            `json:"maxUsers"`
-		BillingEnabled          bool            `json:"billingEnabled"`
-		StripePriceId           string          `json:"stripePriceId"`
-		PricingOptions          []PricingOption `json:"pricingOptions"`
-		BillingMode             string          `json:"billingMode"`
-		CollectSalesTax         bool            `json:"collectSalesTax"`
-		TaxMode                 string          `json:"taxMode"`
-		StripeTaxRateId         string          `json:"stripeTaxRateId"`
-		IsPublicRegistration    bool            `json:"isPublicRegistration"`
-		AllowAddExistingUsers   bool            `json:"allowAddExistingUsers"`
-		AutoEnableNewTalkgroups bool            `json:"autoEnableNewTalkgroups"`
+		Name                    string             `json:"name"`
+		Description             string             `json:"description"`
+		SystemAccess            string             `json:"systemAccess"`
+		Delay                   int                `json:"delay"`
+		SystemDelays            string             `json:"systemDelays"`
+		TalkgroupDelays         string             `json:"talkgroupDelays"`
+		ConnectionLimit         uint               `json:"connectionLimit"`
+		MaxUsers                uint               `json:"maxUsers"`
+		BillingEnabled          bool               `json:"billingEnabled"`
+		StripePriceId           string             `json:"stripePriceId"`
+		PricingOptions          []PricingOption    `json:"pricingOptions"`
+		BillingMode             string             `json:"billingMode"`
+		CollectSalesTax         bool               `json:"collectSalesTax"`
+		TaxMode                 string             `json:"taxMode"`
+		StripeTaxRateId         string             `json:"stripeTaxRateId"`
+		IsPublicRegistration    bool               `json:"isPublicRegistration"`
+		AllowAddExistingUsers   bool               `json:"allowAddExistingUsers"`
+		AutoEnableNewTalkgroups bool               `json:"autoEnableNewTalkgroups"`
+		IsFreeGroup             bool               `json:"isFreeGroup"`
+		Features                *UserGroupFeatures `json:"features"`
 		// Group admin assignment
 		AssignExistingUserAsAdmin bool   `json:"assignExistingUserAsAdmin"`
 		GroupAdminUserId          uint64 `json:"groupAdminUserId"`
@@ -7263,6 +7307,10 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	if request.Name == "" {
 		api.exitWithError(w, http.StatusBadRequest, "Group name is required")
 		return
+	}
+
+	if request.IsFreeGroup {
+		request.BillingEnabled = false
 	}
 
 	// Validate: If billing is enabled, at least one pricing option is required
@@ -7300,6 +7348,11 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		billingMode = "all_users"
 	}
 
+	featuresJSON := ""
+	if request.Features != nil {
+		featuresJSON = request.Features.ToJSON()
+	}
+
 	group := &UserGroup{
 		Name:                    request.Name,
 		Description:             request.Description,
@@ -7319,6 +7372,8 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		IsPublicRegistration:    request.IsPublicRegistration,
 		AllowAddExistingUsers:   request.AllowAddExistingUsers,
 		AutoEnableNewTalkgroups: request.AutoEnableNewTalkgroups,
+		IsFreeGroup:             request.IsFreeGroup,
+		Features:                featuresJSON,
 		CreatedAt:               time.Now().Unix(),
 	}
 	group.NormalizeSystemAccess(api.Controller.Systems)
@@ -7538,25 +7593,27 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var request struct {
-		Id                      uint64          `json:"id"`
-		Name                    string          `json:"name"`
-		Description             string          `json:"description"`
-		SystemAccess            string          `json:"systemAccess"`
-		Delay                   int             `json:"delay"`
-		SystemDelays            string          `json:"systemDelays"`
-		TalkgroupDelays         string          `json:"talkgroupDelays"`
-		ConnectionLimit         uint            `json:"connectionLimit"`
-		MaxUsers                uint            `json:"maxUsers"`
-		BillingEnabled          bool            `json:"billingEnabled"`
-		StripePriceId           string          `json:"stripePriceId"`
-		PricingOptions          []PricingOption `json:"pricingOptions"`
-		BillingMode             string          `json:"billingMode"`
-		CollectSalesTax         bool            `json:"collectSalesTax"`
-		TaxMode                 string          `json:"taxMode"`
-		StripeTaxRateId         string          `json:"stripeTaxRateId"`
-		IsPublicRegistration    bool            `json:"isPublicRegistration"`
-		AllowAddExistingUsers   bool            `json:"allowAddExistingUsers"`
-		AutoEnableNewTalkgroups bool            `json:"autoEnableNewTalkgroups"`
+		Id                      uint64             `json:"id"`
+		Name                    string             `json:"name"`
+		Description             string             `json:"description"`
+		SystemAccess            string             `json:"systemAccess"`
+		Delay                   int                `json:"delay"`
+		SystemDelays            string             `json:"systemDelays"`
+		TalkgroupDelays         string             `json:"talkgroupDelays"`
+		ConnectionLimit         uint               `json:"connectionLimit"`
+		MaxUsers                uint               `json:"maxUsers"`
+		BillingEnabled          bool               `json:"billingEnabled"`
+		StripePriceId           string             `json:"stripePriceId"`
+		PricingOptions          []PricingOption    `json:"pricingOptions"`
+		BillingMode             string             `json:"billingMode"`
+		CollectSalesTax         bool               `json:"collectSalesTax"`
+		TaxMode                 string             `json:"taxMode"`
+		StripeTaxRateId         string             `json:"stripeTaxRateId"`
+		IsPublicRegistration    bool               `json:"isPublicRegistration"`
+		AllowAddExistingUsers   bool               `json:"allowAddExistingUsers"`
+		AutoEnableNewTalkgroups bool               `json:"autoEnableNewTalkgroups"`
+		IsFreeGroup             bool               `json:"isFreeGroup"`
+		Features                *UserGroupFeatures `json:"features"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -7568,6 +7625,10 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	if group == nil {
 		api.exitWithError(w, http.StatusNotFound, "Group not found")
 		return
+	}
+
+	if request.IsFreeGroup {
+		request.BillingEnabled = false
 	}
 
 	// Validate: If billing is enabled, at least one pricing option is required
@@ -7621,6 +7682,10 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	group.IsPublicRegistration = request.IsPublicRegistration
 	group.AllowAddExistingUsers = request.AllowAddExistingUsers
 	group.AutoEnableNewTalkgroups = request.AutoEnableNewTalkgroups
+	group.IsFreeGroup = request.IsFreeGroup
+	if request.Features != nil {
+		group.Features = request.Features.ToJSON()
+	}
 	group.NormalizeSystemAccess(api.Controller.Systems)
 
 	if err := api.Controller.UserGroups.Update(group, api.Controller.Database); err != nil {
@@ -7677,6 +7742,10 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	// Refresh configuration for all active clients belonging to users in this group
 	// This ensures they get updated system access and delay settings immediately
 	api.Controller.Clients.RefreshConfigForGroup(api.Controller, group.Id)
+	// Free-group changes also affect anonymous listeners.
+	if group.IsFreeGroup || api.Controller.allowAnonymousFreeListening() {
+		api.Controller.EmitConfig()
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -9670,7 +9739,7 @@ func isSystemAlertVisibleToUser(alertType string, systemAdmin bool) bool {
 		return true
 	}
 	switch alertType {
-	case "manual", "no_audio", "no_audio_received", "api_key_no_audio", "tone_detection_issue",
+	case "manual", dispatchAlertType, "no_audio", "no_audio_received", "api_key_no_audio", "tone_detection_issue",
 		"sdrtrunk_control_lost", "sdrtrunk_tuner_error", "sdrtrunk_uploader_error", "sdrtrunk_offline", "sdrtrunk_sample_overflow":
 		return true
 	default:
@@ -9699,7 +9768,13 @@ func (api *Api) SystemAlertsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		alerts, err := api.Controller.GetSystemAlerts(limit, includeDismissed)
+		// Listeners only see some alerts, so read a wider window before filtering
+		// or their own alerts get crowded out by everyone else's.
+		fetch := limit
+		if !client.User.SystemAdmin {
+			fetch = 500
+		}
+		alerts, err := api.Controller.GetSystemAlerts(fetch, includeDismissed)
 		if err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get system alerts: %v", err))
 			return
@@ -9708,7 +9783,13 @@ func (api *Api) SystemAlertsHandler(w http.ResponseWriter, r *http.Request) {
 		// Filter by alert type and user/group system/talkgroup access.
 		filteredAlerts := []*SystemAlert{}
 		for _, alert := range alerts {
+			if len(filteredAlerts) >= limit && limit > 0 {
+				break
+			}
 			if api.Controller.userHasSystemAlertAccess(client.User, alert) {
+				if alert.AlertType == dispatchAlertType && !client.User.SystemAdmin {
+					alert = listenerDispatchAlert(alert)
+				}
 				filteredAlerts = append(filteredAlerts, alert)
 			}
 		}
@@ -9949,4 +10030,18 @@ func (api *Api) AdminApplyGroupTaxRateHandler(w http.ResponseWriter, r *http.Req
 		"skipped": skipped,
 		"results": results,
 	})
+}
+
+func routeCallToSystem(call *Call, system *System) {
+	talkgroupRef := call.TalkgroupId
+	if talkgroupRef == 0 {
+		talkgroupRef = call.Meta.TalkgroupRef
+	}
+	call.System = system
+	call.SystemId = system.SystemRef
+	call.Meta.SystemRef = system.SystemRef
+	call.Talkgroup = nil
+	if talkgroup, ok := system.Talkgroups.GetTalkgroupByRef(talkgroupRef); ok {
+		call.Talkgroup = talkgroup
+	}
 }

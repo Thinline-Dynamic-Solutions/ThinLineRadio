@@ -541,6 +541,65 @@ $admin-dark-theme: mat.m2-define-dark-theme((
   }
 }
 
+/* ── Keyboard shortcuts menu (console top bar) ───────────────────────────── */
+.tlr-lcd-menu.tlr-shortcuts-menu.mat-mdc-menu-panel {
+  max-width: none;
+  background: #11161e !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.9) !important;
+}
+
+.tlr-shortcuts-menu .shortcuts {
+  width: 280px;
+  padding: 8px 16px 10px;
+  color: var(--tlr-text);
+  font-family: var(--tlr-font-primary);
+  cursor: default;
+
+  &__title {
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tlr-text-secondary);
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+    &:last-child { border-bottom: none; }
+  }
+
+  &__keys {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-bottom-width: 2px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--tlr-text-soft);
+    font-family: var(--tlr-font-numeric);
+    font-size: 11px;
+    font-weight: 600;
+  }
+}
+
 /* ── Time-of-day picker (rendered inside .tlr-lcd-menu.tlr-time-menu) ────── */
 .tlr-lcd-menu.tlr-time-menu .mat-mdc-menu-content { padding: 0 !important; }
 

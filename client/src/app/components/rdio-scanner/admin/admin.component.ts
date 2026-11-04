@@ -143,7 +143,8 @@ export class RdioScannerAdminComponent implements OnDestroy {
     @ViewChild('searchInput') private searchInputEl: ElementRef<HTMLInputElement> | undefined;
     @ViewChild('configComponent') configComponent: RdioScannerAdminConfigComponent | undefined;
 
-    get formDirty(): boolean { return !!(this.configComponent?.form?.dirty); }
+    get limited(): boolean { return this.adminService.limited; }
+        get formDirty(): boolean { return !!(this.configComponent?.form?.dirty); }
     get formValid(): boolean { return !!(this.configComponent?.form?.valid); }
     get configLoading(): boolean { return !!(this.configComponent?.loading); }
 

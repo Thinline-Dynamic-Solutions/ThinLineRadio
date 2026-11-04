@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-var transcriptGeocodeClient = &http.Client{Timeout: 20 * time.Second}
+var transcriptGeocodeClient = &http.Client{Timeout: 60 * time.Second}
 
 // TranscriptGeocodeHit is a successful pin from gateway transcript geocode.
 type TranscriptGeocodeHit struct {

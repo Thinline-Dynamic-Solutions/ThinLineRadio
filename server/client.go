@@ -29,7 +29,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-
 type Client struct {
 	User        *User
 	AuthCount   int
@@ -50,6 +49,8 @@ type Client struct {
 	SystemsMap  SystemsMap
 	request     *http.Request
 	FCMToken    string // Set via the "FCM" WS command; links this session to a push token.
+	// ListenLink is the share link (?link=token) this connection opened with.
+	ListenLink *ListenLink
 	// ConnectedAt is set when the client is registered in Clients.Map.
 	ConnectedAt time.Time
 
@@ -122,6 +123,9 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 	client.Livefeed = NewLivefeed()
 	client.Send = make(chan *Message, 8192)
 	client.request = request
+	if request != nil && controller.ListenLinks != nil {
+		client.ListenLink = controller.ListenLinks.Lookup(request.URL.Query().Get("link"))
+	}
 
 	go func() {
 		defer func() {
@@ -318,15 +322,29 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 	// Get the user's group pricing options if user is authenticated and has a group
 	var pricingOptions []PricingOption
 	autoEnableNewTalkgroups := false
-	if client.User != nil && client.Controller != nil {
-		for _, userGroup := range client.Controller.userGroups(client.User) {
-			if userGroup != nil && userGroup.AutoEnableNewTalkgroups {
-				autoEnableNewTalkgroups = true
+	features := AllFeaturesOn()
+	freeListening := false
+	upgradeAvailable := false
+	if client.Controller != nil {
+		features = client.Controller.featuresForClient(client)
+		freeListening = client.User == nil && client.Controller.anonymousAllowed(client.ListenLink)
+		upgradeAvailable = freeListening && client.Controller.UserGroups.HasPublicPaidRegistrationTier()
+		if client.User != nil {
+			for _, userGroup := range client.Controller.userGroups(client.User) {
+				if userGroup != nil && userGroup.AutoEnableNewTalkgroups {
+					autoEnableNewTalkgroups = true
+				}
 			}
-		}
-		if client.User.UserGroupId > 0 {
-			if userGroup := client.Controller.UserGroups.Get(client.User.UserGroupId); userGroup != nil && userGroup.BillingEnabled {
-				pricingOptions = userGroup.GetPricingOptions()
+			if client.User.UserGroupId > 0 {
+				if userGroup := client.Controller.UserGroups.Get(client.User.UserGroupId); userGroup != nil && userGroup.BillingEnabled {
+					pricingOptions = userGroup.GetPricingOptions()
+				}
+			}
+		} else if freeListening {
+			for _, g := range client.Controller.anonymousScope(client.ListenLink) {
+				if g != nil && g.AutoEnableNewTalkgroups {
+					autoEnableNewTalkgroups = true
+				}
 			}
 		}
 	}
@@ -358,6 +376,9 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 			"relayServerURL":            getRelayServerURL(),
 			"audioClientToken":          client.Controller.AudioClientToken,
 			"autoEnableNewTalkgroups":   autoEnableNewTalkgroups,
+			"features":                  features,
+			"freeListening":             freeListening,
+			"upgradeAvailable":          upgradeAvailable,
 		},
 		"playbackGoesLive":   options.PlaybackGoesLive,
 		"showListenersCount": options.ShowListenersCount,
@@ -369,10 +390,18 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 	}
 
 	// Include user settings if user is authenticated
-	if client.User != nil && client.User.Settings != "" {
-		var userSettings map[string]interface{}
-		if err := json.Unmarshal([]byte(client.User.Settings), &userSettings); err == nil {
-			payload["userSettings"] = userSettings
+	if client.User != nil {
+		payload["publicApiEnabled"] = client.User.PublicApiEnabled
+		payload["delayModerator"] = client.Controller != nil && client.Controller.DelayModeration.IsModerator(client.User)
+		if client.Controller != nil && !client.User.SystemAdmin {
+			payload["adminPermissions"] = client.Controller.AdminRoles.Permissions(client.User.Id)
+		}
+		payload["publicApiCapabilities"] = client.User.PublicApiCaps()
+		if client.User.Settings != "" {
+			var userSettings map[string]interface{}
+			if err := json.Unmarshal([]byte(client.User.Settings), &userSettings); err == nil {
+				payload["userSettings"] = userSettings
+			}
 		}
 	}
 
@@ -500,9 +529,28 @@ func (clients *Clients) EmitIncidentUpdate(controller *Controller, call *Call, p
 	clients.mutex.Lock()
 	var targets []*Client
 	restricted := controller.requiresUserAuth()
+	if controller.DelayModeration.IsRemoved(call.Id) {
+		clients.mutex.Unlock()
+		return
+	}
 	for c := range clients.Map {
+		if !controller.clientHasFeature(c, "map") {
+			continue
+		}
+		if delay := controller.clientEffectiveDelay(c, call, controller.Delayer.getSystemDelay(call)); delay > 0 &&
+			time.Now().Before(call.Timestamp.Add(time.Duration(delay)*time.Minute)) {
+			continue
+		}
 		if restricted {
-			if c.User == nil || !controller.userHasAccess(c.User, call) {
+			if c.User != nil {
+				if !controller.userHasAccess(c.User, call) {
+					continue
+				}
+			} else if controller.anonymousAllowed(c.ListenLink) {
+				if !controller.anonymousHasCallAccess(c.ListenLink, call) {
+					continue
+				}
+			} else {
 				continue
 			}
 		}
@@ -559,7 +607,7 @@ func (clients *Clients) EmitConfig(controller *Controller) {
 	showListenersCount := controller.Options.ShowListenersCount
 
 	for c := range clients.Map {
-		if restricted && c.User == nil {
+		if restricted && c.User == nil && !controller.anonymousAllowed(c.ListenLink) {
 			// Don't PIN-poke unauthenticated clients on every config broadcast
 			// (incoming calls). They already get a PIN challenge from CFG.
 			continue

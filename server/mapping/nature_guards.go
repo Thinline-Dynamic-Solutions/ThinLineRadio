@@ -1450,6 +1450,9 @@ func SanitizeCallNatureAssignment(transcript, nature string, natureCodes []strin
 	if strings.EqualFold(nature, "LIFT ASSIST") && !liftAssistEvidenceInTranscript(u) {
 		return ""
 	}
+	if strings.EqualFold(nature, "FOLLOW UP") && !followUpEvidenceInTranscript(u) {
+		return ""
+	}
 	if strings.EqualFold(nature, "FALL") &&
 		(natureKeywordIsFallsPlaceName(u, "FALL") || natureKeywordIsFallenStreetName(u, "FALLEN")) {
 		return ""
@@ -1843,6 +1846,14 @@ func liftAssistEvidenceInTranscript(paddedUpper string) bool {
 	}
 	return false
 }
+
+// followUpEvidenceInTranscript requires the follow-up wording itself. FOLLOW UP
+// otherwise becomes a catch-all for plate checks and unit status traffic.
+func followUpEvidenceInTranscript(paddedUpper string) bool {
+	return followUpWordingRE.MatchString(paddedUpper)
+}
+
+var followUpWordingRE = regexp.MustCompile(`\bFOLLOW(ING|ED)?[\s-]*UPS?\b`)
 
 func natureKeywordIsBareLiftFalsePositive(paddedUpper, keyword string) bool {
 	switch strings.ToUpper(strings.TrimSpace(keyword)) {

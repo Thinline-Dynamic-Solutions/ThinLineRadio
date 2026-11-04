@@ -1,0 +1,222 @@
+<div class="server-alerts-admin">
+  <div class="header-actions">
+    <div>
+      <h3>Server alerts</h3>
+      <p class="mat-caption intro">
+        Send server problems to Slack, Discord, PagerDuty, email or your own endpoint: no audio from a system or upload key,
+        transcription and tone detection failures, SDRTrunk problems, low disk space, and alerts posted by your own monitors.
+        Admin push notifications keep working as before.
+      </p>
+    </div>
+  </div>
+
+  @if (state && !state.healthAlertsEnabled) {
+    <div class="notice">
+      <mat-icon>warning_amber</mat-icon>
+      <span>System health alerts are turned off in System Health, so the server isn't checking for problems. Alerts posted by your monitors still go out.</span>
+    </div>
+  }
+
+  <!-- Destinations -->
+  <section class="block">
+    <div class="block-head">
+      <div>
+        <h4>Where alerts go</h4>
+        <p class="mat-caption">Each destination gets every alert at or above its minimum severity.</p>
+      </div>
+      @if (!showForm) {
+        <button mat-raised-button color="primary" type="button" (click)="startCreate()">
+          <mat-icon>add</mat-icon>
+          Add destination
+        </button>
+      }
+    </div>
+
+    @if (showForm) {
+      <form class="dest-form" [formGroup]="form" (ngSubmit)="save()">
+        <div class="row">
+          <mat-form-field appearance="outline">
+            <mat-label>Name</mat-label>
+            <input matInput formControlName="label" placeholder="Ops Slack" autocomplete="off">
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Type</mat-label>
+            <mat-select formControlName="destinationType">
+              @for (t of types; track t.value) {
+                <mat-option [value]="t.value">{{ t.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Minimum severity</mat-label>
+            <mat-select formControlName="minSeverity">
+              @for (s of severities; track s) {
+                <mat-option [value]="s">{{ s | titlecase }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        @if (formType === 'slack' || formType === 'discord' || formType === 'custom') {
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Webhook URL</mat-label>
+            <input matInput formControlName="url" autocomplete="off"
+              [placeholder]="formType === 'slack' ? 'https://hooks.slack.com/services/…' : formType === 'discord' ? 'https://discord.com/api/webhooks/…' : 'https://monitor.example.com/hooks/thinline'">
+            <mat-hint>Must be https and reachable on the internet; private and local addresses are refused.</mat-hint>
+          </mat-form-field>
+        }
+        @if (formType === 'custom') {
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Shared secret (optional)</mat-label>
+            <input matInput formControlName="secret" type="password" autocomplete="new-password"
+              [placeholder]="editing?.hasSecret ? 'Leave empty to keep the saved secret' : ''">
+            <mat-hint>Sent in the X-Webhook-Secret header so your endpoint can check the alert is from this server.</mat-hint>
+          </mat-form-field>
+        }
+        @if (formType === 'pagerduty') {
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Routing key</mat-label>
+            <input matInput formControlName="secret" type="password" autocomplete="new-password"
+              [placeholder]="editing?.hasSecret ? 'Leave empty to keep the saved key' : ''">
+            <mat-hint>The Events API v2 integration key from your PagerDuty service.</mat-hint>
+          </mat-form-field>
+        }
+        @if (formType === 'email') {
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Email address</mat-label>
+            <input matInput formControlName="email" type="email" autocomplete="off">
+            @if (state && !state.emailAvailable) {
+              <mat-hint class="warn">Email isn't set up on this server yet (Options → Email), so these won't send.</mat-hint>
+            }
+          </mat-form-field>
+        }
+
+        <mat-slide-toggle formControlName="enabled">Destination is on</mat-slide-toggle>
+
+        <div class="form-actions">
+          <button mat-button type="button" (click)="cancel()">Cancel</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="saving">{{ editing ? 'Save' : 'Add' }}</button>
+        </div>
+      </form>
+    }
+
+    @if (loading && !state) {
+      <div class="empty"><mat-spinner diameter="32"></mat-spinner></div>
+    } @else if (state && !state.destinations.length && !showForm) {
+      <div class="empty">
+        <mat-icon>notifications_off</mat-icon>
+        <p>No destinations yet. Server alerts only show here and in admin push notifications.</p>
+      </div>
+    } @else if (state?.destinations?.length) {
+      <table class="alerts-table">
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Sends to</th><th>Minimum</th><th></th></tr>
+        </thead>
+        <tbody>
+          @for (d of state!.destinations; track d.id) {
+            <tr [class.is-off]="!d.enabled">
+              <td class="name">{{ d.label }}</td>
+              <td>{{ typeLabel(d.destinationType) }}</td>
+              <td class="target">{{ destinationTarget(d) }}</td>
+              <td><span class="sev" [attr.data-sev]="d.minSeverity">{{ d.minSeverity | titlecase }}</span></td>
+              <td class="actions">
+                <button mat-icon-button type="button" (click)="test(d)" [disabled]="testingId === d.id" matTooltip="Send a test alert">
+                  <mat-icon>send</mat-icon>
+                </button>
+                <button mat-icon-button type="button" (click)="toggleDestination(d)" [matTooltip]="d.enabled ? 'Turn off' : 'Turn on'">
+                  <mat-icon>{{ d.enabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+                </button>
+                <button mat-icon-button type="button" (click)="startEdit(d)" matTooltip="Edit"><mat-icon>edit</mat-icon></button>
+                <button mat-icon-button type="button" (click)="removeDestination(d)" matTooltip="Delete"><mat-icon>delete</mat-icon></button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
+
+  <!-- Disk space -->
+  <section class="block">
+    <div class="block-head">
+      <div>
+        <h4>Low disk space</h4>
+        <p class="mat-caption">Checks the disk holding the server's folder every 10 minutes. Below half the threshold the alert is critical. Set 0 to turn it off.</p>
+      </div>
+    </div>
+    <div class="disk-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Alert below (% free)</mat-label>
+        <input matInput type="number" min="0" max="90" [(ngModel)]="diskPercent">
+      </mat-form-field>
+      <button mat-stroked-button type="button" (click)="saveDiskPercent()" [disabled]="!state || diskPercent === state.diskSpaceAlertPercent">Save</button>
+    </div>
+  </section>
+
+  <!-- Alert keys -->
+  <section class="block">
+    <div class="block-head">
+      <div>
+        <h4>Alerts from your monitors</h4>
+        <p class="mat-caption">
+          Cron jobs, watchdogs and tools such as Uptime Kuma or Grafana can post an alert with an alert key.
+          It shows in System Health, goes to system admins' phones and to the destinations above.
+          Limit: 30 alerts a minute per key.
+        </p>
+      </div>
+    </div>
+
+    @if (newKeyPlaintext) {
+      <div class="new-key">
+        <div>
+          <strong>Copy this key now.</strong> It won't be shown again.
+          <code>{{ newKeyPlaintext }}</code>
+        </div>
+        <div class="new-key-actions">
+          <button mat-stroked-button type="button" (click)="copyKey()"><mat-icon>content_copy</mat-icon> Copy</button>
+          <button mat-button type="button" (click)="dismissKey()">Done</button>
+        </div>
+      </div>
+    }
+
+    <div class="key-create">
+      <mat-form-field appearance="outline">
+        <mat-label>New key name</mat-label>
+        <input matInput [(ngModel)]="newKeyLabel" placeholder="trunk-recorder host" autocomplete="off" (keyup.enter)="createKey()">
+      </mat-form-field>
+      <button mat-raised-button color="primary" type="button" (click)="createKey()"><mat-icon>vpn_key</mat-icon> Create key</button>
+    </div>
+
+    @if (state?.keys?.length) {
+      <table class="alerts-table">
+        <thead>
+          <tr><th>Name</th><th>Key</th><th>Last used</th><th></th></tr>
+        </thead>
+        <tbody>
+          @for (k of state!.keys; track k.id) {
+            <tr [class.is-off]="!k.enabled">
+              <td class="name">{{ k.label }}</td>
+              <td><code>{{ k.prefix }}…</code></td>
+              <td>{{ k.lastUsedAt ? (k.lastUsedAt | date:'medium') : 'Never' }}</td>
+              <td class="actions">
+                <button mat-icon-button type="button" (click)="toggleKey(k)" [matTooltip]="k.enabled ? 'Turn off' : 'Turn on'">
+                  <mat-icon>{{ k.enabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+                </button>
+                <button mat-icon-button type="button" (click)="removeKey(k)" matTooltip="Delete"><mat-icon>delete</mat-icon></button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <details class="howto">
+      <summary>How to post an alert</summary>
+      <p class="mat-caption">
+        Send JSON to <code>{{ ingestUrl }}</code>. Only <code>message</code> is required. <code>severity</code> is info, warning (the default), error or critical.
+        <code>timestamp</code> can be unix seconds, milliseconds or an ISO date. <code>metadata</code> takes up to 30 keys, which are passed through to the destinations.
+      </p>
+      <pre>{{ curlExample }}</pre>
+    </details>
+  </section>
+</div>

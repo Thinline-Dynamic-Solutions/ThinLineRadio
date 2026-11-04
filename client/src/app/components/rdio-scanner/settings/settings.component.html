@@ -1,288 +1,315 @@
 <div class="settings-container">
   <div class="settings-header">
-    <div class="settings-tabs" role="tablist" aria-label="Settings sections">
-      <button type="button" role="tab" class="settings-tab"
+    <div class="segmented" role="tablist" aria-label="Settings sections">
+      <button type="button" role="tab" class="segmented__btn"
         [class.active]="settingsTab === 'audio'"
         [attr.aria-selected]="settingsTab === 'audio'"
         (click)="setSettingsTab('audio')">
+        <mat-icon>volume_up</mat-icon>
         Audio
       </button>
-      <button type="button" role="tab" class="settings-tab"
+      <button type="button" role="tab" class="segmented__btn"
         [class.active]="settingsTab === 'appearance'"
         [attr.aria-selected]="settingsTab === 'appearance'"
         (click)="setSettingsTab('appearance')">
+        <mat-icon>palette</mat-icon>
         Appearance
       </button>
-      <button type="button" role="tab" class="settings-tab"
+      <button type="button" role="tab" class="segmented__btn"
         [class.active]="settingsTab === 'account'"
         [attr.aria-selected]="settingsTab === 'account'"
         (click)="setSettingsTab('account')">
+        <mat-icon>person_outline</mat-icon>
         Account
       </button>
     </div>
   </div>
 
   <div class="settings-content">
+    <!-- ═══════════════════════ AUDIO ═══════════════════════ -->
     @if (settingsTab === 'audio') {
     <div class="settings-panel">
-      <div class="settings-tabs settings-tabs--sub" role="tablist" aria-label="Audio settings">
-        <button type="button" role="tab" class="settings-tab"
+      <div class="subnav" role="tablist" aria-label="Audio settings">
+        <button type="button" role="tab" class="subnav__btn"
           [class.active]="audioSection === 'livefeed'"
           [attr.aria-selected]="audioSection === 'livefeed'"
           (click)="setAudioSection('livefeed')">
-          Live Feed
+          Live feed
         </button>
-        <button type="button" role="tab" class="settings-tab"
+        <button type="button" role="tab" class="subnav__btn"
           [class.active]="audioSection === 'alerts'"
           [attr.aria-selected]="audioSection === 'alerts'"
           (click)="setAudioSection('alerts')">
-          Alerts
+          Alert sounds
         </button>
       </div>
 
       @if (audioSection === 'livefeed') {
-    <div class="section livefeed-section">
-      <h3>Live Feed Settings</h3>
-      <p class="section-description">
-        Configure how much prior audio you want to hear when enabling live feed. System and talkgroup delays are always respected and cannot be overridden.
-      </p>
+        <section class="card">
+          <header class="card__head">
+            <span class="card__icon"><mat-icon>sensors</mat-icon></span>
+            <div>
+              <h3>Live feed</h3>
+              <p>How the live feed behaves when you turn it on. System and talkgroup delays always apply.</p>
+            </div>
+          </header>
 
-      <div class="backlog-setting">
-        <mat-form-field appearance="outline" class="backlog-field">
-          <mat-label>Backlog (minutes)</mat-label>
-          <input
-            matInput
-            type="number"
-            [(ngModel)]="livefeedBacklogMinutes"
-            (ngModelChange)="onBacklogChange()"
-            min="0"
-            placeholder="0">
-        </mat-form-field>
-        @if (livefeedBacklogMinutes === 0) {
-          <p class="backlog-hint">
-            No backlog - you'll only hear new calls going forward (live audio only).
-          </p>
-        }
-        @if (livefeedBacklogMinutes > 0) {
-          <p class="backlog-hint">
-            You'll hear calls from the last {{ livefeedBacklogMinutes }} minute(s) when enabling live feed. System and talkgroup delays are always respected - if you have delays configured, the backlog is measured from the start of your delay period.
-          </p>
-        }
-      </div>
+          <div class="setting-row">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Catch-up backlog</span>
+              <span class="setting-row__hint">
+                @if (livefeedBacklogMinutes > 0) {
+                  Plays calls from the last {{ livefeedBacklogMinutes }} minute{{ livefeedBacklogMinutes === 1 ? '' : 's' }} when you start the feed, then continues live.
+                } @else {
+                  Off — you'll only hear new calls from the moment you start the feed.
+                }
+              </span>
+            </div>
+            <mat-form-field appearance="outline" class="compact-field number-field" subscriptSizing="dynamic">
+              <input
+                matInput
+                type="number"
+                [(ngModel)]="livefeedBacklogMinutes"
+                (ngModelChange)="onBacklogChange()"
+                min="0"
+                placeholder="0"
+                aria-label="Backlog in minutes">
+              <span matTextSuffix>min</span>
+            </mat-form-field>
+          </div>
 
-      <div class="auto-livefeed-setting">
-        <div class="setting-header">
-          <mat-slide-toggle
-            [(ngModel)]="autoLivefeed"
-            (ngModelChange)="onAutoLivefeedChange()"
-            color="primary">
-            Auto Live Feed
-          </mat-slide-toggle>
-        </div>
-        <p class="setting-hint">
-          Automatically start live feed when the app opens.
-        </p>
-        @if (!isPWA) {
-          <p class="pwa-disclaimer">
-            <mat-icon class="info-icon">info</mat-icon>
-            <span>This feature only works when the app is installed as a Progressive Web App (PWA). To install, use your browser's "Add to Home Screen" or "Install App" option.</span>
-          </p>
-        }
-        @if (isPWA) {
-          <p class="pwa-disclaimer active">
-            <mat-icon class="info-icon">check_circle</mat-icon>
-            <span>App is installed as PWA - Auto Live Feed is available!</span>
-          </p>
-        }
-      </div>
-    </div>
+          <div class="setting-row">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Start live feed automatically</span>
+              <span class="setting-row__hint">Begin listening as soon as the app opens.</span>
+              <span class="note" [class.note--ok]="isPWA">
+                <mat-icon>{{ isPWA ? 'check_circle' : 'info_outline' }}</mat-icon>
+                @if (isPWA) {
+                  Available — the app is installed.
+                } @else {
+                  Only works when the app is installed (use your browser's "Install app" or "Add to Home Screen").
+                }
+              </span>
+            </div>
+            <mat-slide-toggle
+              hideIcon
+              [(ngModel)]="autoLivefeed"
+              (ngModelChange)="onAutoLivefeedChange()"
+              color="primary"
+              aria-label="Start live feed automatically">
+            </mat-slide-toggle>
+          </div>
+        </section>
       }
 
       @if (audioSection === 'alerts') {
-    <div class="section alert-sound-setting">
-      <h3>Alert Notification Sound</h3>
-      <p class="section-description">
-        Choose a default sound to play when new scanner alerts arrive.
-      </p>
+        <section class="card">
+          <header class="card__head">
+            <span class="card__icon"><mat-icon>notifications_none</mat-icon></span>
+            <div>
+              <h3>Scanner alerts</h3>
+              <p>The sound your browser plays when a new scanner alert arrives.</p>
+            </div>
+          </header>
 
-        <div class="sound-controls">
-          <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
-            <mat-label>Alert Sound</mat-label>
-            <mat-select
-              panelClass="tlr-settings-select-panel"
-              [(ngModel)]="alertSound"
-              (selectionChange)="onAlertSoundChange()">
-              @for (sound of availableAlertSounds; track sound) {
-                <mat-option [value]="sound.name">
-                  {{ sound.displayName }}
-                </mat-option>
-              }
-            </mat-select>
-            <mat-hint>Plays in your browser when new scanner alerts arrive</mat-hint>
-          </mat-form-field>
-          <div class="sound-actions">
-            <button type="button" mat-stroked-button class="sound-action-btn"
-              (click)="previewAlertSound(alertSound)">
-              <mat-icon>volume_up</mat-icon>
-              Test Sound
-            </button>
+          <div class="setting-row">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Alert sound</span>
+              <span class="setting-row__hint">Used for every channel unless you override it below.</span>
+            </div>
+            <div class="setting-row__control">
+              <mat-form-field appearance="outline" class="compact-field select-field" subscriptSizing="dynamic">
+                <mat-select
+                  panelClass="tlr-settings-select-panel"
+                  [(ngModel)]="alertSound"
+                  (selectionChange)="onAlertSoundChange()"
+                  aria-label="Alert sound">
+                  @for (sound of availableAlertSounds; track sound) {
+                    <mat-option [value]="sound.name">{{ sound.displayName }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <button type="button" class="ghost-btn" matTooltip="Play this sound" (click)="previewAlertSound(alertSound)">
+                <mat-icon>play_arrow</mat-icon>
+                Test
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="section alert-sound-setting weather-alert-setting">
-        <h3>Severe Weather Alert Sound</h3>
-        <p class="section-description">
-          Play a sound when new severe or extreme weather warnings appear in the header ticker for your ZIP code.
-        </p>
+        <section class="card">
+          <header class="card__head">
+            <span class="card__icon card__icon--warn"><mat-icon>thunderstorm</mat-icon></span>
+            <div>
+              <h3>Severe weather</h3>
+              <p>Severe or extreme warnings for your ZIP code that appear in the header ticker.</p>
+            </div>
+          </header>
 
-        <div class="setting-header">
-          <mat-slide-toggle
-            [(ngModel)]="weatherAlertSoundEnabled"
-            (ngModelChange)="onWeatherAlertSoundChange()"
-            color="primary">
-            Enable severe weather alert sound
-          </mat-slide-toggle>
-        </div>
+          <div class="setting-row">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Play a sound</span>
+              <span class="setting-row__hint">When a new warning appears.</span>
+            </div>
+            <mat-slide-toggle
+              hideIcon
+              [(ngModel)]="weatherAlertSoundEnabled"
+              (ngModelChange)="onWeatherAlertSoundChange()"
+              color="primary"
+              aria-label="Play a sound for severe weather alerts">
+            </mat-slide-toggle>
+          </div>
 
-        <div class="setting-header setting-header--with-action">
-          <mat-slide-toggle
-            [(ngModel)]="weatherAlertTtsEnabled"
-            (ngModelChange)="onWeatherAlertTtsChange()"
-            [disabled]="!ttsSupported"
-            color="primary">
-            Read severe weather alerts aloud (text-to-speech)
-          </mat-slide-toggle>
-          @if (ttsSupported) {
-            <button type="button" mat-stroked-button class="sound-action-btn"
-              [disabled]="!weatherAlertTtsEnabled"
-              (click)="previewWeatherAlertTts()">
-              <mat-icon>record_voice_over</mat-icon>
-              Test Voice
-            </button>
-          }
-        </div>
-        @if (!ttsSupported) {
-          <p class="setting-hint">
-            Text-to-speech isn't supported in this browser.
-          </p>
-        }
+          <div class="setting-row" [class.is-disabled]="!weatherAlertSoundEnabled">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Weather sound</span>
+              <span class="setting-row__hint">Choose from the same sounds as scanner alerts.</span>
+            </div>
+            <div class="setting-row__control">
+              <mat-form-field appearance="outline" class="compact-field select-field" subscriptSizing="dynamic">
+                <mat-select
+                  panelClass="tlr-settings-select-panel"
+                  [(ngModel)]="weatherAlertSound"
+                  (selectionChange)="onWeatherAlertSoundChange()"
+                  aria-label="Weather alert sound">
+                  @for (sound of availableAlertSounds; track sound) {
+                    <mat-option [value]="sound.name">{{ sound.displayName }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <button type="button" class="ghost-btn" matTooltip="Play this sound" (click)="previewAlertSound(weatherAlertSound)">
+                <mat-icon>play_arrow</mat-icon>
+                Test
+              </button>
+            </div>
+          </div>
 
-        <div class="sound-controls">
-          <mat-form-field appearance="outline" class="sound-field" subscriptSizing="dynamic">
-            <mat-label>Weather Alert Sound</mat-label>
-            <mat-select
-              panelClass="tlr-settings-select-panel"
-              [(ngModel)]="weatherAlertSound"
-              (selectionChange)="onWeatherAlertSoundChange()">
-              @for (sound of availableAlertSounds; track sound) {
-                <mat-option [value]="sound.name">
-                  {{ sound.displayName }}
-                </mat-option>
+          <div class="setting-row">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Read warnings aloud</span>
+              <span class="setting-row__hint">
+                @if (ttsSupported) {
+                  Uses your device's text-to-speech voice.
+                } @else {
+                  Text-to-speech isn't supported in this browser.
+                }
+              </span>
+            </div>
+            <div class="setting-row__control">
+              @if (ttsSupported) {
+                <button type="button" class="ghost-btn"
+                  [disabled]="!weatherAlertTtsEnabled"
+                  matTooltip="Hear a sample"
+                  (click)="previewWeatherAlertTts()">
+                  <mat-icon>record_voice_over</mat-icon>
+                  Test
+                </button>
               }
-            </mat-select>
-            <mat-hint>Uses the same sounds as scanner alerts</mat-hint>
-          </mat-form-field>
-          <div class="sound-actions">
-            <button type="button" mat-stroked-button class="sound-action-btn"
-              (click)="previewAlertSound(weatherAlertSound)">
-              <mat-icon>volume_up</mat-icon>
-              Test Sound
-            </button>
-            <button type="button" mat-stroked-button class="sound-action-btn sound-action-btn--primary"
-              (click)="testWeatherAlertTicker()">
+              <mat-slide-toggle
+                hideIcon
+                [(ngModel)]="weatherAlertTtsEnabled"
+                (ngModelChange)="onWeatherAlertTtsChange()"
+                [disabled]="!ttsSupported"
+                color="primary"
+                aria-label="Read severe weather alerts aloud">
+              </mat-slide-toggle>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Preview the ticker</span>
+              <span class="setting-row__hint">Scrolls a sample warning in the header for about 25 seconds, with sound if it's turned on.</span>
+            </div>
+            <button type="button" class="ghost-btn" (click)="testWeatherAlertTicker()">
               <mat-icon>campaign</mat-icon>
-              Test Ticker
+              Run test
             </button>
           </div>
-        </div>
-        <p class="setting-hint">
-          Test Ticker scrolls a sample warning in the header for about 25 seconds. Enable the toggle above to also play the selected sound during the test.
-        </p>
-      </div>
+        </section>
 
-      <!-- Per-channel alert sounds -->
-      <div class="section per-channel-sounds-setting">
-        <h3>Per-Channel Alert Sounds</h3>
-        <p class="section-description">
-          Override the alert sound for individual channels. Leave a channel on "Default" to use the sound above.
-        </p>
+        <section class="card">
+          <header class="card__head">
+            <span class="card__icon"><mat-icon>tune</mat-icon></span>
+            <div>
+              <h3>Per-channel sounds</h3>
+              <p>Give specific channels or tone sets their own sound. "Default" uses your alert sound above.</p>
+            </div>
+          </header>
 
-        @if (loadingChannelSounds) {
-          <div class="channel-sounds-loading">
-            <mat-spinner diameter="20"></mat-spinner>
-            <span>Loading channels…</span>
-          </div>
-        }
-
-        @if (!loadingChannelSounds) {
-          @if (getSystemsWithActivePrefs().length === 0) {
-            <div class="channel-sounds-empty">
-              No channels with alerts enabled. Enable alerts on a channel in Alert Preferences first.
+          @if (loadingChannelSounds) {
+            <div class="inline-state">
+              <mat-spinner diameter="18"></mat-spinner>
+              <span>Loading channels…</span>
             </div>
           }
-          <!-- System card (collapsed by default) -->
-          @for (system of getSystemsWithActivePrefs(); track system) {
-            <div class="cs-system-card">
-              <div class="cs-system-header" (click)="toggleSystem(system.id)">
-                <mat-icon class="cs-system-icon">radio</mat-icon>
-                <span class="cs-system-name">{{ system.label }}</span>
-                <span class="cs-count-badge">{{ getChannelPrefsForSystem(system.id).length }}</span>
-                <mat-icon class="cs-chevron">{{ isSystemExpanded(system.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+
+          @if (!loadingChannelSounds) {
+            @if (getSystemsWithActivePrefs().length === 0) {
+              <div class="inline-state">
+                <mat-icon>notifications_off</mat-icon>
+                <span>No channels have alerts turned on yet. Turn them on in the Alerts tab, then come back here.</span>
               </div>
-              @if (isSystemExpanded(system.id)) {
-                <div class="cs-system-body">
-                  <!-- Tag group (collapsed by default) -->
-                  @for (tag of getTagsForSystem(system.id); track tag) {
-                    <div class="cs-tag-card">
-                      <div class="cs-tag-header" (click)="toggleTag(system.id + ':' + tag)">
-                        <mat-icon class="cs-tag-icon">label</mat-icon>
-                        <span class="cs-tag-name">{{ tag }}</span>
-                        <span class="cs-count-badge cs-count-sm">{{ getChannelPrefsForSystemAndTag(system.id, tag).length }}</span>
-                        <mat-icon class="cs-chevron cs-chevron-sm">{{ isTagExpanded(system.id + ':' + tag) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                      </div>
-                      @if (isTagExpanded(system.id + ':' + tag)) {
-                        <div class="cs-channels">
-                          @for (pref of getChannelPrefsForSystemAndTag(system.id, tag); track pref) {
-                            <div class="cs-channel-row">
-                              <span class="cs-channel-name">
-                                {{ getTalkgroupLabelForPref(system, pref) }}
-                              </span>
-                              <div class="cs-channel-controls">
-                                <mat-form-field appearance="outline" class="cs-sound-field">
-                                  <mat-select
-                                    [value]="getChannelSoundName(pref)"
-                                    [disabled]="isChannelSoundSaving(pref)"
-                                    (selectionChange)="setChannelSound(pref, $event.value)">
-                                    <mat-option value="none">Default</mat-option>
-                                    @for (sound of availableAlertSounds | slice:1; track sound) {
-                                      <mat-option [value]="sound.name">
-                                        {{ sound.displayName }}
-                                      </mat-option>
+            }
+            <div class="cs-list">
+              @for (system of getSystemsWithActivePrefs(); track system) {
+                <div class="cs-group" [class.is-open]="isSystemExpanded(system.id)">
+                  <button type="button" class="cs-group__head"
+                    [attr.aria-expanded]="isSystemExpanded(system.id)"
+                    (click)="toggleSystem(system.id)">
+                    <mat-icon class="cs-group__icon">radio</mat-icon>
+                    <span class="cs-group__name">{{ system.label }}</span>
+                    <span class="count-pill">{{ getChannelPrefsForSystem(system.id).length }}</span>
+                    <mat-icon class="chevron">expand_more</mat-icon>
+                  </button>
+                  @if (isSystemExpanded(system.id)) {
+                    <div class="cs-group__body">
+                      @for (tag of getTagsForSystem(system.id); track tag) {
+                        <div class="cs-sub" [class.is-open]="isTagExpanded(system.id + ':' + tag)">
+                          <button type="button" class="cs-sub__head"
+                            [attr.aria-expanded]="isTagExpanded(system.id + ':' + tag)"
+                            (click)="toggleTag(system.id + ':' + tag)">
+                            <mat-icon class="chevron chevron--sm">expand_more</mat-icon>
+                            <span class="cs-sub__name">{{ tag }}</span>
+                            <span class="count-pill">{{ getChannelPrefsForSystemAndTag(system.id, tag).length }}</span>
+                          </button>
+                          @if (isTagExpanded(system.id + ':' + tag)) {
+                            <div class="cs-channels">
+                              @for (pref of getChannelPrefsForSystemAndTag(system.id, tag); track pref) {
+                                <div class="cs-channel">
+                                  <div class="cs-channel__row">
+                                    <span class="cs-channel__name">{{ getTalkgroupLabelForPref(system, pref) }}</span>
+                                    @if (isChannelSoundSaving(pref)) {
+                                      <mat-spinner diameter="14"></mat-spinner>
                                     }
-                                  </mat-select>
-                                </mat-form-field>
-                                @if (isChannelSoundSaving(pref)) {
-                                  <mat-spinner diameter="14" class="cs-saving-spinner"></mat-spinner>
-                                }
-                              </div>
-                              <!-- Per-tone-set sounds -->
-                              @if (getToneSetsForPref(pref).length > 0) {
-                                <div class="cs-tone-sets">
+                                    <mat-form-field appearance="outline" class="compact-field select-field select-field--sm" subscriptSizing="dynamic">
+                                      <mat-select
+                                        panelClass="tlr-settings-select-panel"
+                                        [value]="getChannelSoundName(pref)"
+                                        [disabled]="isChannelSoundSaving(pref)"
+                                        (selectionChange)="setChannelSound(pref, $event.value)"
+                                        [attr.aria-label]="'Sound for ' + getTalkgroupLabelForPref(system, pref)">
+                                        <mat-option value="none">Default</mat-option>
+                                        @for (sound of availableAlertSounds | slice:1; track sound) {
+                                          <mat-option [value]="sound.name">{{ sound.displayName }}</mat-option>
+                                        }
+                                      </mat-select>
+                                    </mat-form-field>
+                                  </div>
                                   @for (ts of getToneSetsForPref(pref); track ts) {
-                                    <div class="cs-tone-row">
-                                      <mat-icon class="cs-ts-icon">music_note</mat-icon>
-                                      <span class="cs-ts-name">{{ ts.label || ts.id }}</span>
-                                      <mat-form-field appearance="outline" class="cs-sound-field">
+                                    <div class="cs-channel__row cs-channel__row--tone">
+                                      <mat-icon class="cs-tone-icon">music_note</mat-icon>
+                                      <span class="cs-channel__name">{{ ts.label || ts.id }}</span>
+                                      <mat-form-field appearance="outline" class="compact-field select-field select-field--sm" subscriptSizing="dynamic">
                                         <mat-select
+                                          panelClass="tlr-settings-select-panel"
                                           [value]="getToneSetSoundName(pref, ts.id)"
                                           [disabled]="isChannelSoundSaving(pref)"
-                                          (selectionChange)="setToneSetSound(pref, ts.id, $event.value)">
+                                          (selectionChange)="setToneSetSound(pref, ts.id, $event.value)"
+                                          [attr.aria-label]="'Sound for tone set ' + (ts.label || ts.id)">
                                           <mat-option value="none">Default</mat-option>
                                           @for (sound of availableAlertSounds | slice:1; track sound) {
-                                            <mat-option [value]="sound.name">
-                                              {{ sound.displayName }}
-                                            </mat-option>
+                                            <mat-option [value]="sound.name">{{ sound.displayName }}</mat-option>
                                           }
                                         </mat-select>
                                       </mat-form-field>
@@ -300,664 +327,591 @@
               }
             </div>
           }
-        }
-      </div>
+        </section>
       }
     </div>
     }
 
+    <!-- ═══════════════════════ APPEARANCE ═══════════════════════ -->
     @if (settingsTab === 'appearance') {
     <div class="settings-panel">
-    <div class="section display-section">
-      <h3>Display Settings</h3>
-      <p class="section-description">
-        Customize the appearance of the app.
-      </p>
+      <section class="card">
+        <header class="card__head">
+          <span class="card__icon"><mat-icon>palette</mat-icon></span>
+          <div>
+            <h3>Look &amp; feel</h3>
+            <p>Applies to the scanner only — the admin console keeps its own style.</p>
+          </div>
+        </header>
 
-      <div class="font-setting">
-        <h4>App Font</h4>
-        <p class="setting-description">
-          Choose a font for the entire app interface.
-        </p>
-
-        <div class="font-selector">
-          <mat-form-field appearance="outline" class="font-field">
-            <mat-label>Font</mat-label>
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <span class="setting-row__label">Font</span>
+            <span class="setting-row__hint">Used for all text in the scanner.</span>
+          </div>
+          <mat-form-field appearance="outline" class="compact-field select-field" subscriptSizing="dynamic">
             <mat-select
+              panelClass="tlr-settings-select-panel"
               [(ngModel)]="appFont"
-              (selectionChange)="onFontChange()">
-              <mat-select-trigger>
-                {{ getFontDisplayName(appFont) }}
-              </mat-select-trigger>
+              (selectionChange)="onFontChange()"
+              aria-label="App font">
+              <mat-select-trigger>{{ getFontDisplayName(appFont) }}</mat-select-trigger>
               @for (font of availableFonts; track font) {
                 <mat-option [value]="font.name">
                   <span [style.font-family]="font.value">{{ font.displayName }}</span>
                 </mat-option>
               }
             </mat-select>
-            <mat-hint>Changes apply to the scanner interface only (not the admin console)</mat-hint>
           </mat-form-field>
         </div>
-      </div>
 
-      <div class="font-setting accent-setting">
-        <h4>Accent Color</h4>
-        <p class="setting-description">
-          Color for tabs, buttons, links, and focus. Site default follows the administrator setting.
-        </p>
-        <div class="accent-picker">
-          <div class="accent-picker-row">
-            <input
-              type="color"
-              class="accent-native"
-              [value]="uiAccentColor"
-              (input)="onAccentPickerInput($event)"
-              aria-label="Accent color">
-            <mat-form-field appearance="outline" class="accent-hex">
-              <mat-label>Hex</mat-label>
-              <input
-                matInput
-                maxlength="7"
-                [value]="uiAccentColor"
-                (blur)="onAccentHexBlur($event)"
-                autocomplete="off">
-            </mat-form-field>
+        <div class="setting-row setting-row--stack">
+          <div class="setting-row__text">
+            <span class="setting-row__label">Accent color</span>
+            <span class="setting-row__hint">Highlights tabs, buttons, switches and the active state. "Site default" follows your administrator.</span>
           </div>
-          <div class="accent-presets" role="group" aria-label="Accent color presets">
-            <button
-              type="button"
-              mat-stroked-button
-              class="accent-default-btn"
-              [class.selected]="accentUsesSiteDefault"
-              (click)="useSiteAccent()">
-              Site default
-            </button>
-            @for (preset of accentPresets; track preset.id) {
-              <button
-                type="button"
-                class="accent-swatch"
-                [class.selected]="!accentUsesSiteDefault && uiAccentColor === preset.value"
-                [style.background-color]="preset.value"
-                [attr.aria-label]="preset.name"
-                [matTooltip]="preset.name"
-                (click)="setAccentColor(preset.value)">
+          <div class="accent-picker">
+            <div class="accent-presets" role="group" aria-label="Accent color presets">
+              <button type="button"
+                class="accent-default-btn"
+                [class.selected]="accentUsesSiteDefault"
+                (click)="useSiteAccent()">
+                @if (accentUsesSiteDefault) {
+                  <mat-icon>check</mat-icon>
+                }
+                Site default
               </button>
-            }
+              @for (preset of accentPresets; track preset.id) {
+                <button
+                  type="button"
+                  class="accent-swatch"
+                  [class.selected]="!accentUsesSiteDefault && uiAccentColor === preset.value"
+                  [style.--swatch]="preset.value"
+                  [attr.aria-label]="preset.name"
+                  [attr.aria-pressed]="!accentUsesSiteDefault && uiAccentColor === preset.value"
+                  [matTooltip]="preset.name"
+                  (click)="setAccentColor(preset.value)">
+                  <mat-icon>check</mat-icon>
+                </button>
+              }
+            </div>
+            <div class="accent-custom">
+              <label class="accent-native-wrap" matTooltip="Pick a custom color" [style.--swatch]="uiAccentColor">
+                <input
+                  type="color"
+                  class="accent-native"
+                  [value]="uiAccentColor"
+                  (input)="onAccentPickerInput($event)"
+                  aria-label="Custom accent color">
+                <mat-icon>colorize</mat-icon>
+              </label>
+              <mat-form-field appearance="outline" class="compact-field hex-field" subscriptSizing="dynamic">
+                <span matTextPrefix>#&nbsp;</span>
+                <input
+                  matInput
+                  maxlength="7"
+                  [value]="uiAccentColor.replace('#', '')"
+                  (blur)="onAccentHexBlur($event)"
+                  (keydown.enter)="$any($event.target).blur()"
+                  aria-label="Accent hex color"
+                  autocomplete="off">
+              </mat-form-field>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <div class="section tag-colors-section">
-      <h3>Tag Colors</h3>
-      <p class="section-description">
-        Customize colors for tags. Tags are automatically populated from the scanner configuration.
-      </p>
+      <section class="card">
+        <header class="card__head">
+          <span class="card__icon"><mat-icon>label_outline</mat-icon></span>
+          <div>
+            <h3>Tag colors</h3>
+            <p>Each tag's color tints its calls in the Transmissions list and the scanner display.</p>
+          </div>
+          @if (availableTags.length > 0) {
+            <button type="button" class="ghost-btn card__action" (click)="resetAllColors()">
+              <mat-icon>restart_alt</mat-icon>
+              Reset all
+            </button>
+          }
+        </header>
 
-      @if (availableTags.length === 0) {
-        <div class="empty-state">
-          <mat-icon>palette</mat-icon>
-          <p>No tags available yet. Tags will appear here once the scanner configuration is loaded.</p>
-        </div>
-      }
+        @if (availableTags.length === 0) {
+          <div class="inline-state">
+            <mat-icon>palette</mat-icon>
+            <span>Tags appear here once the scanner configuration has loaded.</span>
+          </div>
+        }
 
-      @if (availableTags.length > 0) {
-        <div class="tag-colors-header">
-          <button
-            mat-button
-            class="expand-toggle-button"
-            (click)="toggleTagsExpanded()">
-            <mat-icon>{{ tagsExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
-            <span>{{ tagsExpanded ? 'Collapse' : 'Expand' }} All Tags ({{ availableTags.length }})</span>
-          </button>
-        </div>
-      }
-
-      @if (availableTags.length > 0) {
-        <div class="tag-colors-list" [class.collapsed]="!tagsExpanded">
-          @for (tag of availableTags; track tag) {
-            <div class="tag-color-item">
-              <div class="tag-info">
+        @if (availableTags.length > 0) {
+          <div class="tag-colors-list" [class.collapsed]="!tagsExpanded">
+            @for (tag of availableTags; track tag) {
+              <div class="tag-color-item" [style.--tag-accent]="getSelectedColorValue(tag)">
+                <span class="tag-color-item__bar"></span>
                 <span class="tag-name">{{ tag }}</span>
-                <button
-                  mat-icon-button
-                  class="reset-button"
-                  (click)="resetTagColor(tag)"
-                  matTooltip="Reset to default color">
-                  <mat-icon>refresh</mat-icon>
-                </button>
-              </div>
-              <div class="color-input-container">
-                <mat-form-field appearance="outline" class="color-select-field">
-                  <mat-label class="color-label">Color</mat-label>
+                <mat-form-field appearance="outline" class="compact-field color-select-field" subscriptSizing="dynamic">
                   <mat-select
+                    panelClass="tlr-settings-select-panel"
                     [value]="getSelectedColorValue(tag)"
                     (selectionChange)="setTagColor(tag, $event.value)"
-                    [id]="getColorFieldId(tag)">
+                    [id]="getColorFieldId(tag)"
+                    [attr.aria-label]="'Color for ' + tag">
                     <mat-select-trigger>
-                      <div class="selected-color-display">
+                      <span class="selected-color-display">
                         <span class="color-swatch-circle" [style.background-color]="getSelectedColorValue(tag)"></span>
                         <span class="selected-color-name">{{ getSelectedColorName(tag) }}</span>
-                      </div>
+                      </span>
                     </mat-select-trigger>
                     @for (color of availableColors; track color) {
                       <mat-option [value]="color.value">
-                        <div class="color-option">
+                        <span class="color-option">
                           <span class="color-swatch-circle" [style.background-color]="color.value"></span>
                           <span>{{ color.name }}</span>
-                        </div>
+                        </span>
                       </mat-option>
                     }
                   </mat-select>
                 </mat-form-field>
+                <button type="button" class="icon-btn" matTooltip="Reset to default"
+                  [attr.aria-label]="'Reset ' + tag + ' color'"
+                  (click)="resetTagColor(tag)">
+                  <mat-icon>refresh</mat-icon>
+                </button>
               </div>
-            </div>
+            }
+          </div>
+          @if (availableTags.length > 6) {
+            <button type="button" class="show-more" (click)="toggleTagsExpanded()">
+              {{ tagsExpanded ? 'Show fewer' : 'Show all ' + availableTags.length + ' tags' }}
+              <mat-icon [class.flip]="tagsExpanded">expand_more</mat-icon>
+            </button>
           }
-        </div>
-      }
-
-      @if (availableTags.length > 0) {
-        <div class="actions">
-          <button
-            mat-button
-            class="reset-all-button"
-            (click)="resetAllColors()">
-            <mat-icon>restore</mat-icon>
-            Reset All Colors
-          </button>
-        </div>
-      }
-    </div>
+        }
+      </section>
     </div>
     }
 
+    <!-- ═══════════════════════ ACCOUNT ═══════════════════════ -->
     @if (settingsTab === 'account') {
     <div class="settings-panel">
-    <div class="section account-section">
-      <h3>Account Information</h3>
-      <p class="section-description">
-        @if (cmMode) {
-          Your listener account is managed on AlertPage.
-        } @else {
-          Manage your account details and security settings.
-        }
-      </p>
-
-      @if (loadingAccount) {
-        <div class="loading-state">
-          <mat-spinner diameter="24"></mat-spinner>
-          <span>Loading account information...</span>
-        </div>
-      }
-
-      @if (!loadingAccount && accountInfo) {
-        <div class="account-info">
-          <div class="info-row">
-            <span class="info-label">Email:</span>
-            <span class="info-value">{{ accountInfo.email }}</span>
+      <section class="card profile-card">
+        @if (loadingAccount) {
+          <div class="inline-state">
+            <mat-spinner diameter="18"></mat-spinner>
+            <span>Loading account…</span>
           </div>
-          @if (accountInfo.firstName || accountInfo.lastName) {
-            <div class="info-row">
-              <span class="info-label">Name:</span>
-              <span class="info-value">{{ accountInfo.firstName }} {{ accountInfo.lastName }}</span>
+        }
+
+        @if (!loadingAccount && accountInfo) {
+          <div class="profile">
+            <div class="profile__avatar" aria-hidden="true">
+              {{ (accountInfo.firstName || accountInfo.email || '?').charAt(0) }}
             </div>
-          }
-          @if (!cmMode && accountInfo.userGroupName && !accountInfo.memberships?.length) {
-            <div class="info-row">
-              <span class="info-label">Group:</span>
-              <span class="info-value">
-                {{ accountInfo.userGroupName }}
-                @if (accountInfo.isGroupAdmin) {
-                  <span class="group-admin-badge">(Admin)</span>
+            <div class="profile__who">
+              <div class="profile__name">
+                @if (accountInfo.firstName || accountInfo.lastName) {
+                  {{ accountInfo.firstName }} {{ accountInfo.lastName }}
+                } @else {
+                  {{ accountInfo.email }}
                 }
-              </span>
+              </div>
+              <div class="profile__email">{{ accountInfo.email }}</div>
             </div>
-          }
-          @if (accountInfo.createdAt && accountInfo.createdAt > 0) {
-            <div class="info-row">
-              <span class="info-label">Member Since:</span>
-              <span class="info-value">{{ accountInfo.createdAt * 1000 | date:'mediumDate' }}</span>
-            </div>
-          }
-          @if (accountInfo.lastLogin && accountInfo.lastLogin > 0) {
-            <div class="info-row">
-              <span class="info-label">Last Login:</span>
-              <span class="info-value">{{ accountInfo.lastLogin * 1000 | date:'medium' }}</span>
-            </div>
-          }
-        </div>
-      }
+          </div>
 
-      @if (cmMode) {
-        <div class="cm-manage-account">
-          <p class="section-description">
-            Change email, password, subscription, and billing on AlertPage.
-          </p>
-          <button mat-raised-button color="primary" type="button"
-            (click)="openCMManageAccount()"
-            [disabled]="openingCMAccount">
-            @if (openingCMAccount) {
-              <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-            } @else {
-              <mat-icon>open_in_new</mat-icon>
+          <dl class="facts">
+            @if (!cmMode && accountInfo.userGroupName && !accountInfo.memberships?.length) {
+              <div>
+                <dt>Group</dt>
+                <dd>
+                  {{ accountInfo.userGroupName }}
+                  @if (accountInfo.isGroupAdmin) {
+                    <span class="badge">Admin</span>
+                  }
+                </dd>
+              </div>
             }
-            {{ openingCMAccount ? 'Opening…' : 'Manage account on AlertPage' }}
-          </button>
-        </div>
-      }
-    </div>
+            @if (accountInfo.createdAt && accountInfo.createdAt > 0) {
+              <div>
+                <dt>Member since</dt>
+                <dd>{{ accountInfo.createdAt * 1000 | date:'mediumDate' }}</dd>
+              </div>
+            }
+            @if (accountInfo.lastLogin && accountInfo.lastLogin > 0) {
+              <div>
+                <dt>Last sign-in</dt>
+                <dd>{{ accountInfo.lastLogin * 1000 | date:'medium' }}</dd>
+              </div>
+            }
+          </dl>
+        }
 
-    @if (!cmMode && (accountInfo?.memberships?.length || accountInfo?.availableTiers?.length)) {
-      <div class="section tiers-section">
-        <h3>Your Tiers</h3>
-        <p class="section-description">
-          Your current access is listed below. To subscribe, choose one available paid tier and a plan.
-        </p>
-        @if (accountInfo.memberships?.length) {
-          <div class="tier-list">
-            @for (m of accountInfo.memberships; track m.groupId) {
-              <div class="tier-row">
-                <div class="tier-main">
+        @if (cmMode) {
+          <div class="setting-row">
+            <div class="setting-row__text">
+              <span class="setting-row__label">Managed on AlertPage</span>
+              <span class="setting-row__hint">Change your email, password, subscription and billing on AlertPage.</span>
+            </div>
+            <button mat-flat-button color="primary" type="button"
+              (click)="openCMManageAccount()"
+              [disabled]="openingCMAccount">
+              @if (openingCMAccount) {
+                <mat-spinner diameter="16" class="inline-spinner"></mat-spinner>
+              } @else {
+                <mat-icon>open_in_new</mat-icon>
+              }
+              {{ openingCMAccount ? 'Opening…' : 'Manage account' }}
+            </button>
+          </div>
+        }
+      </section>
+
+      @if (!cmMode && (accountInfo?.memberships?.length || accountInfo?.availableTiers?.length)) {
+        <section class="card">
+          <header class="card__head">
+            <span class="card__icon"><mat-icon>workspace_premium</mat-icon></span>
+            <div>
+              <h3>Plan &amp; access</h3>
+              <p>What you have access to now, and plans you can add.</p>
+            </div>
+          </header>
+
+          @if (accountInfo.memberships?.length) {
+            <div class="tier-list">
+              @for (m of accountInfo.memberships; track m.groupId) {
+                <div class="tier-row">
+                  <mat-icon class="tier-row__icon">verified</mat-icon>
                   <span class="tier-name">{{ m.name }}</span>
                   @if (m.isPrimary) {
-                    <span class="tier-badge tier-badge--primary">Current</span>
+                    <span class="badge badge--accent">Current</span>
                   }
                   @if (m.paid) {
-                    <span class="tier-badge tier-badge--paid">Paid</span>
+                    <span class="badge badge--ok">Paid</span>
                   }
                   @if (m.billingEnabled && !m.paid) {
-                    <span class="tier-badge tier-badge--warn">Unpaid</span>
+                    <span class="badge badge--warn">Unpaid</span>
                   }
                   @if (!m.billingEnabled) {
-                    <span class="tier-badge">Free</span>
+                    <span class="badge">Free</span>
+                  }
+                  @if (m.selfBillable && !(m.isPrimary && accountInfo.memberships.length <= 1)) {
+                    <button type="button" class="ghost-btn ghost-btn--danger tier-row__end" (click)="removeTier(m.groupId)">
+                      <mat-icon>remove_circle_outline</mat-icon>
+                      Remove
+                    </button>
                   }
                 </div>
-                @if (m.selfBillable && !(m.isPrimary && accountInfo.memberships.length <= 1)) {
-                  <button mat-button color="warn"
-                    (click)="removeTier(m.groupId)">
-                    <mat-icon>remove_circle_outline</mat-icon>
-                    Remove
+              }
+            </div>
+          }
+
+          @if (accountInfo.availableTiers?.length) {
+            <div class="add-tier">
+              <div class="add-tier__title">Add a plan</div>
+              <div class="plan-grid">
+                @for (t of accountInfo.availableTiers; track t.groupId) {
+                  <div class="plan"
+                    role="radio"
+                    tabindex="0"
+                    [attr.aria-checked]="selectedAvailableTierId === t.groupId"
+                    [class.selected]="selectedAvailableTierId === t.groupId"
+                    (click)="selectAvailableTier(t.groupId)"
+                    (keydown.enter)="selectAvailableTier(t.groupId)"
+                    (keydown.space)="$event.preventDefault(); selectAvailableTier(t.groupId)">
+                    <div class="plan__head">
+                      <span class="plan__radio" aria-hidden="true"></span>
+                      <span class="tier-name">{{ t.name }}</span>
+                      @if (!t.billingEnabled) {
+                        <span class="badge">Free</span>
+                      }
+                    </div>
+                    @if (t.description) {
+                      <p class="plan__desc">{{ t.description }}</p>
+                    }
+                    @if (selectedAvailableTierId === t.groupId && t.billingEnabled && t.pricingOptions?.length) {
+                      <div class="price-options">
+                        @for (o of t.pricingOptions; track o.priceId) {
+                          <button type="button"
+                            class="price-option"
+                            [class.selected]="selectedTierPrice[t.groupId] === o.priceId"
+                            [attr.aria-pressed]="selectedTierPrice[t.groupId] === o.priceId"
+                            (click)="setTierPrice(t.groupId, o.priceId); $event.stopPropagation()">
+                            <span class="price-option__label">{{ o.label }}</span>
+                            <span class="price-option__amount">{{ o.amount }}</span>
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="add-tier__actions">
+                <button mat-flat-button color="primary"
+                  type="button"
+                  [disabled]="!canAddSelectedTier()"
+                  (click)="addSelectedTier()">
+                  <mat-icon>add_card</mat-icon>
+                  Subscribe
+                </button>
+              </div>
+            </div>
+          }
+        </section>
+      }
+
+      @if (!cmMode) {
+        <section class="card">
+          <header class="card__head">
+            <span class="card__icon"><mat-icon>shield</mat-icon></span>
+            <div>
+              <h3>Sign-in &amp; security</h3>
+              <p>For your protection, we email you a 6-digit code before changing your email or password.</p>
+            </div>
+          </header>
+
+          <!-- Email -->
+          <div class="security-item">
+            <div class="setting-row">
+              <div class="setting-row__text">
+                <span class="setting-row__label">Email address</span>
+                <span class="setting-row__hint">{{ accountInfo?.email }}</span>
+              </div>
+              @if (!emailChangeVerified && !verificationCodeSent && !emailVerificationForm.value.code) {
+                <button type="button" class="ghost-btn"
+                  (click)="requestEmailChangeVerification()"
+                  [disabled]="requestingVerification">
+                  @if (requestingVerification) {
+                    <mat-spinner diameter="14" class="inline-spinner"></mat-spinner>
+                    Sending…
+                  } @else {
+                    Change email
+                  }
+                </button>
+              }
+            </div>
+
+            @if (!emailChangeVerified && (verificationCodeSent || emailVerificationForm.value.code)) {
+              <div class="flow">
+                <div class="steps" aria-hidden="true"><span class="active">1 Verify</span><span>2 New email</span></div>
+                <p class="flow__hint">We sent a code to <strong>{{ accountInfo?.email }}</strong>.
+                  <button type="button" class="link-btn" (click)="requestEmailChangeVerification()" [disabled]="requestingVerification">Resend</button>
+                </p>
+                <form [formGroup]="emailVerificationForm" (ngSubmit)="verifyEmailChangeCode()" class="account-form account-form--inline">
+                  <mat-form-field appearance="outline" class="code-field">
+                    <mat-label>Verification code</mat-label>
+                    <input matInput type="text" inputmode="numeric" autocomplete="one-time-code" formControlName="code" placeholder="000000" maxlength="6" required>
+                    @if (emailVerificationForm.get('code')?.hasError('required')) {
+                      <mat-error>Enter the code from your email</mat-error>
+                    }
+                    @if (emailVerificationForm.get('code')?.hasError('pattern')) {
+                      <mat-error>The code is 6 digits</mat-error>
+                    }
+                  </mat-form-field>
+                  <button mat-flat-button color="primary" type="submit"
+                    [disabled]="emailVerificationForm.invalid || verifyingCode">
+                    @if (verifyingCode) {
+                      <mat-spinner diameter="16" class="inline-spinner"></mat-spinner>
+                      Verifying…
+                    } @else {
+                      Verify
+                    }
+                  </button>
+                </form>
+              </div>
+            }
+
+            @if (emailChangeVerified) {
+              <div class="flow">
+                <div class="steps" aria-hidden="true"><span class="done">1 Verified</span><span class="active">2 New email</span></div>
+                <form [formGroup]="emailForm" (ngSubmit)="updateEmail()" class="account-form">
+                  <mat-form-field appearance="outline">
+                    <mat-label>New email</mat-label>
+                    <input matInput type="email" autocomplete="email" formControlName="newEmail" required>
+                    @if (emailForm.get('newEmail')?.hasError('required')) {
+                      <mat-error>Email is required</mat-error>
+                    }
+                    @if (emailForm.get('newEmail')?.hasError('email')) {
+                      <mat-error>Enter a valid email address</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Current password</mat-label>
+                    <input matInput type="password" autocomplete="current-password" formControlName="password" required>
+                    @if (emailForm.get('password')?.hasError('required')) {
+                      <mat-error>Password is required</mat-error>
+                    }
+                  </mat-form-field>
+                  <div class="form-actions">
+                    <button type="button" class="ghost-btn"
+                      (click)="emailChangeVerified = false; emailVerificationForm.reset(); emailForm.reset()">
+                      Cancel
+                    </button>
+                    <button mat-flat-button color="primary" type="submit"
+                      [disabled]="emailForm.invalid || updatingEmail">
+                      @if (updatingEmail) {
+                        <mat-spinner diameter="16" class="inline-spinner"></mat-spinner>
+                        Saving…
+                      } @else {
+                        Change email
+                      }
+                    </button>
+                  </div>
+                </form>
+              </div>
+            }
+          </div>
+
+          <!-- Password -->
+          <div class="security-item">
+            <div class="setting-row">
+              <div class="setting-row__text">
+                <span class="setting-row__label">Password</span>
+                <span class="setting-row__hint">••••••••</span>
+              </div>
+              @if (!passwordChangeVerified && !passwordVerificationCodeSent && !passwordVerificationForm.value.code) {
+                <button type="button" class="ghost-btn"
+                  (click)="requestPasswordChangeVerification()"
+                  [disabled]="requestingPasswordVerification">
+                  @if (requestingPasswordVerification) {
+                    <mat-spinner diameter="14" class="inline-spinner"></mat-spinner>
+                    Sending…
+                  } @else {
+                    Change password
+                  }
+                </button>
+              }
+            </div>
+
+            @if (!passwordChangeVerified && (passwordVerificationCodeSent || passwordVerificationForm.value.code)) {
+              <div class="flow">
+                <div class="steps" aria-hidden="true"><span class="active">1 Verify</span><span>2 New password</span></div>
+                <p class="flow__hint">We sent a code to <strong>{{ accountInfo?.email }}</strong>.
+                  <button type="button" class="link-btn" (click)="requestPasswordChangeVerification()" [disabled]="requestingPasswordVerification">Resend</button>
+                </p>
+                <form [formGroup]="passwordVerificationForm" (ngSubmit)="verifyPasswordChangeCode()" class="account-form account-form--inline">
+                  <mat-form-field appearance="outline" class="code-field">
+                    <mat-label>Verification code</mat-label>
+                    <input matInput type="text" inputmode="numeric" autocomplete="one-time-code" formControlName="code" placeholder="000000" maxlength="6" required>
+                    @if (passwordVerificationForm.get('code')?.hasError('required')) {
+                      <mat-error>Enter the code from your email</mat-error>
+                    }
+                    @if (passwordVerificationForm.get('code')?.hasError('pattern')) {
+                      <mat-error>The code is 6 digits</mat-error>
+                    }
+                  </mat-form-field>
+                  <button mat-flat-button color="primary" type="submit"
+                    [disabled]="passwordVerificationForm.invalid || verifyingPasswordCode">
+                    @if (verifyingPasswordCode) {
+                      <mat-spinner diameter="16" class="inline-spinner"></mat-spinner>
+                      Verifying…
+                    } @else {
+                      Verify
+                    }
+                  </button>
+                </form>
+              </div>
+            }
+
+            @if (passwordChangeVerified) {
+              <div class="flow">
+                <div class="steps" aria-hidden="true"><span class="done">1 Verified</span><span class="active">2 New password</span></div>
+                <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()" class="account-form">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Current password</mat-label>
+                    <input matInput type="password" autocomplete="current-password" formControlName="currentPassword" required>
+                    @if (passwordForm.get('currentPassword')?.hasError('required')) {
+                      <mat-error>Current password is required</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>New password</mat-label>
+                    <input matInput type="password" autocomplete="new-password" formControlName="newPassword" required>
+                    @if (passwordForm.get('newPassword')?.hasError('required')) {
+                      <mat-error>New password is required</mat-error>
+                    }
+                    @if (passwordForm.get('newPassword')?.hasError('minlength')) {
+                      <mat-error>Use at least 6 characters</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>Confirm new password</mat-label>
+                    <input matInput type="password" autocomplete="new-password" formControlName="confirmPassword" required>
+                    @if (passwordForm.get('confirmPassword')?.hasError('required')) {
+                      <mat-error>Confirm your new password</mat-error>
+                    }
+                    @if (passwordForm.hasError('passwordMismatch')) {
+                      <mat-error>Passwords don't match</mat-error>
+                    }
+                  </mat-form-field>
+                  @if (passwordForm.hasError('passwordMismatch') && passwordForm.get('confirmPassword')?.value) {
+                    <p class="form-error">Passwords don't match</p>
+                  }
+                  <div class="form-actions">
+                    <button type="button" class="ghost-btn"
+                      (click)="passwordChangeVerified = false; passwordVerificationForm.reset(); passwordForm.reset()">
+                      Cancel
+                    </button>
+                    <button mat-flat-button color="primary" type="submit"
+                      [disabled]="passwordForm.invalid || updatingPassword">
+                      @if (updatingPassword) {
+                        <mat-spinner diameter="16" class="inline-spinner"></mat-spinner>
+                        Saving…
+                      } @else {
+                        Change password
+                      }
+                    </button>
+                  </div>
+                </form>
+              </div>
+            }
+          </div>
+        </section>
+
+        @if (accountInfo?.billingRequired || accountInfo?.hasBilling) {
+          <section class="card">
+            <header class="card__head">
+              <span class="card__icon"><mat-icon>credit_card</mat-icon></span>
+              <div>
+                <h3>Billing</h3>
+                <p>Payment method and subscription.</p>
+              </div>
+            </header>
+            <div class="setting-row">
+              <div class="setting-row__text">
+                <span class="setting-row__label">Subscription</span>
+                <span class="status" [class.status--ok]="accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing'">
+                  <span class="status__dot"></span>
+                  {{ getSubscriptionStatusDisplay() }}
+                </span>
+              </div>
+              <div class="setting-row__control">
+                @if ((accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId) {
+                  <button type="button" class="ghost-btn" (click)="openChangeSubscription()">
+                    <mat-icon>swap_horiz</mat-icon>
+                    Change plan
+                  </button>
+                  <button mat-flat-button color="primary" type="button" (click)="openBillingPortal()">
+                    <mat-icon>open_in_new</mat-icon>
+                    Manage billing
+                  </button>
+                }
+                @if ((!accountInfo.stripeSubscriptionId || (accountInfo.subscriptionStatus !== 'active' && accountInfo.subscriptionStatus !== 'trialing')) && accountInfo.billingRequired && !isGroupAdminManaged()) {
+                  <button mat-flat-button color="primary" type="button" (click)="openCheckout()">
+                    <mat-icon>add_card</mat-icon>
+                    Subscribe
                   </button>
                 }
               </div>
-            }
-          </div>
-        }
-        @if (accountInfo.availableTiers?.length) {
-          <div class="add-tier">
-            <h4>Choose a plan</h4>
-            <p class="section-description">Select one tier, then pick Yearly or Monthly, then Subscribe.</p>
-            @for (t of accountInfo.availableTiers; track t.groupId) {
-              <div class="tier-row tier-row--available"
-                   [class.tier-row--selected]="selectedAvailableTierId === t.groupId"
-                   (click)="selectAvailableTier(t.groupId)">
-                <div class="tier-main">
-                  <label class="tier-radio">
-                    <input type="radio" name="availableTier"
-                           [checked]="selectedAvailableTierId === t.groupId"
-                           (change)="selectAvailableTier(t.groupId)"
-                           (click)="$event.stopPropagation()">
-                    <span class="tier-name">{{ t.name }}</span>
-                  </label>
-                  @if (t.description) {
-                    <span class="tier-desc">{{ t.description }}</span>
-                  }
-                  @if (selectedAvailableTierId === t.groupId && t.billingEnabled && t.pricingOptions?.length) {
-                    <div class="tier-price-chips">
-                      @for (o of t.pricingOptions; track o.priceId) {
-                        <button type="button"
-                          class="tier-price-chip"
-                          [class.tier-price-chip--selected]="selectedTierPrice[t.groupId] === o.priceId"
-                          (click)="setTierPrice(t.groupId, o.priceId); $event.stopPropagation()">
-                          {{ o.label }} — {{ o.amount }}
-                        </button>
-                      }
-                    </div>
-                  }
-                  @if (!t.billingEnabled) {
-                    <span class="tier-badge">Free</span>
-                  }
-                </div>
+            </div>
+            @if (isGroupAdminManaged()) {
+              <div class="note note--block">
+                <mat-icon>info_outline</mat-icon>
+                Billing is managed by your group administrator. Contact them if you need help.
               </div>
             }
-            <div class="add-tier-actions">
-              <button mat-raised-button color="primary"
-                type="button"
-                [disabled]="!canAddSelectedTier()"
-                (click)="addSelectedTier()">
-                <mat-icon>add_card</mat-icon>
-                Subscribe
-              </button>
-            </div>
-          </div>
+          </section>
         }
-      </div>
-    }
-
-    @if (!cmMode) {
-    <div class="section email-section">
-      <h3>Change Email</h3>
-      <p class="section-description">
-        To change your email address, you must first verify your current email. After changing your email, you'll need to verify the new email address to complete the change.
-      </p>
-
-      <!-- Step 1: Request and verify current email -->
-      @if (!emailChangeVerified) {
-        <div class="verification-step">
-          <h4>Step 1: Verify Your Current Email</h4>
-          <p class="step-description">
-            We'll send a verification code to your current email address: <strong>{{ accountInfo?.email }}</strong>
-          </p>
-          <div class="verification-actions">
-            <button
-              mat-raised-button
-              color="primary"
-              (click)="requestEmailChangeVerification()"
-              [disabled]="requestingVerification">
-              @if (requestingVerification) {
-                <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-              }
-              @if (!requestingVerification) {
-                <span>Send Verification Code</span>
-              }
-              @if (requestingVerification) {
-                <span>Sending...</span>
-              }
-            </button>
-          </div>
-          @if (verificationCodeSent || emailVerificationForm.value.code) {
-            <form [formGroup]="emailVerificationForm" (ngSubmit)="verifyEmailChangeCode()" class="account-form">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Verification Code</mat-label>
-                <input matInput type="text" formControlName="code" placeholder="000000" maxlength="6" required>
-                <mat-hint>Enter the 6-digit code sent to your email</mat-hint>
-                @if (emailVerificationForm.get('code')?.hasError('required')) {
-                  <mat-error>
-                    Verification code is required
-                  </mat-error>
-                }
-                @if (emailVerificationForm.get('code')?.hasError('pattern')) {
-                  <mat-error>
-                    Please enter a valid 6-digit code
-                  </mat-error>
-                }
-              </mat-form-field>
-              <div class="form-actions">
-                <button
-                  mat-raised-button
-                  color="primary"
-                  type="submit"
-                  [disabled]="emailVerificationForm.invalid || verifyingCode">
-                  @if (verifyingCode) {
-                    <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-                  }
-                  @if (!verifyingCode) {
-                    <span>Verify Code</span>
-                  }
-                  @if (verifyingCode) {
-                    <span>Verifying...</span>
-                  }
-                </button>
-              </div>
-            </form>
-          }
-        </div>
       }
-
-      <!-- Step 2: Change email (only shown after verification) -->
-      @if (emailChangeVerified) {
-        <div class="email-change-step">
-          <div class="verification-success">
-            <mat-icon>check_circle</mat-icon>
-            <span>Current email verified. You can now change your email address.</span>
-          </div>
-          <h4>Step 2: Enter New Email Address</h4>
-          <form [formGroup]="emailForm" (ngSubmit)="updateEmail()" class="account-form">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>New Email</mat-label>
-              <input matInput type="email" formControlName="newEmail" required>
-              @if (emailForm.get('newEmail')?.hasError('required')) {
-                <mat-error>
-                  Email is required
-                </mat-error>
-              }
-              @if (emailForm.get('newEmail')?.hasError('email')) {
-                <mat-error>
-                  Please enter a valid email address
-                </mat-error>
-              }
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Current Password</mat-label>
-              <input matInput type="password" formControlName="password" required>
-              @if (emailForm.get('password')?.hasError('required')) {
-                <mat-error>
-                  Password is required
-                </mat-error>
-              }
-            </mat-form-field>
-            <div class="form-actions">
-              <button
-                mat-button
-                type="button"
-                (click)="emailChangeVerified = false; emailVerificationForm.reset(); emailForm.reset()">
-                Cancel
-              </button>
-              <button
-                mat-raised-button
-                color="primary"
-                type="submit"
-                [disabled]="emailForm.invalid || updatingEmail">
-                @if (updatingEmail) {
-                  <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-                }
-                @if (!updatingEmail) {
-                  <span>Change Email</span>
-                }
-                @if (updatingEmail) {
-                  <span>Changing...</span>
-                }
-              </button>
-            </div>
-          </form>
-        </div>
-      }
-    </div>
-
-    <div class="section password-section">
-      <h3>Change Password</h3>
-      <p class="section-description">
-        To change your password, you must first verify your email address. This adds an extra layer of security to protect your account.
-      </p>
-
-      <!-- Step 1: Request and verify email -->
-      @if (!passwordChangeVerified) {
-        <div class="verification-step">
-          <h4>Step 1: Verify Your Email</h4>
-          <p class="step-description">
-            We'll send a verification code to your email address: <strong>{{ accountInfo?.email }}</strong>
-          </p>
-          <div class="verification-actions">
-            <button
-              mat-raised-button
-              color="primary"
-              (click)="requestPasswordChangeVerification()"
-              [disabled]="requestingPasswordVerification">
-              @if (requestingPasswordVerification) {
-                <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-              }
-              @if (!requestingPasswordVerification) {
-                <span>Send Verification Code</span>
-              }
-              @if (requestingPasswordVerification) {
-                <span>Sending...</span>
-              }
-            </button>
-          </div>
-          @if (passwordVerificationCodeSent || passwordVerificationForm.value.code) {
-            <form [formGroup]="passwordVerificationForm" (ngSubmit)="verifyPasswordChangeCode()" class="account-form">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Verification Code</mat-label>
-                <input matInput type="text" formControlName="code" placeholder="000000" maxlength="6" required>
-                <mat-hint>Enter the 6-digit code sent to your email</mat-hint>
-                @if (passwordVerificationForm.get('code')?.hasError('required')) {
-                  <mat-error>
-                    Verification code is required
-                  </mat-error>
-                }
-                @if (passwordVerificationForm.get('code')?.hasError('pattern')) {
-                  <mat-error>
-                    Please enter a valid 6-digit code
-                  </mat-error>
-                }
-              </mat-form-field>
-              <div class="form-actions">
-                <button
-                  mat-raised-button
-                  color="primary"
-                  type="submit"
-                  [disabled]="passwordVerificationForm.invalid || verifyingPasswordCode">
-                  @if (verifyingPasswordCode) {
-                    <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-                  }
-                  @if (!verifyingPasswordCode) {
-                    <span>Verify Code</span>
-                  }
-                  @if (verifyingPasswordCode) {
-                    <span>Verifying...</span>
-                  }
-                </button>
-              </div>
-            </form>
-          }
-        </div>
-      }
-
-      <!-- Step 2: Change password (only shown after verification) -->
-      @if (passwordChangeVerified) {
-        <div class="password-change-step">
-          <div class="verification-success">
-            <mat-icon>check_circle</mat-icon>
-            <span>Email verified. You can now change your password.</span>
-          </div>
-          <h4>Step 2: Enter New Password</h4>
-          <form [formGroup]="passwordForm" (ngSubmit)="updatePassword()" class="account-form">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Current Password</mat-label>
-              <input matInput type="password" formControlName="currentPassword" required>
-              @if (passwordForm.get('currentPassword')?.hasError('required')) {
-                <mat-error>
-                  Current password is required
-                </mat-error>
-              }
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>New Password</mat-label>
-              <input matInput type="password" formControlName="newPassword" required>
-              @if (passwordForm.get('newPassword')?.hasError('required')) {
-                <mat-error>
-                  New password is required
-                </mat-error>
-              }
-              @if (passwordForm.get('newPassword')?.hasError('minlength')) {
-                <mat-error>
-                  Password must be at least 6 characters
-                </mat-error>
-              }
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Confirm New Password</mat-label>
-              <input matInput type="password" formControlName="confirmPassword" required>
-              @if (passwordForm.get('confirmPassword')?.hasError('required')) {
-                <mat-error>
-                  Please confirm your new password
-                </mat-error>
-              }
-              @if (passwordForm.hasError('passwordMismatch')) {
-                <mat-error>
-                  Passwords do not match
-                </mat-error>
-              }
-            </mat-form-field>
-            <div class="form-actions">
-              <button
-                mat-button
-                type="button"
-                (click)="passwordChangeVerified = false; passwordVerificationForm.reset(); passwordForm.reset()">
-                Cancel
-              </button>
-              <button
-                mat-raised-button
-                color="primary"
-                type="submit"
-                [disabled]="passwordForm.invalid || updatingPassword">
-                @if (updatingPassword) {
-                  <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-                }
-                @if (!updatingPassword) {
-                  <span>Change Password</span>
-                }
-                @if (updatingPassword) {
-                  <span>Changing...</span>
-                }
-              </button>
-            </div>
-          </form>
-        </div>
-      }
-    </div>
-
-    @if (accountInfo?.billingRequired || accountInfo?.hasBilling) {
-      <div class="section billing-section">
-        <h3>Billing</h3>
-        <p class="section-description">
-          Manage your payment methods and subscription.
-        </p>
-        <div class="billing-info">
-          <div class="info-row">
-            <span class="info-label">Subscription Status:</span>
-            <span class="info-value" [class.status-active]="accountInfo.subscriptionStatus === 'active'">
-              {{ getSubscriptionStatusDisplay() }}
-            </span>
-          </div>
-        </div>
-        <div class="billing-actions">
-          @if ((accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId) {
-            <button
-              mat-raised-button
-              color="primary"
-              (click)="openBillingPortal()">
-              <mat-icon>payment</mat-icon>
-              Manage Payment or Cancel
-            </button>
-          }
-          @if ((accountInfo.subscriptionStatus === 'active' || accountInfo.subscriptionStatus === 'trialing') && accountInfo.stripeSubscriptionId) {
-            <button
-              mat-raised-button
-              color="accent"
-              (click)="openChangeSubscription()">
-              <mat-icon>swap_horiz</mat-icon>
-              Change Plan
-            </button>
-          }
-          @if ((!accountInfo.stripeSubscriptionId || (accountInfo.subscriptionStatus !== 'active' && accountInfo.subscriptionStatus !== 'trialing')) && accountInfo.billingRequired && !isGroupAdminManaged()) {
-            <button
-              mat-raised-button
-              color="primary"
-              (click)="openCheckout()">
-              <mat-icon>add_card</mat-icon>
-              Subscribe
-            </button>
-          }
-          @if (isGroupAdminManaged()) {
-            <div class="admin-managed-message">
-              <p>Billing is managed by your group administrator. Please contact them if you need assistance.</p>
-            </div>
-          }
-        </div>
-      </div>
-    }
-    }
     </div>
     }
   </div>
@@ -981,11 +935,10 @@
         } @else {
           <div class="checkout-missing-config">
             <p>Billing config is still loading. Close this and try Subscribe again in a moment.</p>
-            <button mat-raised-button color="primary" type="button" (click)="onCheckoutCancel()">Close</button>
+            <button mat-flat-button color="primary" type="button" (click)="onCheckoutCancel()">Close</button>
           </div>
         }
       </div>
     </div>
   }
 </div>
-

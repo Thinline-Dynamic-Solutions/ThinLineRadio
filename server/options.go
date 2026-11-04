@@ -188,6 +188,8 @@ type Options struct {
 	TranscriptionFailureRepeatMinutes uint   `json:"transcriptionFailureRepeatMinutes"`
 	ToneDetectionRepeatMinutes        uint   `json:"toneDetectionRepeatMinutes"`
 	NoAudioRepeatMinutes              uint   `json:"noAudioRepeatMinutes"`
+	DiskSpaceAlertPercent             uint   `json:"-"` // managed by /api/admin/server-alerts; 0 turns the check off
+	DispatchAlertSound                string `json:"-"` // managed by /api/admin/dispatch-alerts
 	RelayServerURL                    string `json:"relayServerURL"` // always getRelayServerURL(); persisted for compatibility only
 	RelayServerAPIKey                 string `json:"relayServerAPIKey"`
 	// After a successful one-time POST of all listener emails to the relay, this stays true (persisted).
@@ -1415,6 +1417,8 @@ func (options *Options) Read(db *Database) error {
 	options.SortTalkgroups = defaults.options.sortTalkgroups
 	options.Time12hFormat = defaults.options.time12hFormat
 	options.AlertRetentionDays = defaults.options.alertRetentionDays
+	options.DiskSpaceAlertPercent = defaultDiskSpaceAlertPct
+	options.DispatchAlertSound = defaultDispatchAlertSound
 	options.TranscriptionFailureThreshold = defaults.options.transcriptionFailureThreshold
 	options.ToneDetectionIssueThreshold = defaults.options.toneDetectionIssueThreshold
 	options.NoAudioThresholdMinutes = defaults.options.noAudioThresholdMinutes
@@ -2092,6 +2096,19 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case float64:
 					options.NoAudioRepeatMinutes = uint(v)
+				}
+			}
+		case "dispatchAlertSound":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				if v, ok := f.(string); ok {
+					options.DispatchAlertSound = v
+				}
+			}
+		case "diskSpaceAlertPercent":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.DiskSpaceAlertPercent = uint(v)
 				}
 			}
 		case "relayServerURL":

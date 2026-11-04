@@ -183,6 +183,11 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
 
     // ── Admin transcript-edit mode ────────────────────────────────────────────
     get adminAuthenticated(): boolean {
+        return this.rdioScannerService.hasAdminPermission('content.transcripts');
+    }
+
+    /** The transcript collector link is server configuration, so system admins only. */
+    get collectorAdmin(): boolean {
         return this.rdioScannerService.isSystemAdmin();
     }
     editingCallId: number | null = null;
@@ -672,7 +677,7 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
     }
 
     async loadCollectorSettings(): Promise<void> {
-        if (!this.adminAuthenticated) {
+        if (!this.collectorAdmin) {
             return;
         }
         if (!(await this.ensureAdminToken())) {
@@ -1269,10 +1274,31 @@ export class RdioScannerAlertsComponent implements OnDestroy, OnInit {
                 return 'Tone detection';
             case 'transcription_failure':
                 return 'Transcription';
+            case 'disk_space_low':
+                return 'Disk space';
+            case 'external':
+                return 'Monitor';
+            case 'dispatch':
+                return 'Dispatch';
             case 'manual':
                 return 'Notice';
             default:
                 return 'System';
+        }
+    }
+
+    systemAlertIcon(severity: string): string {
+        switch (severity) {
+            case 'critical':
+                return 'report';
+            case 'error':
+                return 'error_outline';
+            case 'warning':
+                return 'warning_amber';
+            case 'info':
+                return 'info_outline';
+            default:
+                return 'notifications_none';
         }
     }
 

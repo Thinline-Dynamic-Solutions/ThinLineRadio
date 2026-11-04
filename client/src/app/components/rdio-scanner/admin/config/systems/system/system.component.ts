@@ -29,7 +29,7 @@ import { ToneSetLocationDialogComponent } from './tone-set-location-dialog.compo
 import { TalkgroupLocationDialogComponent } from './talkgroup-location-dialog.component';
 import { DeleteSystemDialogComponent } from '../delete-system-dialog.component';
 
-type SystemNavId = 'settings' | 'mapping' | 'talkgroups' | 'sites' | 'units';
+type SystemNavId = 'settings' | 'network' | 'mapping' | 'talkgroups' | 'sites' | 'units';
 
 interface SystemNavItem {
     id: SystemNavId;
@@ -45,6 +45,7 @@ interface SystemSubNavItem {
 
 const SYSTEM_NAV: SystemNavItem[] = [
     { id: 'settings', label: 'Settings', icon: 'settings', description: 'Identity, retention, auto-populate, alerts, and transcription overrides.' },
+    { id: 'network', label: 'Network', icon: 'account_tree', description: 'Main system routing, subsystems, and Radio Reference updates.' },
     { id: 'mapping', label: 'Mapping', icon: 'map', description: 'Incident mapping geo center, radius, and talkgroup / tone-set locations.' },
     { id: 'talkgroups', label: 'Talkgroups', icon: 'record_voice_over', description: 'Channels for this system — labels, groups, tags, and alert flags.' },
     { id: 'sites', label: 'Sites', icon: 'cell_tower', description: 'P25 sites used for preferred-site duplicate detection.' },
@@ -75,8 +76,11 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
     @Input() systemData: any; // Original system data for lazy loading
     @Input() saving = false;
     @Input() saveSuccess = false;
+    @Input() systems: FormGroup[] = [];
+    @Input() savedSystems: any[] = [];
 
     @Output() remove = new EventEmitter<void>();
+    @Output() serverChanged = new EventEmitter<number>();
     @Output() save = new EventEmitter<void>();
     @Output() onTalkgroupsLoaded = new EventEmitter<void>();
 

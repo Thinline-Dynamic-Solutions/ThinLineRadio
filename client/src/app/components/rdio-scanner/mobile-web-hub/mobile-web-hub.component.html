@@ -1,10 +1,19 @@
 <div class="mobile-hub">
   <div class="mobile-hub-card">
     <h1 class="title">{{ branding }}</h1>
-    <p class="lede">
-      The live scanner is not available in mobile browsers. Use the native app or a desktop browser to listen.
-      You can still manage your account below.
-    </p>
+    @if (appListenUrl) {
+      <section class="section share-link">
+        <h2>Someone shared this scanner with you</h2>
+        <p class="muted">Listen in the app, no account needed.</p>
+        <a class="open-app" [href]="appListenUrl">Open in the app</a>
+        <p class="muted">Don't have the app yet? Install it below, then tap your link again.</p>
+      </section>
+    } @else {
+      <p class="lede">
+        The live scanner is not available in mobile browsers. Use the native app or a desktop browser to listen.
+        You can still manage your account below.
+      </p>
+    }
 
     @if (isAndroid || isApple) {
       <section class="section apps">
@@ -136,7 +145,7 @@
       </section>
     }
 
-    @if (showBillingSection()) {
+    @if (showBillingSection() && hasStoredPin()) {
       <section class="section billing">
         <h2>Billing &amp; subscription</h2>
         @if (loadingAccount) {
@@ -202,12 +211,14 @@
       </section>
     }
 
-    <div class="footer-actions">
-      <button mat-stroked-button type="button" color="warn" (click)="onSignOutClick()">
-        <mat-icon>logout</mat-icon>
-        Sign out
-      </button>
-    </div>
+    @if (hasStoredPin()) {
+      <div class="footer-actions">
+        <button mat-stroked-button type="button" color="warn" (click)="onSignOutClick()">
+          <mat-icon>logout</mat-icon>
+          Sign out
+        </button>
+      </div>
+    }
   </div>
 
   @if (showCheckout) {

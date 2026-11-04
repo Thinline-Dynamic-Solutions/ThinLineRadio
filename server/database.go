@@ -297,6 +297,14 @@ func (db *Database) migrate() error {
 		return formatError(err, "")
 	}
 
+	if err := migrateDelayModerators(db); err != nil {
+		return formatError(err, "")
+	}
+
+	if err := migrateAdminRoles(db); err != nil {
+		return formatError(err, "")
+	}
+
 	// Migrate transferRequests approval token columns
 	if err := migrateTransferRequestsApprovalTokens(db); err != nil {
 		return formatError(err, "")
@@ -418,6 +426,13 @@ func (db *Database) migrate() error {
 		{"migrateTalkgroupHidden", migrateTalkgroupHidden},
 		{"migrateTalkgroupTranscriptionExclude", migrateTalkgroupTranscriptionExclude},
 		{"migrateRequireListenerSignIn", migrateRequireListenerSignIn},
+		{"migrateUserGroupFeatures", migrateUserGroupFeatures},
+		{"migrateListenLinks", migrateListenLinks},
+		{"migrateServerAlerts", migrateServerAlerts},
+		{"migrateSystemRouting", migrateSystemRouting},
+		{"migrateRadioReferenceUpdates", migrateRadioReferenceUpdates},
+		{"migratePublicApi", migratePublicApi},
+		{"migratePublicApiUsageAtIndex", migratePublicApiUsageAtIndex},
 	}
 	for _, step := range lateSteps {
 		if err := db.runMigrationStep(step.name, step.fn); err != nil {

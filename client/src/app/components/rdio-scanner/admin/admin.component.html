@@ -24,7 +24,9 @@
 <!-- Authenticated: show admin panel -->
 @if (authenticated) {
   <!-- Todos / notifications -->
-  <rdio-scanner-admin-todos></rdio-scanner-admin-todos>
+  @if (!limited) {
+    <rdio-scanner-admin-todos></rdio-scanner-admin-todos>
+  }
   <!-- Master Search Bar -->
   <div class="admin-search-wrap" (keydown.escape)="closeSearch()">
     <div class="admin-search-input-wrap">

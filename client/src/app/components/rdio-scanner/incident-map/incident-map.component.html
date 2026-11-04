@@ -28,7 +28,7 @@
           [ngModel]="filterSystemId === null ? '' : filterSystemId"
           (ngModelChange)="onSystemFilterChange($event)">
           <option [ngValue]="''">All systems</option>
-          @for (opt of systemFilterOptions; track opt) {
+          @for (opt of systemFilterOptions; track opt.id) {
             <option [ngValue]="opt.id">{{ opt.label }}</option>
           }
         </select>
@@ -41,7 +41,7 @@
           [disabled]="talkgroupFilterOptions.length === 0"
           (ngModelChange)="onTalkgroupFilterChange($event)">
           <option [ngValue]="''">All talkgroups</option>
-          @for (opt of talkgroupFilterOptions; track opt) {
+          @for (opt of talkgroupFilterOptions; track opt.id) {
             <option [ngValue]="opt.id">{{ opt.label }}</option>
           }
         </select>
@@ -171,11 +171,36 @@
     <div id="tlr-incident-map-canvas" class="incident-map-canvas"></div>
 
     @if (pinEdit) {
-      <div class="pin-edit-panel">
+      <div class="pin-edit-panel" [class.pin-edit-panel--suggest]="pinEdit.mode === 'suggest'">
         <div class="pin-edit-title">
-          <mat-icon>edit_location_alt</mat-icon>
-          Correct Pin
+          <mat-icon>{{ pinEdit.mode === 'suggest' ? 'rate_review' : 'edit_location_alt' }}</mat-icon>
+          {{ pinEdit.mode === 'suggest' ? 'Suggest a correction' : 'Correct Pin' }}
         </div>
+        @if (pinEdit.mode === 'suggest') {
+          <div class="pin-edit-original">
+            <span class="pin-edit-original__label">On the map now</span>
+            <span class="pin-edit-original__value">
+              @if (pinEdit.incident.nature) {
+                <strong>{{ pinEdit.incident.nature }}</strong> ·
+              }
+              {{ pinEdit.incident.address || 'No address' }}
+            </span>
+          </div>
+          <div class="pin-edit-field">
+            <span>What's wrong?</span>
+            <div class="pin-edit-kinds" role="radiogroup" aria-label="What's wrong">
+              @for (k of correctionKinds; track k.id) {
+                <button type="button"
+                  class="pin-edit-kind"
+                  role="radio"
+                  [attr.aria-checked]="pinEdit.kind === k.id"
+                  [class.pin-edit-kind--on]="pinEdit.kind === k.id"
+                  (click)="setCorrectionKind(k.id)">{{ k.label }}</button>
+              }
+            </div>
+          </div>
+        }
+        @if (correctionEditsLocation) {
         <label class="pin-edit-field">
           <span>Address</span>
           <div class="pin-edit-address-row">
@@ -208,10 +233,28 @@
             }
           </div>
         }
-        <label class="pin-edit-field">
-          <span>Nature</span>
-          <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.nature" autocomplete="off">
-        </label>
+        }
+        @if (correctionEditsNature) {
+          <label class="pin-edit-field">
+            <span>{{ pinEdit.mode === 'suggest' ? 'Correct incident type' : 'Nature' }}</span>
+            <input class="toolbar-control" type="text" [(ngModel)]="pinEdit.nature" autocomplete="off"
+              list="tlr-nature-suggestions">
+            <datalist id="tlr-nature-suggestions">
+              @for (n of natureSuggestions; track n) {
+                <option [value]="n"></option>
+              }
+            </datalist>
+          </label>
+        }
+        @if (pinEdit.mode === 'suggest') {
+          <label class="pin-edit-field">
+            <span>Note for the reviewer (optional)</span>
+            <textarea class="toolbar-control pin-edit-note" rows="2" maxlength="1000"
+              [(ngModel)]="pinEdit.note"
+              [placeholder]="pinEdit.kind === 'not_incident' ? 'e.g. radio check, unit status, test page' : 'e.g. it was the Malvern Main Street, not Carrollton'"></textarea>
+          </label>
+        }
+        @if (correctionEditsLocation) {
         <div class="pin-edit-coords">
           @if (pinEdit.lat !== 0 || pinEdit.lon !== 0) {
             <span class="pin-edit-coords__value">
@@ -230,13 +273,21 @@
             {{ movePinArmed ? 'Click the map…' : 'Move on map' }}
           </button>
         </div>
+        }
+        @if (pinEdit.mode === 'suggest') {
+          <p class="pin-edit-hint">This doesn't change the map. It sends the original pin, your fix and the call's coverage area to the geocode service for review.</p>
+        }
         <div class="pin-edit-actions">
           <button type="button" class="toolbar-preset-btn" (click)="cancelPinEdit()">Cancel</button>
           <button type="button"
             class="toolbar-preset-btn pin-edit-save"
             [disabled]="pinEditSaving"
             (click)="savePinEdit()">
-            {{ pinEditSaving ? 'Saving…' : 'Save' }}
+            @if (pinEdit.mode === 'suggest') {
+              {{ pinEditSaving ? 'Sending…' : 'Send for review' }}
+            } @else {
+              {{ pinEditSaving ? 'Saving…' : 'Save' }}
+            }
           </button>
         </div>
       </div>

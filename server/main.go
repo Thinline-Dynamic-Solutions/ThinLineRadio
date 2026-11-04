@@ -26,6 +26,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -483,6 +484,9 @@ func main() {
 	// SSO: system admin users exchange their TLR user PIN for an admin JWT (no separate password needed)
 	http.HandleFunc("/api/admin/sso", wrapHandler(http.HandlerFunc(controller.Admin.SSOLoginHandler)).ServeHTTP)
 
+	http.HandleFunc("/api/admin/roles", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.AdminRolesHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/roles/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.AdminRolesHandler)).ServeHTTP)
+
 	http.HandleFunc("/api/admin/logout", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.LogoutHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/logs", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.LogsHandler)).ServeHTTP)
@@ -499,6 +503,8 @@ func main() {
 	http.HandleFunc("/api/admin/users", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UsersListHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/create", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UserCreateHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/bulk-delete", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.UsersBulkDeleteHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/public-api/keys", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.PublicApiKeysListHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/public-api/keys/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.PublicApiKeyActionHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/users/", wrapHandler(controller.Admin.requireLocalhost(func(w http.ResponseWriter, r *http.Request) {
 		// Check if it's a device-tokens endpoint: /api/admin/users/{userId}/device-tokens/{tokenId}
 		pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -512,6 +518,12 @@ func main() {
 			controller.Admin.UserResetPasswordHandler(w, r)
 		} else if strings.HasSuffix(r.URL.Path, "/suspend") && r.Method == http.MethodPost {
 			controller.Admin.UserSuspendHandler(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/mobile-setup-link") && r.Method == http.MethodPost {
+			controller.Admin.UserMobileSetupLinkHandler(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/delay-moderation") {
+			controller.Admin.UserDelayModerationHandler(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/admin-role") {
+			controller.Admin.UserAdminRoleHandler(w, r)
 		} else if r.Method == http.MethodPatch {
 			controller.Admin.UserMergePatchHandler(w, r)
 		} else if r.Method == http.MethodDelete {
@@ -539,6 +551,8 @@ func main() {
 	http.HandleFunc("/api/admin/radioreference/talkgroup-categories", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceTalkgroupCategoriesHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/radioreference/talkgroups-by-category", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceTalkgroupsByCategoryHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/radioreference/sites", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceSitesHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/rr-updates", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceUpdatesHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/rr-updates/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceUpdatesHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/radioreference/import-to-system", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RadioReferenceImportToSystemHandler)).ServeHTTP)
 
 	http.HandleFunc("/api/admin/config/reload", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ConfigReloadHandler)).ServeHTTP)
@@ -614,6 +628,8 @@ func main() {
 	http.HandleFunc("/api/group-admin/transfer-requests", wrapHandler(http.HandlerFunc(controller.Api.GroupAdminTransferRequestsHandler)).ServeHTTP)
 
 	// System admin group management routes
+	http.HandleFunc("/api/admin/listen-links", wrapHandler(controller.Admin.requireLocalhost(controller.Api.AdminListenLinksHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/listen-links/", wrapHandler(controller.Admin.requireLocalhost(controller.Api.AdminListenLinksHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/groups", wrapHandler(controller.Admin.requireLocalhost(controller.Api.AdminGroupsHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/groups/create", wrapHandler(controller.Admin.requireLocalhost(controller.Api.AdminCreateGroupHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/groups/update", wrapHandler(controller.Admin.requireLocalhost(controller.Api.AdminUpdateGroupHandler)).ServeHTTP)
@@ -642,10 +658,14 @@ func main() {
 	http.HandleFunc("/api/alerts/preferences", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.AlertPreferencesHandler))).ServeHTTP)
 	http.HandleFunc("/api/incidents", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.IncidentsHandler))).ServeHTTP)
 	http.HandleFunc("/api/incidents/pin/", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.IncidentPinHandler))).ServeHTTP)
+	http.HandleFunc("/api/incidents/report/", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.IncidentReportHandler))).ServeHTTP)
 	http.HandleFunc("/api/map/boundaries", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.MapBoundariesHandler))).ServeHTTP)
 	http.HandleFunc("/api/map/tiles/", tileWrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.MapTilesHandler))).ServeHTTP)
 	http.HandleFunc("/api/stats", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.StatsHandler))).ServeHTTP)
 	http.HandleFunc("/api/transcripts", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.TranscriptsHandler))).ServeHTTP)
+	http.HandleFunc("/api/delay-queue", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.DelayQueueHandler))).ServeHTTP)
+	http.HandleFunc("/api/delay-queue/remove", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.DelayQueueHandler))).ServeHTTP)
+	http.HandleFunc("/api/delay-queue/audio", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.DelayQueueAudioHandler))).ServeHTTP)
 	http.HandleFunc("/api/transcripts/training-progress", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.TranscriptsTrainingProgressHandler))).ServeHTTP)
 	http.HandleFunc("/api/keyword-lists", wrapHandler(http.HandlerFunc(controller.Api.KeywordListsHandler)).ServeHTTP)
 	http.HandleFunc("/api/call-natures", wrapHandler(http.HandlerFunc(controller.Api.CallNaturesHandler)).ServeHTTP)
@@ -658,6 +678,11 @@ func main() {
 	// System alert routes (system admins only)
 	http.HandleFunc("/api/system-alerts", wrapHandler(http.HandlerFunc(controller.Api.SystemAlertsHandler)).ServeHTTP)
 	http.HandleFunc("/api/system-alerts/", wrapHandler(http.HandlerFunc(controller.Api.SystemAlertDismissHandler)).ServeHTTP)
+	http.HandleFunc("/api/server-alerts", wrapHandler(http.HandlerFunc(controller.Api.ServerAlertIngestHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/dispatch-alerts", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.DispatchAlertsHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/dispatch-alerts/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.DispatchAlertsHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/server-alerts", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ServerAlertsHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/server-alerts/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ServerAlertsHandler)).ServeHTTP)
 	http.HandleFunc("/api/keyword-lists/", wrapHandler(http.HandlerFunc(controller.Api.KeywordListHandler)).ServeHTTP)
 	http.HandleFunc("/api/call-natures/", wrapHandler(http.HandlerFunc(controller.Api.CallNatureHandler)).ServeHTTP)
 
@@ -735,6 +760,10 @@ func main() {
 
 	// Startup readiness — no auth, no DB; web client polls before opening websocket after restart.
 	http.HandleFunc("/api/ready", controller.Api.ReadyHandler)
+
+	// User-scoped public REST API (separate from uploader apikeys). Auth: Bearer tlr_… or X-API-Key.
+	http.HandleFunc("/api/public/v1/", wrapHandler(http.HandlerFunc(controller.PublicApi.Router)).ServeHTTP)
+	http.HandleFunc("/api/public/v1", wrapHandler(http.HandlerFunc(controller.PublicApi.Router)).ServeHTTP)
 
 	// Call upload endpoints - exclude from security headers and rate limiting (machine-to-machine APIs)
 	// These endpoints handle their own validation and need to accept frequent uploads
@@ -961,6 +990,17 @@ func main() {
 		w.Write([]byte(html))
 	})).ServeHTTP)
 
+	// Share links: the client is served with <base href="./">, so nested paths
+	// can't load the bundle; hand the token over as a query parameter instead.
+	http.HandleFunc("/l/", func(w http.ResponseWriter, r *http.Request) {
+		token := strings.Trim(strings.TrimPrefix(r.URL.Path, "/l/"), "/")
+		if token == "" || strings.Contains(token, "/") {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, "/?link="+url.QueryEscape(token), http.StatusFound)
+	})
+
 	http.HandleFunc("/", wrapHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Redirect /admin to root if the client IP is not on the admin allow list
 		requestPath := r.URL.Path
@@ -1123,6 +1163,7 @@ func main() {
 	newServer := func(addr string, tlsConfig *tls.Config) *http.Server {
 		s := &http.Server{
 			Addr:         addr,
+			Handler:      controller.Admin.RoleGate(http.DefaultServeMux),
 			TLSConfig:    tlsConfig,
 			ReadTimeout:  10 * time.Minute,                                         // Increased from 30s to 10 minutes for long imports
 			WriteTimeout: 10 * time.Minute,                                         // Increased from 30s to 10 minutes for long imports

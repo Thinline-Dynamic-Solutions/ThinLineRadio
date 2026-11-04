@@ -90,6 +90,11 @@
           <th mat-header-cell *matHeaderCellDef>System</th>
           <td mat-cell *matCellDef="let system">
             <span>{{ system.value.label?.trim() || ('Sys ' + system.value.systemRef) || 'New System' }}</span>
+            @if (system.value.isMain) {
+              <span class="role-badge" matTooltip="Main system: routes uploads to its subsystems, hidden from listeners">Main</span>
+            } @else if (system.value.parentIds?.length) {
+              <span class="role-badge role-badge--sub" [matTooltip]="'Under ' + parentLabels(system)">Sub</span>
+            }
           </td>
         </ng-container>
         <ng-container matColumnDef="systemRef">

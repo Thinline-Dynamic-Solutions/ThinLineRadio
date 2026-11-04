@@ -150,7 +150,7 @@ func (api *Api) applyCentralUserGrant(req CentralUserGrantRequest) (userID uint6
 			log.Printf("Central Management: WARNING - failed to persist updated user %s to DB: %v", req.Email, dbErr)
 		}
 
-		log.Printf("Central Management: Updated user %s (PIN: %s, ConnectionLimit: %d)", req.Email, req.PIN, req.ConnectionLimit)
+		log.Printf("Central Management: Updated user %s (ConnectionLimit: %d)", req.Email, req.ConnectionLimit)
 		return existingUser.Id, false, nil
 	}
 
@@ -193,7 +193,7 @@ func (api *Api) applyCentralUserGrant(req CentralUserGrantRequest) (userID uint6
 		return 0, false, fmt.Errorf("failed to save user")
 	}
 
-	log.Printf("Central Management: Created user %s (PIN: %s)", req.Email, req.PIN)
+	log.Printf("Central Management: Created user %s", req.Email)
 	return user.Id, true, nil
 }
 

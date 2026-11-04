@@ -23,14 +23,6 @@ const STREET_WORDS: Record<string, boolean> = {
     ST: true, AVE: true, RD: true, BLVD: true, LN: true, DR: true,
 };
 
-const NUMBER_WORDS: Record<string, boolean> = {
-    ZERO: true, ONE: true, TWO: true, THREE: true, FOUR: true, FIVE: true, SIX: true,
-    SEVEN: true, EIGHT: true, NINE: true, TEN: true, ELEVEN: true, TWELVE: true,
-    THIRTEEN: true, FOURTEEN: true, FIFTEEN: true, SIXTEEN: true, SEVENTEEN: true,
-    EIGHTEEN: true, NINETEEN: true, TWENTY: true, THIRTY: true, FORTY: true, FIFTY: true,
-    SIXTY: true, SEVENTY: true, EIGHTY: true, NINETY: true, HUNDRED: true, THOUSAND: true,
-};
-
 const NON_SPEECH_WORDS: Record<string, boolean> = {
     NO: true, NOT: true, VOICE: true, VOICES: true, AUDIO: true, SPEECH: true, WORD: true,
     WORDS: true, SPOKEN: true, TONE: true, TONES: true, ONLY: true, JUST: true, SILENCE: true,
@@ -66,10 +58,6 @@ export function trainingSubmitIssues(transcript: string, durationSeconds: number
     const abbrevs = abbreviationParts(normalized);
     if (abbrevs.length) {
         issues.push(`Spell out abbreviations: ${abbrevs.join(', ')}.`);
-    }
-    const numbers = numberWordHits(normalized);
-    if (numbers.length) {
-        issues.push(`Write numbers as digits, not words: ${numbers.join(', ')}.`);
     }
     return issues;
 }
@@ -190,21 +178,4 @@ function wordBefore(s: string, idx: number): string {
     }
     const i = prev.lastIndexOf(' ');
     return i >= 0 ? prev.slice(i + 1) : prev;
-}
-
-function numberWordHits(normalized: string): string[] {
-    const seen: Record<string, boolean> = {};
-    const words: string[] = [];
-    for (const tok of normalized.split(' ')) {
-        if (!NUMBER_WORDS[tok]) {
-            continue;
-        }
-        const low = tok.toLowerCase();
-        if (seen[low]) {
-            continue;
-        }
-        seen[low] = true;
-        words.push(low);
-    }
-    return words;
 }

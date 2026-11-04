@@ -251,6 +251,7 @@
           </mat-header-row>
           <mat-row *matRowDef="let row; columns: archiveTableColumns"
             [class.archive-row-playing]="call?.id === row?.id"
+            [style.--row-tag]="getTransmissionHistoryTagColor(row)"
             [style.background-color]="getTransmissionHistoryBackgroundColor(row)">
           </mat-row>
         </mat-table>

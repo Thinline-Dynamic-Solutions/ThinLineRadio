@@ -64,12 +64,13 @@ func (delayer *Delayer) Delay(call *Call) {
 		delayer.controller.Clients.mutex.Lock()
 		for client := range delayer.controller.Clients.Map {
 			if client.User == nil {
+				if !delayer.controller.anonymousAllowed(client.ListenLink) || !delayer.controller.anonymousHasCallAccess(client.ListenLink, call) {
+					continue
+				}
+			} else if !delayer.controller.userHasAccess(client.User, call) {
 				continue
 			}
-			if !delayer.controller.userHasAccess(client.User, call) {
-				continue
-			}
-			clientDelay := delayer.controller.userEffectiveDelay(client.User, call, delay)
+			clientDelay := delayer.controller.clientEffectiveDelay(client, call, delay)
 			if clientDelay > 0 && (delay == 0 || clientDelay < delay) {
 				delay = clientDelay
 			}
@@ -94,6 +95,10 @@ func (delayer *Delayer) Delay(call *Call) {
 				}
 
 				delete(delayer.timers, call.Id)
+
+				if delayer.controller.DelayModeration.IsRemoved(call.Id) {
+					return
+				}
 
 				// Clear the global delayed flag so individual client delays can be checked
 				call.Delayed = false
@@ -129,9 +134,9 @@ func (delayer *Delayer) DelayForClient(call *Call, client *Client) {
 		// Only schedule if delay hasn't already passed
 		if remaining > 0 {
 			// Schedule delayed send for this specific client only
-			time.AfterFunc(remaining, func() {
+			timer := time.AfterFunc(remaining, func() {
 				// Check if client still exists before sending
-				if client.Send == nil {
+				if client.Send == nil || delayer.controller.DelayModeration.IsRemoved(call.Id) {
 					return
 				}
 				// Non-blocking send to prevent deadlock
@@ -143,6 +148,7 @@ func (delayer *Delayer) DelayForClient(call *Call, client *Client) {
 					// Channel full, skip to avoid blocking
 				}
 			})
+			delayer.controller.DelayModeration.Hold(call.Id, timer, timestamp)
 		} else {
 			// Delay already passed, send immediately
 			msg := &Message{Command: MessageCommandCall, Payload: call}
@@ -262,13 +268,7 @@ func (delayer *Delayer) getEffectiveDelayForClient(call *Call, client *Client) u
 		return 0
 	}
 
-	baseDelay := delayer.getSystemDelay(call)
-	if client != nil && client.User != nil {
-		// Use controller method to properly check group delays
-		return delayer.controller.userEffectiveDelay(client.User, call, baseDelay)
-	}
-
-	return baseDelay
+	return delayer.controller.clientEffectiveDelay(client, call, delayer.getSystemDelay(call))
 }
 
 func (delayer *Delayer) getSystemDelay(call *Call) uint {

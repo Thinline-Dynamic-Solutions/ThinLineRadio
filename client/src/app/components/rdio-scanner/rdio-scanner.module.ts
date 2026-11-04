@@ -24,6 +24,9 @@ import { RdioScannerComponent } from './rdio-scanner.component';
 import { InstanceDatePipe } from './instance-time';
 import { RdioScannerService } from './rdio-scanner.service';
 import { RdioScannerConsoleComponent } from './console/console.component';
+import { RdioScannerUpgradePromptComponent } from './console/upgrade-prompt.component';
+import { RdioScannerPublicApiDialogComponent } from './console/public-api-dialog.component';
+import { RdioScannerDelayQueueDialogComponent } from './console/delay-queue-dialog.component';
 import { RdioScannerIncidentMapComponent } from './incident-map/incident-map.component';
 import { RdioScannerIncidentMapSidebarComponent } from './incident-map/incident-map-sidebar.component';
 import { IncidentsService } from './incident-map/incidents.service';
@@ -73,6 +76,9 @@ import { RdioScannerTurnstileComponent } from './turnstile/turnstile.component';
         InstanceDatePipe,
         RdioScannerComponent,
         RdioScannerConsoleComponent,
+        RdioScannerUpgradePromptComponent,
+        RdioScannerPublicApiDialogComponent,
+        RdioScannerDelayQueueDialogComponent,
         RdioScannerIncidentMapComponent,
         RdioScannerIncidentMapSidebarComponent,
         RdioScannerSearchComponent,

@@ -12,9 +12,11 @@
 import { Component, EventEmitter, OnDestroy, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { Subscription } from 'rxjs';
 import { RdioScannerConfig } from '../rdio-scanner';
 import { RdioScannerService } from '../rdio-scanner.service';
+import { listenLinkToken } from '../listen-link';
 
 @Component({
     selector: 'rdio-scanner-mobile-web-hub',
@@ -52,6 +54,8 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
 
     isAndroid = false;
     isApple = false;
+    /** Opens a share link (/l/{token}) in the app, which has the scanner. */
+    appListenUrl: SafeUrl | null = null;
 
     private eventSub?: Subscription;
 
@@ -59,6 +63,7 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
         private rdioScannerService: RdioScannerService,
         private http: HttpClient,
         private snackBar: MatSnackBar,
+        private sanitizer: DomSanitizer,
     ) {}
 
     ngOnInit(): void {
@@ -71,6 +76,12 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
 
         const ua = navigator.userAgent || '';
         this.isAndroid = /Android/i.test(ua);
+        const token = listenLinkToken();
+        if (token) {
+            const params = new URLSearchParams({ baseUrl: window.location.origin, link: token });
+            // Custom scheme would be rewritten to unsafe: otherwise; the token is [A-Za-z0-9] only.
+            this.appListenUrl = this.sanitizer.bypassSecurityTrustUrl(`thinlineradio://scanner-setup/listen?${params.toString()}`);
+        }
         this.isApple = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && (navigator as Navigator & { maxTouchPoints?: number }).maxTouchPoints! > 1);
 
         const existing = this.rdioScannerService.getConfig?.();

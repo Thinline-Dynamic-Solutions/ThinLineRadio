@@ -120,7 +120,7 @@ export class RdioScannerAdminLoginComponent implements OnInit, OnDestroy {
         if (ok) {
             this.loggedIn.emit();
         } else {
-            this.ssoMessage = 'SSO login failed. Make sure your account has System Admin privileges.';
+            this.ssoMessage = 'SSO login failed. Your account needs to be a system admin or have an admin role.';
         }
     }
 

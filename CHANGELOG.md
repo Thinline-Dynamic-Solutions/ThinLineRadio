@@ -1,5 +1,77 @@
 # Change log
 
+## Version 26.11.01 - Released November 3, 2026
+
+### Added
+
+- **Feature access per user group and free listening** (from Bones's [#309](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/pull/309))
+  - Admin → User Groups has a **Feature access** section to turn off the live feed, archive search, the Channels picker, alerts, transcripts, stats, the map, settings, or the alerts side rail for a group. A user in more than one group gets every feature any of their groups allows.
+  - Turned-off features stay in the tab bar with a lock. Opening one shows a blurred preview with **Upgrade to view**: free listeners go to sign-up, signed-in users go to their plan in Settings. The server also refuses those features, not just the page.
+  - **This is a free group** lets visitors listen to that group's systems without signing in, even when listener sign-in is required. Free listeners get the group's delay on live audio, replay, and archive search, so a 30-minute delay on the free group holds every call back 30 minutes. Alerts, transcripts, stats and the map always need sign-in.
+  - Free listeners see an **Upgrade** button and a one-time pop-up listing what a paid plan adds, which opens the sign-up plans.
+  - Users whose group has alerts turned off no longer get alert push notifications.
+- **Share links**
+  - **Admin → Share Links** creates a link such as `https://your-server/l/abc123xyz0` that opens the scanner with no sign-in, limited to the channels you pick. Each link has its own delay, optional expiry date, and feature access (live feed only by default).
+  - Links work on any server, including ones that don't require sign-in: the visitor only hears the link's channels. Turning a link off, editing it, or deleting it disconnects anyone listening on it, and an expired or turned-off link grants nothing.
+  - The list shows how many people are listening on each link right now.
+  - On a phone, the link opens a page with an **Open in the app** button that adds the shared scanner to the ThinLine Radio app, no account needed (requires the app update).
+  - On phones, the mobile web page no longer shows billing or sign out to visitors who aren't signed in.
+- **Public API for users (from Bones's #301)**
+  - In **Admin → Users**, server owners can give a user API access and choose what it covers: server health, transcripts, and alert webhooks. Admins can see every key's usage and disable any key.
+  - Users with access get an **API** button in the console to create and revoke keys and set up alert destinations: Slack, Discord, PagerDuty, their own verified email, or a custom HTTPS URL.
+  - Health endpoints work with Uptime Kuma. Transcripts follow the user's channel access, delay, and plan. Keys are sent in a header only and limited to 120 requests a minute.
+  - Webhooks only go to HTTPS addresses and never to private or local networks. API keys can't create other keys or change webhooks; that needs the signed-in account. See `docs/public-api.md`.
+- **Server alerts to Slack, Discord, PagerDuty, email or your own endpoint** ([#102](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/102))
+  - **Admin → Server Alerts** adds destinations that get every server alert at or above a minimum severity: no audio from a system or upload key, transcription and tone detection failures, SDRTrunk problems, and low disk space. Each destination has a **Send test** button. Admin push notifications work as before.
+  - Outside monitors (cron jobs, watchdogs, Uptime Kuma, Grafana) can post an alert to `POST /api/server-alerts` with an alert key created on the same page. The body takes `source`, `severity`, `title`, `message`, `timestamp` and `metadata`; only `message` is required. Posted alerts show in System Health, go to system admins' phones, and go to the destinations. Each key is limited to 30 alerts a minute and is stored only as a hash.
+  - **Low disk space:** the server checks the disk holding its folder every 10 minutes and alerts when free space drops below a threshold (10% by default, critical below half of it). The alert repeats daily while space stays low and clears once it recovers.
+  - Webhooks only go to https addresses on the internet, never to private or local networks. Only system admins can manage server alerts; admin roles can't.
+- **Dispatch alerts to chosen users and groups** ([#190](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/190))
+  - **Admin → Dispatch Alerts** sends an alert straight to the people you pick, for example freelancers for a working fire. Choose user groups, individual people, or both. The page shows how many people and app devices the alert will reach before you send it, and asks you to confirm.
+  - Each alert has a label (the notification heading, "Dispatch Alert" by default), an optional title, a message and a severity. Recipients get a push notification with the dispatch tone even if they haven't turned on alerts for any channel. Unverified and suspended users are skipped.
+  - The alert shows in the **System** tab of the recipient's alerts in the app and on the web, marked as a dispatch with its label. Only the people it was sent to see it, and they don't see who else got it.
+  - One dispatch tone is used for every dispatch alert, chosen from the bundled tones with a preview. Only system admins can change it.
+  - System admins can send dispatch alerts. Admin roles can too if they have the new **Send dispatch alerts** permission, which the Admin Moderator preset includes. The **Sent** list records who sent each alert and how many people and devices it reached. Dispatch alerts don't appear in System Health or go to Server Alerts destinations.
+- **Main systems and subsystems**
+  - A big network like Ohio MARCS can be split into county systems and still take uploads on one system ID. Mark a system as a **main system** on the new **Network** tab of the system editor, then put each county system under it with **Part of main systems**.
+  - A call uploaded to a main system's ID goes to the subsystem under it that has the call's talkgroup. Uploads straight to a subsystem's own ID still work as before. Listeners never see main systems.
+  - A subsystem can be under more than one main system, for example a county shared by MARCS and a local system. For each talkgroup, pick which main system it belongs to, so the same talkgroup ID can go to different counties depending on which main system it was uploaded to.
+  - Talkgroups that no subsystem has stay on the main system, and are only added there when Auto Populate is on for the main system. Calls through a main system never auto-populate into a subsystem.
+  - Saving is refused, with a message naming the systems involved, when two systems share an ID or when two subsystems under the same main system have the same talkgroup.
+  - Existing upload API keys keep working: a key limited to certain systems may upload to a main system's ID when it lists either the main system or the subsystem the call goes to. Thinline Core matches copies of a call sent to a main system's ID and to the subsystem's own ID as the same call.
+  - No-audio alerts are turned off for main systems, since their calls are stored on the subsystems.
+- **Radio Reference updates** ([#84](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/84))
+  - On a system's **Network** tab, pick the state, county and Radio Reference system it follows. The server compares the system with Radio Reference every week, or right away with **Check now**. A main system's check covers its subsystems.
+  - The review lists talkgroups that still look auto-populated and can be filled in from Radio Reference, talkgroups named differently from Radio Reference, Radio Reference talkgroups missing from the system (only in categories the system already uses), and talkgroups that aren't on Radio Reference.
+  - Nothing changes until an admin picks items and applies them. Missing talkgroups can be added to whichever subsystem they belong in. Updates use the server's own groups and tags, learned from talkgroups that were already named, instead of Radio Reference's category names.
+- **Suggest a correction on map incidents**
+  - Each incident card on the Map has a **Suggest a correction** button. Pick what's wrong (the location, the incident type, both, or "not an incident"), search for or enter the right address, pick the right incident type, and add a note.
+  - The suggestion goes to the geocode server for review with the original pin, the suggested one, the call's transcript, and the search area used to place it. Each user can send up to 30 an hour.
+  - When a system admin moves, edits, or removes a pin, the change is sent for review the same way.
+
+### Changed
+
+- **New look for the listener page**
+  - Channels, Alerts, Settings, Search, and the weather panels have a cleaner, more modern layout that keeps the scanner look.
+  - Buttons, text boxes, dropdowns, checkboxes, switches, and pop-up messages use the theme colors and your accent color again. Some had fallen back to the default colors after the Angular Material update.
+- **Transcript training**
+  - Numbers no longer have to be written as digits. A transcript that spells a number out ("two", "fifty") can be submitted.
+
+### Fixed
+
+- **Map filters**
+  - Picking a system or talkgroup on the Map could close the dropdown or ignore the click, so it took several tries. Map updates no longer rebuild the open dropdown.
+  - After picking a system, the System dropdown listed only that system. It now keeps every system, so you can switch straight to another.
+  - **Clear** now reloads all incidents after a system or talkgroup filter.
+- **FOLLOW UP incidents**
+  - Plate checks and unit status traffic were labeled FOLLOW UP. A call is now labeled FOLLOW UP only when the transcript says "follow up". A new `renature-calls` tool re-checks recent calls that already have the label.
+- **Thinline Radio Core duplicate calls**
+  - A site whose clock was off by a second or more could make a short call look like a separate key-up, so both copies were stored. Core now measures each site's clock offset and moves its times onto the server's clock before matching copies.
+- **Incident pin lookups timing out**
+  - Address searches, street lookups, and transcript pin lookups now wait longer for the geocode server before giving up.
+
+---
+
 ## Version 26.10.32 - Released October 30, 2026
 
 ### Fixed

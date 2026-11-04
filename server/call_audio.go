@@ -70,7 +70,7 @@ func (api *Api) CallAudioDownloadHandler(w http.ResponseWriter, r *http.Request)
 		api.exitWithError(w, http.StatusInternalServerError, "Failed to retrieve call")
 		return
 	}
-	if call == nil || len(call.Audio) == 0 {
+	if call == nil || len(call.Audio) == 0 || !api.clientMayHaveCall(client, call) {
 		api.exitWithError(w, http.StatusNotFound, "Call audio not found")
 		return
 	}

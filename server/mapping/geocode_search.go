@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-var searchGeocodeClient = &http.Client{Timeout: 15 * time.Second}
+var searchGeocodeClient = &http.Client{Timeout: 40 * time.Second}
 
 // SearchGeocodeHit is one pin from gateway GET /search.
 type SearchGeocodeHit struct {

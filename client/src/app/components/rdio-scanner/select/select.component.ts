@@ -913,6 +913,48 @@ export class RdioScannerSelectComponent implements OnDestroy, OnInit {
         return 'status-disabled';
     }
 
+    tagState(systemId: number, tag: string, talkgroups?: RdioScannerTalkgroup[]): 'all' | 'some' | 'none' {
+        if (this.isAllEnabledInTag(systemId, tag, talkgroups)) return 'all';
+        return this.isSomeEnabledInTag(systemId, tag, talkgroups) ? 'some' : 'none';
+    }
+
+    systemState(system: RdioScannerSystem): 'all' | 'some' | 'none' {
+        if (this.isAllEnabledInSystem(system)) return 'all';
+        return this.isSomeEnabledInSystem(system) ? 'some' : 'none';
+    }
+
+    getEnabledCountInTag(systemId: number, talkgroups: RdioScannerTalkgroup[]): number {
+        return talkgroups.filter(tg => this.isTalkgroupEnabled(systemId, tg.id)).length;
+    }
+
+    /** Percent of the system's in-view talkgroups that are on, for the rail meter. */
+    systemPercent(system: RdioScannerSystem): number {
+        const total = this.getSystemViewTotalCount(system);
+        return total > 0 ? (this.getEnabledCountInSystem(system) / total) * 100 : 0;
+    }
+
+    enabledPercent(): number {
+        const total = this.getTotalCount();
+        return total > 0 ? (this.getEnabledCount() / total) * 100 : 0;
+    }
+
+    /** Space-to-activate for focusable rows; leaves Space alone for nested buttons. */
+    rowSpace(event: Event): boolean {
+        if (event.target !== event.currentTarget) return false;
+        event.preventDefault();
+        return true;
+    }
+
+    ariaChecked(state: 'all' | 'some' | 'none'): 'true' | 'false' | 'mixed' {
+        return state === 'all' ? 'true' : state === 'some' ? 'mixed' : 'false';
+    }
+
+    switchTooltip(state: 'all' | 'some' | 'none'): string {
+        if (state === 'all') return 'All on — click to turn off';
+        if (state === 'some') return 'Some on — click to turn all on';
+        return 'All off — click to turn on';
+    }
+
     getTagStatusIcon(systemId: number, tag: string, talkgroups?: RdioScannerTalkgroup[]): string {
         if (this.isAllEnabledInTag(systemId, tag, talkgroups)) return 'check_circle';
         if (this.isSomeEnabledInTag(systemId, tag, talkgroups)) return 'remove_circle';
