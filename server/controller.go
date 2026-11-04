@@ -133,6 +133,7 @@ type Controller struct {
 	sdrtrunkHealth     map[uint64]*SdrtrunkHealthRecord
 	sdrtrunkHealthMu   sync.Mutex
 	sdrtrunkHealthStop chan struct{}
+	sdrtrunkHealthFrom time.Time // when the health monitor started; sites get time to reconnect
 	sdrtrunkSessions   *sdrtrunkHub
 	sdrtrunkHubOnce    sync.Once
 	coreCoord          *coreCoordinator

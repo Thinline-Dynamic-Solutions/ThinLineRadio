@@ -3274,6 +3274,27 @@ func migrateSdrtrunkHealth(db *Database) error {
 	return nil
 }
 
+// migrateSdrtrunkAlertMute adds the per-site alert mute. A site that closed SDRTrunk
+// now raises an offline alert too, so sites already quiet for over a day start
+// with alerts off instead of all alerting on upgrade.
+func migrateSdrtrunkAlertMute(db *Database) error {
+	if _, err := db.Sql.Exec(`ALTER TABLE "sdrtrunkHealth" ADD COLUMN IF NOT EXISTS "alertsMutedUntil" bigint NOT NULL DEFAULT 0`); err != nil {
+		return fmt.Errorf("sdrtrunk alert mute: %v", err)
+	}
+	const quietSitesOff = "sdrtrunkQuietSitesAlertsOff"
+	if logsMigrationDone(db, quietSitesOff) {
+		return nil
+	}
+	dayAgo := time.Now().Add(-24 * time.Hour).UnixMilli()
+	if _, err := db.Sql.Exec(`UPDATE "sdrtrunkHealth" SET "alertsMutedUntil" = $1 WHERE "receivedAt" < $2 AND "report" NOT LIKE '%"role":"upload"%'`,
+		sdrtrunkAlertsOff, dayAgo); err != nil {
+		log.Printf("migration note (sdrtrunk alert mute for quiet sites): %v", err)
+		return nil
+	}
+	markLogsMigrationDone(db, quietSitesOff)
+	return nil
+}
+
 // migrateApikeyPurpose separates call-upload keys from SDRTrunk site control keys.
 func migrateApikeyPurpose(db *Database) error {
 	query := `ALTER TABLE "apikeys" ADD COLUMN IF NOT EXISTS "purpose" text NOT NULL DEFAULT 'upload'`

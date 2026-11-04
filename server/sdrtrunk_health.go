@@ -8,6 +8,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,16 @@ import (
 )
 
 const sdrtrunkHealthStale = 90 * time.Second
+
+// sdrtrunkOfflineStartupGrace keeps a restarted server from calling every site
+// down before they have reconnected and reported.
+const sdrtrunkOfflineStartupGrace = 3 * time.Minute
+
+// sdrtrunkAlertsOff in AlertsMutedUntil turns a site's alerts off until an admin
+// turns them back on. Any other value is a mute end time in Unix milliseconds.
+const sdrtrunkAlertsOff int64 = -1
+
+const defaultSdrtrunkOfflineRepeatMinutes = 30
 
 const (
 	sdrtrunkAlertControlLost    = "sdrtrunk_control_lost"
@@ -41,6 +52,12 @@ type SdrtrunkHealthRecord struct {
 	TunerError    bool
 	UploaderError bool
 	Report        string
+
+	AlertsMutedUntil int64
+}
+
+func (record *SdrtrunkHealthRecord) alertsMuted(now time.Time) bool {
+	return record.AlertsMutedUntil == sdrtrunkAlertsOff || record.AlertsMutedUntil > now.UnixMilli()
 }
 
 type sdrtrunkHealthRequest struct {
@@ -226,6 +243,9 @@ func (controller *Controller) storeSdrtrunkHealth(record *SdrtrunkHealthRecord) 
 		controller.sdrtrunkHealth = make(map[uint64]*SdrtrunkHealthRecord)
 	}
 	previous := controller.sdrtrunkHealth[record.ApiKeyId]
+	if previous != nil {
+		record.AlertsMutedUntil = previous.AlertsMutedUntil
+	}
 	controller.sdrtrunkHealth[record.ApiKeyId] = record
 	controller.sdrtrunkHealthMu.Unlock()
 
@@ -266,7 +286,7 @@ func (controller *Controller) loadSdrtrunkHealth() {
 	}
 
 	rows, err := controller.Database.Sql.Query(`
-		SELECT "apikeyId", "systemRef", "receivedAt", "reporting", "version", "uploaderState", "controlLost", "tunerError", "uploaderError", "report"
+		SELECT "apikeyId", "systemRef", "receivedAt", "reporting", "version", "uploaderState", "controlLost", "tunerError", "uploaderError", "report", "alertsMutedUntil"
 		FROM "sdrtrunkHealth"
 	`)
 	if err != nil {
@@ -279,7 +299,7 @@ func (controller *Controller) loadSdrtrunkHealth() {
 	for rows.Next() {
 		record := &SdrtrunkHealthRecord{}
 		if err := rows.Scan(&record.ApiKeyId, &record.SystemRef, &record.ReceivedAt, &record.Reporting, &record.Version,
-			&record.UploaderState, &record.ControlLost, &record.TunerError, &record.UploaderError, &record.Report); err != nil {
+			&record.UploaderState, &record.ControlLost, &record.TunerError, &record.UploaderError, &record.Report, &record.AlertsMutedUntil); err != nil {
 			continue
 		}
 		if apikey, ok := controller.Apikeys.GetById(record.ApiKeyId); ok {
@@ -296,22 +316,121 @@ func (controller *Controller) loadSdrtrunkHealth() {
 	controller.sdrtrunkHealthMu.Unlock()
 }
 
+// SdrtrunkHealthAdminHandler lists SDR Health sources (GET) and changes site
+// alert settings (POST):
+//
+//	{"apiKeyId": n, "muteMinutes": m}   m > 0 mutes for m minutes, 0 turns alerts on, -1 turns them off
+//	{"offlineRepeatMinutes": m}         repeat a site-down alert every m minutes; 0 alerts once
 func (admin *Admin) SdrtrunkHealthAdminHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	token := admin.GetAuthorization(r)
 	if !admin.ValidateToken(token) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"sources": admin.Controller.sdrtrunkHealthAdminSources(),
-	})
+	switch r.Method {
+	case http.MethodGet:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"sources":              admin.Controller.sdrtrunkHealthAdminSources(),
+			"offlineRepeatMinutes": admin.Controller.Options.SdrtrunkOfflineRepeatMinutes,
+		})
+
+	case http.MethodPost:
+		var request struct {
+			ApiKeyId             uint64 `json:"apiKeyId"`
+			MuteMinutes          *int64 `json:"muteMinutes"`
+			OfflineRepeatMinutes *int64 `json:"offlineRepeatMinutes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		if request.OfflineRepeatMinutes != nil {
+			minutes := *request.OfflineRepeatMinutes
+			if minutes < 0 || minutes > 24*60 {
+				writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Repeat must be 0 to 1440 minutes"})
+				return
+			}
+			value := uint(minutes)
+			if err := admin.Controller.Options.WriteKey(admin.Controller.Database, "sdrtrunkOfflineRepeatMinutes", value, func() {
+				admin.Controller.Options.SdrtrunkOfflineRepeatMinutes = value
+			}); err != nil {
+				writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+		}
+
+		if request.MuteMinutes != nil {
+			minutes := *request.MuteMinutes
+			if minutes < -1 || minutes > 7*24*60 {
+				writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Mute must be up to 7 days"})
+				return
+			}
+			until := int64(0)
+			switch {
+			case minutes == -1:
+				until = sdrtrunkAlertsOff
+			case minutes > 0:
+				until = time.Now().Add(time.Duration(minutes) * time.Minute).UnixMilli()
+			}
+			if err := admin.Controller.setSdrtrunkAlertsMuted(request.ApiKeyId, until); err != nil {
+				writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+		}
+
+		writeAdminJSON(w, http.StatusOK, map[string]any{
+			"sources":              admin.Controller.sdrtrunkHealthAdminSources(),
+			"offlineRepeatMinutes": admin.Controller.Options.SdrtrunkOfflineRepeatMinutes,
+		})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// setSdrtrunkAlertsMuted mutes or turns off a site's SDRTrunk alerts, closing the
+// ones already open, or turns them back on (until 0).
+func (controller *Controller) setSdrtrunkAlertsMuted(apiKeyId uint64, until int64) error {
+	controller.sdrtrunkHealthMu.Lock()
+	record, ok := controller.sdrtrunkHealth[apiKeyId]
+	if ok && record != nil {
+		record.AlertsMutedUntil = until
+	}
+	controller.sdrtrunkHealthMu.Unlock()
+	if !ok || record == nil {
+		return fmt.Errorf("no SDR Health source for API key %d", apiKeyId)
+	}
+
+	if controller.Database != nil && controller.Database.Sql != nil {
+		if _, err := controller.Database.Sql.Exec(`UPDATE "sdrtrunkHealth" SET "alertsMutedUntil" = $1 WHERE "apikeyId" = $2`, until, apiKeyId); err != nil {
+			return fmt.Errorf("failed to save alert setting: %v", err)
+		}
+	}
+
+	if until != 0 {
+		for _, alertType := range []string{sdrtrunkAlertControlLost, sdrtrunkAlertTunerError, sdrtrunkAlertUploaderError,
+			sdrtrunkAlertOffline, sdrtrunkAlertSampleOverflow} {
+			controller.dismissOpenSystemAlerts(alertType, apiKeyId)
+		}
+	}
+
+	state := "on"
+	switch {
+	case until == sdrtrunkAlertsOff:
+		state = "off"
+	case until > 0:
+		state = "muted until " + time.UnixMilli(until).Format(time.RFC3339)
+	}
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sdrtrunk alerts for API key %d: %s", apiKeyId, state))
+	return nil
+}
+
+func (controller *Controller) sdrtrunkAlertsMuted(apiKeyId uint64) bool {
+	record, ok := controller.sdrtrunkHealthSnapshot(apiKeyId)
+	return ok && record.alertsMuted(time.Now())
 }
 
 func (controller *Controller) sdrtrunkHealthAdminSources() []map[string]any {
@@ -388,6 +507,8 @@ func (controller *Controller) sdrtrunkHealthAdminSources() []map[string]any {
 			"status":        status,
 			"connected":     role != "upload" && controller.sdrtrunkHub().connected(record.ApiKeyId),
 			"report":        report,
+
+			"alertsMutedUntil": record.AlertsMutedUntil,
 		})
 	}
 
@@ -481,7 +602,6 @@ func (controller *Controller) syncSdrtrunkAlerts(record *SdrtrunkHealthRecord, c
 		controller.dismissOpenSystemAlerts(sdrtrunkAlertTunerError, record.ApiKeyId)
 		controller.dismissOpenSystemAlerts(sdrtrunkAlertUploaderError, record.ApiKeyId)
 		controller.dismissOpenSystemAlerts(sdrtrunkAlertSampleOverflow, record.ApiKeyId)
-		controller.dismissOpenSystemAlerts(sdrtrunkAlertOffline, record.ApiKeyId)
 		return
 	}
 
@@ -527,7 +647,6 @@ func (controller *Controller) syncSiteHealthAlerts(record *SdrtrunkHealthRecord,
 		controller.dismissOpenSystemAlerts(sdrtrunkAlertControlLost, record.ApiKeyId)
 		controller.dismissOpenSystemAlerts(sdrtrunkAlertTunerError, record.ApiKeyId)
 		controller.dismissOpenSystemAlerts(sdrtrunkAlertSampleOverflow, record.ApiKeyId)
-		controller.dismissOpenSystemAlerts(sdrtrunkAlertOffline, record.ApiKeyId)
 		return
 	}
 
@@ -545,6 +664,9 @@ func (controller *Controller) syncSdrtrunkAlert(active bool, alertType, severity
 		return
 	}
 
+	if active && controller.sdrtrunkAlertsMuted(data.ApiKeyId) {
+		active = false
+	}
 	if active {
 		if !controller.hasOpenSystemAlert(alertType, data.ApiKeyId) {
 			if err := controller.CreateSystemAlert(alertType, severity, title, message, data, 0); err != nil {
@@ -636,6 +758,7 @@ func (controller *Controller) StartSdrtrunkHealthMonitor() {
 	controller.loadSdrtrunkHealth()
 	controller.forgetDeletedSdrtrunkKeys()
 	controller.sdrtrunkHealthStop = make(chan struct{})
+	controller.sdrtrunkHealthFrom = time.Now()
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -664,31 +787,80 @@ func (controller *Controller) checkSdrtrunkOffline() {
 	controller.sdrtrunkHealthMu.Unlock()
 
 	now := time.Now()
+	starting := now.Sub(controller.sdrtrunkHealthFrom) < sdrtrunkOfflineStartupGrace
 	for _, record := range records {
-		if !record.Reporting {
-			continue
-		}
 		if sdrtrunkReportRole(record.Report) == "upload" {
 			continue
 		}
-		if sdrtrunkReportRole(record.Report) == "health" && !sdrtrunkAlertSelected(record.Report, "offline") {
+		age := now.Sub(time.UnixMilli(record.ReceivedAt))
+		// A site that closed SDRTrunk sent one last report saying so, then went quiet;
+		// a crashed one just went quiet. Either way it is down once the report is stale.
+		down := age > sdrtrunkHealthStale
+		if !down || !sdrtrunkAlertSelected(record.Report, "offline") || record.alertsMuted(now) ||
+			!controller.Options.SystemHealthAlertsEnabled {
 			controller.dismissOpenSystemAlerts(sdrtrunkAlertOffline, record.ApiKeyId)
 			continue
 		}
-
-		age := now.Sub(time.UnixMilli(record.ReceivedAt))
-		data := &SystemAlertData{
-			ApiKeyId:         record.ApiKeyId,
-			ApiKeyIdent:      record.ApiKeyIdent,
-			SystemLabel:      record.SystemLabel,
-			MinutesSinceLast: int(age.Minutes()),
+		if starting {
+			continue
 		}
+
 		source := record.ApiKeyIdent
 		if record.SystemLabel != "" {
 			source = fmt.Sprintf("%s (%s)", record.ApiKeyIdent, record.SystemLabel)
 		}
-		controller.syncSdrtrunkAlert(age > sdrtrunkHealthStale, sdrtrunkAlertOffline, "error", "SDRTrunk offline",
-			fmt.Sprintf("SDRTrunk for '%s' has not reported health for %d seconds", source, int(age.Seconds())), data)
+		message := fmt.Sprintf("SDRTrunk for '%s' has not reported for %s", source, sdrtrunkDownFor(age))
+		if !record.Reporting {
+			message = fmt.Sprintf("SDRTrunk for '%s' was closed or stopped reporting %s ago", source, sdrtrunkDownFor(age))
+		}
+		controller.raiseSdrtrunkOffline(record.ApiKeyId, now, message, &SystemAlertData{
+			ApiKeyId:         record.ApiKeyId,
+			ApiKeyIdent:      record.ApiKeyIdent,
+			SystemLabel:      record.SystemLabel,
+			MinutesSinceLast: int(age.Minutes()),
+		})
+	}
+}
+
+// raiseSdrtrunkOffline opens a site-down alert, and while the site stays down
+// replaces it with a fresh one every SdrtrunkOfflineRepeatMinutes so admins are
+// reminded. 0 alerts once.
+func (controller *Controller) raiseSdrtrunkOffline(apiKeyId uint64, now time.Time, message string, data *SystemAlertData) {
+	if controller.Database == nil || controller.Database.Sql == nil {
+		return
+	}
+	var last sql.NullInt64
+	err := controller.Database.Sql.QueryRow(`
+		SELECT MAX("createdAt") FROM "systemAlerts"
+		WHERE "alertType" = $1 AND "dismissed" = false AND ("data" LIKE $2 OR "data" LIKE $3)
+	`, sdrtrunkAlertOffline, fmt.Sprintf(`%%"apiKeyId":%d,%%`, apiKeyId), fmt.Sprintf(`%%"apiKeyId":%d}%%`, apiKeyId)).Scan(&last)
+	if err != nil {
+		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to read open sdrtrunk offline alert for API key %d: %v", apiKeyId, err))
+		return
+	}
+	if last.Valid {
+		repeat := time.Duration(controller.Options.SdrtrunkOfflineRepeatMinutes) * time.Minute
+		if repeat == 0 || now.Sub(time.UnixMilli(last.Int64)) < repeat {
+			return
+		}
+		controller.dismissOpenSystemAlerts(sdrtrunkAlertOffline, apiKeyId)
+	}
+	if err := controller.CreateSystemAlert(sdrtrunkAlertOffline, "error", "SDRTrunk offline", message, data, 0); err != nil {
+		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("failed to create %s alert for API key %d: %v", sdrtrunkAlertOffline, apiKeyId, err))
+	}
+}
+
+func sdrtrunkDownFor(age time.Duration) string {
+	minutes := int(age.Minutes())
+	switch {
+	case minutes < 2:
+		return fmt.Sprintf("%d seconds", int(age.Seconds()))
+	case minutes < 120:
+		return fmt.Sprintf("%d minutes", minutes)
+	case minutes < 48*60:
+		return fmt.Sprintf("%d hours %d minutes", minutes/60, minutes%60)
+	default:
+		return fmt.Sprintf("%d days", minutes/(24*60))
 	}
 }
 

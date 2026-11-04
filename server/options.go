@@ -189,6 +189,7 @@ type Options struct {
 	ToneDetectionRepeatMinutes        uint   `json:"toneDetectionRepeatMinutes"`
 	NoAudioRepeatMinutes              uint   `json:"noAudioRepeatMinutes"`
 	DiskSpaceAlertPercent             uint   `json:"-"` // managed by /api/admin/server-alerts; 0 turns the check off
+	SdrtrunkOfflineRepeatMinutes      uint   `json:"-"` // managed by /api/admin/sdrtrunk-health; 0 alerts once
 	DispatchAlertSound                string `json:"-"` // managed by /api/admin/dispatch-alerts
 	RelayServerURL                    string `json:"relayServerURL"` // always getRelayServerURL(); persisted for compatibility only
 	RelayServerAPIKey                 string `json:"relayServerAPIKey"`
@@ -1418,6 +1419,7 @@ func (options *Options) Read(db *Database) error {
 	options.Time12hFormat = defaults.options.time12hFormat
 	options.AlertRetentionDays = defaults.options.alertRetentionDays
 	options.DiskSpaceAlertPercent = defaultDiskSpaceAlertPct
+	options.SdrtrunkOfflineRepeatMinutes = defaultSdrtrunkOfflineRepeatMinutes
 	options.DispatchAlertSound = defaultDispatchAlertSound
 	options.TranscriptionFailureThreshold = defaults.options.transcriptionFailureThreshold
 	options.ToneDetectionIssueThreshold = defaults.options.toneDetectionIssueThreshold
@@ -2109,6 +2111,13 @@ func (options *Options) Read(db *Database) error {
 				switch v := f.(type) {
 				case float64:
 					options.DiskSpaceAlertPercent = uint(v)
+				}
+			}
+		case "sdrtrunkOfflineRepeatMinutes":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case float64:
+					options.SdrtrunkOfflineRepeatMinutes = uint(v)
 				}
 			}
 		case "relayServerURL":

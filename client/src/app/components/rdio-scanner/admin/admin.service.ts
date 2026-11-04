@@ -1269,14 +1269,32 @@ export class RdioScannerAdminService implements OnDestroy {
         }
     }
 
-    async getSdrtrunkHealth(): Promise<{ sources: any[] }> {
+    async getSdrtrunkHealth(): Promise<{ sources: any[]; offlineRepeatMinutes: number }> {
         try {
-            const res = await firstValueFrom(this.ngHttpClient.get<{ sources: any[] }>(
+            const res = await firstValueFrom(this.ngHttpClient.get<{ sources: any[]; offlineRepeatMinutes: number }>(
                 this.getUrl(url.sdrtrunkHealth),
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
             return res;
         } catch (error) {
+            this.errorHandler(error);
+            throw error;
+        }
+    }
+
+    // muteMinutes: > 0 mutes a site's alerts for that long, 0 turns them on, -1 turns them off.
+    // offlineRepeatMinutes: how often a site-down alert repeats; 0 alerts once.
+    async saveSdrtrunkHealthAlerts(body: { apiKeyId?: number; muteMinutes?: number; offlineRepeatMinutes?: number }): Promise<{ sources: any[]; offlineRepeatMinutes: number }> {
+        try {
+            return await firstValueFrom(this.ngHttpClient.post<{ sources: any[]; offlineRepeatMinutes: number }>(
+                this.getUrl(url.sdrtrunkHealth),
+                body,
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+        } catch (error: any) {
+            if (error?.error?.error) {
+                throw new Error(error.error.error);
+            }
             this.errorHandler(error);
             throw error;
         }

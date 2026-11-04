@@ -31,7 +31,15 @@ export interface SdrHealthSource {
     status: string;
     connected: boolean;
     report: any;
+    alertsMutedUntil: number;
 }
+
+export const SDR_MUTE_CHOICES = [
+    { minutes: 60, label: 'Mute for 1 hour' },
+    { minutes: 240, label: 'Mute for 4 hours' },
+    { minutes: 1440, label: 'Mute for 24 hours' },
+    { minutes: -1, label: 'Turn off until turned back on' },
+];
 
 export type SdrHealthTab = 'overview' | 'tuners' | 'channels' | 'streams' | 'control';
 
@@ -150,6 +158,9 @@ export class RdioScannerAdminSdrHealthComponent implements OnInit, OnDestroy {
     streamAliasOffset = 0;
     spectrumMarkers: any[] = [];
     readonly remoteLabels = SDR_REMOTE_LABELS;
+    readonly muteChoices = SDR_MUTE_CHOICES;
+    offlineRepeatMinutes = 30;
+    savingAlerts = false;
 
     private refreshInterval: any;
     private spectrumAverage: number[] = [];
@@ -276,6 +287,12 @@ export class RdioScannerAdminSdrHealthComponent implements OnInit, OnDestroy {
         if (!source.connected) {
             issues.push({ tone: 'bad', text: 'SDRTrunk is not connected to this server.' });
         }
+        if (!source.reporting) {
+            issues.push({ tone: 'warn', text: 'SDRTrunk was closed or stopped reporting.' });
+        }
+        if (this.alertsState(source) !== 'on') {
+            issues.push({ tone: 'idle', text: `${this.alertsLabel(source)} for this site.` });
+        }
         if (source.stale) {
             issues.push({ tone: 'warn', text: `The last report is ${this.age(source)}.` });
         }
@@ -369,12 +386,61 @@ export class RdioScannerAdminSdrHealthComponent implements OnInit, OnDestroy {
         try {
             const response = await this.adminService.getSdrtrunkHealth();
             this.sources = response.sources || [];
+            this.offlineRepeatMinutes = response.offlineRepeatMinutes ?? 30;
             this.loadedAt = Date.now();
         } catch (error: any) {
             this.error = error.message || 'Failed to load SDR health';
             this.sources = [];
         } finally {
             this.loading = false;
+            this.cdr.markForCheck();
+        }
+    }
+
+    alertsState(source: SdrHealthSource): 'on' | 'muted' | 'off' {
+        const until = source.alertsMutedUntil || 0;
+        if (until === -1) {
+            return 'off';
+        }
+        return until > Date.now() ? 'muted' : 'on';
+    }
+
+    alertsLabel(source: SdrHealthSource): string {
+        switch (this.alertsState(source)) {
+            case 'off':
+                return 'Alerts off';
+            case 'muted':
+                return `Alerts muted until ${new Date(source.alertsMutedUntil).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
+            default:
+                return 'Alerts on';
+        }
+    }
+
+    async setAlerts(source: SdrHealthSource, muteMinutes: number): Promise<void> {
+        await this.saveAlerts({ apiKeyId: source.apiKeyId, muteMinutes });
+    }
+
+    async saveOfflineRepeat(value: string | number): Promise<void> {
+        const minutes = Math.round(Number(value));
+        if (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440 || minutes === this.offlineRepeatMinutes) {
+            this.cdr.markForCheck();
+            return;
+        }
+        await this.saveAlerts({ offlineRepeatMinutes: minutes });
+    }
+
+    private async saveAlerts(body: { apiKeyId?: number; muteMinutes?: number; offlineRepeatMinutes?: number }): Promise<void> {
+        this.savingAlerts = true;
+        this.commandError = null;
+        this.cdr.markForCheck();
+        try {
+            const response = await this.adminService.saveSdrtrunkHealthAlerts(body);
+            this.sources = response.sources || [];
+            this.offlineRepeatMinutes = response.offlineRepeatMinutes ?? this.offlineRepeatMinutes;
+        } catch (error: any) {
+            this.commandError = error?.message || 'Failed to save alert settings';
+        } finally {
+            this.savingAlerts = false;
             this.cdr.markForCheck();
         }
     }

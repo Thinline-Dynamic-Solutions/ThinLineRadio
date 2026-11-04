@@ -433,6 +433,7 @@ func (db *Database) migrate() error {
 		{"migrateRadioReferenceUpdates", migrateRadioReferenceUpdates},
 		{"migratePublicApi", migratePublicApi},
 		{"migratePublicApiUsageAtIndex", migratePublicApiUsageAtIndex},
+		{"migrateSdrtrunkAlertMute", migrateSdrtrunkAlertMute},
 	}
 	for _, step := range lateSteps {
 		if err := db.runMigrationStep(step.name, step.fn); err != nil {

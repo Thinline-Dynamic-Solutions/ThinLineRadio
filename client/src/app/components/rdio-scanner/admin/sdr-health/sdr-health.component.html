@@ -8,6 +8,13 @@
       </div>
     </div>
     <div class="sdr-hero-actions">
+      <label class="sdr-repeat" title="While a site is down, alert again this often. 0 alerts once.">
+        <mat-icon>notifications_active</mat-icon>
+        <span>Remind every</span>
+        <input type="number" min="0" max="1440" step="5" [value]="offlineRepeatMinutes" [disabled]="savingAlerts"
+          (change)="saveOfflineRepeat($any($event.target).value)">
+        <span>min while a site is down</span>
+      </label>
       @if (loadedAt) {
         <span class="sdr-updated">Updated {{ loadedAt | date:'h:mm:ss a' }}</span>
       }
@@ -91,6 +98,7 @@
           <span class="sdr-site-top">
             <span class="sdr-dot" [attr.data-tone]="statusTone(source.status)"></span>
             <strong>{{ source.apiKeyIdent || ('API key ' + source.apiKeyId) }}</strong>
+            @if (alertsState(source) !== 'on') { <mat-icon class="sdr-site-muted" [title]="alertsLabel(source)">notifications_off</mat-icon> }
             @if (source.connected) { <span class="sdr-live-tag">Live</span> }
           </span>
           <span class="sdr-site-status">{{ statusLabel(source.status) }}</span>
@@ -134,6 +142,21 @@
             </div>
           </div>
           <div class="sdr-panel-actions">
+            <button mat-stroked-button type="button" class="sdr-btn" [class.sdr-btn--on]="alertsState(source) !== 'on'"
+              [matMenuTriggerFor]="alertsMenu" [disabled]="savingAlerts">
+              <mat-icon>{{ alertsState(source) === 'on' ? 'notifications' : 'notifications_off' }}</mat-icon>
+              {{ alertsLabel(source) }}
+            </button>
+            <mat-menu #alertsMenu="matMenu">
+              @if (alertsState(source) !== 'on') {
+                <button mat-menu-item type="button" (click)="setAlerts(source, 0)"><mat-icon>notifications</mat-icon>Turn alerts back on</button>
+              }
+              @for (choice of muteChoices; track choice.minutes) {
+                <button mat-menu-item type="button" (click)="setAlerts(source, choice.minutes)">
+                  <mat-icon>{{ choice.minutes === -1 ? 'notifications_off' : 'snooze' }}</mat-icon>{{ choice.label }}
+                </button>
+              }
+            </mat-menu>
             <button mat-stroked-button type="button" class="sdr-btn" (click)="command(source, 'report')" [disabled]="commanding || !source.connected">
               <mat-icon>sync</mat-icon>
               Request report

@@ -69,6 +69,12 @@
   - A site whose clock was off by a second or more could make a short call look like a separate key-up, so both copies were stored. Core now measures each site's clock offset and moves its times onto the server's clock before matching copies.
 - **Thinline Radio Core waiting on a failed upload**
   - When the site Core asked for a call failed to upload it, the call (and any tone alerts on it) waited 45 seconds before another site's copy was asked for. Core now waits 15 seconds, and moves to the next copy right away when the site reports that its upload failed. Reporting failed uploads needs the updated SDRTrunk.
+- **No alert when SDRTrunk was closed**
+  - Closing SDRTrunk sends one last report saying it stopped, and the server took that as reporting being turned off on purpose, so no one was told the site was down. A site that was closed now raises the same **SDRTrunk offline** alert as one that crashed, once it has been quiet for 90 seconds, so a quick restart doesn't alert.
+  - While a site stays down, the alert is raised again every 30 minutes. Set how often on the **SDR Health** page with **Remind every … min while a site is down**; 0 alerts once.
+  - Each site on **SDR Health** has an alerts button to mute its alerts for 1, 4 or 24 hours, or turn them off until turned back on, for example while a site is being worked on. Muting closes the site's open alerts.
+  - Sites that had already been quiet for more than a day when the server is upgraded start with their alerts off, so old sites don't all alert at once. Turn them back on from SDR Health.
+  - After the server restarts, sites get 3 minutes to reconnect before they're called down.
 - **Incident pin lookups timing out**
   - Address searches, street lookups, and transcript pin lookups now wait longer for the geocode server before giving up.
 

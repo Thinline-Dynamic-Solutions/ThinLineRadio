@@ -86,6 +86,39 @@ mat-icon {
     gap: 12px;
 }
 
+.sdr-repeat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--sdr-muted);
+
+    mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+    }
+
+    input {
+        width: 56px;
+        height: 28px;
+        padding: 0 6px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.04);
+        color: inherit;
+        font: inherit;
+        text-align: right;
+    }
+}
+
+.sdr-site-muted {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: var(--sdr-muted);
+}
+
 .sdr-updated {
     font-size: 12px;
     color: var(--sdr-muted);
