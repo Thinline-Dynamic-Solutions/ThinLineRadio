@@ -28,6 +28,10 @@ const coreShortSettle = 1 * time.Second
 // block off: a copy starting this close to a finished call's end is the next key-up.
 const coreHandoffSlop int64 = 100
 
+// How long an asked site has to upload before the next copy is asked. SDRTrunk
+// retries a failed upload within this and reports call.uploadFailed if it gives up.
+const coreUploadWait = 15 * time.Second
+
 type coreMember struct {
 	keyId       uint64
 	recordingId string
@@ -217,6 +221,13 @@ func (core *coreCoordinator) onMessage(keyId uint64, kind string, payload []byte
 				core.siteName(keyId), member.talkgroup, coreClock(member.startMs),
 				float64(member.frequency)/1e6, len(group.members))
 			go core.schedule(group)
+		}
+		return
+	}
+	if kind == "call.uploadFailed" {
+		if group, member := core.askedLocked(keyId, body.RecordingId); group != nil {
+			log.Printf("core: %s upload from %s failed, asking the next copy", core.labelLocked(group), core.siteName(keyId))
+			go core.failAsk(group, member, body.RecordingId)
 		}
 		return
 	}
@@ -489,7 +500,7 @@ func (core *coreCoordinator) schedule(group *coreGroup) {
 		core.failAsk(group, winner, recordingId)
 		return
 	}
-	time.AfterFunc(45*time.Second, func() {
+	time.AfterFunc(coreUploadWait, func() {
 		core.mu.Lock()
 		if group.closed || !winner.asked || winner.failed {
 			core.mu.Unlock()
@@ -1091,6 +1102,16 @@ func (core *coreCoordinator) groupByRecordingLocked(recordingId string) *coreGro
 		}
 	}
 	return nil
+}
+
+// askedLocked finds the open call whose upload this site was asked for.
+func (core *coreCoordinator) askedLocked(keyId uint64, recordingId string) (*coreGroup, *coreMember) {
+	group := core.groupByRecordingLocked(recordingId)
+	member := core.memberByIdLocked(group, recordingId)
+	if group == nil || member == nil || group.closed || member.keyId != keyId || !member.asked {
+		return nil, nil
+	}
+	return group, member
 }
 
 func (core *coreCoordinator) memberByIdLocked(group *coreGroup, recordingId string) *coreMember {

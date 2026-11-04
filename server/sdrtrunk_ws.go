@@ -304,7 +304,7 @@ func (api *Api) SdrtrunkSocketHandler(w http.ResponseWriter, r *http.Request) {
 		switch envelope.Type {
 		case "result":
 			session.deliver(envelope.ID, sdrtrunkCommandResult{OK: envelope.OK, Error: envelope.Error})
-		case "core.hello", "core.bye", "call.started", "call.ready", "call.cancelled":
+		case "core.hello", "core.bye", "call.started", "call.ready", "call.cancelled", "call.uploadFailed":
 			api.Controller.core().onMessage(apikey.Id, envelope.Type, payload)
 		case "health":
 			payload = sdrtrunkForceReportKey(payload, hello.Key, "health")

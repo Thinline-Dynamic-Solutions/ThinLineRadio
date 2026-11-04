@@ -395,6 +395,31 @@ func TestCancelWithoutTalkgroupReleasesTheCall(t *testing.T) {
 	}
 }
 
+func TestFailedUploadIsMatchedToTheAskedCopy(t *testing.T) {
+	// 78 FD DISP 09:01:41: Portage's asked copy failed and the tones waited 45s for the timeout.
+	core := &coreCoordinator{}
+	asked := siteMember(2, 7890442, 41_242, 5400)
+	asked.recordingId = "portage-853"
+	asked.asked = true
+	other := siteMember(2, 7890442, 41_262, 5400)
+	other.recordingId = "portage-852"
+	group := &coreGroup{members: []*coreMember{asked, other}}
+	core.groups = []*coreGroup{group}
+	if got, _ := core.askedLocked(1, "portage-853"); got != nil {
+		t.Fatal("another site cannot fail this upload")
+	}
+	if got, _ := core.askedLocked(2, "portage-852"); got != nil {
+		t.Fatal("a copy that was not asked has no upload to fail")
+	}
+	if got, member := core.askedLocked(2, "portage-853"); got != group || member != asked {
+		t.Fatal("the failure finds the asked copy by recording id")
+	}
+	group.closed = true
+	if got, _ := core.askedLocked(2, "portage-853"); got != nil {
+		t.Fatal("a stored call ignores a late failure")
+	}
+}
+
 func TestLaterCallWaitsBrieflyForEarlierUpload(t *testing.T) {
 	core := &coreCoordinator{}
 	earlier := &coreGroup{deciding: true, members: []*coreMember{member(7891310, 29_060, 2340)}}

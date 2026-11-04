@@ -1,6 +1,6 @@
 # Change log
 
-## Version 26.11.01 - Released November 3, 2026
+## Version 26.11.01 - Released November 4, 2026
 
 ### Added
 
@@ -67,6 +67,8 @@
   - Plate checks and unit status traffic were labeled FOLLOW UP. A call is now labeled FOLLOW UP only when the transcript says "follow up". A new `renature-calls` tool re-checks recent calls that already have the label.
 - **Thinline Radio Core duplicate calls**
   - A site whose clock was off by a second or more could make a short call look like a separate key-up, so both copies were stored. Core now measures each site's clock offset and moves its times onto the server's clock before matching copies.
+- **Thinline Radio Core waiting on a failed upload**
+  - When the site Core asked for a call failed to upload it, the call (and any tone alerts on it) waited 45 seconds before another site's copy was asked for. Core now waits 15 seconds, and moves to the next copy right away when the site reports that its upload failed. Reporting failed uploads needs the updated SDRTrunk.
 - **Incident pin lookups timing out**
   - Address searches, street lookups, and transcript pin lookups now wait longer for the geocode server before giving up.
 
