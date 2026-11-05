@@ -185,3 +185,17 @@ func TestFeaturesHas(t *testing.T) {
 		t.Fatal("alertsSideRail should be off")
 	}
 }
+
+func TestImportedGroupFeatures(t *testing.T) {
+	if _, ok := importedGroupFeatures(map[string]any{}); ok {
+		t.Fatal("an export without features must leave them unchanged")
+	}
+	raw, ok := importedGroupFeatures(map[string]any{"features": map[string]any{"liveFeed": true, "alerts": false}})
+	if !ok || parseUserGroupFeatures(raw).Alerts || !parseUserGroupFeatures(raw).LiveFeed {
+		t.Fatalf("object features: %q", raw)
+	}
+	raw, ok = importedGroupFeatures(map[string]any{"features": `{"liveFeed":true,"map":false}`})
+	if !ok || parseUserGroupFeatures(raw).Map {
+		t.Fatalf("string features: %q", raw)
+	}
+}

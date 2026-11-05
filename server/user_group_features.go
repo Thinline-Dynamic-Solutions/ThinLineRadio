@@ -91,6 +91,25 @@ func (f UserGroupFeatures) ToJSON() string {
 	return string(raw)
 }
 
+// importedGroupFeatures reads a user group's features from an imported config,
+// where they may be an object or a JSON string. Older exports have none.
+func importedGroupFeatures(group map[string]any) (string, bool) {
+	switch v := group["features"].(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return "", false
+		}
+		return parseUserGroupFeatures(v).ToJSON(), true
+	case map[string]any:
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		return parseUserGroupFeatures(string(raw)).ToJSON(), true
+	}
+	return "", false
+}
+
 func parseUserGroupFeatures(raw string) UserGroupFeatures {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || raw == "{}" || raw == "null" {

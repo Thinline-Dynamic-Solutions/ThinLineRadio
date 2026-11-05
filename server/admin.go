@@ -2028,6 +2028,10 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						existingGroup.IsPublicRegistration = getBoolFromMap(groupMap, "isPublicRegistration", false)
 						existingGroup.AllowAddExistingUsers = getBoolFromMap(groupMap, "allowAddExistingUsers", false)
 						existingGroup.AutoEnableNewTalkgroups = getBoolFromMap(groupMap, "autoEnableNewTalkgroups", false)
+						existingGroup.IsFreeGroup = getBoolFromMap(groupMap, "isFreeGroup", false)
+						if features, ok := importedGroupFeatures(groupMap); ok {
+							existingGroup.Features = features
+						}
 						if createdAt, ok := groupMap["createdAt"].(float64); ok {
 							existingGroup.CreatedAt = int64(createdAt)
 						}
@@ -2063,6 +2067,10 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 							IsPublicRegistration:    getBoolFromMap(groupMap, "isPublicRegistration", false),
 							AllowAddExistingUsers:   getBoolFromMap(groupMap, "allowAddExistingUsers", false),
 							AutoEnableNewTalkgroups: getBoolFromMap(groupMap, "autoEnableNewTalkgroups", false),
+							IsFreeGroup:             getBoolFromMap(groupMap, "isFreeGroup", false),
+						}
+						if features, ok := importedGroupFeatures(groupMap); ok {
+							group.Features = features
 						}
 						if createdAt, ok := groupMap["createdAt"].(float64); ok {
 							group.CreatedAt = int64(createdAt)
@@ -3495,6 +3503,8 @@ func (admin *Admin) GetConfig() map[string]any {
 			"isPublicRegistration":    group.IsPublicRegistration,
 			"allowAddExistingUsers":   group.AllowAddExistingUsers,
 			"autoEnableNewTalkgroups": group.AutoEnableNewTalkgroups,
+			"isFreeGroup":             group.IsFreeGroup,
+			"features":                group.GetFeatures(),
 			"createdAt":               group.CreatedAt,
 		})
 	}

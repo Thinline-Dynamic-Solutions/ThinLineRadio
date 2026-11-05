@@ -292,6 +292,8 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
         isPublicRegistration: group.isPublicRegistration || false,
         allowAddExistingUsers: group.allowAddExistingUsers || false,
         autoEnableNewTalkgroups: group.autoEnableNewTalkgroups || false,
+        isFreeGroup: group.isFreeGroup || false,
+        features: group.features,
         createdAt: group.createdAt || 0
       }));
       this.cdr.detectChanges();

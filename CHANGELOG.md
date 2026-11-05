@@ -1,5 +1,15 @@
 # Change log
 
+## Version 26.11.05 - Released November 5, 2026
+
+### Fixed
+
+- **User group features and free group setting in the editor**
+  - Reopening a user group in **Admin → User Groups** now shows its saved **Feature access** and **This is a free group** settings. Before, every feature showed as on and the free group box as off, even though the saved settings were working, and saving the group again turned every feature back on and cleared the free group setting.
+  - Config exports now include each group's features and free group setting, and importing a config restores them. Older exports without features leave a group's features unchanged.
+
+---
+
 ## Version 26.11.04 - Released November 5, 2026
 
 ### Added
