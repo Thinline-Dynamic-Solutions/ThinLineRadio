@@ -155,7 +155,7 @@ func rrAutoReasons(l rrLocal) []string {
 	return r
 }
 
-// rrLearn maps each Radio Reference value (category or tag) to the label this server
+// rrLearn maps each Radio Reference value to the label this server
 // most often uses for it on talkgroups that were named by hand.
 func rrLearn(locals []rrLocal, rrByRef map[uint]RadioReferenceTalkgroup, rrValue func(RadioReferenceTalkgroup) string, localValues func(rrLocal) []string) map[string]string {
 	counts := map[string]map[string]int{}
@@ -187,13 +187,13 @@ func rrLearn(locals []rrLocal, rrByRef map[uint]RadioReferenceTalkgroup, rrValue
 	return learned
 }
 
-func rrProposed(r RadioReferenceTalkgroup, groups, tags map[string]string) rrFields {
-	p := rrFields{Label: strings.TrimSpace(r.AlphaTag), Name: strings.TrimSpace(r.Description), Group: r.Group, Tag: r.Tag}
+// rrProposed keeps Radio Reference's own tag rather than a learned one: servers often
+// tag by county, and learning would then give every talkgroup on the network the tag
+// of whichever county was named by hand.
+func rrProposed(r RadioReferenceTalkgroup, groups map[string]string) rrFields {
+	p := rrFields{Label: strings.TrimSpace(r.AlphaTag), Name: strings.TrimSpace(r.Description), Group: r.Group, Tag: strings.TrimSpace(r.Tag)}
 	if g, ok := groups[r.Group]; ok {
 		p.Group = g
-	}
-	if t, ok := tags[r.Tag]; ok {
-		p.Tag = t
 	}
 	return p
 }
@@ -283,7 +283,6 @@ func (controller *Controller) buildRRReview(linked *System, rrList []RadioRefere
 	}
 
 	groups := rrLearn(locals, rrByRef, func(r RadioReferenceTalkgroup) string { return r.Group }, func(l rrLocal) []string { return l.groups })
-	tags := rrLearn(locals, rrByRef, func(r RadioReferenceTalkgroup) string { return r.Tag }, func(l rrLocal) []string { return []string{l.fields.Tag} })
 	review.GroupMap = map[string]string{}
 	for category, g := range groups {
 		if !rrSame(category, g) {
@@ -307,7 +306,7 @@ func (controller *Controller) buildRRReview(linked *System, rrList []RadioRefere
 		}
 		categoryHomes[r.Group][l.system]++
 
-		item.Proposed = rrProposed(r, groups, tags)
+		item.Proposed = rrProposed(r, groups)
 		if item.Changes = rrChanges(l, item.Proposed); len(item.Changes) == 0 {
 			continue
 		}
@@ -333,7 +332,7 @@ func (controller *Controller) buildRRReview(linked *System, rrList []RadioRefere
 				home, best = s, n
 			}
 		}
-		p := rrProposed(r, groups, tags)
+		p := rrProposed(r, groups)
 		if p.Name == "" {
 			p.Name = p.Label
 		}

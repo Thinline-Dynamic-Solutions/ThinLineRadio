@@ -1,5 +1,18 @@
 # Change log
 
+## Version 26.11.03 - Released November 5, 2026
+
+### Fixed
+
+- **Signing in on servers with a free group** (from Bones's [#310](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/pull/310))
+  - Signing in on a server that has a free group no longer leaves the user on the free tier. The scanner now sends the saved PIN when it connects, so owners and users in other groups get their own features.
+  - Signing out on those servers goes back to listening as a free listener instead of showing the sign-in page.
+- **Wrong tags in Radio Reference updates**
+  - Radio Reference updates now offer Radio Reference's own tag for each talkgroup, such as Fire-Tac, Interop or Public Works. Before, on servers that tag talkgroups by county, every talkgroup could be offered the tag of the county that was named by hand, for example "Kent County (41)" for all of Michigan MPSCS.
+  - Applying still uses an existing tag when its name only differs in capitals or spacing.
+
+---
+
 ## Version 26.11.02 - Released November 4, 2026
 
 ### Fixed

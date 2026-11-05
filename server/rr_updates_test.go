@@ -61,4 +61,18 @@ func TestBuildRRReview(t *testing.T) {
 	if len(review.Targets) != 3 {
 		t.Errorf("targets should be MARCS, Mahoning and Carroll: %+v", review.Targets)
 	}
+
+	// A server that tags by county must not have that county's tag offered elsewhere.
+	tags.List = append(tags.List, &Tag{Id: 3, Label: "Carroll County"})
+	named(byRef(carroll, 4100), "CAR SO", "Carroll Sheriff", 3, 3)
+	rr = append(rr, RadioReferenceTalkgroup{ID: 3400, AlphaTag: "MAH SO 4", Description: "Mahoning Sheriff 4", Group: "Mahoning County Law", Tag: "Law Dispatch"})
+	review = ctrl.buildRRReview(marcs, rr)
+	for _, m := range review.Missing {
+		if m.Ref == 3400 && m.Proposed.Tag != "Law Dispatch" {
+			t.Errorf("missing 3400 should keep Radio Reference's tag, got %q", m.Proposed.Tag)
+		}
+	}
+	if len(review.Fill) != 1 || review.Fill[0].Proposed.Tag != "Law Tac" {
+		t.Errorf("fill should keep Radio Reference's tag: %+v", review.Fill)
+	}
 }
