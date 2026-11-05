@@ -4866,6 +4866,11 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	freePlanName := ""
+	if free := api.Controller.UserGroups.GetFreePlanGroup(); free != nil {
+		freePlanName = free.Name
+	}
+
 	// Return user account info (excluding sensitive data)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -4892,6 +4897,7 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		"billingRequired":           billingRequired,
 		"pinExpired":                user.PinExpired(),
 		"pinExpiresAt":              user.PinExpiresAt,
+		"freePlanName":              freePlanName,
 		"memberships":               memberships,
 		"availableTiers":            availableTiers,
 		"unpaidCheckoutItems":       unpaidCheckoutItems,
@@ -9459,6 +9465,57 @@ func (api *Api) UserTransferToPublicHandler(w http.ResponseWriter, r *http.Reque
 		"message": "Successfully transferred to public registration group",
 		"groupId": publicGroup.Id,
 	})
+}
+
+// UserContinueFreeHandler moves a user whose access has expired onto the free
+// sign-up plan, so they can keep listening without paying.
+func (api *Api) UserContinueFreeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var request struct {
+		Pin string `json:"pin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.Pin == "" {
+		api.exitWithError(w, http.StatusBadRequest, "PIN is required")
+		return
+	}
+
+	user := api.Controller.Users.GetUserByPin(request.Pin)
+	if user == nil {
+		api.exitWithError(w, http.StatusUnauthorized, "Invalid PIN")
+		return
+	}
+	if !user.PinExpired() {
+		api.exitWithError(w, http.StatusBadRequest, "Your access hasn't expired")
+		return
+	}
+
+	freeGroup := api.Controller.UserGroups.GetFreePlanGroup()
+	if freeGroup == nil {
+		api.exitWithError(w, http.StatusNotFound, "This server has no free plan")
+		return
+	}
+
+	oldGroup := api.Controller.UserGroups.Get(user.UserGroupId)
+	if oldGroup == nil || oldGroup.Id != freeGroup.Id {
+		if err := api.handleUserGroupBillingTransition(user, oldGroup, freeGroup); err != nil {
+			log.Printf("continue free: billing transition for user %s: %v", user.Email, err)
+		}
+		user.IsGroupAdmin = false
+	}
+	user.SetGroupIds([]uint64{freeGroup.Id})
+	user.PinExpiresAt = 0
+	api.Controller.Users.Update(user)
+	if err := api.Controller.Users.Write(api.Controller.Database); err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, "Could not save your plan")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"groupId": freeGroup.Id, "name": freeGroup.Name})
 }
 
 // PublicRegistrationInfoHandler returns public registration group information including pricing

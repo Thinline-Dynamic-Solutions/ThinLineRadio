@@ -9,7 +9,24 @@
         <div class="lock-card__icon">
           <mat-icon>lock</mat-icon>
         </div>
-        @if (!isGroupAdminManaged) {
+        @if (!isGroupAdminManaged && freePlanName) {
+          <h2>Pick a plan</h2>
+          <p>Your access has expired. Choose a plan to keep listening.</p>
+          <div class="lock-actions">
+            @if (canChoosePaidPlan) {
+              <button mat-flat-button color="primary" (click)="showCheckout = true" [disabled]="transferring">Choose a paid plan</button>
+            }
+            <button mat-stroked-button (click)="continueFree()" [disabled]="transferring">
+              @if (transferring) {
+                <mat-spinner diameter="18" class="inline-spinner"></mat-spinner>
+                <span>Switching…</span>
+              } @else {
+                <span>Continue free with {{ freePlanName }}</span>
+              }
+            </button>
+            <button mat-stroked-button (click)="onSignOut()">Sign out</button>
+          </div>
+        } @else if (!isGroupAdminManaged) {
           <h2>Subscription required</h2>
           <p>An active subscription is required to access the scanner.</p>
         }

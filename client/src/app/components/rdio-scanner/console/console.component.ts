@@ -176,6 +176,9 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
     userEmail = '';
     isGroupAdminManaged = false;
     transferring = false;
+    /** Free sign-up plan an expired user can switch to, if the server has one. */
+    freePlanName = '';
+    canChoosePaidPlan = false;
     /** Public unpaid + available tiers for the subscribe modal picker. */
     checkoutTiers: {
         groupId: number;
@@ -1221,17 +1224,6 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
             return;
         }
 
-        // No pricing options ⇒ billing not required for this user.
-        const pricingOptions = this.config?.options?.pricingOptions;
-        if (!pricingOptions || pricingOptions.length === 0) {
-            this.subscriptionActive = true;
-            this.subscriptionChecked = true;
-            this.showCheckout = false;
-            this.subscriptionCheckInProgress = false;
-            this.cdr.detectChanges();
-            return;
-        }
-
         this.checkUserSubscription();
     }
 
@@ -1311,9 +1303,10 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                     data.subscriptionStatusDisplay === 'group_admin_managed'
                     || data.subscriptionStatus === 'group_admin_managed';
                 const billingRequired = data.billingRequired === true;
+                this.freePlanName = data.pinExpired ? (data.freePlanName || '') : '';
 
                 // Easiest case — no billing required & not in group_admin mode.
-                if (!billingRequired && !isAdminManagedNonAdmin) {
+                if (!billingRequired && !isAdminManagedNonAdmin && !data.pinExpired) {
                     this.subscriptionActive = true;
                     this.subscriptionChecked = true;
                     this.showCheckout = false;
@@ -1378,7 +1371,9 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                     this.subscriptionActive = false;
                     this.subscriptionChecked = true;
                     this.isGroupAdminManaged = false;
-                    this.showCheckout = canShowCheckout;
+                    this.canChoosePaidPlan = canShowCheckout;
+                    // With a free plan on offer, show both choices before the paid checkout.
+                    this.showCheckout = canShowCheckout && !this.freePlanName;
                     this.cdr.detectChanges();
                 }
                 this.subscriptionCheckInProgress = false;
@@ -1389,6 +1384,25 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
                 this.subscriptionChecked = true;
                 this.showCheckout = false;
                 this.subscriptionCheckInProgress = false;
+                this.cdr.detectChanges();
+            });
+    }
+
+    continueFree(): void {
+        if (this.transferring) return;
+        const pin = this.rdioScannerService.readPin();
+        if (!pin) return;
+        this.transferring = true;
+        fetch('/api/user/continue-free', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin }),
+        })
+            .then(r => r.ok ? r.json() : r.text().then(text => { throw new Error(text.trim() || 'Could not switch plans'); }))
+            .then(() => window.location.reload())
+            .catch(err => {
+                this.transferring = false;
+                this.matSnackBar.open(err.message, 'Close', { duration: 8000 });
                 this.cdr.detectChanges();
             });
     }

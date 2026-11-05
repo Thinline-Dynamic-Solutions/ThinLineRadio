@@ -649,6 +649,17 @@ func (ugs *UserGroups) GetPublicRegistrationGroups() []*UserGroup {
 	return out
 }
 
+// GetFreePlanGroup is the sign-up group without billing that a user whose access
+// has expired can switch to instead of paying, or nil when there isn't one.
+func (ugs *UserGroups) GetFreePlanGroup() *UserGroup {
+	for _, group := range ugs.GetPublicRegistrationGroups() {
+		if !group.BillingEnabled {
+			return group
+		}
+	}
+	return nil
+}
+
 // IsSelfBillable reports whether a user can self-serve join/leave this group:
 // free groups, or paid groups billed per-user ("all_users"). Groups billed via
 // "group_admin" (a shared customer the admin pays) are excluded.

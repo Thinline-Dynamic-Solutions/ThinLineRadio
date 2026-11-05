@@ -591,6 +591,7 @@ func main() {
 	http.HandleFunc("/api/public-app-links", wrapHandler(http.HandlerFunc(controller.Api.PublicAppLinksHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/resend-verification", wrapHandler(http.HandlerFunc(controller.Api.UserResendVerificationHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/transfer-to-public", wrapHandler(http.HandlerFunc(controller.Api.UserTransferToPublicHandler)).ServeHTTP)
+	http.HandleFunc("/api/user/continue-free", wrapHandler(http.HandlerFunc(controller.Api.UserContinueFreeHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/forgot-password", wrapHandler(http.HandlerFunc(controller.Api.RequestPasswordResetHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/reset-password", wrapHandler(http.HandlerFunc(controller.Api.ResetPasswordHandler)).ServeHTTP)
 	http.HandleFunc("/api/user/force-password-reset", wrapHandler(http.HandlerFunc(controller.Api.UserForcePasswordResetHandler)).ServeHTTP)

@@ -7,6 +7,9 @@
 - **User group features and free group setting in the editor**
   - Reopening a user group in **Admin → User Groups** now shows its saved **Feature access** and **This is a free group** settings. Before, every feature showed as on and the free group box as off, even though the saved settings were working, and saving the group again turned every feature back on and cleared the free group setting.
   - Config exports now include each group's features and free group setting, and importing a config restores them. Older exports without features leave a group's features unchanged.
+- **Expired access always offers a plan**
+  - A user whose PIN has expired now sees **Pick a plan** when they sign in, even when their group has no billing. Before, users in a group without billing were locked out with nothing to choose.
+  - **Continue free** moves them to the server's free sign-up plan (a sign-up group without billing) and they can listen again right away. **Choose a paid plan** opens the checkout as before.
 
 ---
 
