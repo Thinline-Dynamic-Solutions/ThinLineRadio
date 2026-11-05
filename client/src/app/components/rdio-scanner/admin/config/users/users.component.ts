@@ -23,7 +23,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { AbstractControl, FormBuilder, FormGroup, FormArray, ValidationErrors, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { PageEvent } from '@angular/material/paginator';
-import { RdioScannerAdminService, System, Apikey } from '../../admin.service';
+import { ListenerVisit, RdioScannerAdminService, System, Apikey } from '../../admin.service';
 import { InviteUserDialogComponent, InvitationResultsDialogComponent, CreateUserDialogComponent, ResetPasswordDialogComponent } from './invite-user-dialog.component';
 import { TransferUserDialogComponent } from './transfer-user-dialog.component';
 import { DelayModerationDialogComponent, DelayModerationDialogData } from './delay-moderation-dialog.component';
@@ -48,6 +48,11 @@ export interface User {
     lastLogin: string;
     /** Unix seconds; 0 = never logged in. Used for sorting. */
     lastLoginAt?: number;
+    lastSeenIp?: string;
+    lastSeenKind?: string;
+    lastSeenHow?: string;
+    lastSeenAuth?: string;
+    lastSeenAt?: number;
     firstName: string;
     lastName: string;
     zipCode: string;
@@ -109,6 +114,9 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
 
     // Expanded row for inline editing
     expandedUser: User | null = null;
+    presenceVisits: ListenerVisit[] = [];
+    presenceLoading = false;
+    presenceForUserId = 0;
 
     // Multi-select for bulk actions
     selectedUserIds = new Set<number>();
@@ -945,6 +953,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         this.expandedUser = user;
         this.editingUser = user;
         this.regeneratePinRequested = false;
+        void this.loadPresence(user);
         
         // Convert epoch seconds to datetime-local format (YYYY-MM-DDTHH:mm)
         let pinExpiresAtValue = '';
@@ -1182,6 +1191,71 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
         this.matSnackBar.open('A new PIN will be generated when you save this user.', 'Close', {
             duration: 3000
         });
+    }
+
+    async loadPresence(user: User): Promise<void> {
+        this.presenceForUserId = user.id;
+        this.presenceVisits = [];
+        this.presenceLoading = true;
+        try {
+            const visits = await this.adminService.getUserPresence(user.id);
+            if (this.presenceForUserId === user.id) {
+                this.presenceVisits = visits;
+            }
+        } catch {
+            if (this.presenceForUserId === user.id) {
+                this.presenceVisits = [];
+            }
+        } finally {
+            if (this.presenceForUserId === user.id) {
+                this.presenceLoading = false;
+                this.cdr.detectChanges();
+            }
+        }
+    }
+
+    kindLabel(kind?: string): string {
+        if (kind === 'mobile') return 'Mobile';
+        if (kind === 'web') return 'Web';
+        return kind || 'Unknown';
+    }
+
+    presenceHint(user: User): string {
+        const when = user.lastSeenAt ? this.formatUnix(user.lastSeenAt) : '';
+        const how = [user.lastSeenHow, user.lastSeenAuth].filter(Boolean).join(', ');
+        return [how, when].filter(Boolean).join(' · ');
+    }
+
+    visitHow(visit: ListenerVisit): string {
+        const how: Record<string, string> = {
+            page: 'Opened the page',
+            scanner: 'Connected',
+            'signed-in': 'Signed in',
+            login: 'Sign-in attempt',
+        };
+        const auth: Record<string, string> = {
+            password: 'password',
+            pin: 'PIN',
+            'expired-pin': 'expired PIN',
+            'bad-password': 'wrong password',
+            'unknown-email': 'unknown email',
+            suspended: 'suspended',
+            unverified: 'email not verified',
+            'not-group-admin': 'not a group admin',
+            'group-admin': 'group admin',
+            'connection-limit': 'connection limit',
+        };
+        const left = how[visit.how] || visit.how || 'Visit';
+        const right = auth[visit.authNote] || visit.authNote;
+        const hits = visit.hits > 1 ? `${visit.hits} loads` : '';
+        return [left, right, hits].filter(Boolean).join(' · ');
+    }
+
+    formatUnix(seconds: number): string {
+        if (!seconds) return '';
+        const date = new Date(seconds * 1000);
+        if (isNaN(date.getTime()) || date.getFullYear() < 1970) return '';
+        return date.toLocaleString();
     }
 
     formatDate(dateString: string): string {

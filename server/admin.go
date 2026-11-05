@@ -254,9 +254,18 @@ func (admin *Admin) ListenersHandler(w http.ResponseWriter, r *http.Request) {
 		if admin.Controller != nil && admin.Controller.Clients != nil {
 			snapshot = admin.Controller.Clients.SnapshotListeners()
 		}
+		recent := []listenerVisit{}
+		if admin.Controller != nil {
+			if rows := admin.Controller.recentAnonymousVisits(40); rows != nil {
+				recent = rows
+			}
+		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(snapshot); err != nil {
+		if err := json.NewEncoder(w).Encode(struct {
+			ListenersSnapshot
+			RecentAnonymous []listenerVisit `json:"recentAnonymous"`
+		}{snapshot, recent}); err != nil {
 			w.WriteHeader(http.StatusExpectationFailed)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "failed to marshal listeners snapshot",
@@ -6459,6 +6468,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get all users from memory
 	users := admin.Controller.Users.GetAllUsers()
+	presence := admin.Controller.listenerPresenceByUser()
 
 	// Convert users to JSON format
 	var userList []map[string]interface{}
@@ -6530,7 +6540,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		userList = append(userList, map[string]interface{}{
+		row := map[string]interface{}{
 			"id":                       user.Id,
 			"email":                    user.Email,
 			"firstName":                user.FirstName,
@@ -6567,11 +6577,51 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"subscriptionStatus":       user.SubscriptionStatus,
 			"accountExpiresAt":         user.AccountExpiresAt,
 			"fcmTokens":                fcmTokens,
-		})
+		}
+		if seen, ok := presence[user.Id]; ok {
+			row["lastSeenIp"] = seen.IP
+			row["lastSeenKind"] = seen.ClientKind
+			row["lastSeenHow"] = seen.How
+			row["lastSeenAuth"] = seen.AuthNote
+			row["lastSeenAt"] = seen.LastSeenAt
+		}
+		userList = append(userList, row)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(userList)
+}
+
+// UserPresenceHandler returns recent visits tagged to one account.
+func (admin *Admin) UserPresenceHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	t := admin.GetAuthorization(r)
+	if !admin.ValidateToken(t) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(pathParts) < 4 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	userID, err := strconv.ParseUint(pathParts[3], 10, 64)
+	if err != nil || userID == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid user ID"})
+		return
+	}
+	visits := []listenerVisit{}
+	if admin.Controller != nil {
+		if rows := admin.Controller.userListenerVisits(userID, 20); rows != nil {
+			visits = rows
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"visits": visits})
 }
 
 // UserTestPushHandler sends a test push notification to a user

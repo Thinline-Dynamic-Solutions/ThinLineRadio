@@ -1297,6 +1297,7 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		// Record failed attempt
 		api.Controller.LoginAttemptTracker.RecordFailedAttempt(clientIP)
+		api.Controller.noteListenerLogin(r, nil, "unknown-email", request.Email)
 		api.exitWithErrorContext(w, r, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
@@ -1305,11 +1306,13 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	if !user.VerifyPassword(request.Password) {
 		// Record failed attempt
 		api.Controller.LoginAttemptTracker.RecordFailedAttempt(clientIP)
+		api.Controller.noteListenerLogin(r, user, "bad-password", "")
 		api.exitWithErrorContext(w, r, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
 	if user.IsSuspended() {
+		api.Controller.noteListenerLogin(r, user, "suspended", "")
 		api.exitWithError(w, http.StatusForbidden, "Your account has been suspended. Contact support for assistance.")
 		return
 	}
@@ -1319,6 +1322,7 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if email verification is required
 	if api.Controller.Options.EmailVerificationRequired && !user.Verified {
+		api.Controller.noteListenerLogin(r, user, "unverified", "")
 		api.exitWithError(w, http.StatusForbidden, "Email verification required. Please check your email and verify your account before logging in.")
 		return
 	}
@@ -1331,6 +1335,7 @@ func (api *Api) UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	if err := api.Controller.Users.RecordLastLogin(user, api.Controller.Database); err != nil {
 		log.Printf("failed to record last login for user %s: %v", user.Email, err)
 	}
+	api.Controller.noteListenerLogin(r, user, "password", "")
 
 	// Check if user needs subscription
 	needsSubscription := false
@@ -5960,9 +5965,15 @@ func (api *Api) GroupAdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := api.Controller.Users.GetUserByEmail(request.Email)
-	if user == nil || !user.VerifyPassword(request.Password) {
-		// Record failed attempt
+	if user == nil {
 		api.Controller.LoginAttemptTracker.RecordFailedAttempt(clientIP)
+		api.Controller.noteListenerLogin(r, nil, "unknown-email", request.Email)
+		api.exitWithErrorContext(w, r, http.StatusUnauthorized, "Invalid credentials")
+		return
+	}
+	if !user.VerifyPassword(request.Password) {
+		api.Controller.LoginAttemptTracker.RecordFailedAttempt(clientIP)
+		api.Controller.noteListenerLogin(r, user, "bad-password", "")
 		api.exitWithErrorContext(w, r, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
@@ -5972,11 +5983,13 @@ func (api *Api) GroupAdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if email verification is required
 	if api.Controller.Options.EmailVerificationRequired && !user.Verified {
+		api.Controller.noteListenerLogin(r, user, "unverified", "")
 		api.exitWithError(w, http.StatusForbidden, "Email verification required. Please check your email and verify your account before logging in.")
 		return
 	}
 
 	if !user.IsGroupAdmin {
+		api.Controller.noteListenerLogin(r, user, "not-group-admin", "")
 		api.exitWithError(w, http.StatusForbidden, "User is not a group admin")
 		return
 	}
@@ -5990,6 +6003,7 @@ func (api *Api) GroupAdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	if err := api.Controller.Users.RecordLastLogin(user, api.Controller.Database); err != nil {
 		log.Printf("failed to record last login for group admin %s: %v", user.Email, err)
 	}
+	api.Controller.noteListenerLogin(r, user, "group-admin", "")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
