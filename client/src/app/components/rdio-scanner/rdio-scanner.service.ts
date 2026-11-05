@@ -1365,7 +1365,16 @@ export class RdioScannerService implements OnDestroy {
             }
 
                 this.sendtoWebsocket(WebsocketCommand.Version);
-                this.sendtoWebsocket(WebsocketCommand.Config);
+                // When anonymous free listening is enabled the server never sends a PIN
+                // challenge — it just answers CFG as free-tier. If we have a stored PIN
+                // (e.g. after login reload), authenticate so OWNERS / paid groups get
+                // their real features instead of staying stuck on free.
+                const storedPin = this.readPin();
+                if (storedPin && !this.pinExpired) {
+                    this.authenticate(storedPin);
+                } else {
+                    this.sendtoWebsocket(WebsocketCommand.Config);
+                }
             };
         } catch (error) {
             this.linked = false;
