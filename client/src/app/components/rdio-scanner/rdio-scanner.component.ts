@@ -344,15 +344,33 @@ export class RdioScannerComponent implements OnDestroy, OnInit {
     }
 
     onSignOut(): void {
-        // Clear authentication state
         this.userAuthenticated = false;
-        this.pinAuthRequired = true;
-        
+        this.showSubscribeAuth = false;
+
         // Disconnect WebSocket connection and clear PIN
         this.rdioScannerService.disconnect();
-        
+
         // Stop livefeed if running
         this.stop();
+
+        // Re-enter as anonymous free listener when a free group is configured;
+        // otherwise show the signup/login wall.
+        fetch(withListenLink('/api/ready'), { cache: 'no-store' })
+            .then((r) => r.ok ? r.json() : null)
+            .then((body: { freeListening?: boolean } | null) => {
+                if (body?.freeListening) {
+                    this.freeListening = true;
+                    this.pinAuthRequired = false;
+                    this.rdioScannerService.reconnectWebsocket();
+                } else {
+                    this.freeListening = false;
+                    this.pinAuthRequired = true;
+                }
+            })
+            .catch(() => {
+                this.freeListening = false;
+                this.pinAuthRequired = true;
+            });
     }
 
 }
