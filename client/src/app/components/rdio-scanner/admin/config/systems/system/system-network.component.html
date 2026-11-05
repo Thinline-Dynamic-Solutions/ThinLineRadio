@@ -193,10 +193,17 @@
           Nothing changes until you apply.
         </p>
 
+        <div class="update-fields">
+          <span>Fields to update:</span>
+          @for (field of updateFieldNames; track field) {
+            <mat-checkbox [checked]="updateFields.has(field)" (change)="toggleUpdateField(field, $event.checked)">{{ field | titlecase }}</mat-checkbox>
+          }
+        </div>
+
         <nav class="review-tabs">
-          <button type="button" [class.active]="reviewTab === 'fill'" (click)="reviewTab = 'fill'">Fill in ({{ review.fill.length }})</button>
-          <button type="button" [class.active]="reviewTab === 'differ'" (click)="reviewTab = 'differ'">Named differently ({{ review.differ.length }})</button>
-          <button type="button" [class.active]="reviewTab === 'missing'" (click)="reviewTab = 'missing'">Missing ({{ review.missing.length }})</button>
+          <button type="button" [class.active]="reviewTab === 'fill'" (click)="reviewTab = 'fill'">Fill in ({{ items('fill').length }})</button>
+          <button type="button" [class.active]="reviewTab === 'differ'" (click)="reviewTab = 'differ'">Named differently ({{ items('differ').length }})</button>
+          <button type="button" [class.active]="reviewTab === 'missing'" (click)="reviewTab = 'missing'">Missing ({{ items('missing').length }})</button>
           <button type="button" [class.active]="reviewTab === 'notInRR'" (click)="reviewTab = 'notInRR'">Not on Radio Reference ({{ review.notInRR.length }})</button>
         </nav>
 
@@ -211,7 +218,7 @@
         }
 
         @if (reviewTab !== 'notInRR') {
-          @let list = review[reviewTab];
+          @let list = items(reviewTab);
           @if (list.length) {
             <div class="review-table">
               <div class="review-row review-row--head">
@@ -232,8 +239,10 @@
                       @if (reviewTab !== 'missing' && changed(item, field)) {
                         <span class="from">{{ $any(item.current)[field] || '—' }}</span>
                         <span class="to">{{ $any(item.proposed)[field] }}</span>
-                      } @else if (reviewTab === 'missing') {
+                      } @else if (reviewTab === 'missing' && (updateFields.has(field) || field === 'label' || field === 'name')) {
                         <span class="to">{{ $any(item.proposed)[field] }}</span>
+                      } @else if (reviewTab === 'missing') {
+                        <span class="same">{{ field === 'group' ? 'Unknown' : 'Untagged' }}</span>
                       } @else {
                         <span class="same">{{ $any(item.current)[field] }}</span>
                       }

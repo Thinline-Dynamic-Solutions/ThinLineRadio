@@ -2249,6 +2249,7 @@ export class RdioScannerAdminService implements OnDestroy {
         fill: { systemId: number; ref: number }[];
         differ: { systemId: number; ref: number }[];
         missing: { systemId: number; ref: number }[];
+        fields?: string[];
     }): Promise<{ review: RRReview | null; applied: number; systems: any[] }> {
         return firstValueFrom(this.ngHttpClient.post<{ review: RRReview | null; applied: number; systems: any[] }>(
             this.getUrl('rr-updates/apply'), body, { headers: this.getHeaders(), responseType: 'json' },

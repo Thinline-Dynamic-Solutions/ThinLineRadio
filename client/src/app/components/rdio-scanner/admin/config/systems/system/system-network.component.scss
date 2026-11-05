@@ -156,6 +156,14 @@
     }
 }
 
+.update-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 16px;
+    margin: 8px 0;
+}
+
 .review-tabs {
     display: flex;
     flex-wrap: wrap;

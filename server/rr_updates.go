@@ -500,6 +500,24 @@ type rrApplyBody struct {
 	Fill     []rrApplyPick `json:"fill"`
 	Differ   []rrApplyPick `json:"differ"`
 	Missing  []rrApplyPick `json:"missing"` // systemId is where to add it
+	Fields   []string      `json:"fields"`  // label, name, group, tag; empty means all
+}
+
+// rrKeepFields drops the changes to fields the admin chose not to update.
+func rrKeepFields(changes, fields []string) []string {
+	if len(fields) == 0 {
+		return changes
+	}
+	var kept []string
+	for _, c := range changes {
+		for _, f := range fields {
+			if c == f {
+				kept = append(kept, c)
+				break
+			}
+		}
+	}
+	return kept
 }
 
 // rrFindGroupId and rrFindTagId match labels loosely, so "Law Dispatch " and
@@ -608,7 +626,11 @@ func (admin *Admin) applyRRReview(body rrApplyBody) (*rrReview, int, error) {
 			if !ok {
 				continue
 			}
-			if err := ctrl.applyRRFields(tg, item.Proposed, item.Changes, replaceGroups); err != nil {
+			changes := rrKeepFields(item.Changes, body.Fields)
+			if len(changes) == 0 {
+				continue
+			}
+			if err := ctrl.applyRRFields(tg, item.Proposed, changes, replaceGroups); err != nil {
 				return err
 			}
 			applied++
@@ -641,7 +663,16 @@ func (admin *Admin) applyRRReview(body rrApplyBody) (*rrReview, int, error) {
 			}
 		}
 		tg := &Talkgroup{TalkgroupRef: item.Ref, Order: maxOrder + 1, AlertsEnabled: system.AutoPopulateAlertsEnabled}
-		if err := ctrl.applyRRFields(tg, item.Proposed, item.Changes, true); err != nil {
+		// A new talkgroup always gets a label and name, and a group and tag even
+		// when those fields are off, the same as auto-populate gives it.
+		p := item.Proposed
+		if len(rrKeepFields([]string{"group"}, body.Fields)) == 0 {
+			p.Group = "Unknown"
+		}
+		if len(rrKeepFields([]string{"tag"}, body.Fields)) == 0 {
+			p.Tag = "Untagged"
+		}
+		if err := ctrl.applyRRFields(tg, p, []string{"label", "name", "group", "tag"}, true); err != nil {
 			return fail(err)
 		}
 		system.Talkgroups.List = append(system.Talkgroups.List, tg)

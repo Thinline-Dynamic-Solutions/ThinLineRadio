@@ -1,5 +1,17 @@
 # Change log
 
+## Version 26.11.04 - Released November 5, 2026
+
+### Added
+
+- **Choose which fields Radio Reference updates change**
+  - Radio Reference updates on a system's **Network** tab have a **Fields to update** row with Label, Name, Group and Tag. Untick a field and applying leaves it as it is, so a server that uses tags for counties can update only the labels.
+  - **Fill in** and **Named differently** only list talkgroups that differ in a ticked field.
+  - Talkgroups added from **Missing** always get Radio Reference's label and name. With Group or Tag unticked, they get Unknown or Untagged, the same as auto-populate.
+  - The choice is remembered in the browser. All four fields are ticked by default.
+
+---
+
 ## Version 26.11.03 - Released November 5, 2026
 
 ### Fixed

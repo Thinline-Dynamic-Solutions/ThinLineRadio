@@ -76,3 +76,16 @@ func TestBuildRRReview(t *testing.T) {
 		t.Errorf("fill should keep Radio Reference's tag: %+v", review.Fill)
 	}
 }
+
+func TestRRKeepFields(t *testing.T) {
+	all := []string{"label", "name", "group", "tag"}
+	if got := rrKeepFields(all, nil); len(got) != 4 {
+		t.Fatalf("no fields chosen must keep every change, got %v", got)
+	}
+	if got := rrKeepFields(all, []string{"label"}); len(got) != 1 || got[0] != "label" {
+		t.Fatalf("label only, got %v", got)
+	}
+	if got := rrKeepFields([]string{"tag"}, []string{"label", "name"}); len(got) != 0 {
+		t.Fatalf("a tag-only change must be dropped when tags are off, got %v", got)
+	}
+}

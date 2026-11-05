@@ -74,6 +74,8 @@ export class RdioScannerAdminSystemNetworkComponent implements OnChanges, OnDest
     reviewTab: ReviewList | 'notInRR' = 'fill';
     selected: Record<ReviewList, Set<string>> = { fill: new Set(), differ: new Set(), missing: new Set() };
     missingTargets: Record<number, number> = {};
+    readonly updateFieldNames = ['label', 'name', 'group', 'tag'];
+    updateFields = new Set<string>(this.loadUpdateFields());
 
     private pollTimer: ReturnType<typeof setTimeout> | null = null;
     private loadedFor = 0;
@@ -398,20 +400,48 @@ export class RdioScannerAdminSystemNetworkComponent implements OnChanges, OnDest
     }
 
     allSelected(list: ReviewList): boolean {
-        const items = this.review?.[list] || [];
+        const items = this.items(list);
         return items.length > 0 && items.every((i) => this.selected[list].has(this.key(i)));
     }
 
     toggleAll(list: ReviewList, on: boolean): void {
-        this.selected[list] = new Set(on ? (this.review?.[list] || []).map((i) => this.key(i)) : []);
+        this.selected[list] = new Set(on ? this.items(list).map((i) => this.key(i)) : []);
     }
 
     get selectedCount(): number {
-        return this.selected.fill.size + this.selected.differ.size + this.selected.missing.size;
+        return (['fill', 'differ', 'missing'] as ReviewList[])
+            .reduce((n, list) => n + this.items(list).filter((i) => this.selected[list].has(this.key(i))).length, 0);
     }
 
     changed(item: RRReviewItem, field: string): boolean {
-        return item.changes.includes(field);
+        return item.changes.includes(field) && this.updateFields.has(field);
+    }
+
+    /** Review rows that still change something in the fields being updated. */
+    items(list: ReviewList): RRReviewItem[] {
+        const all = this.review?.[list] || [];
+        return list === 'missing' ? all : all.filter((i) => i.changes.some((c) => this.updateFields.has(c)));
+    }
+
+    toggleUpdateField(field: string, on: boolean): void {
+        if (on) {
+            this.updateFields.add(field);
+        } else if (this.updateFields.size > 1) {
+            this.updateFields.delete(field);
+        }
+        this.updateFields = new Set(this.updateFields);
+        localStorage.setItem('tlr-rr-update-fields', JSON.stringify([...this.updateFields]));
+        this.cdr.markForCheck();
+    }
+
+    private loadUpdateFields(): string[] {
+        try {
+            const saved = JSON.parse(localStorage.getItem('tlr-rr-update-fields') || '[]');
+            const valid = Array.isArray(saved) ? saved.filter((f) => this.updateFieldNames.includes(f)) : [];
+            return valid.length ? valid : this.updateFieldNames;
+        } catch {
+            return this.updateFieldNames;
+        }
     }
 
     get groupMapEntries(): { category: string; group: string }[] {
@@ -424,7 +454,7 @@ export class RdioScannerAdminSystemNetworkComponent implements OnChanges, OnDest
         if (!this.review || !this.selectedCount) {
             return;
         }
-        const picks = (list: ReviewList) => (this.review![list] || [])
+        const picks = (list: ReviewList) => this.items(list)
             .filter((i) => this.selected[list].has(this.key(i)))
             .map((i) => ({ systemId: list === 'missing' ? (this.missingTargets[i.ref] || i.systemId) : i.systemId, ref: i.ref }));
         this.applying = true;
@@ -435,6 +465,7 @@ export class RdioScannerAdminSystemNetworkComponent implements OnChanges, OnDest
                 fill: picks('fill'),
                 differ: picks('differ'),
                 missing: picks('missing'),
+                fields: [...this.updateFields],
             });
             this.setReview(res.review);
             this.snackBar.open(`Updated ${res.applied} talkgroup${res.applied === 1 ? '' : 's'} from Radio Reference`, 'Close', { duration: 4000 });
