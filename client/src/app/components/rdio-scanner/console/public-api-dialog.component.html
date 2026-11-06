@@ -9,7 +9,8 @@
       <div class="row">
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>Key name</mat-label>
-          <input matInput [(ngModel)]="newKeyName" placeholder="Uptime Kuma" />
+          <input matInput [(ngModel)]="newKeyName" autocomplete="off" />
+          <mat-hint>e.g. Uptime Kuma</mat-hint>
         </mat-form-field>
         <button mat-button class="tlr-dialog-btn tlr-dialog-btn--primary" type="button" (click)="createKey()">Create key</button>
       </div>
@@ -75,7 +76,8 @@ X-API-Key: tlr_…your_key…</pre>
           } @else if (webhookType !== 'pagerduty') {
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="grow">
               <mat-label>Webhook URL (https)</mat-label>
-              <input matInput [(ngModel)]="webhookUrl" placeholder="https://…" />
+              <input matInput [(ngModel)]="webhookUrl" autocomplete="off" />
+              <mat-hint>https://…</mat-hint>
             </mat-form-field>
           }
           <mat-form-field appearance="outline" subscriptSizing="dynamic">

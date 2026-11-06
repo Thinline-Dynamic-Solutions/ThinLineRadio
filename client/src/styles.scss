@@ -1137,55 +1137,51 @@ $admin-dark-theme: mat.m2-define-dark-theme((
     }
   }
 
+  /*
+   * Outline fields: use Material tokens only — do NOT force notch border-color
+   * or placeholder opacity. Those overrides break MDC float-above / notch open
+   * and make resting labels collide with always-visible placeholders.
+   */
   .mat-mdc-form-field {
+    --mat-form-field-outlined-outline-color: rgba(255, 255, 255, 0.18);
+    --mat-form-field-outlined-hover-outline-color: rgba(var(--tlr-accent-rgb), 0.45);
+    --mat-form-field-outlined-focus-outline-color: var(--tlr-accent);
+    --mat-form-field-outlined-label-text-color: var(--tlr-text-secondary);
+    --mat-form-field-outlined-hover-label-text-color: var(--tlr-text-soft);
+    --mat-form-field-outlined-focus-label-text-color: var(--tlr-accent);
+    --mat-form-field-outlined-input-text-color: var(--tlr-text);
+    --mat-form-field-outlined-input-text-placeholder-color: var(--tlr-text-secondary);
+    --mat-form-field-outlined-caret-color: var(--tlr-accent);
     --mdc-outlined-text-field-outline-color: rgba(255, 255, 255, 0.18);
     --mdc-outlined-text-field-hover-outline-color: rgba(var(--tlr-accent-rgb), 0.45);
     --mdc-outlined-text-field-focus-outline-color: var(--tlr-accent);
     --mdc-outlined-text-field-label-text-color: var(--tlr-text-secondary);
+    --mdc-outlined-text-field-hover-label-text-color: var(--tlr-text-soft);
+    --mdc-outlined-text-field-focus-label-text-color: var(--tlr-accent);
     --mdc-outlined-text-field-input-text-color: var(--tlr-text);
+    --mdc-outlined-text-field-input-text-placeholder-color: var(--tlr-text-secondary);
     --mdc-outlined-text-field-caret-color: var(--tlr-accent);
+    --mat-select-enabled-trigger-text-color: var(--tlr-text);
+    --mat-select-placeholder-text-color: var(--tlr-text-secondary);
+    --mat-select-enabled-arrow-color: var(--tlr-text-secondary);
+    --mat-select-focused-arrow-color: var(--tlr-accent);
 
-    .mdc-floating-label,
-    .mat-mdc-floating-label,
+    .mat-mdc-text-field-wrapper {
+      background: rgba(0, 0, 0, 0.28);
+    }
+
+    .mdc-notched-outline__notch {
+      border-left: none !important;
+    }
+
     .mat-mdc-select-value,
     .mat-mdc-select-arrow {
-      color: var(--tlr-text-secondary) !important;
+      color: var(--tlr-text);
     }
 
-    .mdc-text-field__input,
-    input,
-    textarea {
-      color: var(--tlr-text) !important;
-      caret-color: var(--tlr-accent);
-    }
-
-    input::placeholder,
-    textarea::placeholder {
-      color: var(--tlr-text-secondary) !important;
-      opacity: 1;
-    }
-
-    .mdc-notched-outline__leading,
-    .mdc-notched-outline__notch,
-    .mdc-notched-outline__trailing {
-      border-color: rgba(255, 255, 255, 0.18) !important;
-    }
-
-    &:hover .mdc-notched-outline__leading,
-    &:hover .mdc-notched-outline__notch,
-    &:hover .mdc-notched-outline__trailing {
-      border-color: rgba(var(--tlr-accent-rgb), 0.45) !important;
-    }
-
-    &.mat-focused .mdc-notched-outline__leading,
-    &.mat-focused .mdc-notched-outline__notch,
-    &.mat-focused .mdc-notched-outline__trailing {
-      border-color: var(--tlr-accent) !important;
-    }
-
-    &.mat-focused .mdc-floating-label,
-    &.mat-focused .mat-mdc-floating-label {
-      color: var(--tlr-accent) !important;
+    .mat-mdc-form-field-hint,
+    .mat-mdc-form-field-subscript-wrapper {
+      color: var(--tlr-text-secondary);
     }
   }
 
