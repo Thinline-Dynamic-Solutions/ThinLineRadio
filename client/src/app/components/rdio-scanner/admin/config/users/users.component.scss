@@ -579,6 +579,12 @@
         padding: 0 !important;
     }
 
+    .presence-hint {
+        display: block;
+        margin-top: 2px;
+        font-size: 11px;
+    }
+
     .expanded-row-content {
         border-top: 1px solid #333;
         background: #1a1a1a;
@@ -632,6 +638,16 @@
                 display: flex;
                 align-items: center;
                 gap: 8px;
+            }
+
+            .presence-detail {
+                font-size: 11px;
+                color: #999;
+                line-height: 1.45;
+
+                .ua {
+                    word-break: break-all;
+                }
             }
 
             .token-code {

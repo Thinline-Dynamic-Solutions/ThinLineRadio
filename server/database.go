@@ -433,6 +433,7 @@ func (db *Database) migrate() error {
 		{"migrateRadioReferenceUpdates", migrateRadioReferenceUpdates},
 		{"migratePublicApi", migratePublicApi},
 		{"migratePublicApiUsageAtIndex", migratePublicApiUsageAtIndex},
+		{"migrateListenerVisits", migrateListenerVisits},
 		{"migrateSdrtrunkAlertMute", migrateSdrtrunkAlertMute},
 	}
 	for _, step := range lateSteps {

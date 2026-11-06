@@ -20,7 +20,7 @@
   <div class="listeners-header">
     <div class="listeners-title-block">
       <h2>Live Listeners</h2>
-      <p class="listeners-hint">Who is connected right now. Multi-device sessions are grouped under one user.</p>
+      <p class="listeners-hint">Who is connected right now. Signed-in history stays on the user. People who never sign in stay in the anonymous list below.</p>
     </div>
     <button type="button" mat-stroked-button color="primary" (click)="refresh(true)" [disabled]="loading">
       <mat-icon>refresh</mat-icon>
@@ -115,4 +115,52 @@
       }
     </div>
   }
+
+  <section class="anonymous-history">
+    <h3>Anonymous visits</h3>
+    <p class="listeners-hint">Page loads and connections that were never tied to an account. A later sign-in from the same browser moves that visit onto the user.</p>
+    @if (!snapshot?.recentAnonymous?.length) {
+      <p class="listeners-hint">No anonymous visits recorded yet.</p>
+    } @else {
+      <div class="listeners-list">
+        @for (visit of snapshot!.recentAnonymous; track visit.id) {
+          <div class="listener-row anonymous">
+            <div class="device-list">
+              <div class="device-row">
+                <span class="device-kind">
+                  <mat-icon>{{ visit.clientKind === 'mobile' ? 'smartphone' : 'computer' }}</mat-icon>
+                  {{ kindLabel(visit.clientKind) }}
+                </span>
+                <span class="device-ip">{{ visit.ip || '—' }}</span>
+                <span class="device-feed">{{ visitSummary(visit) }}</span>
+                <span class="device-age">{{ formatUnix(visit.lastSeenAt) }}</span>
+              </div>
+              @if (visit.userAgent || visit.origin || visit.referer || visit.listenLink || visit.detail) {
+                <div class="anon-detail">
+                  @if (visit.listenLink) {
+                    <div>Share link: {{ visit.listenLink }}</div>
+                  }
+                  @if (visit.detail) {
+                    <div>Tried: {{ visit.detail }}</div>
+                  }
+                  @if (visit.origin) {
+                    <div>Origin: {{ visit.origin }}</div>
+                  }
+                  @if (visit.referer) {
+                    <div>Referrer: {{ visit.referer }}</div>
+                  }
+                  @if (visit.acceptLanguage) {
+                    <div>Language: {{ visit.acceptLanguage }}</div>
+                  }
+                  @if (visit.userAgent) {
+                    <div class="ua">{{ visit.userAgent }}</div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </section>
 </div>

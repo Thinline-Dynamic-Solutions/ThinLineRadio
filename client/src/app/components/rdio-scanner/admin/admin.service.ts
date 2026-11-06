@@ -205,6 +205,11 @@ export interface User {
     pinExpiresAt?: string;
     lastLogin?: string;
     lastLoginAt?: number;
+    lastSeenIp?: string;
+    lastSeenKind?: string;
+    lastSeenHow?: string;
+    lastSeenAuth?: string;
+    lastSeenAt?: number;
     createdAt?: string;
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
@@ -905,11 +910,32 @@ export interface ListenerUserSnapshot {
     devices: ListenerDeviceSnapshot[];
 }
 
+export interface ListenerVisit {
+    id: number;
+    userId?: number;
+    ip: string;
+    userAgent: string;
+    origin: string;
+    referer: string;
+    acceptLanguage: string;
+    clientKind: string;
+    listenLink: string;
+    how: string;
+    authNote: string;
+    detail: string;
+    hits: number;
+    badPins: number;
+    openedAt: number;
+    lastSeenAt: number;
+    closedAt: number;
+}
+
 export interface ListenersSnapshot {
     totalConnections: number;
     uniqueUsers: number;
     anonymousConnections: number;
     listeners: ListenerUserSnapshot[];
+    recentAnonymous?: ListenerVisit[];
 }
 
 enum url {
@@ -1320,6 +1346,19 @@ export class RdioScannerAdminService implements OnDestroy {
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
             return res;
+        } catch (error) {
+            this.errorHandler(error);
+            throw error;
+        }
+    }
+
+    async getUserPresence(userId: number): Promise<ListenerVisit[]> {
+        try {
+            const res = await firstValueFrom(this.ngHttpClient.get<{ visits: ListenerVisit[] }>(
+                this.getUrl(`/users/${userId}/presence`),
+                { headers: this.getHeaders(), responseType: 'json' },
+            ));
+            return res?.visits || [];
         } catch (error) {
             this.errorHandler(error);
             throw error;
