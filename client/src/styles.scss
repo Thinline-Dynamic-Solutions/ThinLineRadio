@@ -449,6 +449,45 @@ $admin-dark-theme: mat.m2-define-dark-theme((
 }
 
 
+/* ── ThinLine LCD mat-select panel ───────────────────────────────────────────
+ * Used by `<mat-select panelClass="tlr-lcd-select-panel">` inside LCD dialogs.
+ * Overlay renders at <body>, so this lives globally on --tlr-* tokens. */
+.tlr-lcd-select-panel.mat-mdc-select-panel,
+.mat-mdc-select-panel.tlr-lcd-select-panel {
+  background: var(--tlr-panel-2) !important;
+  border: 1px solid var(--tlr-bezel-border) !important;
+  border-radius: var(--tlr-radius-sm, 10px) !important;
+  box-shadow: var(--tlr-bezel-shadow) !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--tlr-accent-rgb), 0.35) transparent;
+
+  .mat-mdc-option {
+    color: var(--tlr-text) !important;
+
+    .mdc-list-item__primary-text {
+      color: var(--tlr-text) !important;
+    }
+
+    .mdc-list-item__ripple::before,
+    .mat-mdc-option-ripple::before {
+      background-color: rgba(var(--tlr-accent-rgb), 0.16) !important;
+    }
+
+    &:hover:not(.mdc-list-item--disabled) {
+      background-color: rgba(var(--tlr-accent-rgb), 0.10) !important;
+    }
+
+    &.mdc-list-item--selected,
+    &.mat-mdc-option-active {
+      background-color: rgba(var(--tlr-accent-rgb), 0.16) !important;
+
+      .mdc-list-item__primary-text {
+        color: var(--tlr-accent) !important;
+      }
+    }
+  }
+}
+
 /* ── ThinLine LCD menu panel ─────────────────────────────────────────────────
  * Used by `<mat-menu class="tlr-lcd-menu">` (and any future overlay that
  * wants the LCD look). CDK renders overlay panels at <body> level, outside
@@ -1077,6 +1116,85 @@ $admin-dark-theme: mat.m2-define-dark-theme((
   .mat-mdc-checkbox-checked .mdc-checkbox__background,
   .mdc-checkbox--selected .mdc-checkbox__background {
     border-color: var(--tlr-primary) !important;
+  }
+}
+
+/* Public API dialog — outline fields, inline actions, scrollbar on dark LCD */
+.tlr-lcd-dialog rdio-scanner-public-api-dialog {
+  .mat-mdc-dialog-content,
+  .mdc-dialog__content {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--tlr-accent-rgb), 0.35) transparent;
+
+    &::-webkit-scrollbar { width: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(var(--tlr-accent-rgb), 0.35);
+      border-radius: 3px;
+    }
+    &::-webkit-scrollbar-thumb:hover {
+      background: rgba(var(--tlr-accent-rgb), 0.55);
+    }
+  }
+
+  /*
+   * Outline fields: use Material tokens only — do NOT force notch border-color
+   * or placeholder opacity. Those overrides break MDC float-above / notch open
+   * and make resting labels collide with always-visible placeholders.
+   */
+  .mat-mdc-form-field {
+    --mat-form-field-outlined-outline-color: rgba(255, 255, 255, 0.18);
+    --mat-form-field-outlined-hover-outline-color: rgba(var(--tlr-accent-rgb), 0.45);
+    --mat-form-field-outlined-focus-outline-color: var(--tlr-accent);
+    --mat-form-field-outlined-label-text-color: var(--tlr-text-secondary);
+    --mat-form-field-outlined-hover-label-text-color: var(--tlr-text-soft);
+    --mat-form-field-outlined-focus-label-text-color: var(--tlr-accent);
+    --mat-form-field-outlined-input-text-color: var(--tlr-text);
+    --mat-form-field-outlined-input-text-placeholder-color: var(--tlr-text-secondary);
+    --mat-form-field-outlined-caret-color: var(--tlr-accent);
+    --mdc-outlined-text-field-outline-color: rgba(255, 255, 255, 0.18);
+    --mdc-outlined-text-field-hover-outline-color: rgba(var(--tlr-accent-rgb), 0.45);
+    --mdc-outlined-text-field-focus-outline-color: var(--tlr-accent);
+    --mdc-outlined-text-field-label-text-color: var(--tlr-text-secondary);
+    --mdc-outlined-text-field-hover-label-text-color: var(--tlr-text-soft);
+    --mdc-outlined-text-field-focus-label-text-color: var(--tlr-accent);
+    --mdc-outlined-text-field-input-text-color: var(--tlr-text);
+    --mdc-outlined-text-field-input-text-placeholder-color: var(--tlr-text-secondary);
+    --mdc-outlined-text-field-caret-color: var(--tlr-accent);
+    --mat-select-enabled-trigger-text-color: var(--tlr-text);
+    --mat-select-placeholder-text-color: var(--tlr-text-secondary);
+    --mat-select-enabled-arrow-color: var(--tlr-text-secondary);
+    --mat-select-focused-arrow-color: var(--tlr-accent);
+
+    .mat-mdc-text-field-wrapper {
+      background: rgba(0, 0, 0, 0.28);
+    }
+
+    .mdc-notched-outline__notch {
+      border-left: none !important;
+    }
+
+    .mat-mdc-select-value,
+    .mat-mdc-select-arrow {
+      color: var(--tlr-text);
+    }
+
+    .mat-mdc-form-field-hint,
+    .mat-mdc-form-field-subscript-wrapper {
+      color: var(--tlr-text-secondary);
+    }
+  }
+
+  .mat-mdc-button:not(.tlr-dialog-btn) {
+    color: var(--tlr-text-soft) !important;
+
+    &:hover {
+      color: var(--tlr-accent) !important;
+    }
+  }
+
+  .mat-mdc-button.mat-warn {
+    color: var(--tlr-error) !important;
   }
 }
 
