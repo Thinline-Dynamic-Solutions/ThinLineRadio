@@ -11,7 +11,7 @@
           <mat-label>Key name</mat-label>
           <input matInput [(ngModel)]="newKeyName" placeholder="Uptime Kuma" />
         </mat-form-field>
-        <button mat-raised-button color="primary" type="button" (click)="createKey()">Create key</button>
+        <button mat-button class="tlr-dialog-btn tlr-dialog-btn--primary" type="button" (click)="createKey()">Create key</button>
       </div>
       @if (createdKeyPlain) {
         <div class="secret-box">
@@ -56,7 +56,7 @@ X-API-Key: tlr_…your_key…</pre>
         <div class="row wrap">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Type</mat-label>
-            <mat-select [(ngModel)]="webhookType">
+            <mat-select [(ngModel)]="webhookType" panelClass="tlr-lcd-select-panel">
               <mat-option value="slack">Slack</mat-option>
               <mat-option value="discord">Discord</mat-option>
               <mat-option value="email">Email</mat-option>
@@ -82,7 +82,7 @@ X-API-Key: tlr_…your_key…</pre>
             <mat-label>Secret / routing key</mat-label>
             <input matInput [(ngModel)]="webhookSecret" />
           </mat-form-field>
-          <button mat-raised-button color="primary" type="button" (click)="createWebhook()">Add</button>
+          <button mat-button class="tlr-dialog-btn tlr-dialog-btn--primary" type="button" (click)="createWebhook()">Add</button>
         </div>
         @for (wh of webhooks; track wh.id) {
           <div class="key-row">
@@ -98,5 +98,5 @@ X-API-Key: tlr_…your_key…</pre>
   }
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-  <button mat-button type="button" (click)="close()">Close</button>
+  <button mat-button class="tlr-dialog-btn tlr-dialog-btn--ghost" type="button" (click)="close()">Close</button>
 </mat-dialog-actions>
