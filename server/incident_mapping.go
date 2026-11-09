@@ -539,23 +539,45 @@ func (q *IncidentMappingQueue) collectCallNatureData() CallNatureMatchData {
 	}
 }
 
+func (q *IncidentMappingQueue) markMappingOutcome(callId uint64, status, reason string) {
+	if q == nil || q.controller == nil || callId == 0 {
+		return
+	}
+	store := NewMappingStore(q.controller.Database)
+	if err := store.MarkCallIncidentOutcome(callId, status, reason); err != nil {
+		q.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("incident mapping mark call %d: %v", callId, err))
+		return
+	}
+	q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+		"incident mapping call %d status=%s reason=%s", callId, status, reason))
+}
+
 func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	if q == nil || q.controller == nil || call == nil {
 		return
 	}
 	if strings.TrimSpace(transcript) == "" {
+		if call.Id > 0 {
+			q.markMappingOutcome(call.Id, "skipped", "empty_transcript")
+		}
 		return
 	}
 	if call.System == nil || call.Talkgroup == nil {
+		if call.Id > 0 {
+			q.markMappingOutcome(call.Id, "skipped", "no_system_talkgroup")
+		}
 		return
 	}
 	q.controller.Options.mutex.Lock()
 	mappingEnabled := q.controller.Options.MappingIntegration.IncidentMappingEnabled
 	q.controller.Options.mutex.Unlock()
 	if !mappingEnabled {
+		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+			"incident mapping call %d skipped: master_disabled", call.Id))
 		return
 	}
 	if !q.controller.isVoiceForToneAlerts(transcript) {
+		q.markMappingOutcome(call.Id, "skipped", "not_voice")
 		return
 	}
 
@@ -591,6 +613,7 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 
 	cfg, toneSetGeo, skipTalkgroupGeo := resolveIncidentMappingForCall(call.System, call.Talkgroup, call.ToneSequence)
 	if !cfg.Enabled {
+		q.markMappingOutcome(call.Id, "skipped", "system_tg_disabled")
 		return
 	}
 
@@ -714,11 +737,17 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	}
 
 	if out.Primary == nil {
+		reason := out.Reason
+		if reason == "" {
+			reason = "no_extract"
+		}
+		q.markMappingOutcome(call.Id, "skipped", reason)
 		return
 	}
 
 	source := out.Source
 	status := out.Status
+	reason := strings.TrimSpace(out.Reason)
 
 	// Full dispatch text for gateway street-scan / transcript geocode.
 	geo.DispatchTranscript = strings.TrimSpace(out.Cleaned)
@@ -739,6 +768,9 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 		out.Primary.Address = geminiAddr
 		if status == "skipped" || status == "failed" {
 			status = "failed"
+			if reason == "" || reason == "no_location_signal" || reason == "no_address_extracted" {
+				reason = "no_address_extracted"
+			}
 		}
 	}
 
@@ -750,6 +782,11 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 		out.Primary.Lon = ""
 		source = ""
 	}
+
+	// Tone match still pending after the wait window: classify only, skip
+	// gateway/cache pins so tight fallback bounds cannot fail the call. Remap
+	// after tones re-runs ProcessCall with the matched set's geo.
+	awaitingTone := incidentMappingNeedsToneMatch(q.controller, call)
 
 	// Gateway owns geocoding: ONE POST /transcript with the full dispatch.
 	// "skipped" is reserved for no-location pre-screen; empty extract uses
@@ -778,19 +815,44 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	geocodeAnchor := mapping.TranscriptHasGeocodeAnchor(gatewayText, scope) ||
 		strings.TrimSpace(out.Primary.Address) != ""
 	allowGateway := status != "skipped" || locationLikely
-	if skipUnknownGeocode {
+	viewboxReady := geo.BoundsLat != 0 && geo.BoundsRadiusMi > 0
+
+	if awaitingTone {
+		out.Primary.Lat = ""
+		out.Primary.Lon = ""
+		source = ""
+		status = "skipped"
+		reason = "awaiting_tone_match"
+		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+			"incident mapping call %d deferred geocode: awaiting_tone_match", call.Id))
+	} else if skipUnknownGeocode {
 		mapping.SuppressUnclassifiedPinOnAlert(out.Primary, &status)
+		reason = "unknown_nature_suppressed"
 		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
 			"incident mapping call %d skipped geocode: unknown nature %q",
 			call.Id, strings.TrimSpace(out.Primary.NatureDesc)))
-	} else if out.Primary.Lat == "" && allowGateway && gatewayConfigured && gatewayText != "" && locationLikely && geocodeAnchor {
-		// Phonetic unit/crime-code traffic ("OVER 2 KING KING ROBBER") must not
-		// hit Nominatim — it invents real streets (King George Avenue).
-		if mapping.TranscriptIsPhoneticUnitCrimeCode(gatewayText) {
+	} else if out.Primary.Lat == "" && allowGateway && gatewayText != "" && locationLikely {
+		switch {
+		case !geocodeAnchor:
+			if reason == "" {
+				reason = "no_geocode_anchor"
+			}
+		case !gatewayConfigured:
+			if reason == "" {
+				reason = "no_gateway"
+			}
+		case !viewboxReady:
+			if reason == "" {
+				reason = "viewbox_required"
+			}
+			store.logGeocodeExternal(call.System.Id, "relay_nominatim_transcript",
+				gatewayText, 0, 0, "", false, "viewbox_required")
+		case mapping.TranscriptIsPhoneticUnitCrimeCode(gatewayText):
+			reason = "phonetic_crime_code"
 			q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
 				"incident mapping call %d skipped geocode: phonetic unit/crime-code transcript",
 				call.Id))
-		} else {
+		default:
 			hit := mapping.GeocodeRelayNominatimFromTranscript(
 				geo.NominatimDirectURL, geo.NominatimAPIKey, gatewayText, geo)
 			store.logGeocodeExternal(call.System.Id, "relay_nominatim_transcript",
@@ -800,6 +862,7 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 				if hitAddr != "" && (mapping.AddressIsPhoneticUnitCrimeMisextract(hitAddr, gatewayText) ||
 					mapping.AddressStreetIsPhoneticAlphabetOnly(hitAddr) ||
 					!mapping.AddressAlignsWithTranscript(hitAddr, gatewayText, scope)) {
+					reason = "gateway_hit_rejected"
 					q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
 						"incident mapping call %d rejected gateway hit %q (transcript misalign/phonetic crime)",
 						call.Id, hitAddr))
@@ -807,19 +870,34 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 					mapping.ApplyTranscriptGeocodeHit(out.Primary, hit)
 					source = "relay_nominatim"
 					status = "geocoded"
+					reason = ""
 					out.Query = hit.Query
 					geocodedStreetNamed = strings.TrimSpace(hit.StreetName) != ""
 					stageStart = logSlowStage("transcript→gateway geocode")
 				}
+			} else if d := strings.TrimSpace(hit.Detail); d != "" {
+				reason = d
+			} else if reason == "" {
+				reason = "no_geocode_hit"
 			}
+		}
+	} else if out.Primary.Lat == "" && reason == "" {
+		switch {
+		case !locationLikely && status == "skipped":
+			reason = "no_location_signal"
+		case !allowGateway:
+			reason = "no_location_signal"
+		case gatewayText == "":
+			reason = "no_address_or_nature"
 		}
 	}
 
 	if strings.TrimSpace(out.Primary.NatureDesc) == "" && strings.TrimSpace(out.Primary.Address) == "" {
-		if err := store.ClearCallIncident(call.Id); err != nil {
+		if err := store.ClearCallIncident(call.Id, "no_address_or_nature"); err != nil {
 			q.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("incident mapping clear call %d: %v", call.Id, err))
 		} else {
-			q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("incident mapping call %d skipped: no address or nature", call.Id))
+			q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
+				"incident mapping call %d skipped: no address or nature reason=no_address_or_nature", call.Id))
 			q.broadcastIncidentUpdate(call, nil, "skipped")
 		}
 		return
@@ -827,7 +905,7 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 
 	// Local geocode cache only — never open a second external geocode path
 	// when the gateway is configured (or at all for multi-query /search).
-	if !skipUnknownGeocode && out.Primary.Lat == "" && strings.TrimSpace(out.Primary.Address) != "" {
+	if !awaitingTone && !skipUnknownGeocode && out.Primary.Lat == "" && strings.TrimSpace(out.Primary.Address) != "" {
 		qNorm := mapping.GeocodeQueryAddress(out.Primary)
 		if qNorm == "" {
 			qNorm = out.Primary.Address
@@ -837,6 +915,7 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 			out.Primary.Lon = fmt.Sprintf("%.6f", lon)
 			source = "cache"
 			status = "local"
+			reason = ""
 		}
 	}
 
@@ -851,6 +930,7 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 			if status == "geocoded" || status == "local" {
 				status = "failed"
 			}
+			reason = "outside_coverage"
 		}
 	}
 
@@ -862,7 +942,13 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 		geocodedStreetNamed = mapping.FinalizeIncidentCardAddress(out.Primary, transcript, scope, geo, geocodedStreetNamed)
 	}
 	if mapInteg.SuppressUnknownNaturePins {
+		before := status
 		mapping.SuppressUnclassifiedPinOnAlert(out.Primary, &status)
+		if before != status || (out.Primary.Lat == "" && natureBlankOrUnknown) {
+			if reason == "" {
+				reason = "unknown_nature_suppressed"
+			}
+		}
 	}
 	if mapping.TranscriptIsAdministrativeLocationReference(transcript) &&
 		mapping.IsDefaultUnknownNatureLabel(out.Primary.NatureDesc) {
@@ -871,8 +957,18 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	if out.Primary.Lat == "" && out.Primary.Lon == "" && strings.TrimSpace(out.Primary.Address) != "" &&
 		(status == "geocoded" || status == "local" || status == "approximate") {
 		status = "failed"
+		if reason == "" {
+			reason = "geocode_no_result"
+		}
 	}
 	mapping.ClearIncidentLocationUnlessGeocoded(out.Primary, &status)
+	if out.Primary.Lat == "" && out.Primary.Lon == "" && status != "skipped" && status != "coverage" &&
+		status != "geocoded" && status != "local" && status != "approximate" && status != "manual" {
+		if reason == "" && strings.TrimSpace(out.Primary.Address) != "" {
+			reason = "geocode_no_result"
+			status = "failed"
+		}
+	}
 
 	if mapInteg.AutoLearnKnownPlaces && out.Primary.Lat != "" && strings.TrimSpace(out.Primary.Address) != "" &&
 		mapping.AddressQualifiesForAutoLearn(out.Primary.Address, transcript) {
@@ -894,17 +990,17 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 		}
 	}
 
-	if err := store.SaveCallIncident(call.Id, out.Primary, out.Extras, status, source, out.Query); err != nil {
+	if err := store.SaveCallIncident(call.Id, out.Primary, out.Extras, status, source, out.Query, reason); err != nil {
 		q.controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("incident mapping save call %d: %v", call.Id, err))
 		return
 	}
 
 	if elapsed := time.Since(funcStart); elapsed > 5*time.Second {
-		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("incident mapping call %d status=%s source=%s addr=%q elapsed=%.1fs",
-			call.Id, status, source, out.Primary.Address, elapsed.Seconds()))
+		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("incident mapping call %d status=%s source=%s reason=%s addr=%q elapsed=%.1fs",
+			call.Id, status, source, reason, out.Primary.Address, elapsed.Seconds()))
 	} else {
-		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("incident mapping call %d status=%s source=%s addr=%q",
-			call.Id, status, source, out.Primary.Address))
+		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("incident mapping call %d status=%s source=%s reason=%s addr=%q",
+			call.Id, status, source, reason, out.Primary.Address))
 	}
 	q.broadcastIncidentUpdate(call, out.Primary, status)
 }

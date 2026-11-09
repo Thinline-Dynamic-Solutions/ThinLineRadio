@@ -420,7 +420,7 @@ func (ms *MappingStore) PurgeBadAutoLearnPlaces(systemId uint64, curated *mappin
 	return purged
 }
 
-func (ms *MappingStore) SaveCallIncident(callId uint64, primary *mapping.CuratedAlert, extras []*mapping.CuratedAlert, status, source, query string) error {
+func (ms *MappingStore) SaveCallIncident(callId uint64, primary *mapping.CuratedAlert, extras []*mapping.CuratedAlert, status, source, query, reason string) error {
 	if primary == nil {
 		return nil
 	}
@@ -461,11 +461,11 @@ func (ms *MappingStore) SaveCallIncident(callId uint64, primary *mapping.Curated
 		"incidentNature" = $4, "incidentCommonName" = $5, "incidentAptUnit" = $6,
 		"incidentLat" = $7, "incidentLon" = $8,
 		"incidentGeocodeStatus" = $9, "incidentGeocodeSource" = $10, "incidentGeocodeQuery" = $11,
-		"incidentMappingProcessedAt" = $12, "incidentAdditional" = $13
-		WHERE "callId" = $14`,
+		"incidentMappingProcessedAt" = $12, "incidentAdditional" = $13, "incidentMappingReason" = $14
+		WHERE "callId" = $15`,
 		primary.Address, primary.CrossStreet1, primary.CrossStreet2,
 		primary.NatureDesc, primary.CommonName, primary.AptUnit,
-		lat, lon, status, source, query, now, additional, callId)
+		lat, lon, status, source, query, now, additional, reason, callId)
 	return err
 }
 
@@ -500,15 +500,39 @@ func (ms *MappingStore) CorrectCallIncident(callId uint64, address, nature *stri
 	return err
 }
 
-func (ms *MappingStore) ClearCallIncident(callId uint64) error {
+func (ms *MappingStore) ClearCallIncident(callId uint64, reason string) error {
 	now := time.Now().UnixMilli()
+	if strings.TrimSpace(reason) == "" {
+		reason = "cleared"
+	}
 	_, err := ms.db.Sql.Exec(`UPDATE "calls" SET
 		"incidentAddress" = '', "incidentCrossStreet1" = '', "incidentCrossStreet2" = '',
 		"incidentNature" = '', "incidentCommonName" = '', "incidentAptUnit" = '',
 		"incidentLat" = 0, "incidentLon" = 0,
 		"incidentGeocodeStatus" = 'skipped', "incidentGeocodeSource" = '', "incidentGeocodeQuery" = '',
-		"incidentMappingProcessedAt" = $1, "incidentAdditional" = '[]'
-		WHERE "callId" = $2`, now, callId)
+		"incidentMappingProcessedAt" = $1, "incidentAdditional" = '[]', "incidentMappingReason" = $2
+		WHERE "callId" = $3`, now, reason, callId)
+	return err
+}
+
+// MarkCallIncidentOutcome records a mapping skip/fail without wiping an
+// existing admin/manual pin. Used for early ProcessCall exits that have no card.
+func (ms *MappingStore) MarkCallIncidentOutcome(callId uint64, status, reason string) error {
+	if callId == 0 {
+		return nil
+	}
+	if strings.TrimSpace(status) == "" {
+		status = "skipped"
+	}
+	now := time.Now().UnixMilli()
+	_, err := ms.db.Sql.Exec(`UPDATE "calls" SET
+		"incidentGeocodeStatus" = $1,
+		"incidentMappingReason" = $2,
+		"incidentMappingProcessedAt" = $3
+		WHERE "callId" = $4
+			AND COALESCE("incidentGeocodeSource", '') <> 'admin'
+			AND COALESCE("incidentGeocodeStatus", '') <> 'manual'`,
+		status, reason, now, callId)
 	return err
 }
 
@@ -660,15 +684,104 @@ func (ms *MappingStore) ListKnownPlacesRows(systemId, talkgroupId uint64) []map[
 }
 
 func (ms *MappingStore) MappingStats(systemId uint64) map[string]any {
+	return ms.MappingStatsScoped(systemId, 0)
+}
+
+// MappingStatsScoped returns config counts plus 24h mapping quality for a
+// system (optionally one talkgroup).
+func (ms *MappingStore) MappingStatsScoped(systemId, talkgroupId uint64) map[string]any {
 	var streets, corrections, places, cache int
 	ms.db.Sql.QueryRow(`SELECT COUNT(*) FROM "mappingKnownStreets" WHERE "systemId" = $1`, systemId).Scan(&streets)
 	ms.db.Sql.QueryRow(`SELECT COUNT(*) FROM "mappingStreetCorrections" WHERE "systemId" = $1`, systemId).Scan(&corrections)
 	ms.db.Sql.QueryRow(`SELECT COUNT(*) FROM "mappingKnownPlaces" WHERE "systemId" = $1`, systemId).Scan(&places)
 	ms.db.Sql.QueryRow(`SELECT COUNT(*) FROM "mappingGeocodeCache" WHERE "systemId" = $1`, systemId).Scan(&cache)
-	return map[string]any{
+	out := map[string]any{
 		"streets": streets, "corrections": corrections, "places": places,
 		"cacheEntries": cache,
 	}
+	quality := ms.MappingQualityStats(systemId, talkgroupId, time.Now().Add(-24*time.Hour).UnixMilli())
+	for k, v := range quality {
+		out[k] = v
+	}
+	if talkgroupId == 0 {
+		out["byTalkgroup"] = ms.MappingQualityByTalkgroup(systemId, time.Now().Add(-24*time.Hour).UnixMilli())
+	}
+	return out
+}
+
+// MappingQualityStats counts transcribed calls and mapping outcomes since sinceMs.
+func (ms *MappingStore) MappingQualityStats(systemId, talkgroupId uint64, sinceMs int64) map[string]any {
+	where := `WHERE "systemId" = $1 AND "timestamp" >= $2 AND COALESCE("transcript", '') <> ''`
+	args := []any{systemId, sinceMs}
+	if talkgroupId > 0 {
+		where += ` AND "talkgroupId" = $3`
+		args = append(args, talkgroupId)
+	}
+	var transcribed, mapped, failed, skipped, unattempted int
+	q := fmt.Sprintf(`SELECT
+		COUNT(*)::int,
+		COUNT(*) FILTER (WHERE "incidentLat" <> 0 AND "incidentLon" <> 0
+			AND COALESCE("incidentGeocodeStatus", '') NOT IN ('', 'failed', 'skipped'))::int,
+		COUNT(*) FILTER (WHERE COALESCE("incidentGeocodeStatus", '') = 'failed')::int,
+		COUNT(*) FILTER (WHERE COALESCE("incidentGeocodeStatus", '') = 'skipped')::int,
+		COUNT(*) FILTER (WHERE COALESCE("incidentGeocodeStatus", '') = '')::int
+		FROM "calls" %s`, where)
+	_ = ms.db.Sql.QueryRow(q, args...).Scan(&transcribed, &mapped, &failed, &skipped, &unattempted)
+	rate := 0.0
+	if transcribed > 0 {
+		rate = float64(mapped) / float64(transcribed)
+	}
+	return map[string]any{
+		"transcribed": transcribed,
+		"mapped":      mapped,
+		"failed":      failed,
+		"skipped":     skipped,
+		"unattempted": unattempted,
+		"successRate": rate,
+		"windowHours": 24,
+	}
+}
+
+// MappingQualityByTalkgroup returns 24h quality rows per talkgroup for a system.
+func (ms *MappingStore) MappingQualityByTalkgroup(systemId uint64, sinceMs int64) []map[string]any {
+	rows, err := ms.db.Sql.Query(`SELECT c."talkgroupId",
+		COUNT(*)::int,
+		COUNT(*) FILTER (WHERE c."incidentLat" <> 0 AND c."incidentLon" <> 0
+			AND COALESCE(c."incidentGeocodeStatus", '') NOT IN ('', 'failed', 'skipped'))::int,
+		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'failed')::int,
+		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'skipped')::int,
+		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = '')::int
+		FROM "calls" c
+		WHERE c."systemId" = $1 AND c."timestamp" >= $2 AND COALESCE(c."transcript", '') <> ''
+		GROUP BY c."talkgroupId"
+		ORDER BY COUNT(*) DESC
+		LIMIT 50`, systemId, sinceMs)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	out := []map[string]any{}
+	for rows.Next() {
+		var tgId uint64
+		var transcribed, mapped, failed, skipped, unattempted int
+		if rows.Scan(&tgId, &transcribed, &mapped, &failed, &skipped, &unattempted) != nil {
+			continue
+		}
+		rate := 0.0
+		if transcribed > 0 {
+			rate = float64(mapped) / float64(transcribed)
+		}
+		out = append(out, map[string]any{
+			"talkgroupId": tgId,
+			"transcribed": transcribed,
+			"mapped":      mapped,
+			"failed":      failed,
+			"skipped":     skipped,
+			"unattempted": unattempted,
+			"successRate": rate,
+		})
+	}
+	return out
 }
 
 func (ms *MappingStore) AddKnownStreet(systemId, talkgroupId uint64, name string) error {

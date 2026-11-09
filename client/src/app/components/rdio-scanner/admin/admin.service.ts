@@ -31,6 +31,7 @@ import type {
     MappingBoundaryImportStatus,
     MappingBoundaryStats,
     MappingDataResponse,
+    MappingDiagnosticsResponse,
     MappingIntegrationConfig,
     MappingToneSetLocationApply,
     MappingToneSetLocationApplyResult,
@@ -2952,6 +2953,60 @@ export class RdioScannerAdminService implements OnDestroy {
             { systemId, onlyEmpty, talkgroupIds: talkgroupIds?.length ? talkgroupIds : undefined },
             { headers: this.getHeaders() },
         ).pipe(timeout(180000)));
+    }
+
+    async getMappingDiagnostics(params?: {
+        systemId?: number;
+        talkgroupId?: number;
+        reason?: string;
+        status?: string;
+        since?: number;
+        until?: number;
+        limit?: number;
+    }): Promise<MappingDiagnosticsResponse> {
+        const q = new URLSearchParams();
+        if (params?.systemId) {
+            q.set('systemId', String(params.systemId));
+        }
+        if (params?.talkgroupId) {
+            q.set('talkgroupId', String(params.talkgroupId));
+        }
+        if (params?.reason) {
+            q.set('reason', params.reason);
+        }
+        if (params?.status) {
+            q.set('status', params.status);
+        }
+        if (params?.since) {
+            q.set('since', String(params.since));
+        }
+        if (params?.until) {
+            q.set('until', String(params.until));
+        }
+        if (params?.limit) {
+            q.set('limit', String(params.limit));
+        }
+        const qs = q.toString();
+        return firstValueFrom(this.ngHttpClient.get<MappingDiagnosticsResponse>(
+            `${window.location.origin}/api/admin/mapping/diagnostics${qs ? `?${qs}` : ''}`,
+            { headers: this.getHeaders() },
+        ));
+    }
+
+    async regeocodeCall(callId: number): Promise<{ status: string }> {
+        return firstValueFrom(this.ngHttpClient.post<{ status: string }>(
+            `${window.location.origin}/api/admin/mapping/regeocode/${callId}`,
+            {},
+            { headers: this.getHeaders() },
+        ));
+    }
+
+    async batchRegeocodeCalls(callIds: number[]): Promise<{ status: string; queued: number[]; failed: { callId: number; error: string }[] }> {
+        return firstValueFrom(this.ngHttpClient.post<{ status: string; queued: number[]; failed: { callId: number; error: string }[] }>(
+            `${window.location.origin}/api/admin/mapping/regeocode`,
+            { callIds },
+            { headers: this.getHeaders() },
+        ));
     }
 
     importToneSets(format: 'twotone' | 'csv', content: string): Observable<ToneImportResponse> {

@@ -4,14 +4,16 @@
 
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
-import { IncidentRecord, MapBoundaryCollection } from '../mapping/mapping.types';
+import { IncidentRecord, IncidentsMeta, MapBoundaryCollection } from '../mapping/mapping.types';
 
 @Injectable()
 export class IncidentsService {
     private baseUrl: string | null = null;
-    private prefetched24h: { items: IncidentRecord[]; fetchedAt: number; pin?: string } | null = null;
+    private prefetched24h: { items: IncidentRecord[]; meta?: IncidentsMeta; fetchedAt: number; pin?: string } | null = null;
+    /** Latest meta from /api/incidents (empty-map explanations). */
+    lastMeta: IncidentsMeta | null = null;
 
     constructor(private http: HttpClient) {}
 
@@ -33,14 +35,14 @@ export class IncidentsService {
         this.getIncidents(2000, pin, since, now, null, null, true).subscribe({ error: () => {} });
     }
 
-    consumePrefetched24h(pin?: string, maxAgeMs = 30000): IncidentRecord[] | null {
+    consumePrefetched24h(pin?: string, maxAgeMs = 30000): { items: IncidentRecord[]; meta?: IncidentsMeta } | null {
         if (!this.prefetched24h) {
             return null;
         }
         if (this.prefetched24h.pin !== pin || Date.now() - this.prefetched24h.fetchedAt > maxAgeMs) {
             return null;
         }
-        return this.prefetched24h.items;
+        return { items: this.prefetched24h.items, meta: this.prefetched24h.meta };
     }
 
     getIncidents(
@@ -70,11 +72,14 @@ export class IncidentsService {
             url += `&pin=${encodeURIComponent(pin)}`;
         }
         const headers = pin ? new HttpHeaders().set('Authorization', `Bearer ${pin}`) : undefined;
-        return this.http.get<{ incidents: IncidentRecord[] }>(url, { headers }).pipe(
+        return this.http.get<{ incidents: IncidentRecord[]; meta?: IncidentsMeta }>(url, { headers }).pipe(
+            tap((res) => {
+                this.lastMeta = res?.meta || null;
+            }),
             map(res => res?.incidents || []),
             tap((items) => {
                 if (isDefault24h || (!systemId && !talkgroupId && cappedLimit >= 1500)) {
-                    this.prefetched24h = { items, fetchedAt: Date.now(), pin };
+                    this.prefetched24h = { items, meta: this.lastMeta || undefined, fetchedAt: Date.now(), pin };
                 }
             }),
         );

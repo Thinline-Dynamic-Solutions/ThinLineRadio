@@ -29,7 +29,11 @@ import { RelayAccountDialogComponent } from './relay-account-dialog.component';
 import { ServerPathBrowseDialogComponent, ServerPathBrowseDialogResult } from './server-path-browse-dialog.component';
 import { LocationDataService } from 'src/app/services/location-data.service';
 import { OPENAI_CHAT_MODEL_OPTIONS, OpenAIChatModelOption, RELAY_SERVER_URL, RdioScannerAdminService } from '../../admin.service';
-import { MappingBoundaryStats, US_STATE_FIPS_OPTIONS } from '../../../mapping/mapping.types';
+import {
+    MappingBoundaryStats,
+    MappingDiagnosticsItem,
+    US_STATE_FIPS_OPTIONS,
+} from '../../../mapping/mapping.types';
 import { TranscriptConfig } from '../transcript-parser/transcript-parser.types';
 import { DEFAULT_UI_ACCENT, UI_ACCENT_PRESETS, normalizeUIAccentColor } from '../../../app-accent.util';
 
@@ -485,6 +489,14 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     mappingBaseline = '';
     savingMapping = false;
 
+    mappingDiagLoading = false;
+    mappingDiagRegeocoding = false;
+    mappingDiagReasonFilter = '';
+    mappingDiagStatusFilter = '';
+    mappingDiagSelected = new Set<number>();
+    mappingDiagItems: MappingDiagnosticsItem[] = [];
+    mappingDiagReasonCounts: Array<{ reason: string; count: number }> = [];
+
     readonly usStateOptions = US_STATE_FIPS_OPTIONS;
     boundaryImportStates: string[] = ['39'];
     boundaryImportLayers = { county: true, place: true, cousub: true };
@@ -667,9 +679,80 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             this.mappingBaseline = JSON.stringify(this.mappingForm.getRawValue());
             this.refreshPanelBaseline('mapping');
             this.setupMappingToggleAutoSave();
+            void this.loadMappingDiagnostics();
             this.cdr.markForCheck();
         } catch {
             // mapping config may be unavailable before first save
+        }
+    }
+
+    async loadMappingDiagnostics(): Promise<void> {
+        this.mappingDiagLoading = true;
+        this.cdr.markForCheck();
+        try {
+            const res = await this.adminService.getMappingDiagnostics({
+                reason: this.mappingDiagReasonFilter || undefined,
+                status: this.mappingDiagStatusFilter || undefined,
+                limit: 100,
+            });
+            this.mappingDiagItems = res?.items || [];
+            this.mappingDiagReasonCounts = res?.reasonCounts || [];
+            this.mappingDiagSelected.clear();
+        } catch {
+            this.mappingDiagItems = [];
+            this.mappingDiagReasonCounts = [];
+        } finally {
+            this.mappingDiagLoading = false;
+            this.cdr.markForCheck();
+        }
+    }
+
+    toggleMappingDiagSelect(callId: number, checked: boolean): void {
+        if (checked) {
+            this.mappingDiagSelected.add(callId);
+        } else {
+            this.mappingDiagSelected.delete(callId);
+        }
+        this.cdr.markForCheck();
+    }
+
+    mappingDiagAllSelected(): boolean {
+        return this.mappingDiagItems.length > 0 &&
+            this.mappingDiagItems.every((row) => this.mappingDiagSelected.has(row.callId));
+    }
+
+    toggleMappingDiagSelectAll(checked: boolean): void {
+        this.mappingDiagSelected.clear();
+        if (checked) {
+            for (const row of this.mappingDiagItems) {
+                this.mappingDiagSelected.add(row.callId);
+            }
+        }
+        this.cdr.markForCheck();
+    }
+
+    async regeocodeSelectedMappingDiag(): Promise<void> {
+        const ids = Array.from(this.mappingDiagSelected);
+        if (!ids.length) {
+            return;
+        }
+        this.mappingDiagRegeocoding = true;
+        this.cdr.markForCheck();
+        try {
+            const res = await this.adminService.batchRegeocodeCalls(ids);
+            const queued = res?.queued?.length || 0;
+            const failed = res?.failed?.length || 0;
+            this.snackBar.open(
+                `Re-geocode queued ${queued}${failed ? `, ${failed} failed` : ''}`,
+                'Close',
+                { duration: 3000 },
+            );
+            await this.loadMappingDiagnostics();
+        } catch {
+            this.snackBar.open('Batch re-geocode failed', 'Close', { duration: 4000 });
+        } finally {
+            this.mappingDiagRegeocoding = false;
+            this.cdr.markForCheck();
         }
     }
 

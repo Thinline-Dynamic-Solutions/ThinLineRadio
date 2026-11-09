@@ -78,6 +78,8 @@ type ProcessOutput struct {
 	Source  string
 	Query   string
 	Cleaned string
+	// Reason is a stable skip/fail code for admin diagnostics (empty on success).
+	Reason string
 	// Approximate is set for limited-access highway calls that could not be
 	// anchored to a cross street — the pin (if any) is a rough highway point,
 	// not a precise location.
@@ -204,6 +206,7 @@ func ResolveIncidentNature(transcript string, in ProcessInput) string {
 func Process(in ProcessInput) ProcessOutput {
 	out := ProcessOutput{Status: "skipped"}
 	if strings.TrimSpace(in.Transcript) == "" {
+		out.Reason = "empty_transcript"
 		return out
 	}
 	if in.Scope == nil {
@@ -238,6 +241,7 @@ func Process(in ProcessInput) ProcessOutput {
 		applyCallNatureAssignment(curated, in, cleaned, false)
 		out.Primary = curated
 		out.Status = "skipped"
+		out.Reason = "no_location_signal"
 		return out
 	}
 
@@ -320,6 +324,7 @@ func Process(in ProcessInput) ProcessOutput {
 		out.Primary = curated
 		out.Extras = extras
 		out.Status = "coverage"
+		out.Reason = ""
 		return out
 	}
 
@@ -335,6 +340,7 @@ func Process(in ProcessInput) ProcessOutput {
 		out.Primary = curated
 		out.Extras = extras
 		out.Status = "failed"
+		out.Reason = "no_address_extracted"
 		return out
 	}
 

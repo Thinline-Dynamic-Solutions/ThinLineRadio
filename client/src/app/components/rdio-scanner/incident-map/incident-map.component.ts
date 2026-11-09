@@ -14,7 +14,7 @@ import {
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription, timer } from 'rxjs';
 import * as L from 'leaflet';
-import { IncidentRecord } from '../mapping/mapping.types';
+import { IncidentRecord, IncidentsMeta } from '../mapping/mapping.types';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { TagColorService } from '../tag-color.service';
 import { IncidentMapBridgeService } from './incident-map-bridge.service';
@@ -52,6 +52,7 @@ interface IncidentFilterOption {
 })
 export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, AfterViewInit {
     incidents: IncidentRecord[] = [];
+    incidentsMeta: IncidentsMeta | null = null;
     loading = true;
     loadError = '';
     mapReady = false;
@@ -381,6 +382,41 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         return this.filterSystemId != null ||
             this.filterTalkgroupId != null ||
             this.searchQuery.trim().length > 0;
+    }
+
+    /** Sidebar copy when there are no geocoded pins in the current window. */
+    get emptyStateMessage(): string {
+        const meta = this.incidentsMeta;
+        if (meta && meta.mappingEnabled === false) {
+            return 'Incident mapping is turned off on this server.';
+        }
+        if (meta) {
+            const failed = meta.failed || 0;
+            const skipped = meta.skipped || 0;
+            const unattempted = meta.unattempted || 0;
+            if (failed + skipped + unattempted > 0) {
+                const parts: string[] = [];
+                if (failed) {
+                    parts.push(`${failed} failed`);
+                }
+                if (skipped) {
+                    parts.push(`${skipped} skipped`);
+                }
+                if (unattempted) {
+                    parts.push(`${unattempted} not processed`);
+                }
+                let msg = `No map pins in this range (${parts.join(', ')}).`;
+                if (meta.suppressUnknownNaturePins) {
+                    msg += ' Unknown natures are suppressed from geocoding.';
+                }
+                return msg;
+            }
+        }
+        return 'No geocoded incidents yet.';
+    }
+
+    relatedCallCount(incident: IncidentRecord): number {
+        return (incident.relatedCallIds?.length || 0) + 1;
     }
 
     get timeRangeLabel(): string {
@@ -1304,11 +1340,12 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         const fetchId = ++this.incidentFetchGen;
         const pin = this.rdioScannerService.readPin();
         const { since, until, limit } = this.getQueryTimeRange();
-        const applyItems = (items: IncidentRecord[]): void => {
+        const applyItems = (items: IncidentRecord[], meta?: IncidentsMeta | null): void => {
             if (fetchId !== this.incidentFetchGen) {
                 return;
             }
             this.incidents = items || [];
+            this.incidentsMeta = meta ?? this.incidentsService.lastMeta;
             this.loading = false;
             this.loadError = '';
             this.rebuildFilterOptions();
@@ -1327,7 +1364,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         if (this.incidents.length === 0 && this.timePreset === '24h' && !this.filterSystemId && !this.filterTalkgroupId && !this.searchQuery.trim()) {
             const cached = this.incidentsService.consumePrefetched24h(pin || undefined);
             if (cached) {
-                applyItems(cached);
+                applyItems(cached.items, cached.meta);
                 return;
             }
         }
@@ -1339,7 +1376,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             this.filterSystemId,
             this.filterTalkgroupId,
         ).subscribe({
-            next: (items) => applyItems(items),
+            next: (items) => applyItems(items, this.incidentsService.lastMeta),
             error: (err) => {
                 if (fetchId !== this.incidentFetchGen) {
                     return;
@@ -1577,9 +1614,13 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
                     <button type="button" class="tlr-map-info__admin-btn tlr-map-info__admin-btn--suggest" id="tlr-map-suggest-${incident.callId}">Suggest a correction</button>
                </div>`;
 
+        const multiHeader = multi
+            ? `<div class="tlr-map-info__multi-head">${segments.length} calls · ${new Set(segments.map((s) => this.channelLabel(s))).size} channels</div>`
+            : '';
         const html = `
             <div class="tlr-map-info${multi ? ' tlr-map-info--multi' : ''}">
                 <div class="tlr-map-info__address">${this.escapeHtml(address)}</div>
+                ${multiHeader}
                 ${multi ? `<div class="tlr-map-info__segments">${segmentHtml}</div>` : `${legacyNature}${legacyChannel}${legacyTime}${legacyTranscript}${legacyPlay}`}
                 ${adminActions}
             </div>`;
