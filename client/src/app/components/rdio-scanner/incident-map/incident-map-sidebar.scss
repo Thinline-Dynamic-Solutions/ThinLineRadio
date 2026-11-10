@@ -131,7 +131,10 @@
 }
 
 .incident-list-nature {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.03em;
@@ -145,6 +148,17 @@
     word-break: normal;
     hyphens: none;
     line-height: 1.25;
+}
+
+.incident-list-related {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.22);
+    opacity: 0.95;
 }
 
 .incident-list-title {

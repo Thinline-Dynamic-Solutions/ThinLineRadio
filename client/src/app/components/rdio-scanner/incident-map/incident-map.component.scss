@@ -808,6 +808,13 @@ select.toolbar-control {
     word-break: break-word;
 }
 
+:host ::ng-deep .tlr-map-info__multi-head {
+    margin: 4px 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
 :host ::ng-deep .tlr-map-info__nature {
     margin-top: 6px;
 }

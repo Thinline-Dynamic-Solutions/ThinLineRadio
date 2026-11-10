@@ -598,6 +598,11 @@
           }
         </div>
         @if (!form.get('incidentMapping.inherit')?.value && form.get('incidentMapping.enabled')?.value) {
+          @if (incidentMappingGeoIncomplete) {
+            <div class="tg-block-hint" style="color: #e0a000; margin-bottom: 8px;">
+              Geo setup incomplete — set city, center lat/lon, and radius so the geocode gateway has a viewbox.
+            </div>
+          }
           <div class="tone-spec-row tone-map-row tg-map-fields">
             <div class="tone-field tone-field--grow">
               <mat-form-field appearance="outline" class="tg-input" subscriptSizing="dynamic">

@@ -2267,6 +2267,93 @@
               <input type="number" min="1" step="1" matInput formControlName="geocodeCacheMaxAgeDays" autocomplete="off">
             </mat-form-field>
           </div>
+          <div class="row mapping-row-full">
+            <div class="mapping-panel-block">
+              <h4>Mapping diagnostics (last 24h)</h4>
+              <p class="mapping-panel-lead">
+                Calls that did not get a map pin, with a durable reason. Select rows and re-geocode after fixing geo setup or subscription.
+              </p>
+              <div class="mapping-diag-toolbar">
+                <mat-form-field appearance="outline">
+                  <mat-label>Reason</mat-label>
+                  <mat-select [(ngModel)]="mappingDiagReasonFilter" [ngModelOptions]="{standalone: true}" (selectionChange)="loadMappingDiagnostics()">
+                    <mat-option value="">All reasons</mat-option>
+                    @for (rc of mappingDiagReasonCounts; track rc.reason) {
+                      <mat-option [value]="rc.reason === '(none)' ? '' : rc.reason">
+                        {{ rc.reason }} ({{ rc.count }})
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="mappingDiagStatusFilter" [ngModelOptions]="{standalone: true}" (selectionChange)="loadMappingDiagnostics()">
+                    <mat-option value="">All</mat-option>
+                    <mat-option value="failed">failed</mat-option>
+                    <mat-option value="skipped">skipped</mat-option>
+                    <mat-option value="unattempted">unattempted</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <button mat-stroked-button type="button" (click)="loadMappingDiagnostics()" [disabled]="mappingDiagLoading">
+                  Refresh
+                </button>
+                <button mat-flat-button color="primary" type="button"
+                  (click)="regeocodeSelectedMappingDiag()"
+                  [disabled]="mappingDiagRegeocoding || mappingDiagSelected.size === 0">
+                  Re-geocode selected ({{ mappingDiagSelected.size }})
+                </button>
+              </div>
+              @if (mappingDiagLoading) {
+                <p class="mapping-hint">Loading diagnostics…</p>
+              } @else if (!mappingDiagItems.length) {
+                <p class="mapping-hint">No failed or skipped calls in this window.</p>
+              } @else {
+                <div class="mapping-diag-table-wrap">
+                  <table class="mapping-diag-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <mat-checkbox
+                            [checked]="mappingDiagAllSelected()"
+                            (change)="toggleMappingDiagSelectAll($event.checked)">
+                          </mat-checkbox>
+                        </th>
+                        <th>Call</th>
+                        <th>When</th>
+                        <th>Channel</th>
+                        <th>Status</th>
+                        <th>Reason</th>
+                        <th>Address / transcript</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of mappingDiagItems; track row.callId) {
+                        <tr>
+                          <td>
+                            <mat-checkbox
+                              [checked]="mappingDiagSelected.has(row.callId)"
+                              (change)="toggleMappingDiagSelect(row.callId, $event.checked)">
+                            </mat-checkbox>
+                          </td>
+                          <td>{{ row.callId }}</td>
+                          <td>{{ row.timestamp | date:'short' }}</td>
+                          <td>{{ row.systemLabel || row.systemId }} · {{ row.talkgroupLabel || row.talkgroupId }}</td>
+                          <td>{{ row.status || '(empty)' }}</td>
+                          <td><code>{{ row.reason || '—' }}</code></td>
+                          <td>
+                            @if (row.address) {
+                              <strong>{{ row.address }}</strong><br>
+                            }
+                            <span class="mapping-diag-transcript">{{ row.transcript }}</span>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          </div>
           <div class="row">
             <div class="mapping-panel-block mapping-boundaries">
               <h4>Map boundaries (US-wide)</h4>
@@ -2408,8 +2495,12 @@
               When enabled, catch-all natures like <strong>UNKNOWN PROBLEM</strong>,
               <strong>UNKNOWN PROBLEM/UNCLASSIFIED</strong>, and calls with <strong>no nature</strong>
               (shown on the map as UNKNOWN PROBLEM) are not geocoded and do not get a map pin.
-              Nature is checked before geocoding so those calls do not use the geocoding API.
+              Nature is checked before geocoding so those calls do not use geocoding quota.
               Classified natures still map normally.
+              Turning this off shows existing classified pins again at query time, but calls skipped
+              while it was on keep reason <code>unknown_nature_suppressed</code> and need a
+              re-geocode from Mapping diagnostics. Soft alternative: set
+              <strong>expireMinutes</strong> on the UNKNOWN PROBLEM call-nature category.
             </p>
           </div>
           <rdio-scanner-admin-call-natures></rdio-scanner-admin-call-natures>
