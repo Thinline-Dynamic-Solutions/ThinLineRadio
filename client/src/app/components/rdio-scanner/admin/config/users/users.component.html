@@ -274,6 +274,11 @@
             <span [class.muted]="!user.lastLogin || user.lastLogin === 'Never'">
               {{ formatDate(user.lastLogin) }}
             </span>
+            @if (user.lastSeenIp) {
+              <div class="muted presence-hint" [matTooltip]="presenceHint(user)">
+                {{ user.lastSeenIp }} · {{ kindLabel(user.lastSeenKind) }}
+              </div>
+            }
           </td>
         </ng-container>
         <!-- Actions Column -->
@@ -369,6 +374,9 @@
                   <span><strong>Delay:</strong> {{ user.delay > 0 ? user.delay + ' min' : 'None' }}</span>
                   <span><strong>Connections:</strong> {{ getConnectionLimitLabel(user.effectiveConnectionLimit ?? user.connectionLimit) }}</span>
                   <span><strong>Registered:</strong> {{ formatDate(user.createdAt) }}</span>
+                  @if (user.lastSeenIp) {
+                    <span><strong>Last address:</strong> {{ user.lastSeenIp }}</span>
+                  }
                   @if (user.systems && user.systems.trim() === '[]') {
                     <span><strong>Systems:</strong> None</span>
                   } @else if (user.systems && user.systems !== '*') {
@@ -376,6 +384,52 @@
                   }
                   @if (!user.systems || user.systems === '*') {
                     <span><strong>Systems:</strong> All</span>
+                  }
+                </div>
+                <div class="fcm-section">
+                  <h5 class="section-label">
+                    <mat-icon>travel_explore</mat-icon>
+                    Where this account showed up
+                  </h5>
+                  @if (presenceLoading && presenceForUserId === user.id) {
+                    <p class="muted">Loading recent visits…</p>
+                  } @else if (!presenceVisits.length) {
+                    <p class="muted">No visits recorded for this account yet.</p>
+                  } @else {
+                    <div class="fcm-list">
+                      @for (visit of presenceVisits; track visit.id) {
+                        <div class="fcm-item">
+                          <div class="fcm-meta">
+                            <span class="chip chip-muted">{{ visitHow(visit) }}</span>
+                            <span>{{ visit.ip || '—' }}</span>
+                            <span class="chip chip-muted">{{ kindLabel(visit.clientKind) }}</span>
+                            @if (visit.listenLink) {
+                              <span class="chip chip-muted">{{ visit.listenLink }}</span>
+                            }
+                            @if (visit.badPins > 0) {
+                              <span class="chip chip-pin-expired">{{ visit.badPins }} bad PIN{{ visit.badPins === 1 ? '' : 's' }}</span>
+                            }
+                            <span class="muted">{{ formatUnix(visit.lastSeenAt) }}</span>
+                          </div>
+                          @if (visit.userAgent || visit.origin || visit.referer || visit.detail) {
+                            <div class="presence-detail">
+                              @if (visit.detail) {
+                                <div>Tried: {{ visit.detail }}</div>
+                              }
+                              @if (visit.origin) {
+                                <div>Origin: {{ visit.origin }}</div>
+                              }
+                              @if (visit.referer) {
+                                <div>Referrer: {{ visit.referer }}</div>
+                              }
+                              @if (visit.userAgent) {
+                                <div class="ua">{{ visit.userAgent }}</div>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
                   }
                 </div>
                 <!-- Device Tokens (push / VoIP) -->
