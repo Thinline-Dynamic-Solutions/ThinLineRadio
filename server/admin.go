@@ -2029,6 +2029,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 						existingGroup.AllowAddExistingUsers = getBoolFromMap(groupMap, "allowAddExistingUsers", false)
 						existingGroup.AutoEnableNewTalkgroups = getBoolFromMap(groupMap, "autoEnableNewTalkgroups", false)
 						existingGroup.IsFreeGroup = getBoolFromMap(groupMap, "isFreeGroup", false)
+						existingGroup.AdFreeExcluded = getBoolFromMap(groupMap, "adFreeExcluded", false)
 						if features, ok := importedGroupFeatures(groupMap); ok {
 							existingGroup.Features = features
 						}
@@ -2068,6 +2069,7 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 							AllowAddExistingUsers:   getBoolFromMap(groupMap, "allowAddExistingUsers", false),
 							AutoEnableNewTalkgroups: getBoolFromMap(groupMap, "autoEnableNewTalkgroups", false),
 							IsFreeGroup:             getBoolFromMap(groupMap, "isFreeGroup", false),
+							AdFreeExcluded:          getBoolFromMap(groupMap, "adFreeExcluded", false),
 						}
 						if features, ok := importedGroupFeatures(groupMap); ok {
 							group.Features = features
@@ -3504,6 +3506,7 @@ func (admin *Admin) GetConfig() map[string]any {
 			"allowAddExistingUsers":   group.AllowAddExistingUsers,
 			"autoEnableNewTalkgroups": group.AutoEnableNewTalkgroups,
 			"isFreeGroup":             group.IsFreeGroup,
+			"adFreeExcluded":          group.AdFreeExcluded,
 			"features":                group.GetFeatures(),
 			"createdAt":               group.CreatedAt,
 		})

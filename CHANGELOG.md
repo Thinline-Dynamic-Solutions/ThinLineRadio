@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.11.06 - Released November 9, 2026
+
+### Added
+
+- **Leave a user group out of server ad-free**
+  - User groups have a **Leave out of server ad-free** setting in **Admin → User Groups**. Members of a group with it on are not covered by the server's ad-free and are not counted or billed as ad-free seats.
+  - A user who is also in a group without the setting stays covered and is still counted.
+  - The setting is included in config exports and imports.
+
+---
+
 ## Version 26.11.05 - Released November 5, 2026
 
 ### Fixed

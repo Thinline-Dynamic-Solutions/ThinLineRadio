@@ -325,10 +325,16 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 	features := AllFeaturesOn()
 	freeListening := false
 	upgradeAvailable := false
+	adFreeExcluded := false
 	if client.Controller != nil {
 		features = client.Controller.featuresForClient(client)
 		freeListening = client.User == nil && client.Controller.anonymousAllowed(client.ListenLink)
 		upgradeAvailable = freeListening && client.Controller.UserGroups.HasPublicPaidRegistrationTier()
+		if client.User != nil {
+			adFreeExcluded = userAdFreeExcluded(client.User, client.Controller.UserGroups)
+		} else if freeListening {
+			adFreeExcluded = groupsAdFreeExcluded(client.Controller.anonymousScope(client.ListenLink))
+		}
 		if client.User != nil {
 			for _, userGroup := range client.Controller.userGroups(client.User) {
 				if userGroup != nil && userGroup.AutoEnableNewTalkgroups {
@@ -379,6 +385,7 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 			"features":                  features,
 			"freeListening":             freeListening,
 			"upgradeAvailable":          upgradeAvailable,
+			"adFreeExcluded":            adFreeExcluded,
 		},
 		"playbackGoesLive":   options.PlaybackGoesLive,
 		"showListenersCount": options.ShowListenersCount,

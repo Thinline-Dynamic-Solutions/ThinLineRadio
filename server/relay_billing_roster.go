@@ -41,10 +41,39 @@ func userBillingRequired(user *User, groups *UserGroups, paywallEnabled bool) bo
 	return true
 }
 
+// groupsAdFreeExcluded reports whether server-wide ad-free skips a listener
+// scoped to groups: only when there is at least one group and all of them opt out.
+func groupsAdFreeExcluded(groups []*UserGroup) bool {
+	if len(groups) == 0 {
+		return false
+	}
+	for _, g := range groups {
+		if g == nil || !g.AdFreeExcluded {
+			return false
+		}
+	}
+	return true
+}
+
+func userAdFreeExcluded(user *User, groups *UserGroups) bool {
+	if user == nil || groups == nil {
+		return false
+	}
+	scope := []*UserGroup{}
+	for _, id := range user.GroupIds() {
+		if g := groups.Get(id); g != nil {
+			scope = append(scope, g)
+		}
+	}
+	return groupsAdFreeExcluded(scope)
+}
+
+// Users whose groups all opt out of ad-free are left off the roster, so the
+// relay never bills them as seats.
 func buildBillingRoster(users []*User, groups *UserGroups, paywallEnabled bool) []billingRosterUser {
 	out := make([]billingRosterUser, 0, len(users))
 	for _, user := range users {
-		if user == nil {
+		if user == nil || userAdFreeExcluded(user, groups) {
 			continue
 		}
 		out = append(out, billingRosterUser{

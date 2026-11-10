@@ -53,6 +53,7 @@ interface UserGroup {
   allowAddExistingUsers: boolean;
   autoEnableNewTalkgroups: boolean;
   isFreeGroup?: boolean;
+  adFreeExcluded?: boolean;
   features?: {
     liveFeed?: boolean;
     replay?: boolean;
@@ -194,6 +195,7 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       allowAddExistingUsers: [false],
       autoEnableNewTalkgroups: [false],
       isFreeGroup: [false],
+      adFreeExcluded: [false],
       features: this.fb.group({
         liveFeed: [true],
         replay: [true],
@@ -293,6 +295,7 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
         allowAddExistingUsers: group.allowAddExistingUsers || false,
         autoEnableNewTalkgroups: group.autoEnableNewTalkgroups || false,
         isFreeGroup: group.isFreeGroup || false,
+        adFreeExcluded: group.adFreeExcluded || false,
         features: group.features,
         createdAt: group.createdAt || 0
       }));
@@ -572,6 +575,7 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       allowAddExistingUsers: false,
       autoEnableNewTalkgroups: false,
       isFreeGroup: false,
+      adFreeExcluded: false,
       features: {
         liveFeed: true,
         replay: true,
@@ -641,7 +645,7 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
       liveFeed: true, replay: true, channels: true, alerts: true,
       transcripts: true, stats: true, map: true, settings: true, alertsSideRail: true,
     };
-    this.groupForm.patchValue({ ...groupForPatch, features });
+    this.groupForm.patchValue({ ...groupForPatch, features, adFreeExcluded: group.adFreeExcluded ?? false });
     
     // Parse system access JSON - support both legacy (array of IDs) and new format (array of objects)
     try {

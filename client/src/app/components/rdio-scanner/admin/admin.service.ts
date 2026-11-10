@@ -302,6 +302,8 @@ export interface UserGroup {
     isPublicRegistration?: boolean;
     /** Anonymous live access for this group's systems/features without signup. */
     isFreeGroup?: boolean;
+    /** Members are not covered by server-wide ad-free; the mobile app shows them ads. */
+    adFreeExcluded?: boolean;
     features?: UserGroupFeatures;
     billingEnabled?: boolean;
     billingMode?: string;
@@ -2438,6 +2440,7 @@ export class RdioScannerAdminService implements OnDestroy {
             autoEnableNewTalkgroups: this.ngFormBuilder.control(userGroup?.autoEnableNewTalkgroups ?? false),
             isPublicRegistration: this.ngFormBuilder.control(userGroup?.isPublicRegistration),
             isFreeGroup: this.ngFormBuilder.control(userGroup?.isFreeGroup ?? false),
+            adFreeExcluded: this.ngFormBuilder.control(userGroup?.adFreeExcluded ?? false),
             features: this.ngFormBuilder.group({
                 liveFeed: this.ngFormBuilder.control(userGroup?.features?.liveFeed ?? true),
                 replay: this.ngFormBuilder.control(userGroup?.features?.replay ?? true),

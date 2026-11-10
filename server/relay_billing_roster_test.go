@@ -66,3 +66,34 @@ func TestBuildBillingRosterFlags(t *testing.T) {
 		t.Fatal("user 3 should be expired")
 	}
 }
+
+func TestBuildBillingRosterSkipsAdFreeExcluded(t *testing.T) {
+	groups := NewUserGroups()
+	groups.mutex.Lock()
+	groups.groups[1] = &UserGroup{Id: 1, AdFreeExcluded: true}
+	groups.groups[2] = &UserGroup{Id: 2, BillingEnabled: true, BillingMode: "all_users"}
+	groups.mutex.Unlock()
+
+	excluded := &User{Id: 1, UserGroupId: 1}
+	alsoPaid := &User{Id: 2, UserGroupId: 1}
+	alsoPaid.SetGroupIds([]uint64{1, 2})
+	ungrouped := &User{Id: 3}
+
+	if !userAdFreeExcluded(excluded, groups) {
+		t.Fatal("user only in an excluded group should be excluded")
+	}
+	if userAdFreeExcluded(alsoPaid, groups) {
+		t.Fatal("user also in a covered group should not be excluded")
+	}
+	if userAdFreeExcluded(ungrouped, groups) {
+		t.Fatal("ungrouped user should not be excluded")
+	}
+
+	roster := buildBillingRoster([]*User{excluded, alsoPaid, ungrouped}, groups, true)
+	if len(roster) != 2 {
+		t.Fatalf("len=%d want 2", len(roster))
+	}
+	if roster[0].ID != billingRosterOpaqueID(2) || roster[1].ID != billingRosterOpaqueID(3) {
+		t.Fatalf("unexpected roster: %+v", roster)
+	}
+}

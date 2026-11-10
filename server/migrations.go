@@ -3459,6 +3459,14 @@ func migrateUserGroupFeatures(db *Database) error {
 	return nil
 }
 
+// migrateUserGroupAdFreeExcluded adds the per-group opt-out from server-wide ad-free.
+func migrateUserGroupAdFreeExcluded(db *Database) error {
+	if _, err := db.Sql.Exec(`ALTER TABLE "userGroups" ADD COLUMN IF NOT EXISTS "adFreeExcluded" boolean NOT NULL DEFAULT false`); err != nil {
+		return fmt.Errorf("migrateUserGroupAdFreeExcluded: %w", err)
+	}
+	return nil
+}
+
 // migratePublicApi adds user-scoped public REST API keys, capabilities, usage audit,
 // and outbound alert webhook destinations (separate from uploader apikeys).
 func migratePublicApi(db *Database) error {

@@ -162,6 +162,10 @@
             <mat-checkbox formControlName="alertsSideRail">Alerts side rail</mat-checkbox>
           </div>
         </div>
+        <mat-checkbox formControlName="adFreeExcluded">Leave out of server ad-free</mat-checkbox>
+        <p class="mat-caption" style="margin-top: -8px; margin-bottom: 12px;">
+          When this server pays for ad-free, members of this group are not counted or billed as ad-free seats, and the mobile app shows them ads unless they have their own app store subscription. Users who are also in a group without this setting stay ad-free.
+        </p>
         <mat-checkbox formControlName="billingEnabled" [disabled]="groupForm.get('isFreeGroup')?.value">Billing Enabled</mat-checkbox>
         @if (groupForm.get('billingEnabled')?.value && !groupForm.get('isFreeGroup')?.value) {
           <div class="form-section">

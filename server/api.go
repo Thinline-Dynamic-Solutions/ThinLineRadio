@@ -7244,6 +7244,7 @@ func (api *Api) AdminGroupsHandler(w http.ResponseWriter, r *http.Request) {
 			"allowAddExistingUsers":   group.AllowAddExistingUsers,
 			"autoEnableNewTalkgroups": group.AutoEnableNewTalkgroups,
 			"isFreeGroup":             group.IsFreeGroup,
+			"adFreeExcluded":          group.AdFreeExcluded,
 			"features":                group.GetFeatures(),
 			"createdAt":               group.CreatedAt,
 		})
@@ -7293,6 +7294,7 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		AllowAddExistingUsers   bool               `json:"allowAddExistingUsers"`
 		AutoEnableNewTalkgroups bool               `json:"autoEnableNewTalkgroups"`
 		IsFreeGroup             bool               `json:"isFreeGroup"`
+		AdFreeExcluded          bool               `json:"adFreeExcluded"`
 		Features                *UserGroupFeatures `json:"features"`
 		// Group admin assignment
 		AssignExistingUserAsAdmin bool   `json:"assignExistingUserAsAdmin"`
@@ -7379,6 +7381,7 @@ func (api *Api) AdminCreateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		AllowAddExistingUsers:   request.AllowAddExistingUsers,
 		AutoEnableNewTalkgroups: request.AutoEnableNewTalkgroups,
 		IsFreeGroup:             request.IsFreeGroup,
+		AdFreeExcluded:          request.AdFreeExcluded,
 		Features:                featuresJSON,
 		CreatedAt:               time.Now().Unix(),
 	}
@@ -7620,6 +7623,7 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 		AllowAddExistingUsers   bool               `json:"allowAddExistingUsers"`
 		AutoEnableNewTalkgroups bool               `json:"autoEnableNewTalkgroups"`
 		IsFreeGroup             bool               `json:"isFreeGroup"`
+		AdFreeExcluded          bool               `json:"adFreeExcluded"`
 		Features                *UserGroupFeatures `json:"features"`
 	}
 
@@ -7690,6 +7694,7 @@ func (api *Api) AdminUpdateGroupHandler(w http.ResponseWriter, r *http.Request) 
 	group.AllowAddExistingUsers = request.AllowAddExistingUsers
 	group.AutoEnableNewTalkgroups = request.AutoEnableNewTalkgroups
 	group.IsFreeGroup = request.IsFreeGroup
+	group.AdFreeExcluded = request.AdFreeExcluded
 	if request.Features != nil {
 		group.Features = request.Features.ToJSON()
 	}

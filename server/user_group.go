@@ -61,6 +61,10 @@ type UserGroup struct {
 	// IsFreeGroup lets anonymous visitors use this group's systemAccess + features
 	// without signing in (overrides requireListenerSignIn for that scoped feed).
 	IsFreeGroup bool
+	// AdFreeExcluded leaves the group's members out of server-wide ad-free:
+	// they are not billed as seats and the mobile app shows them ads unless
+	// they have their own app store subscription.
+	AdFreeExcluded bool
 	// Features is JSON UserGroupFeatures; empty means all-on (legacy groups).
 	Features            string
 	CreatedAt           int64
@@ -463,7 +467,7 @@ func (ugs *UserGroups) Load(db *Database) error {
 	ugs.mutex.Lock()
 	defer ugs.mutex.Unlock()
 
-	rows, err := db.Sql.Query(`SELECT "userGroupId", "name", "description", "systemAccess", "delay", "systemDelays", "talkgroupDelays", "connectionLimit", "maxUsers", "billingEnabled", "stripePriceId", "pricingOptions", "billingMode", "collectSalesTax", "taxMode", "stripeTaxRateId", "isPublicRegistration", "allowAddExistingUsers", "autoEnableNewTalkgroups", COALESCE("isFreeGroup", false), COALESCE("features", ''), "createdAt" FROM "userGroups"`)
+	rows, err := db.Sql.Query(`SELECT "userGroupId", "name", "description", "systemAccess", "delay", "systemDelays", "talkgroupDelays", "connectionLimit", "maxUsers", "billingEnabled", "stripePriceId", "pricingOptions", "billingMode", "collectSalesTax", "taxMode", "stripeTaxRateId", "isPublicRegistration", "allowAddExistingUsers", "autoEnableNewTalkgroups", COALESCE("isFreeGroup", false), COALESCE("adFreeExcluded", false), COALESCE("features", ''), "createdAt" FROM "userGroups"`)
 	if err != nil {
 		return err
 	}
@@ -513,6 +517,7 @@ func (ugs *UserGroups) Load(db *Database) error {
 			&allowAddExistingUsers,
 			&autoEnableNewTalkgroups,
 			&isFreeGroup,
+			&group.AdFreeExcluded,
 			&features,
 			&createdAt,
 		)
@@ -703,9 +708,9 @@ func (ugs *UserGroups) Add(group *UserGroup, db *Database) error {
 
 	var userId int64
 	err := db.Sql.QueryRow(
-		`INSERT INTO "userGroups" ("name", "description", "systemAccess", "delay", "systemDelays", "talkgroupDelays", "connectionLimit", "maxUsers", "billingEnabled", "stripePriceId", "pricingOptions", "billingMode", "collectSalesTax", "taxMode", "stripeTaxRateId", "isPublicRegistration", "allowAddExistingUsers", "autoEnableNewTalkgroups", "isFreeGroup", "features", "createdAt") 
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING "userGroupId"`,
-		group.Name, group.Description, group.SystemAccess, group.Delay, group.SystemDelays, group.TalkgroupDelays, group.ConnectionLimit, group.MaxUsers, group.BillingEnabled, group.StripePriceId, group.PricingOptions, group.BillingMode, group.CollectSalesTax, group.TaxMode, group.StripeTaxRateId, group.IsPublicRegistration, group.AllowAddExistingUsers, group.AutoEnableNewTalkgroups, group.IsFreeGroup, group.Features, group.CreatedAt,
+		`INSERT INTO "userGroups" ("name", "description", "systemAccess", "delay", "systemDelays", "talkgroupDelays", "connectionLimit", "maxUsers", "billingEnabled", "stripePriceId", "pricingOptions", "billingMode", "collectSalesTax", "taxMode", "stripeTaxRateId", "isPublicRegistration", "allowAddExistingUsers", "autoEnableNewTalkgroups", "isFreeGroup", "adFreeExcluded", "features", "createdAt") 
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING "userGroupId"`,
+		group.Name, group.Description, group.SystemAccess, group.Delay, group.SystemDelays, group.TalkgroupDelays, group.ConnectionLimit, group.MaxUsers, group.BillingEnabled, group.StripePriceId, group.PricingOptions, group.BillingMode, group.CollectSalesTax, group.TaxMode, group.StripeTaxRateId, group.IsPublicRegistration, group.AllowAddExistingUsers, group.AutoEnableNewTalkgroups, group.IsFreeGroup, group.AdFreeExcluded, group.Features, group.CreatedAt,
 	).Scan(&userId)
 
 	if err != nil {
@@ -739,8 +744,8 @@ func (ugs *UserGroups) Update(group *UserGroup, db *Database) error {
 	group.loadFeatures()
 
 	_, err := db.Sql.Exec(
-		`UPDATE "userGroups" SET "name" = $1, "description" = $2, "systemAccess" = $3, "delay" = $4, "systemDelays" = $5, "talkgroupDelays" = $6, "connectionLimit" = $7, "maxUsers" = $8, "billingEnabled" = $9, "stripePriceId" = $10, "pricingOptions" = $11, "billingMode" = $12, "collectSalesTax" = $13, "taxMode" = $14, "stripeTaxRateId" = $15, "isPublicRegistration" = $16, "allowAddExistingUsers" = $17, "autoEnableNewTalkgroups" = $18, "isFreeGroup" = $19, "features" = $20 WHERE "userGroupId" = $21`,
-		group.Name, group.Description, group.SystemAccess, group.Delay, group.SystemDelays, group.TalkgroupDelays, group.ConnectionLimit, group.MaxUsers, group.BillingEnabled, group.StripePriceId, group.PricingOptions, group.BillingMode, group.CollectSalesTax, group.TaxMode, group.StripeTaxRateId, group.IsPublicRegistration, group.AllowAddExistingUsers, group.AutoEnableNewTalkgroups, group.IsFreeGroup, group.Features, group.Id,
+		`UPDATE "userGroups" SET "name" = $1, "description" = $2, "systemAccess" = $3, "delay" = $4, "systemDelays" = $5, "talkgroupDelays" = $6, "connectionLimit" = $7, "maxUsers" = $8, "billingEnabled" = $9, "stripePriceId" = $10, "pricingOptions" = $11, "billingMode" = $12, "collectSalesTax" = $13, "taxMode" = $14, "stripeTaxRateId" = $15, "isPublicRegistration" = $16, "allowAddExistingUsers" = $17, "autoEnableNewTalkgroups" = $18, "isFreeGroup" = $19, "adFreeExcluded" = $20, "features" = $21 WHERE "userGroupId" = $22`,
+		group.Name, group.Description, group.SystemAccess, group.Delay, group.SystemDelays, group.TalkgroupDelays, group.ConnectionLimit, group.MaxUsers, group.BillingEnabled, group.StripePriceId, group.PricingOptions, group.BillingMode, group.CollectSalesTax, group.TaxMode, group.StripeTaxRateId, group.IsPublicRegistration, group.AllowAddExistingUsers, group.AutoEnableNewTalkgroups, group.IsFreeGroup, group.AdFreeExcluded, group.Features, group.Id,
 	)
 
 	if err != nil {
