@@ -101,6 +101,9 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
     /** Skips user-visible side effects when this view is not active. */
     @Input() viewActive = true;
 
+    /** Fullscreen map overlay; destroys the inline Map-tab instance while open. */
+    mapPopoutOpen = false;
+
     @ViewChild('password', { read: MatInput }) private authPassword: MatInput | undefined;
     @ViewChild('archiveSearch') archiveSearch: RdioScannerSearchComponent | undefined;
     @ViewChild('shortcutsTrigger') private shortcutsTrigger: MatMenuTrigger | undefined;
@@ -327,6 +330,24 @@ export class RdioScannerConsoleComponent implements OnChanges, OnDestroy, OnInit
     /** Map tab requires transcription UI plus the server-wide incident mapping switch. */
     get showIncidentMapTab(): boolean {
         return this.isTranscriptionEnabled && this.isIncidentMappingEnabled;
+    }
+
+    openMapPopout(): void {
+        if (this.mapLocked || !this.showIncidentMapTab) {
+            return;
+        }
+        this.mapPopoutOpen = true;
+        this.cdr.markForCheck();
+        setTimeout(() => this.incidentMapBridge.getMap()?.invalidateMapSize(), 120);
+        setTimeout(() => this.incidentMapBridge.getMap()?.invalidateMapSize(), 400);
+    }
+
+    closeMapPopout(): void {
+        this.mapPopoutOpen = false;
+        this.cdr.markForCheck();
+        // Inline map remounts; resize after view init.
+        setTimeout(() => this.incidentMapBridge.getMap()?.invalidateMapSize(), 120);
+        setTimeout(() => this.incidentMapBridge.getMap()?.invalidateMapSize(), 400);
     }
 
     // Locked features keep their tab so tab positions stay fixed; the panel

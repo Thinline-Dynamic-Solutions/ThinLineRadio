@@ -83,6 +83,24 @@
         </button>
       </div>
 
+      <div class="toolbar-group toolbar-group--actions">
+        <button type="button"
+          class="toolbar-preset-btn"
+          [class.active]="followNewPlots"
+          matTooltip="Fly to each newly plotted incident"
+          (click)="onFollowNewPlotsChange(!followNewPlots)">
+          <mat-icon>{{ followNewPlots ? 'my_location' : 'location_searching' }}</mat-icon>
+          Follow
+        </button>
+        <button type="button"
+          class="toolbar-preset-btn"
+          [matTooltip]="popoutMode ? 'Exit fullscreen map' : 'Open map fullscreen'"
+          (click)="onPopoutClick()">
+          <mat-icon>{{ popoutMode ? 'close_fullscreen' : 'open_in_full' }}</mat-icon>
+          {{ popoutMode ? 'Exit' : 'Pop out' }}
+        </button>
+      </div>
+
       @if (hasActiveFilters) {
         <div class="toolbar-group toolbar-group--actions">
           <button type="button"
@@ -168,7 +186,7 @@
     <rdio-scanner-incident-map-sidebar class="incident-map-layout__sidebar">
     </rdio-scanner-incident-map-sidebar>
 
-    <div id="tlr-incident-map-canvas" class="incident-map-canvas"></div>
+    <div #mapCanvas class="incident-map-canvas"></div>
 
     @if (pinEdit) {
       <div class="pin-edit-panel" [class.pin-edit-panel--suggest]="pinEdit.mode === 'suggest'">

@@ -485,6 +485,18 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     mappingBaseline = '';
     savingMapping = false;
 
+    /** Subtle sounds offered for new-plot tone (Options → Mapping). */
+    readonly newPinToneSoundOptions: { id: string; label: string }[] = [
+        { id: 'quiet', label: 'Quiet' },
+        { id: 'pop', label: 'Pop' },
+        { id: 'pluck', label: 'Pluck' },
+        { id: 'ding', label: 'Ding' },
+        { id: 'click', label: 'Click' },
+        { id: 'quick_beep', label: 'Quick Beep' },
+        { id: 'simple', label: 'Simple' },
+        { id: 'tone', label: 'Tone' },
+    ];
+
     readonly usStateOptions = US_STATE_FIPS_OPTIONS;
     boundaryImportStates: string[] = ['39'];
     boundaryImportLayers = { county: true, place: true, cousub: true };
@@ -663,6 +675,13 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
                 callNaturePhraseLearnMinSightings: cfg.callNaturePhraseLearnMinSightings || 3,
                 suppressUnknownNaturePins: cfg.suppressUnknownNaturePins ?? false,
                 sendLocationContext: cfg.sendLocationContext ?? false,
+                newPinFlashSeconds: (typeof cfg.newPinFlashSeconds === 'number'
+                    ? cfg.newPinFlashSeconds
+                    : 5),
+                newPinToneEnabled: cfg.newPinToneEnabled ?? true,
+                newPinToneSound: cfg.newPinToneSound || 'quiet',
+                mapBasemapProvider: cfg.mapBasemapProvider === 'mapbox' ? 'mapbox' : 'default',
+                mapboxAccessToken: cfg.mapboxAccessToken || '',
             }, { emitEvent: false });
             this.mappingBaseline = JSON.stringify(this.mappingForm.getRawValue());
             this.refreshPanelBaseline('mapping');
@@ -1304,6 +1323,8 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         'callNaturePhraseLearn',
         'suppressUnknownNaturePins',
         'sendLocationContext',
+        'newPinToneEnabled',
+        'mapBasemapProvider',
     ] as const;
 
     /** Subscribe each toggle so flipping it immediately persists just that key. */
@@ -1402,6 +1423,11 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             callNaturePhraseLearnMinSightings: [3],
             suppressUnknownNaturePins: [false],
             sendLocationContext: [false],
+            newPinFlashSeconds: [5],
+            newPinToneEnabled: [true],
+            newPinToneSound: ['quiet'],
+            mapBasemapProvider: ['default'],
+            mapboxAccessToken: [''],
         });
         this.loadMappingConfig();
         this.setupMappingToggleAutoSave();

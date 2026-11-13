@@ -6,15 +6,21 @@ import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
     Component,
+    ElementRef,
+    EventEmitter,
+    Input,
     NgZone,
     OnDestroy,
     OnInit,
     AfterViewInit,
+    Output,
+    ViewChild,
 } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription, timer } from 'rxjs';
 import * as L from 'leaflet';
 import { IncidentRecord } from '../mapping/mapping.types';
+import { AlertSoundService } from '../alert-sound.service';
 import { RdioScannerService } from '../rdio-scanner.service';
 import { TagColorService } from '../tag-color.service';
 import { IncidentMapBridgeService } from './incident-map-bridge.service';
@@ -51,6 +57,12 @@ interface IncidentFilterOption {
     standalone: false
 })
 export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, AfterViewInit {
+    @ViewChild('mapCanvas', { static: false }) mapCanvas?: ElementRef<HTMLElement>;
+    /** When true, this instance is the fullscreen popout (show Close instead of Pop out). */
+    @Input() popoutMode = false;
+    @Output() requestPopout = new EventEmitter<void>();
+    @Output() requestClosePopout = new EventEmitter<void>();
+
     incidents: IncidentRecord[] = [];
     loading = true;
     loadError = '';
@@ -62,6 +74,8 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     filterTalkgroupId: number | null = null;
     mapStyle: IncidentMapStyle = 'voyager';
     weatherLayers: NwsLayerToggles = { radar: false, alerts: false };
+    /** Per-user: fly to each newly plotted pin. */
+    followNewPlots = false;
     /** Map style + weather controls; collapsed by default to free map height. */
     moreFiltersOpen = false;
     radarPlaying = true;
@@ -189,9 +203,16 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     private readonly timePresetStorageKey = 'tlr-incident-map-time-preset';
     private readonly startDateStorageKey = 'tlr-incident-map-start-date';
     private readonly endDateStorageKey = 'tlr-incident-map-end-date';
+    private readonly followNewStorageKey = 'tlr-incident-map-follow-new';
     private readonly incidentFocusZoom = 16;
     private dateTimeFormatter: { zone: string | undefined; fmt: Intl.DateTimeFormat } | null = null;
     private filteredRawCountCache = 0;
+    /** Known plotted callIds after the first successful load (for new-pin detection). */
+    private knownPlottedIds: Set<number> | null = null;
+    private readonly flashingCallIds = new Set<number>();
+    private readonly flashTimers = new Map<number, ReturnType<typeof setTimeout>>();
+    private suppressFollowUntil = 0;
+    private userDraggingMap = false;
 
     private notifySidebar(): void {
         this.sidebarTick++;
@@ -207,10 +228,12 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         private ngZone: NgZone,
         private mapBridge: IncidentMapBridgeService,
         private nwsService: NwsService,
+        private alertSoundService: AlertSoundService,
     ) {}
 
     ngOnInit(): void {
         this.mapStyle = this.loadStoredMapStyle();
+        this.followNewPlots = this.loadStoredFollowNew();
         this.weatherLayers = { ...this.nwsService.getLayersValue() };
         this.radarPlaying = this.loadStoredRadarPlaying();
         this.loadStoredTimeFilter();
@@ -264,6 +287,11 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             clearTimeout(this.alertsLoadTimer);
             this.alertsLoadTimer = null;
         }
+        for (const timer of this.flashTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.flashTimers.clear();
+        this.flashingCallIds.clear();
         this.stopRadarAnimation();
         this.clearMarkers();
         this.clearWeatherLayers();
@@ -280,6 +308,22 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         if (this.map) {
             this.map.remove();
             this.map = null;
+        }
+    }
+
+    onFollowNewPlotsChange(enabled: boolean): void {
+        this.followNewPlots = !!enabled;
+        try {
+            localStorage.setItem(this.followNewStorageKey, this.followNewPlots ? '1' : '0');
+        } catch { /* ignore */ }
+        this.cdr.markForCheck();
+    }
+
+    onPopoutClick(): void {
+        if (this.popoutMode) {
+            this.requestClosePopout.emit();
+        } else {
+            this.requestPopout.emit();
         }
     }
 
@@ -413,7 +457,12 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         return this.formatDateInput(new Date());
     }
 
+    private resetNewPinBaseline(): void {
+        this.knownPlottedIds = null;
+    }
+
     onTimePresetChange(preset: IncidentTimePreset): void {
+        this.resetNewPinBaseline();
         this.timePreset = preset;
         if (preset === 'custom' && (!this.customStartDate || !this.customEndDate)) {
             const end = new Date();
@@ -440,6 +489,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.persistTimeFilter();
         if (this.customStartDate && this.customEndDate) {
             this.didFitBounds = false;
+            this.resetNewPinBaseline();
             this.refreshIncidents();
         }
         this.cdr.markForCheck();
@@ -457,6 +507,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.persistTimeFilter();
         if (this.customStartDate && this.customEndDate) {
             this.didFitBounds = false;
+            this.resetNewPinBaseline();
             this.refreshIncidents();
         }
         this.cdr.markForCheck();
@@ -489,6 +540,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     }
 
     onSystemFilterChange(raw: string | number | null): void {
+        this.resetNewPinBaseline();
         this.filterSystemId = raw === '' || raw == null ? null : Number(raw);
         this.filterTalkgroupId = null;
         this.rebuildFilterOptions();
@@ -498,6 +550,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     }
 
     onTalkgroupFilterChange(raw: string | number | null): void {
+        this.resetNewPinBaseline();
         this.filterTalkgroupId = raw === '' || raw == null ? null : Number(raw);
         this.refreshIncidents();
         this.cdr.markForCheck();
@@ -519,6 +572,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.rebuildFilterOptions();
         this.onFiltersChanged();
         if (hadServerFilter) {
+            this.resetNewPinBaseline();
             this.refreshIncidents();
         }
         this.cdr.markForCheck();
@@ -1058,7 +1112,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     }
 
     private initMap(): void {
-        const el = document.getElementById('tlr-incident-map-canvas');
+        const el = this.mapCanvas?.nativeElement;
         if (!el || this.map) {
             return;
         }
@@ -1075,6 +1129,8 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         this.markerLayerGroup = L.layerGroup().addTo(this.map);
         this.boundaryCanvasRenderer = L.canvas({ padding: 0.5 });
         this.map.on('movestart', () => {
+            this.userDraggingMap = true;
+            this.suppressFollowUntil = Date.now() + 4000;
             this.radarMapMoving = true;
             this.markersHiddenDuringMove = true;
             this.setMarkerPaneVisible(false);
@@ -1119,6 +1175,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             });
         });
         this.map.on('moveend', () => {
+            this.userDraggingMap = false;
             this.radarMapMoving = false;
             this.markersHiddenDuringMove = false;
             this.setMarkerPaneVisible(true);
@@ -1175,19 +1232,26 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
     private createTileLayer(style: IncidentMapStyle): L.TileLayer {
         const perf = this.tilePerfOptions();
         const url = `/api/map/tiles/${style}/{z}/{x}/{y}.png?v=${TILE_CACHE_BUST}`;
+        const mapbox = this.rdioScannerService.getConfig()?.options?.mapBasemapProvider === 'mapbox';
         let attribution: string;
         let maxNativeZoom: number;
         switch (style) {
             case 'satellite':
-                attribution = 'Tiles &copy; Esri';
+                attribution = mapbox
+                    ? '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    : 'Tiles &copy; Esri';
                 maxNativeZoom = 19;
                 break;
             case 'dark':
-                attribution = 'Tiles &copy; Esri';
-                maxNativeZoom = 16;
+                attribution = mapbox
+                    ? '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    : 'Tiles &copy; Esri';
+                maxNativeZoom = mapbox ? 19 : 16;
                 break;
             default:
-                attribution = '&copy; OpenStreetMap contributors';
+                attribution = mapbox
+                    ? '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    : '&copy; OpenStreetMap contributors';
                 maxNativeZoom = 19;
                 break;
         }
@@ -1308,7 +1372,23 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             if (fetchId !== this.incidentFetchGen) {
                 return;
             }
-            this.incidents = items || [];
+            const next = items || [];
+            const plottedIds = new Set(
+                next.filter((inc) => this.incidentHasCoords(inc)).map((inc) => Number(inc.callId)),
+            );
+            let brandNew: number[] = [];
+            if (this.knownPlottedIds == null) {
+                this.knownPlottedIds = plottedIds;
+            } else {
+                brandNew = [...plottedIds].filter((id) => !this.knownPlottedIds!.has(id));
+                for (const id of brandNew) {
+                    this.knownPlottedIds.add(id);
+                }
+                if (brandNew.length) {
+                    this.handleNewPlottedPins(brandNew, next);
+                }
+            }
+            this.incidents = next;
             this.loading = false;
             this.loadError = '';
             this.rebuildFilterOptions();
@@ -1397,6 +1477,10 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
                     });
                 });
                 entry = { marker, signature };
+                if (this.flashingCallIds.has(incident.callId)) {
+                    // Class may already be in the HTML; ensure after Leaflet mounts the icon.
+                    setTimeout(() => this.setMarkerFlashClass(marker, true), 0);
+                }
                 this.markerCache.set(incident.callId, entry);
             } else {
                 entry.marker.setLatLng(latlng);
@@ -1489,8 +1573,9 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
         const natureTitle = this.escapeHtml(natureRaw);
         const addressTitle = this.escapeHtml(addressRaw);
         const w = this.computeIncidentPinWidth(natureRaw, addressRaw);
+        const flashClass = this.flashingCallIds.has(incident.callId) ? ' tlr-incident-pin--new' : '';
         const html = `
-            <div class="tlr-incident-pin-wrap" style="width:${w}px;max-width:${w}px;">
+            <div class="tlr-incident-pin-wrap${flashClass}" style="width:${w}px;max-width:${w}px;">
                 <div class="tlr-incident-pin-card" style="border-color:${color};">
                     <div class="tlr-incident-pin-nature"
                          style="background:${color};color:${textColor};"
@@ -1505,7 +1590,79 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
             iconSize: [w, 0],
             iconAnchor: [w / 2, 0],
         });
-        return L.marker(latlng, { icon, zIndexOffset: 1000 });
+        return L.marker(latlng, { icon, zIndexOffset: this.flashingCallIds.has(incident.callId) ? 2000 : 1000 });
+    }
+
+    private handleNewPlottedPins(newIds: number[], rows: IncidentRecord[]): void {
+        const opts = this.rdioScannerService.getConfig()?.options;
+        const flashSeconds = typeof opts?.newPinFlashSeconds === 'number' ? opts.newPinFlashSeconds : 5;
+        if (flashSeconds > 0) {
+            for (const id of newIds) {
+                this.startPinFlash(id, flashSeconds);
+            }
+        }
+        if (opts?.newPinToneEnabled !== false && newIds.length > 0) {
+            const sound = (opts?.newPinToneSound || 'quiet').trim() || 'quiet';
+            if (sound !== 'none') {
+                this.alertSoundService.playSound(sound);
+            }
+        }
+        if (this.followNewPlots && !this.pinEdit && Date.now() >= this.suppressFollowUntil && !this.userDraggingMap) {
+            let newest: IncidentRecord | null = null;
+            for (const id of newIds) {
+                const row = rows.find((r) => Number(r.callId) === id && this.incidentHasCoords(r));
+                if (!row) {
+                    continue;
+                }
+                if (!newest || Number(row.timestamp) > Number(newest.timestamp)) {
+                    newest = row;
+                }
+            }
+            if (newest) {
+                const target = this.resolveIncident(newest.callId) || newest;
+                setTimeout(() => this.selectIncident(target), 100);
+            }
+        }
+    }
+
+    private startPinFlash(callId: number, seconds: number): void {
+        this.flashingCallIds.add(callId);
+        const existing = this.flashTimers.get(callId);
+        if (existing) {
+            clearTimeout(existing);
+        }
+        const entry = this.markerCache.get(callId);
+        if (entry) {
+            this.setMarkerFlashClass(entry.marker, true);
+            entry.marker.setZIndexOffset(2000);
+        }
+        const timer = setTimeout(() => {
+            this.flashTimers.delete(callId);
+            this.flashingCallIds.delete(callId);
+            const m = this.markerCache.get(callId)?.marker;
+            if (m) {
+                this.setMarkerFlashClass(m, false);
+                m.setZIndexOffset(1000);
+            }
+        }, Math.max(0.5, seconds) * 1000);
+        this.flashTimers.set(callId, timer);
+    }
+
+    private setMarkerFlashClass(marker: L.Marker, on: boolean): void {
+        const el = marker.getElement();
+        const wrap = el?.querySelector?.('.tlr-incident-pin-wrap') as HTMLElement | null;
+        if (!wrap) {
+            return;
+        }
+        wrap.classList.toggle('tlr-incident-pin--new', on);
+    }
+
+    private loadStoredFollowNew(): boolean {
+        try {
+            return localStorage.getItem(this.followNewStorageKey) === '1';
+        } catch {
+            return false;
+        }
     }
 
     private openPopupForIncident(incident: IncidentRecord): void {
@@ -1669,8 +1826,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
 
     toggleMovePin(): void {
         this.movePinArmed = !this.movePinArmed;
-        const canvas = document.getElementById('tlr-incident-map-canvas');
-        canvas?.classList.toggle('pin-move-armed', this.movePinArmed);
+        this.mapCanvas?.nativeElement?.classList.toggle('pin-move-armed', this.movePinArmed);
         this.cdr.markForCheck();
     }
 
@@ -1870,7 +2026,7 @@ export class RdioScannerIncidentMapComponent implements OnInit, OnDestroy, After
 
     private disarmMovePin(): void {
         this.movePinArmed = false;
-        document.getElementById('tlr-incident-map-canvas')?.classList.remove('pin-move-armed');
+        this.mapCanvas?.nativeElement?.classList.remove('pin-move-armed');
     }
 
     private updatePinEditMarker(): void {
