@@ -374,7 +374,30 @@ func (client *Client) SendConfig(groups *Groups, options *Options, systems *Syst
 			"baseUrl":                 options.BaseUrl,
 			"uiAccentColor":           options.UIAccentColor,
 			"transcriptionEnabled":    options.TranscriptionConfig.Enabled,
-			"incidentMappingEnabled":  options.MappingIntegration.IncidentMappingEnabled,
+			"incidentMappingEnabled": options.MappingIntegration.IncidentMappingEnabled,
+			"newPinFlashSeconds": func() uint {
+				// Empty tone sound means the UX fields were never saved — use product defaults.
+				if strings.TrimSpace(options.MappingIntegration.NewPinToneSound) == "" &&
+					options.MappingIntegration.NewPinFlashSeconds == 0 {
+					return 5
+				}
+				return options.MappingIntegration.NewPinFlashSeconds
+			}(),
+			"newPinToneEnabled": func() bool {
+				if strings.TrimSpace(options.MappingIntegration.NewPinToneSound) == "" &&
+					options.MappingIntegration.NewPinFlashSeconds == 0 &&
+					!options.MappingIntegration.NewPinToneEnabled {
+					return true
+				}
+				return options.MappingIntegration.NewPinToneEnabled
+			}(),
+			"newPinToneSound": func() string {
+				if s := strings.TrimSpace(options.MappingIntegration.NewPinToneSound); s != "" {
+					return s
+				}
+				return "quiet"
+			}(),
+			"mapBasemapProvider": options.MappingIntegration.MapBasemapProvider,
 			// Audio encryption: clients need the relay URL and client token to
 			// perform their own ECDH key exchange. The raw AES key is never sent here.
 			// The client token is auto-fetched from the relay using the server's API key.

@@ -2268,6 +2268,68 @@
             </mat-form-field>
           </div>
           <div class="row">
+            <p>
+              <span class="mat-body">New pin flash (seconds)</span><br>
+              <span class="mat-caption">
+                How long a newly plotted incident flashes on the map. Set to <strong>0</strong> to disable.
+              </span>
+            </p>
+            <mat-form-field>
+              <input type="number" min="0" max="60" step="1" matInput formControlName="newPinFlashSeconds" autocomplete="off">
+            </mat-form-field>
+          </div>
+          <div class="row">
+            <p>
+              <span class="mat-body">New pin tone</span><br>
+              <span class="mat-caption">Play a short sound when a new incident is plotted on the map.</span>
+            </p>
+            <div>
+              <mat-slide-toggle color="primary" formControlName="newPinToneEnabled"></mat-slide-toggle>
+            </div>
+          </div>
+          <div class="row">
+            <p>
+              <span class="mat-body">New pin tone sound</span><br>
+              <span class="mat-caption">Subtle sounds work best (Quiet, Pop, Pluck, Ding).</span>
+            </p>
+            <mat-form-field floatLabel="auto">
+              <mat-select formControlName="newPinToneSound">
+                @for (s of newPinToneSoundOptions; track s.id) {
+                  <mat-option [value]="s.id">{{ s.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="row">
+            <p>
+              <span class="mat-body">Basemap provider</span><br>
+              <span class="mat-caption">
+                Default uses OpenStreetMap / Esri. Mapbox provides clearer light and dark styles
+                (token stays on the server; tiles are proxied and cached).
+              </span>
+            </p>
+            <mat-form-field floatLabel="auto">
+              <mat-select formControlName="mapBasemapProvider">
+                <mat-option value="default">Default (OSM / Esri)</mat-option>
+                <mat-option value="mapbox">Mapbox</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+          @if (mappingForm.get('mapBasemapProvider')?.value === 'mapbox') {
+            <div class="row">
+              <p>
+                <span class="mat-body">Mapbox access token</span><br>
+                <span class="mat-caption">
+                  Server-only. Used by the tile proxy; never sent to listener browsers.
+                  Requires a Mapbox account with Styles API access.
+                </span>
+              </p>
+              <mat-form-field class="mapping-field-grow">
+                <input type="password" matInput formControlName="mapboxAccessToken" autocomplete="off" placeholder="pk.…">
+              </mat-form-field>
+            </div>
+          }
+          <div class="row">
             <div class="mapping-panel-block mapping-boundaries">
               <h4>Map boundaries (US-wide)</h4>
               <p class="mapping-panel-lead">

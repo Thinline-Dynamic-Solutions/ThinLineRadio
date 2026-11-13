@@ -54,6 +54,17 @@ type MappingIntegration struct {
 	// SendLocationContext appends talkgroup/system incident-mapping location
 	// context (LocationContext / GeoCity) to the STT prompt when available.
 	SendLocationContext bool `json:"sendLocationContext"`
+	// NewPinFlashSeconds is how long newly plotted pins flash on the map.
+	// 0 disables the flash. Default 5 when unset.
+	NewPinFlashSeconds uint `json:"newPinFlashSeconds"`
+	// NewPinToneEnabled plays a short sound when a pin is newly plotted.
+	NewPinToneEnabled bool `json:"newPinToneEnabled"`
+	// NewPinToneSound is an AlertSoundService id (ding, pop, quiet, …).
+	NewPinToneSound string `json:"newPinToneSound"`
+	// MapBasemapProvider selects tile upstreams: "default" (OSM/Esri) or "mapbox".
+	MapBasemapProvider string `json:"mapBasemapProvider"`
+	// MapboxAccessToken is used server-side by the tile proxy only; never emitted to clients.
+	MapboxAccessToken string `json:"mapboxAccessToken"`
 }
 
 // effectiveCallNatureOpenAIClassify reports whether OpenAI should classify call

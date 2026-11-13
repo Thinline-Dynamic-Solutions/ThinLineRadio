@@ -105,6 +105,8 @@ func validMapTileCoords(style string, z, x, y int) bool {
 		maxZoom = 19
 	case "dark":
 		// ESRI Dark Gray Canvas only publishes tiles through zoom 16.
+		// Mapbox dark-v11 supports higher zooms; MapTilesHandler raises this
+		// when Mapbox is active.
 		maxZoom = 16
 	}
 	if z < 0 || z > maxZoom {
@@ -114,13 +116,47 @@ func validMapTileCoords(style string, z, x, y int) bool {
 	return x >= 0 && x < limit && y >= 0 && y < limit
 }
 
+func validMapTileCoordsForProvider(style string, z, x, y int, mapbox bool) bool {
+	if mapbox && (style == "voyager" || style == "dark" || style == "satellite") {
+		if z < 0 || z > 19 {
+			return false
+		}
+		limit := 1 << uint(z)
+		return x >= 0 && x < limit && y >= 0 && y < limit
+	}
+	return validMapTileCoords(style, z, x, y)
+}
+
 func mapTileUpstreamURL(req mapTileRequest) (string, bool) {
+	return mapTileUpstreamURLFor(req, false, "")
+}
+
+// mapTileUpstreamURLFor returns the upstream tile URL. When mapbox is true and
+// a token is set, voyager/dark/satellite use Mapbox Styles; otherwise OSM/Esri.
+func mapTileUpstreamURLFor(req mapTileRequest, mapbox bool, token string) (string, bool) {
+	token = strings.TrimSpace(token)
+	useMapbox := mapbox && token != ""
 	switch req.Style {
 	case "voyager":
+		if useMapbox {
+			return fmt.Sprintf(
+				"https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/256/%d/%d/%d@2x?access_token=%s",
+				req.Z, req.X, req.Y, token), true
+		}
 		return fmt.Sprintf("https://tile.openstreetmap.org/%d/%d/%d.png", req.Z, req.X, req.Y), true
 	case "dark":
+		if useMapbox {
+			return fmt.Sprintf(
+				"https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/%d/%d/%d@2x?access_token=%s",
+				req.Z, req.X, req.Y, token), true
+		}
 		return fmt.Sprintf("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/%d/%d/%d", req.Z, req.Y, req.X), true
 	case "satellite":
+		if useMapbox {
+			return fmt.Sprintf(
+				"https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/%d/%d/%d@2x?access_token=%s",
+				req.Z, req.X, req.Y, token), true
+		}
 		return fmt.Sprintf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/%d/%d/%d", req.Z, req.Y, req.X), true
 	case "radar":
 		return fmt.Sprintf("https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-%s/%d/%d/%d.png", req.FrameID, req.Z, req.X, req.Y), true
@@ -130,10 +166,18 @@ func mapTileUpstreamURL(req mapTileRequest) (string, bool) {
 }
 
 func mapTileCachePath(req mapTileRequest) string {
+	return mapTileCachePathFor(req, false)
+}
+
+func mapTileCachePathFor(req mapTileRequest, mapbox bool) string {
 	if req.Style == "radar" {
 		return filepath.Join(mapTileCacheRoot(), "radar", req.FrameID, strconv.Itoa(req.Z), strconv.Itoa(req.X), fmt.Sprintf("%d.png", req.Y))
 	}
-	return filepath.Join(mapTileCacheRoot(), req.Style, strconv.Itoa(req.Z), strconv.Itoa(req.X), fmt.Sprintf("%d.png", req.Y))
+	provider := "default"
+	if mapbox {
+		provider = "mapbox"
+	}
+	return filepath.Join(mapTileCacheRoot(), provider, req.Style, strconv.Itoa(req.Z), strconv.Itoa(req.X), fmt.Sprintf("%d.png", req.Y))
 }
 
 func mapTileCacheTTL(style string) time.Duration {
@@ -227,17 +271,34 @@ func (api *Api) MapTilesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req, ok := parseMapTilePath(r.URL.Path)
-	if !ok || !validMapTileCoords(req.Style, req.Z, req.X, req.Y) {
-		http.NotFound(w, r)
-		return
-	}
-	upstream, ok := mapTileUpstreamURL(req)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
-	cachePath := mapTileCachePath(req)
+	useMapbox := false
+	mapboxToken := ""
+	if api != nil && api.Controller != nil && api.Controller.Options != nil {
+		api.Controller.Options.mutex.Lock()
+		mi := api.Controller.Options.MappingIntegration
+		api.Controller.Options.mutex.Unlock()
+		if strings.EqualFold(strings.TrimSpace(mi.MapBasemapProvider), "mapbox") {
+			mapboxToken = strings.TrimSpace(mi.MapboxAccessToken)
+			useMapbox = mapboxToken != ""
+		}
+	}
+
+	if !validMapTileCoordsForProvider(req.Style, req.Z, req.X, req.Y, useMapbox) {
+		http.NotFound(w, r)
+		return
+	}
+	upstream, ok := mapTileUpstreamURLFor(req, useMapbox, mapboxToken)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	cachePath := mapTileCachePathFor(req, useMapbox)
 	ttl := mapTileCacheTTL(req.Style)
 	if mapTileCacheFresh(cachePath, ttl) {
 		if serveCachedMapTile(w, r, cachePath, "HIT") {

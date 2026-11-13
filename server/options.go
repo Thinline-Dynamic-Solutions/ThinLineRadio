@@ -1337,6 +1337,26 @@ func applyMappingIntegrationFromMap(cfg *MappingIntegration, m map[string]any) {
 	if v, ok := anyToBool(m["sendLocationContext"]); ok {
 		cfg.SendLocationContext = v
 	}
+	if v, ok := m["newPinFlashSeconds"].(float64); ok {
+		cfg.NewPinFlashSeconds = uint(v)
+	}
+	if v, ok := anyToBool(m["newPinToneEnabled"]); ok {
+		cfg.NewPinToneEnabled = v
+	}
+	if v, ok := m["newPinToneSound"].(string); ok {
+		cfg.NewPinToneSound = strings.TrimSpace(v)
+	}
+	if v, ok := m["mapBasemapProvider"].(string); ok {
+		p := strings.ToLower(strings.TrimSpace(v))
+		if p == "mapbox" {
+			cfg.MapBasemapProvider = "mapbox"
+		} else {
+			cfg.MapBasemapProvider = "default"
+		}
+	}
+	if v, ok := m["mapboxAccessToken"].(string); ok {
+		cfg.MapboxAccessToken = strings.TrimSpace(v)
+	}
 }
 
 // migrateLegacyOpenAIIntegration copies OpenAI credentials stored under autoLearnToneSetConfig (older builds).

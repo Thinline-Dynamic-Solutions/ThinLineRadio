@@ -641,8 +641,18 @@
                 <div class="tab-panel tab-panel--fill embed-panel">
                   @if (mapLocked) {
                     <ng-container *ngTemplateOutlet="lockedPanel; context: { $implicit: 'map' }"></ng-container>
+                  } @else if (mapPopoutOpen) {
+                    <div class="map-inline-blank">
+                      <mat-icon>open_in_full</mat-icon>
+                      <p>Map is open fullscreen. Close it to restore this panel.</p>
+                      <button mat-stroked-button type="button" (click)="closeMapPopout()">
+                        Exit fullscreen map
+                      </button>
+                    </div>
                   } @else {
-                    <rdio-scanner-incident-map></rdio-scanner-incident-map>
+                    <rdio-scanner-incident-map
+                      (requestPopout)="openMapPopout()">
+                    </rdio-scanner-incident-map>
                   }
                 </div>
               </ng-template>
@@ -757,6 +767,15 @@
           </rdio-scanner-stripe-checkout>
         }
       </div>
+    </div>
+  }
+
+  @if (mapPopoutOpen && !mapLocked) {
+    <div class="map-popout-overlay" role="dialog" aria-label="Fullscreen incident map">
+      <rdio-scanner-incident-map
+        [popoutMode]="true"
+        (requestClosePopout)="closeMapPopout()">
+      </rdio-scanner-incident-map>
     </div>
   }
 </div>
