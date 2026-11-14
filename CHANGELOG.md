@@ -1,5 +1,19 @@
 # Change log
 
+## Version 26.11.07 - Released November 13, 2026
+
+### Fixed
+
+- **Subscribers whose PIN expired after paying**
+  - Deleting a user group and moving its members to another group no longer clears their Stripe customer and subscription. Before, those users' renewals and trial conversions were not recorded, so their PINs expired even though Stripe was billing them.
+  - Saving a user from **Admin → Users** only changes the Stripe fields when the editor sends them.
+  - Stripe payment and subscription updates now find the user by their subscription or by their email in Stripe when the customer link is missing, and link the customer again.
+- **Duplicate subscriptions at checkout**
+  - A user whose subscription is still active in Stripe but no longer linked in ThinLine Radio is linked again at checkout and sent back to the scanner, instead of being charged for a second subscription. If that subscription has a payment problem, they are asked to use **Manage Billing**.
+  - Customers who have subscribed before don't get a second free trial.
+
+---
+
 ## Version 26.11.06 - Released November 9, 2026
 
 ### Added

@@ -2154,26 +2154,10 @@ func (api *Api) handleSubscriptionEvent(rawData []byte, status string) {
 	log.Printf("Customer email: '%s'", subData.Customer.Email)
 	log.Printf("Customer name: '%s'", subData.Customer.Name)
 
-	// Find user by Stripe customer ID
-	user := api.Controller.Users.GetUserByStripeCustomerId(subData.Customer.ID)
+	user := api.findUserForStripeCustomer(subData.Customer.ID, subData.ID)
 	if user == nil {
-		log.Printf("User not found for Stripe customer ID: %s", subData.Customer.ID)
-
-		// Try to find user by email from customer object
-		if subData.Customer.Email != "" {
-			log.Printf("Trying to find user by email: %s", subData.Customer.Email)
-			user = api.Controller.Users.GetUserByEmail(subData.Customer.Email)
-			if user != nil {
-				log.Printf("Found user by email, updating with Stripe customer ID")
-				user.StripeCustomerId = subData.Customer.ID
-			}
-		}
-
-		if user == nil {
-			log.Printf("User not found for email: %s", subData.Customer.Email)
-			log.Printf("Cannot process subscription event - user not found for customer ID: %s", subData.Customer.ID)
-			return
-		}
+		log.Printf("Cannot process subscription event - user not found for customer ID: %s (subscription %s)", subData.Customer.ID, subData.ID)
+		return
 	}
 
 	log.Printf("Found user: %s (ID: %d)", user.Email, user.Id)
@@ -2322,25 +2306,14 @@ func (api *Api) handleInvoicePaymentSucceeded(rawData []byte) {
 
 	log.Printf("Processing invoice payment succeeded for customer: %s", invoice.Customer.ID)
 
-	// Find user by Stripe customer ID
-	user := api.Controller.Users.GetUserByStripeCustomerId(invoice.Customer.ID)
+	invoiceSubscriptionID := ""
+	if invoice.Subscription != nil {
+		invoiceSubscriptionID = invoice.Subscription.ID
+	}
+	user := api.findUserForStripeCustomer(invoice.Customer.ID, invoiceSubscriptionID)
 	if user == nil {
-		log.Printf("User not found for Stripe customer ID: %s", invoice.Customer.ID)
-
-		// Try to find user by email from customer object
-		if invoice.Customer.Email != "" {
-			log.Printf("Trying to find user by email: %s", invoice.Customer.Email)
-			user = api.Controller.Users.GetUserByEmail(invoice.Customer.Email)
-			if user != nil {
-				log.Printf("Found user by email, updating with Stripe customer ID")
-				user.StripeCustomerId = invoice.Customer.ID
-			}
-		}
-
-		if user == nil {
-			log.Printf("User not found for email: %s", invoice.Customer.Email)
-			return
-		}
+		log.Printf("Cannot process invoice payment event - user not found for customer ID: %s (subscription %s)", invoice.Customer.ID, invoiceSubscriptionID)
+		return
 	}
 
 	log.Printf("Found user: %s (ID: %d)", user.Email, user.Id)
@@ -2403,26 +2376,14 @@ func (api *Api) handleInvoicePaymentFailed(rawData []byte) {
 	log.Printf("DEBUG: Invoice Amount: %d", invoice.AmountDue)
 	log.Printf("DEBUG: Invoice Status: %s", invoice.Status)
 
-	// Find user by Stripe customer ID
-	user := api.Controller.Users.GetUserByStripeCustomerId(invoice.Customer.ID)
+	invoiceSubscriptionID := ""
+	if invoice.Subscription != nil {
+		invoiceSubscriptionID = invoice.Subscription.ID
+	}
+	user := api.findUserForStripeCustomer(invoice.Customer.ID, invoiceSubscriptionID)
 	if user == nil {
-		log.Printf("DEBUG: User not found for Stripe customer ID: %s", invoice.Customer.ID)
-
-		// Try to find user by email from customer object
-		if invoice.Customer.Email != "" {
-			log.Printf("DEBUG: Trying to find user by email: %s", invoice.Customer.Email)
-			user = api.Controller.Users.GetUserByEmail(invoice.Customer.Email)
-			if user != nil {
-				log.Printf("DEBUG: Found user by email, updating with Stripe customer ID")
-				user.StripeCustomerId = invoice.Customer.ID
-			}
-		}
-
-		if user == nil {
-			log.Printf("DEBUG: User not found for email: %s", invoice.Customer.Email)
-			log.Printf("DEBUG: Cannot process invoice payment event - user not found for customer ID: %s", invoice.Customer.ID)
-			return
-		}
+		log.Printf("DEBUG: Cannot process invoice payment event - user not found for customer ID: %s (subscription %s)", invoice.Customer.ID, invoiceSubscriptionID)
+		return
 	}
 
 	log.Printf("DEBUG: Found user: %s (ID: %d)", user.Email, user.Id)
@@ -3048,6 +3009,49 @@ func (api *Api) CreateCheckoutSessionHandler(w http.ResponseWriter, r *http.Requ
 		lineItems = append(lineItems, li)
 	}
 
+	// Never start a second subscription (or a second free trial) for someone
+	// Stripe already bills: if TLR lost the link, restore it instead.
+	customerIDs, err := api.stripeCustomerIDsForUser(user)
+	if err != nil {
+		log.Printf("Checkout for %s: failed to look up Stripe customers: %v", user.Email, err)
+	}
+	hadSubscription := false
+	reuseCustomerID := ""
+	for _, cid := range customerIDs {
+		live, hadAny, err := api.stripeCustomerSubscriptions(cid)
+		if err != nil {
+			log.Printf("Checkout for %s: failed to list subscriptions for customer %s: %v", user.Email, cid, err)
+			continue
+		}
+		if reuseCustomerID == "" {
+			reuseCustomerID = cid
+		}
+		hadSubscription = hadSubscription || hadAny
+		if live == nil || live.ID == user.StripeSubscriptionId {
+			continue
+		}
+
+		log.Printf("Checkout for %s: re-linking existing Stripe subscription %s (%s) on customer %s instead of creating a new one", user.Email, live.ID, live.Status, cid)
+		if err := api.relinkStripeSubscription(user, live); err != nil {
+			log.Printf("Checkout for %s: failed to save re-linked subscription: %v", user.Email, err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if live.Status == stripe.SubscriptionStatusActive || live.Status == stripe.SubscriptionStatusTrialing {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"checkoutUrl": request.SuccessUrl,
+			})
+		} else {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "You already have a subscription with a payment problem. Use Manage Billing to update your payment method.",
+			})
+		}
+		return
+	}
+	if hadSubscription && maxTrialDays > 0 {
+		log.Printf("Checkout for %s: skipping %d day trial, customer has subscribed before", user.Email, maxTrialDays)
+		maxTrialDays = 0
+	}
+
 	log.Printf("Creating combined checkout for user %s: %d line item(s), groups=[%s]", request.Email, len(lineItems), strings.Join(groupIds, ","))
 
 	// Create Stripe Checkout Session
@@ -3078,11 +3082,16 @@ func (api *Api) CreateCheckoutSessionHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	// The subscription carries the user ID so its webhooks can find the user
+	// even if the customer link is lost.
+	params.SubscriptionData = &stripe.CheckoutSessionSubscriptionDataParams{
+		Metadata: map[string]string{
+			"rdio_user_id": fmt.Sprintf("%d", user.Id),
+		},
+	}
 	// Trial is subscription-level: use the longest trial among selected tiers.
 	if maxTrialDays > 0 {
-		params.SubscriptionData = &stripe.CheckoutSessionSubscriptionDataParams{
-			TrialPeriodDays: stripe.Int64(int64(maxTrialDays)),
-		}
+		params.SubscriptionData.TrialPeriodDays = stripe.Int64(int64(maxTrialDays))
 		log.Printf("Adding %d day trial period (max across tiers)", maxTrialDays)
 	}
 
@@ -3090,6 +3099,9 @@ func (api *Api) CreateCheckoutSessionHandler(w http.ResponseWriter, r *http.Requ
 	if user.StripeCustomerId != "" {
 		params.Customer = stripe.String(user.StripeCustomerId)
 		log.Printf("Using existing Stripe customer ID: %s for user: %s", user.StripeCustomerId, request.Email)
+	} else if reuseCustomerID != "" {
+		params.Customer = stripe.String(reuseCustomerID)
+		log.Printf("Reusing Stripe customer %s found by email for user: %s", reuseCustomerID, request.Email)
 	} else {
 		params.CustomerEmail = stripe.String(request.Email)
 		log.Printf("Using customer email for checkout session: %s", request.Email)
@@ -7536,7 +7548,20 @@ func (api *Api) AdminDeleteGroupHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get all users in this group and unassign them
+	// Optional ?moveTo=<groupId>: members whose primary is this group move there.
+	var moveTo *UserGroup
+	if raw := strings.TrimSpace(r.URL.Query().Get("moveTo")); raw != "" {
+		moveToID, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || moveToID == groupID {
+			api.exitWithError(w, http.StatusBadRequest, "Invalid target group")
+			return
+		}
+		if moveTo = api.Controller.UserGroups.Get(moveToID); moveTo == nil {
+			api.exitWithError(w, http.StatusBadRequest, "Target group not found")
+			return
+		}
+	}
+
 	allUsers := api.Controller.Users.GetAllUsers()
 	usersInGroup := []*User{}
 	for _, user := range allUsers {
@@ -7545,11 +7570,20 @@ func (api *Api) AdminDeleteGroupHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Unassign all users from this group (set to 0 = no group)
+	// Move or unassign members in place so nothing else on the user (billing
+	// link, PIN, systems) is touched.
 	for _, user := range usersInGroup {
-		user.UserGroupId = 0
-		user.IsGroupAdmin = false // Remove group admin status
+		user.IsGroupAdmin = false
+		if moveTo != nil {
+			user.RemoveGroup(groupID)
+			user.SetPrimaryGroup(moveTo.Id)
+		} else {
+			user.UserGroupId = 0
+		}
 		api.Controller.Users.Update(user)
+	}
+	if moveTo != nil && len(usersInGroup) > 0 {
+		log.Printf("Moved %d users from deleted group %d to group %d", len(usersInGroup), groupID, moveTo.Id)
 	}
 
 	// Write user updates to database

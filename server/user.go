@@ -1463,6 +1463,21 @@ func (users *Users) GetUserByStripeCustomerId(customerId string) *User {
 	return nil
 }
 
+func (users *Users) GetUserByStripeSubscriptionId(subscriptionId string) *User {
+	if subscriptionId == "" {
+		return nil
+	}
+	users.mutex.RLock()
+	defer users.mutex.RUnlock()
+
+	for _, user := range users.users {
+		if user.StripeSubscriptionId == subscriptionId {
+			return user
+		}
+	}
+	return nil
+}
+
 func (users *Users) GetAllUsers() []*User {
 	users.mutex.RLock()
 	defer users.mutex.RUnlock()

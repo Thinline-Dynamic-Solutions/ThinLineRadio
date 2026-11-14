@@ -6900,9 +6900,11 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		ApiKeyNoAudioAlertApiKeys *string `json:"apiKeyNoAudioAlertApiKeys"`
 		ForcePasswordReset        *bool   `json:"forcePasswordReset"`
 		Suspended                 *bool   `json:"suspended"`
-		StripeCustomerId     string  `json:"stripeCustomerId"`
-		StripeSubscriptionId string  `json:"stripeSubscriptionId"`
-		SubscriptionStatus   string  `json:"subscriptionStatus"`
+		// Pointers: a caller that leaves these out (e.g. a bulk group move) must
+		// not wipe the user's Stripe link, or webhooks can no longer find them.
+		StripeCustomerId     *string `json:"stripeCustomerId"`
+		StripeSubscriptionId *string `json:"stripeSubscriptionId"`
+		SubscriptionStatus   *string `json:"subscriptionStatus"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -6956,9 +6958,15 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update Stripe billing information
-	user.StripeCustomerId = strings.TrimSpace(request.StripeCustomerId)
-	user.StripeSubscriptionId = strings.TrimSpace(request.StripeSubscriptionId)
-	user.SubscriptionStatus = strings.TrimSpace(request.SubscriptionStatus)
+	if request.StripeCustomerId != nil {
+		user.StripeCustomerId = strings.TrimSpace(*request.StripeCustomerId)
+	}
+	if request.StripeSubscriptionId != nil {
+		user.StripeSubscriptionId = strings.TrimSpace(*request.StripeSubscriptionId)
+	}
+	if request.SubscriptionStatus != nil {
+		user.SubscriptionStatus = strings.TrimSpace(*request.SubscriptionStatus)
+	}
 
 	// Determine the effective user group ID (use new value if provided, otherwise current)
 	effectiveUserGroupId := user.UserGroupId

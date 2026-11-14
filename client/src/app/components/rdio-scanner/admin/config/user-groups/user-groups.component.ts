@@ -914,35 +914,10 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
   }
   
   executeGroupDelete(groupId: number, targetGroupId: number | null): void {
-    // If target group selected, move users first
-    if (targetGroupId && targetGroupId > 0 && this.usersInGroupToDelete.length > 0) {
-      Promise.all(
-        this.usersInGroupToDelete.map((user: any) => {
-          // Send all required fields for user update - backend requires non-empty strings
-          const userUpdateData = {
-            email: user.email || '',
-            firstName: user.firstName || '',
-            lastName: user.lastName || '',
-            zipCode: user.zipCode || '',
-            verified: user.verified || false,
-            systems: user.systems || '',
-            delay: user.delay || 0,
-            userGroupId: targetGroupId
-          };
-          // Validate required fields before sending
-          if (!userUpdateData.email || !userUpdateData.firstName || !userUpdateData.lastName || !userUpdateData.zipCode) {
-            console.error('User missing required fields:', user);
-            throw new Error(`User ${user.id} is missing required fields (email, firstName, lastName, or zipCode)`);
-          }
-          return this.adminService.updateUser(user.id, userUpdateData);
-        })
-      ).then(() => {
-        this.performGroupDelete(groupId);
-      }).catch(error => {
-        console.error('Failed to move users:', error);
-        const errorMsg = error?.error?.error || error?.message || 'Failed to move some users';
-        this.snackBar.open(errorMsg, 'Close', { duration: 5000 });
-      });
+    if (targetGroupId && targetGroupId > 0) {
+      // The server moves members as part of the delete so it only changes their
+      // group, never their billing link, PIN or systems.
+      this.performGroupDelete(groupId, targetGroupId);
     } else if (targetGroupId === -2) {
       // Delete users option selected
       Promise.all(
@@ -956,33 +931,8 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
         this.snackBar.open('Failed to delete some users', 'Close', { duration: 3000 });
       });
     } else {
-      // Unassign users (targetGroupId is null) - set userGroupId to 0
-      Promise.all(
-        this.usersInGroupToDelete.map((user: any) => {
-          const userUpdateData = {
-            email: user.email || '',
-            firstName: user.firstName || '',
-            lastName: user.lastName || '',
-            zipCode: user.zipCode || '',
-            verified: user.verified || false,
-            systems: user.systems || '',
-            delay: user.delay || 0,
-            userGroupId: 0  // Use 0 to unassign (backend accepts 0 as unassigned)
-          };
-          // Validate required fields before sending
-          if (!userUpdateData.email || !userUpdateData.firstName || !userUpdateData.lastName || !userUpdateData.zipCode) {
-            console.error('User missing required fields:', user);
-            throw new Error(`User ${user.id} is missing required fields (email, firstName, lastName, or zipCode)`);
-          }
-          return this.adminService.updateUser(user.id, userUpdateData);
-        })
-      ).then(() => {
-        this.performGroupDelete(groupId);
-      }).catch(error => {
-        console.error('Failed to unassign users:', error);
-        const errorMsg = error?.error?.error || error?.message || 'Failed to unassign some users';
-        this.snackBar.open(errorMsg, 'Close', { duration: 5000 });
-      });
+      // The server unassigns remaining members when no target is given.
+      this.performGroupDelete(groupId);
     }
   }
   
@@ -1005,8 +955,9 @@ export class RdioScannerAdminUserGroupsComponent implements OnInit, OnChanges {
     });
   }
 
-  performGroupDelete(groupId: number): void {
-    this.http.delete(`/api/admin/groups/delete/${groupId}`, { headers: this.adminService.getAuthHeaders() }).subscribe({
+  performGroupDelete(groupId: number, moveToGroupId?: number): void {
+    const query = moveToGroupId ? `?moveTo=${moveToGroupId}` : '';
+    this.http.delete(`/api/admin/groups/delete/${groupId}${query}`, { headers: this.adminService.getAuthHeaders() }).subscribe({
       next: () => {
         this.snackBar.open('Group deleted successfully', 'Close', { duration: 3000 });
         this.showDeleteGroupDialog = false;
