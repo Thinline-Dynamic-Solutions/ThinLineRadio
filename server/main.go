@@ -151,6 +151,7 @@ window.initialConfig = {
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
 	w.Write([]byte(html))
+	controller.noteListenerPage(r)
 	return true
 }
 
@@ -524,6 +525,8 @@ func main() {
 			controller.Admin.UserDelayModerationHandler(w, r)
 		} else if strings.HasSuffix(r.URL.Path, "/admin-role") {
 			controller.Admin.UserAdminRoleHandler(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/presence") && r.Method == http.MethodGet {
+			controller.Admin.UserPresenceHandler(w, r)
 		} else if r.Method == http.MethodPatch {
 			controller.Admin.UserMergePatchHandler(w, r)
 		} else if r.Method == http.MethodDelete {
@@ -1119,6 +1122,9 @@ func main() {
 
 				w.Header().Set("Content-Type", t)
 				w.Write(b)
+				if url == "index.html" {
+					controller.noteListenerPage(r)
+				}
 
 			} else if ext := path.Ext(url); ext != "" {
 				// After a deploy the embedded hashed bundles change. Chrome OS

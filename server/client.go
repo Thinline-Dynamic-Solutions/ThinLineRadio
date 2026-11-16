@@ -51,6 +51,8 @@ type Client struct {
 	FCMToken    string // Set via the "FCM" WS command; links this session to a push token.
 	// ListenLink is the share link (?link=token) this connection opened with.
 	ListenLink *ListenLink
+	// visitId is the listenerVisits row for this socket, 0 if it was not recorded.
+	visitId int64
 	// ConnectedAt is set when the client is registered in Clients.Map.
 	ConnectedAt time.Time
 
@@ -126,6 +128,7 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 	if request != nil && controller.ListenLinks != nil {
 		client.ListenLink = controller.ListenLinks.Lookup(request.URL.Query().Get("link"))
 	}
+	controller.noteListenerConnect(client)
 
 	go func() {
 		defer func() {
@@ -154,6 +157,7 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 				}
 			}
 
+			controller.noteListenerDisconnect(client)
 			controller.Unregister <- client
 
 			controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("listener disconnected from ip %s", client.GetRemoteAddr()))

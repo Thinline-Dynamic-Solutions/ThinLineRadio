@@ -3518,6 +3518,41 @@ func migratePublicApi(db *Database) error {
 
 // migratePublicApiUsageAtIndex adds a standalone "at" index for hourly usage pruning.
 // Idempotent for hosts that already got the index from a later migratePublicApi revision.
+// migrateListenerVisits stores who opened the scanner. Signed-in rows keep a
+// userId; anonymous rows stay unattached until a later sign-in claims them.
+func migrateListenerVisits(db *Database) error {
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS "listenerVisits" (
+			"visitId" bigserial NOT NULL PRIMARY KEY,
+			"userId" bigint NULL,
+			"ip" text NOT NULL DEFAULT '',
+			"userAgent" text NOT NULL DEFAULT '',
+			"origin" text NOT NULL DEFAULT '',
+			"referer" text NOT NULL DEFAULT '',
+			"acceptLanguage" text NOT NULL DEFAULT '',
+			"clientKind" text NOT NULL DEFAULT '',
+			"listenLink" text NOT NULL DEFAULT '',
+			"how" text NOT NULL DEFAULT '',
+			"authNote" text NOT NULL DEFAULT '',
+			"detail" text NOT NULL DEFAULT '',
+			"hits" integer NOT NULL DEFAULT 1,
+			"badPins" integer NOT NULL DEFAULT 0,
+			"openedAt" bigint NOT NULL DEFAULT 0,
+			"lastSeenAt" bigint NOT NULL DEFAULT 0,
+			"closedAt" bigint NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS "listenerVisits_user_seen_idx" ON "listenerVisits" ("userId", "lastSeenAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS "listenerVisits_seen_idx" ON "listenerVisits" ("lastSeenAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS "listenerVisits_ip_idx" ON "listenerVisits" ("ip")`,
+	}
+	for _, q := range queries {
+		if _, err := db.Sql.Exec(q); err != nil {
+			return fmt.Errorf("migrateListenerVisits: %w", err)
+		}
+	}
+	return nil
+}
+
 func migratePublicApiUsageAtIndex(db *Database) error {
 	if _, err := db.Sql.Exec(`CREATE INDEX IF NOT EXISTS "publicApiKeyUsage_at_idx" ON "publicApiKeyUsage" ("at")`); err != nil {
 		return fmt.Errorf("migratePublicApiUsageAtIndex: %w", err)

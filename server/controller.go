@@ -3076,6 +3076,7 @@ func (controller *Controller) ProcessMessage(client *Client, message *Message) e
 		log.Printf("FCM command received from %s, payload type=%T", client.GetRemoteAddr(), message.Payload)
 		if token, ok := message.Payload.(string); ok && token != "" {
 			client.FCMToken = token
+			controller.noteListenerMobile(client)
 			log.Printf("client %s linked FCM token ...%s", client.GetRemoteAddr(), token[max(0, len(token)-8):])
 		} else {
 			log.Printf("FCM command: payload not a string or empty")
@@ -3383,6 +3384,7 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 
 		// If user auth is required and no user found, reject
 		if controller.requiresUserAuth() && user == nil {
+			controller.noteListenerBadPin(client)
 			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("invalid user pin for ip %s", client.GetRemoteAddr()))
 			msg := &Message{Command: MessageCommandPin}
 			select {
@@ -3394,6 +3396,7 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 
 		// Suspended accounts cannot authenticate at all (unlike expired PIN, which can still see pricing)
 		if user != nil && user.IsSuspended() {
+			controller.noteListenerSignedIn(client, user, "suspended")
 			controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("suspended user pin auth denied for %s from %s", user.Email, client.GetRemoteAddr()))
 			msg := &Message{Command: MessageCommandError, Payload: "Account suspended"}
 			select {
@@ -3447,6 +3450,7 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 			if effectiveLimit > 0 {
 				currentCount := controller.Clients.UserConnectionCount(user)
 				if currentCount >= effectiveLimit {
+					controller.noteListenerSignedIn(client, user, "connection-limit")
 					controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("too many concurrent connections for user %s, limit is %d", user.Email, effectiveLimit))
 					// Send the connection limit to the client so it can display a helpful message
 					msg := &Message{Command: MessageCommandMax, Payload: effectiveLimit}
@@ -3467,6 +3471,11 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 		}
 
 		if user != nil {
+			authNote := "pin"
+			if pinExpired {
+				authNote = "expired-pin"
+			}
+			controller.noteListenerSignedIn(client, user, authNote)
 			if !pinExpired {
 				if err := controller.Users.RecordLastLogin(user, controller.Database); err != nil {
 					controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("failed to record last login for user %s: %v", user.Email, err))
