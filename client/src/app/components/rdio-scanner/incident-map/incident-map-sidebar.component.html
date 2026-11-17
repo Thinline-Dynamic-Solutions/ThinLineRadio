@@ -36,7 +36,7 @@
     @if (!m.loading && m.incidents.length === 0) {
       <div class="sidebar-empty">
         <mat-icon>map</mat-icon>
-        <span>No geocoded incidents yet.</span>
+        <span>{{ m.emptyStateMessage }}</span>
       </div>
     }
     @if (!m.loading && m.incidents.length > 0 && m.filteredIncidents.length === 0) {
@@ -58,6 +58,9 @@
           [style.background]="incident.uiTagColor || m.getIncidentTagColor(incident)"
           [style.color]="incident.uiTextColor || m.incidentNatureTextColor(incident)">
           {{ incident.uiNatureLabel || m.incidentNatureLabel(incident) }}
+          @if (m.relatedCallCount(incident) > 1) {
+            <span class="incident-list-related">{{ m.relatedCallCount(incident) }} calls</span>
+          }
         </div>
         <div class="incident-list-title">{{ incident.uiAddress || m.incidentAddress(incident) }}</div>
         <div class="incident-list-channel">{{ incident.uiChannel || m.incidentChannel(incident) }}</div>

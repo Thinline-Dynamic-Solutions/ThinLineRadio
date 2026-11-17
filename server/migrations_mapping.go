@@ -2,7 +2,10 @@
 
 package main
 
-import "log"
+import (
+	"fmt"
+	"log"
+)
 
 func migrateIncidentMapping(db *Database) error {
 	// Column adds first. Index builds are best-effort afterward so a long
@@ -154,5 +157,15 @@ func migrateIncidentMapping(db *Database) error {
 	//   SET max_parallel_maintenance_workers = 0;
 	//   CREATE INDEX CONCURRENTLY ...
 	log.Println("incident mapping: skipping calls incident indexes at startup (build offline on large DBs)")
+	return nil
+}
+
+// migrateIncidentMappingReason adds a durable skip/fail reason on calls so
+// admins can see why a pin was not plotted without grepping event logs.
+func migrateIncidentMappingReason(db *Database) error {
+	_, err := db.Sql.Exec(`ALTER TABLE "calls" ADD COLUMN IF NOT EXISTS "incidentMappingReason" text NOT NULL DEFAULT ''`)
+	if err != nil {
+		return fmt.Errorf("migrateIncidentMappingReason: %w", err)
+	}
 	return nil
 }

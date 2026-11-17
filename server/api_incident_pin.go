@@ -63,7 +63,7 @@ func (api *Api) IncidentPinHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodDelete:
-		if err := store.ClearCallIncident(callId); err != nil {
+		if err := store.ClearCallIncident(callId, "admin_removed"); err != nil {
 			api.exitWithError(w, http.StatusInternalServerError, fmt.Sprintf("clear failed: %v", err))
 			return
 		}

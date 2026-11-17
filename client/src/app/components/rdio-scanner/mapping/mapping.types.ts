@@ -170,6 +170,25 @@ export interface MappingPlaceRow {
     talkgroupId?: number;
 }
 
+export interface MappingQualityStats {
+    transcribed?: number;
+    mapped?: number;
+    failed?: number;
+    skipped?: number;
+    unattempted?: number;
+    successRate?: number;
+    windowHours?: number;
+    byTalkgroup?: Array<{
+        talkgroupId: number;
+        transcribed: number;
+        mapped: number;
+        failed: number;
+        skipped: number;
+        unattempted: number;
+        successRate: number;
+    }>;
+}
+
 export interface MappingDataResponse {
     streets: MappingStreetRow[];
     corrections: MappingCorrectionRow[];
@@ -179,7 +198,38 @@ export interface MappingDataResponse {
         corrections?: number;
         places?: number;
         cacheEntries?: number;
-    };
+    } & MappingQualityStats;
+}
+
+export interface IncidentsMeta {
+    mappingEnabled?: boolean;
+    suppressUnknownNaturePins?: boolean;
+    mapped?: number;
+    failed?: number;
+    skipped?: number;
+    unattempted?: number;
+}
+
+export interface MappingDiagnosticsItem {
+    callId: number;
+    systemId: number;
+    talkgroupId: number;
+    timestamp: number;
+    status: string;
+    reason: string;
+    source?: string;
+    address?: string;
+    nature?: string;
+    transcript?: string;
+    systemLabel?: string;
+    talkgroupLabel?: string;
+}
+
+export interface MappingDiagnosticsResponse {
+    items: MappingDiagnosticsItem[];
+    reasonCounts: Array<{ reason: string; count: number }>;
+    since: number;
+    until: number;
 }
 
 export interface IncidentRecord {

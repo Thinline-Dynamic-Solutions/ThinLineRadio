@@ -5,8 +5,41 @@
         <mat-chip-set>
           <mat-chip>{{ stats.corrections || 0 }} corrections</mat-chip>
           <mat-chip>{{ stats.cacheEntries || 0 }} cache entries</mat-chip>
+          @if (stats.transcribed != null) {
+            <mat-chip>{{ stats.mapped || 0 }} / {{ stats.transcribed || 0 }} mapped (24h)</mat-chip>
+            <mat-chip>{{ ((stats.successRate || 0) * 100) | number:'1.0-0' }}% success</mat-chip>
+            <mat-chip>{{ stats.failed || 0 }} failed</mat-chip>
+            <mat-chip>{{ stats.skipped || 0 }} skipped</mat-chip>
+          }
         </mat-chip-set>
       </div>
+      @if (stats.byTalkgroup?.length) {
+        <div class="mapping-quality-table-wrap">
+          <h4 class="mapping-section-title">Talkgroup mapping quality (24h)</h4>
+          <table class="mapping-table">
+            <thead>
+              <tr>
+                <th>Talkgroup</th>
+                <th>Mapped</th>
+                <th>Failed</th>
+                <th>Skipped</th>
+                <th>Success</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of stats.byTalkgroup; track row.talkgroupId) {
+                <tr>
+                  <td>{{ row.talkgroupId }}</td>
+                  <td>{{ row.mapped }} / {{ row.transcribed }}</td>
+                  <td>{{ row.failed }}</td>
+                  <td>{{ row.skipped }}</td>
+                  <td>{{ (row.successRate * 100) | number:'1.0-0' }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     }
     @if (loading) {
       <div class="mapping-loading">

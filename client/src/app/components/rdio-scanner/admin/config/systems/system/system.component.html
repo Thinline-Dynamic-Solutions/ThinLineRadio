@@ -350,6 +350,13 @@
       </div>
 
       @if (form.get('incidentMapping.enabled')?.value) {
+        @if (incidentMappingGeoIncomplete) {
+          <div class="settings-field settings-field--wide">
+            <span class="field-hint" style="display: block; color: #e0a000;">
+              Geo setup incomplete — set city, center lat/lon, and radius so the geocode gateway has a viewbox. Without these, street pins will not plot.
+            </span>
+          </div>
+        }
         <div class="settings-field">
           <label class="field-label">Geo city</label>
           <mat-form-field appearance="outline" class="compact-field">

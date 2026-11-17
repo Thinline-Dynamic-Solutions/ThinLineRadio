@@ -164,6 +164,19 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         return typeof id === 'number' && id > 0 ? id : null;
     }
 
+    get incidentMappingGeoIncomplete(): boolean {
+        const g = this.form.get('incidentMapping');
+        if (!g?.get('enabled')?.value) {
+            return false;
+        }
+        const city = String(g.get('geoCity')?.value || '').trim();
+        const lat = Number(g.get('geoLat')?.value);
+        const lon = Number(g.get('geoLon')?.value);
+        const radius = Number(g.get('geoRadiusMiles')?.value);
+        return !city || !Number.isFinite(lat) || lat === 0 || !Number.isFinite(lon) || lon === 0 ||
+            !Number.isFinite(radius) || radius <= 0;
+    }
+
     /** GitHub-style type-to-confirm before deleting a system (issue #241). */
     confirmRemove(): void {
         const systemLabel = (this.form.get('label')?.value || '').toString().trim()

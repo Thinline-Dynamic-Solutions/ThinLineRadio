@@ -419,6 +419,7 @@ func (db *Database) migrate() error {
 		{"migrateSystemDuplicateDetection", migrateSystemDuplicateDetection},
 		{"migrateUserAlertPushPreferences", migrateUserAlertPushPreferences},
 		{"migrateIncidentMapping", migrateIncidentMapping},
+		{"migrateIncidentMappingReason", migrateIncidentMappingReason},
 		{"migrateCallNatures", migrateCallNatures},
 		{"migrateCallNaturePhraseLearn", migrateCallNaturePhraseLearn},
 		{"migrateKeywordAlertUnique", migrateKeywordAlertUnique},
