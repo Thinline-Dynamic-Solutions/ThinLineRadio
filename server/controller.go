@@ -3447,14 +3447,19 @@ func (controller *Controller) ProcessMessageCommandPin(client *Client, message *
 			if effectiveLimit > 0 {
 				currentCount := controller.Clients.UserConnectionCount(user)
 				if currentCount >= effectiveLimit {
-					controller.Logs.LogEvent(LogLevelWarn, fmt.Sprintf("too many concurrent connections for user %s, limit is %d", user.Email, effectiveLimit))
-					// Send the connection limit to the client so it can display a helpful message
-					msg := &Message{Command: MessageCommandMax, Payload: effectiveLimit}
-					select {
-					case client.Send <- msg:
-					default:
+					evicted := controller.Clients.EvictOldestUserConnections(user, effectiveLimit-1)
+					controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("connection limit %d reached for user %s, disconnected %d oldest connection(s)", effectiveLimit, user.Email, len(evicted)))
+					for _, old := range evicted {
+						// Tell a still-live device why it was dropped (its app shows the
+						// limit screen instead of reconnecting), then close it.
+						select {
+						case old.Send <- &Message{Command: MessageCommandMax, Payload: effectiveLimit}:
+						default:
+						}
+						if conn := old.Conn; conn != nil {
+							time.AfterFunc(2*time.Second, func() { conn.Close() })
+						}
 					}
-					return nil
 				}
 			}
 

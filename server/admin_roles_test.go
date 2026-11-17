@@ -88,6 +88,7 @@ func TestAdminRouteRulesNeverGrantSystemAdminAreas(t *testing.T) {
 		"/api/admin/copilot/chat", "/api/admin/relay-account/login", "/api/admin/groups/apply-tax-rate",
 		"/api/admin/transcript-review/collector", "/api/admin/transcript-review/collector/request-key",
 		"/api/admin/public-api/keys", "/api/admin/email-test", "/api/admin/stripe-sync",
+		"/api/admin/relay-transcription/account", "/api/admin/relay-transcription/topup",
 	} {
 		for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
 			if rule := findAdminRouteRule(method, path); rule != nil {

@@ -77,6 +77,31 @@ interface RelayBillingPlanRow {
     convertNotice?: string;
 }
 
+interface ThinLineTranscriptionTotals {
+    calls: number;
+    ms: number;
+    micros: number;
+}
+
+interface ThinLineTranscriptionAccountResponse {
+    enabled: boolean;
+    account: {
+        balance_micros: number;
+        card_saved: boolean;
+        auto_recharge_enabled: boolean;
+        auto_recharge_threshold_cents: number;
+        auto_recharge_amount_cents: number;
+        recharge_in_flight: boolean;
+        last_recharge_error?: string;
+    };
+    rate: { micros_per_hour: number; min_ms: number };
+    month: ThinLineTranscriptionTotals;
+    last_month: ThinLineTranscriptionTotals;
+    recent_usage: Array<{ ms: number; charged_micros: number; status: string; system_ref?: string; talkgroup_ref?: string; created_at: number }>;
+    recent_credits: Array<{ kind: string; amount_micros: number; note?: string; created_at: number }>;
+    topup_amounts_cents: number[];
+}
+
 interface RelayBillingCatalogResponse {
     plans?: Array<{
         slug?: string;
@@ -459,6 +484,15 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
     relayBillingLoading = false;
     relayBillingError = '';
     relayPlanSubscribingSlug = '';
+    thinlineAccount: ThinLineTranscriptionAccountResponse | null = null;
+    thinlineLoading = false;
+    thinlineError = '';
+    thinlineTopupBusyCents = 0;
+    thinlineAutoSaving = false;
+    thinlineAutoEnabled = false;
+    thinlineAutoThresholdDollars = 5;
+    thinlineAutoAmountCents = 2500;
+    private thinlineWatchTimer: ReturnType<typeof setInterval> | null = null;
     /** Public portal for subscribe / manage billing after relay sign-in. */
     readonly relayPortalURL = RELAY_SERVER_URL;
     relayPushEnforcementNotice = DEFAULT_RELAY_PUSH_ENFORCEMENT_NOTICE;
@@ -1428,6 +1462,9 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             this.refreshRelayAccountStatus();
             this.refreshRelayBillingCatalog();
             this.startRelayBillingPoll();
+            if (this.transcriptionUsesProvider('thinline')) {
+                this.refreshThinLineTranscription();
+            }
             this.cdr.detectChanges();
         }, 80);
     }
@@ -1439,6 +1476,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         this.mappingToggleSubscriptions.forEach(s => s.unsubscribe());
         this.stopRelayBillingPoll();
         this.stopRelayBillingWatch();
+        this.stopThinLineWatch();
     }
 
     @HostListener('document:visibilitychange')
@@ -2636,6 +2674,140 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
         }
         if (group.get('backupProvider')?.value === group.get('provider')?.value) {
             group.get('backupProvider')?.setValue('');
+        }
+        if (this.transcriptionUsesProvider('thinline') && !this.thinlineAccount) {
+            this.refreshThinLineTranscription();
+        }
+    }
+
+    refreshThinLineTranscription(opts?: { quiet?: boolean }): void {
+        const token = sessionStorage.getItem('rdio-scanner-admin-token');
+        if (!token || !this.hasRelayAPIKey()) {
+            this.thinlineAccount = null;
+            return;
+        }
+        if (!opts?.quiet) {
+            this.thinlineLoading = true;
+        }
+        this.thinlineError = '';
+        this.http
+            .get<ThinLineTranscriptionAccountResponse>(`${window.location.origin}/api/admin/relay-transcription/account`, {
+                headers: new HttpHeaders({ Authorization: token }),
+            })
+            .subscribe({
+                next: (res) => {
+                    const prevBalance = this.thinlineAccount?.account.balance_micros;
+                    this.thinlineLoading = false;
+                    this.thinlineAccount = res;
+                    this.thinlineAutoEnabled = res.account.auto_recharge_enabled;
+                    this.thinlineAutoThresholdDollars = res.account.auto_recharge_threshold_cents / 100;
+                    this.thinlineAutoAmountCents = res.account.auto_recharge_amount_cents;
+                    if (this.thinlineWatchTimer && prevBalance !== undefined && res.account.balance_micros > prevBalance) {
+                        this.stopThinLineWatch();
+                        this.snackBar.open(`ThinLine Transcription balance: ${this.formatMicros(res.account.balance_micros)}`, 'Close', { duration: 6000 });
+                    }
+                    this.cdr.markForCheck();
+                },
+                error: (err) => {
+                    this.thinlineLoading = false;
+                    if (!opts?.quiet) {
+                        this.thinlineError = err?.error?.error || err?.message || 'Failed to load ThinLine Transcription account';
+                    }
+                    this.cdr.markForCheck();
+                },
+            });
+    }
+
+    topUpThinLineTranscription(amountCents: number): void {
+        const token = sessionStorage.getItem('rdio-scanner-admin-token');
+        if (!token) {
+            this.snackBar.open('Not authenticated.', 'Close', { duration: 4000 });
+            return;
+        }
+        this.thinlineTopupBusyCents = amountCents;
+        this.http
+            .post<{ url?: string }>(
+                `${window.location.origin}/api/admin/relay-transcription/topup`,
+                { amount_cents: amountCents, return_url: window.location.href },
+                { headers: new HttpHeaders({ Authorization: token }) },
+            )
+            .subscribe({
+                next: (res) => {
+                    this.thinlineTopupBusyCents = 0;
+                    if (res?.url) {
+                        window.open(res.url, '_blank');
+                        this.startThinLineWatch();
+                        this.snackBar.open('Complete payment in the new tab — the balance will update here when done.', 'Close', { duration: 6000 });
+                    }
+                    this.cdr.markForCheck();
+                },
+                error: (err) => {
+                    this.thinlineTopupBusyCents = 0;
+                    this.snackBar.open(err?.error?.error || err?.message || 'Failed to start checkout', 'Close', { duration: 6000 });
+                    this.cdr.markForCheck();
+                },
+            });
+    }
+
+    saveThinLineAutoRecharge(): void {
+        const token = sessionStorage.getItem('rdio-scanner-admin-token');
+        if (!token) {
+            return;
+        }
+        this.thinlineAutoSaving = true;
+        this.http
+            .post(
+                `${window.location.origin}/api/admin/relay-transcription/auto-recharge`,
+                {
+                    enabled: this.thinlineAutoEnabled,
+                    threshold_cents: Math.round(Number(this.thinlineAutoThresholdDollars) * 100),
+                    amount_cents: Number(this.thinlineAutoAmountCents),
+                },
+                { headers: new HttpHeaders({ Authorization: token }) },
+            )
+            .subscribe({
+                next: () => {
+                    this.thinlineAutoSaving = false;
+                    this.snackBar.open('Auto-recharge settings saved.', 'Close', { duration: 4000 });
+                    this.refreshThinLineTranscription({ quiet: true });
+                },
+                error: (err) => {
+                    this.thinlineAutoSaving = false;
+                    this.snackBar.open(err?.error?.error || err?.message || 'Failed to save auto-recharge', 'Close', { duration: 6000 });
+                    this.cdr.markForCheck();
+                },
+            });
+    }
+
+    formatMicros(micros: number | undefined): string {
+        return `$${((micros || 0) / 1_000_000).toFixed(2)}`;
+    }
+
+    formatAudioHours(ms: number | undefined): string {
+        const minutes = (ms || 0) / 60_000;
+        return minutes < 60 ? `${minutes.toFixed(1)} min` : `${(minutes / 60).toFixed(2)} hr`;
+    }
+
+    thinlineRatePerHour(): string {
+        return this.formatMicros(this.thinlineAccount?.rate.micros_per_hour);
+    }
+
+    private startThinLineWatch(): void {
+        this.stopThinLineWatch();
+        const until = Date.now() + 5 * 60_000;
+        this.thinlineWatchTimer = setInterval(() => {
+            if (Date.now() > until) {
+                this.stopThinLineWatch();
+                return;
+            }
+            this.refreshThinLineTranscription({ quiet: true });
+        }, 5_000);
+    }
+
+    private stopThinLineWatch(): void {
+        if (this.thinlineWatchTimer) {
+            clearInterval(this.thinlineWatchTimer);
+            this.thinlineWatchTimer = null;
         }
     }
 

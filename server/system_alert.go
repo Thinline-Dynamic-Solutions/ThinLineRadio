@@ -344,6 +344,8 @@ func getProviderDisplayName(provider string) string {
 		return "AssemblyAI"
 	case "cloudflare":
 		return "Cloudflare Workers AI"
+	case "thinline":
+		return "ThinLine Transcription"
 	default:
 		// Default fallback if provider is unknown or empty
 		if provider == "" {

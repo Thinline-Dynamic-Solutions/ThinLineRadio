@@ -1,5 +1,27 @@
 # Change log
 
+## Version 26.11.08 - Released November 16, 2026
+
+### Added
+
+- **ThinLine Transcription (prepaid)**
+  - New transcription provider under **Options → Transcription**: hosted Whisper tuned for public-safety radio, using this server's relay API key. No URL or separate key to set up.
+  - Billed from prepaid credit at $0.03 per audio hour, per second of each recording with a 2-second minimum. Recordings longer than 30 seconds are transcribed in full.
+  - Select **ThinLine Transcription (prepaid)** as the provider, then add credit. The card says so when the balance is empty, because calls aren't transcribed without credit.
+  - The options card shows the balance and this month's and last month's usage, adds credit ($5, $10, $25, $50 or $100) through Stripe Checkout, and can recharge automatically with the saved card when the balance drops below a set amount.
+  - When the balance runs out, transcription pauses (or falls back to the backup provider, if one is set) and resumes within a couple of minutes after credit is added.
+  - Can also be chosen as the backup provider.
+
+### Fixed
+
+- **Listeners locked out by "too many connections"**
+  - When a user is at their connection limit, a new connection now replaces their oldest one instead of being refused. Before, a phone that lost its connection (for example when switching networks) could stay counted for up to 5 minutes, so the app was refused when it reconnected.
+  - A device that is replaced while still connected shows the connection limit message instead of reconnecting.
+- **"10-4" mapped as house number 104**
+  - A transcript that opens with "104" followed by words like "copy", "we'll" or "thank you" is read as a 10-4 acknowledgement, so it no longer drops a map pin at a 104 address. "104 en route" and "104 is at …" are still treated as unit 104.
+
+---
+
 ## Version 26.11.07 - Released November 13, 2026
 
 ### Fixed

@@ -402,6 +402,7 @@ func main() {
 	http.HandleFunc("/api/admin/nominatim/subscribe", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.NominatimSubscribeHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/relay-billing/catalog", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RelayBillingCatalogHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/relay-billing/subscribe", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RelayPlanSubscribeHandler)).ServeHTTP)
+	http.HandleFunc("/api/admin/relay-transcription/", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.RelayTranscriptionHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/tone-detection-issue-threshold", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.ToneDetectionIssueThresholdHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/alert-retention-days", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.AlertRetentionDaysHandler)).ServeHTTP)
 	http.HandleFunc("/api/admin/no-audio-threshold-minutes", wrapHandler(controller.Admin.requireLocalhost(controller.Admin.NoAudioThresholdMinutesHandler)).ServeHTTP)

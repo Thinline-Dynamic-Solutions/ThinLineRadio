@@ -269,7 +269,8 @@ type TranscriptionConfig struct {
 	// bypassing the usual “someone has alerts / auto-learn” gate. Per-talkgroup
 	// TranscriptionExclude still skips a channel. Cloud providers will bill more.
 	TranscribeAllCalls          bool     `json:"transcribeAllCalls"`
-	Provider                    string   `json:"provider"`       // "whisper-api", "azure", "google", "assemblyai", "cloudflare", "gemini"
+	Provider                    string   `json:"provider"`       // "whisper-api", "azure", "google", "assemblyai", "cloudflare", "gemini", "thinline"
+	RelayAPIKey                 string   `json:"-"`              // copied from Options.RelayServerAPIKey when the queue is built; used by "thinline"
 	BackupProvider              string   `json:"backupProvider"` // same ids as Provider; empty = none. Used only after primary Transcribe fails.
 	Language                    string   `json:"language"` // "en", "auto"
 	Prompt                      string   `json:"prompt"`   // Custom prompt for Whisper to guide transcription (e.g., terminology, formatting)

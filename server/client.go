@@ -826,6 +826,36 @@ func (clients *Clients) UserConnectionCount(user *User) uint {
 	return count
 }
 
+// EvictOldestUserConnections removes the user's oldest connections until at
+// most keep remain, and returns them for the caller to close. Dead sockets stay
+// registered until pongWait expires, so rejecting a new connection at the limit
+// would lock out users whose app just reconnected.
+func (clients *Clients) EvictOldestUserConnections(user *User, keep uint) []*Client {
+	if user == nil {
+		return nil
+	}
+
+	clients.mutex.Lock()
+	defer clients.mutex.Unlock()
+
+	var mine []*Client
+	for c := range clients.Map {
+		if c.User != nil && c.User.Id == user.Id {
+			mine = append(mine, c)
+		}
+	}
+	if uint(len(mine)) <= keep {
+		return nil
+	}
+
+	sort.Slice(mine, func(i, j int) bool { return mine[i].ConnectedAt.Before(mine[j].ConnectedAt) })
+	evicted := mine[:uint(len(mine))-keep]
+	for _, c := range evicted {
+		delete(clients.Map, c)
+	}
+	return evicted
+}
+
 // RefreshConfigForGroup refreshes configuration for all active clients belonging to users in the specified group
 func (clients *Clients) RefreshConfigForGroup(controller *Controller, groupId uint64) {
 	clients.mutex.Lock()

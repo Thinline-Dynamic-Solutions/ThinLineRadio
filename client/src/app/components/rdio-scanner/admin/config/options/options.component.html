@@ -1609,6 +1609,7 @@
               </p>
               <mat-form-field floatLabel="auto">
                 <mat-select formControlName="provider" placeholder="Provider" (selectionChange)="onPrimaryTranscriptionProviderChange()">
+                  <mat-option value="thinline">ThinLine Transcription (prepaid)</mat-option>
                   <mat-option value="whisper-api">OpenAI-Compatible API (Whisper / OpenAI)</mat-option>
                   <mat-option value="azure">Azure Speech Services</mat-option>
                   <mat-option value="gemini">Gemini 3.1 Flash-Lite</mat-option>
@@ -1626,8 +1627,11 @@
                 <span class="mat-caption">Optional. Used only when the primary provider fails after its own retries (API errors, GPU OOM, timeouts). Invalid or truncated audio is not sent to the backup. Configure credentials for both providers below.</span>
               </p>
               <mat-form-field floatLabel="auto">
-                <mat-select formControlName="backupProvider" placeholder="None">
+                <mat-select formControlName="backupProvider" placeholder="None" (selectionChange)="onPrimaryTranscriptionProviderChange()">
                   <mat-option value="">None</mat-option>
+                  @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'thinline') {
+                    <mat-option value="thinline">ThinLine Transcription (prepaid)</mat-option>
+                  }
                   @if (form?.get('transcriptionConfig')?.get('provider')?.value !== 'whisper-api') {
                     <mat-option value="whisper-api">OpenAI-Compatible API (Whisper / OpenAI)</mat-option>
                   }
@@ -1649,6 +1653,92 @@
                 </mat-select>
               </mat-form-field>
             </div>
+            <!-- ThinLine Transcription (prepaid, billed through the relay API key) -->
+            @if (transcriptionUsesProvider('thinline')) {
+              <div class="row thinline-transcription">
+                <div style="width:100%;">
+                  <p style="margin:0 0 8px;">
+                    <span class="mat-body">ThinLine Transcription</span><br>
+                    <span class="mat-caption">
+                      Hosted Whisper tuned for public-safety radio, billed from prepaid credit on this server's relay API key.
+                      @if (thinlineAccount) {
+                        {{ thinlineRatePerHour() }} per audio hour, billed per second of each recording ({{ (thinlineAccount.rate.min_ms || 0) / 1000 }} s minimum).
+                      }
+                      Transcription pauses when the balance runs out and resumes within a couple of minutes after you add credit.
+                    </span>
+                  </p>
+                  @if (!hasRelayAPIKey()) {
+                    <p class="mat-caption relay-billing-error">Set the relay server API key above to use ThinLine Transcription.</p>
+                  } @else if (thinlineLoading && !thinlineAccount) {
+                    <p class="mat-caption">Loading balance…</p>
+                  } @else if (thinlineError) {
+                    <p class="mat-caption relay-billing-error">{{ thinlineError }}</p>
+                  } @else if (thinlineAccount) {
+                    @if (!thinlineAccount.enabled) {
+                      <p class="mat-caption relay-billing-error">ThinLine Transcription is not available on the relay yet.</p>
+                    } @else if (thinlineAccount.account.balance_micros <= 0) {
+                      <p class="mat-caption relay-billing-error">
+                        No credit yet. Calls won't be transcribed until you add credit below. Pick an amount to pay with Stripe; the balance updates here once payment completes.
+                      </p>
+                    }
+                    <div style="display:flex;flex-wrap:wrap;gap:24px;margin:8px 0 12px;">
+                      <div>
+                        <div class="mat-caption">Balance</div>
+                        <div style="font-size:22px;font-weight:500;">{{ formatMicros(thinlineAccount.account.balance_micros) }}</div>
+                      </div>
+                      <div>
+                        <div class="mat-caption">This month</div>
+                        <div>{{ formatMicros(thinlineAccount.month.micros) }} · {{ thinlineAccount.month.calls }} calls · {{ formatAudioHours(thinlineAccount.month.ms) }}</div>
+                      </div>
+                      <div>
+                        <div class="mat-caption">Last month</div>
+                        <div>{{ formatMicros(thinlineAccount.last_month.micros) }} · {{ thinlineAccount.last_month.calls }} calls · {{ formatAudioHours(thinlineAccount.last_month.ms) }}</div>
+                      </div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;">
+                      <span class="mat-caption" style="margin-right:4px;">Add credit:</span>
+                      @for (cents of thinlineAccount.topup_amounts_cents; track cents) {
+                        <button mat-stroked-button type="button" color="primary"
+                          [disabled]="!thinlineAccount.enabled || thinlineTopupBusyCents > 0"
+                          (click)="topUpThinLineTranscription(cents)">
+                          {{ thinlineTopupBusyCents === cents ? 'Starting…' : '$' + (cents / 100) }}
+                        </button>
+                      }
+                      <button mat-icon-button type="button" (click)="refreshThinLineTranscription()" [disabled]="thinlineLoading" matTooltip="Refresh balance">
+                        <mat-icon>refresh</mat-icon>
+                      </button>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;">
+                      <mat-slide-toggle color="primary" [(ngModel)]="thinlineAutoEnabled" [ngModelOptions]="{standalone: true}"
+                        [disabled]="!thinlineAccount.account.card_saved && !thinlineAutoEnabled">
+                        Auto-recharge
+                      </mat-slide-toggle>
+                      <mat-form-field floatLabel="auto" style="width:160px;">
+                        <mat-label>When balance drops below ($)</mat-label>
+                        <input matInput type="number" min="1" max="100" step="1" [(ngModel)]="thinlineAutoThresholdDollars" [ngModelOptions]="{standalone: true}">
+                      </mat-form-field>
+                      <mat-form-field floatLabel="auto" style="width:140px;">
+                        <mat-label>Add</mat-label>
+                        <mat-select [(ngModel)]="thinlineAutoAmountCents" [ngModelOptions]="{standalone: true}">
+                          @for (cents of thinlineAccount.topup_amounts_cents; track cents) {
+                            <mat-option [value]="cents">${{ cents / 100 }}</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                      <button mat-stroked-button type="button" (click)="saveThinLineAutoRecharge()" [disabled]="thinlineAutoSaving">
+                        {{ thinlineAutoSaving ? 'Saving…' : 'Save auto-recharge' }}
+                      </button>
+                    </div>
+                    @if (!thinlineAccount.account.card_saved) {
+                      <p class="mat-caption" style="margin:4px 0 0;">Auto-recharge uses the card from your first top-up.</p>
+                    }
+                    @if (thinlineAccount.account.last_recharge_error) {
+                      <p class="mat-caption relay-billing-error">Last auto-recharge failed: {{ thinlineAccount.account.last_recharge_error }}. Auto-recharge was turned off — top up manually or update your card, then turn it back on.</p>
+                    }
+                  }
+                </div>
+              </div>
+            }
             <!-- Gemini Configuration -->
             @if (transcriptionUsesProvider('gemini')) {
               <div class="row">

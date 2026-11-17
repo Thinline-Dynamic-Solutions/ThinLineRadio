@@ -113,7 +113,7 @@ func mergeDispatchToCommaSplitHouse(transcript string) string {
 // Plain-text normalization (no punctuation; letter↔digit spaces) runs first so
 // every downstream rule sees the same shape as keyword alerts and geocoding.
 func PreCleanTranscript(transcript string) string {
-	transcript = NormalizeTranscriptPlainText(transcript)
+	transcript = expandLeadingTenFourAck(NormalizeTranscriptPlainText(transcript))
 	return normalizeSpokenOrdinalTokens(
 		expandSpokenStateRoutesInDispatchTranscript(
 			mergeDispatchToCommaSplitHouse(

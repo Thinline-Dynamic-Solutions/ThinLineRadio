@@ -1,6 +1,9 @@
 package mapping
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeTranscriptPlainText(t *testing.T) {
 	tests := []struct {
@@ -46,6 +49,53 @@ func TestPreCleanTranscriptRunsPlainNormalizeFirst(t *testing.T) {
 		if containsRune(got, bad[0]) {
 			t.Errorf("PreClean still has %q in %q", bad, got)
 		}
+	}
+}
+
+func TestExpandLeadingTenFourAck(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"104", "10 4"},
+		{"104 104", "10 4 104"},
+		{"104 WELL GO WITH VIANNA TRY TO CUT HIM OFF THERE", "10 4 WELL GO WITH VIANNA TRY TO CUT HIM OFF THERE"},
+		{"104 ILL HAVE HIM COME OVER HES STANDING ACROSS THE STREET", "10 4 ILL HAVE HIM COME OVER HES STANDING ACROSS THE STREET"},
+		{"104 NEXT ONES GOING TO BE ISABELLA", "10 4 NEXT ONES GOING TO BE ISABELLA"},
+		// House numbers and unit 104 traffic stay as-is.
+		{"104 MAIN STREET", "104 MAIN STREET"},
+		{"104 IS 4689 CARIBBEE AVENUE NORTHEAST", "104 IS 4689 CARIBBEE AVENUE NORTHEAST"},
+		{"104 EN ROUTE AT 16", "104 EN ROUTE AT 16"},
+		{"104 BY THE AUTO ZONE", "104 BY THE AUTO ZONE"},
+		{"1041 COPY", "1041 COPY"},
+		{"COPY 104", "COPY 104"},
+	}
+	for _, tt := range tests {
+		if got := expandLeadingTenFourAck(tt.in); got != tt.want {
+			t.Errorf("expandLeadingTenFourAck(%q)=%q want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestPreCleanTranscriptKeepsTenFourAckApart(t *testing.T) {
+	for _, in := range []string{"104 WELL GO WITH VIANNA", "10-4, we'll go with Vianna"} {
+		if got := PreCleanTranscript(in); !strings.HasPrefix(got, "10 4 ") {
+			t.Errorf("PreCleanTranscript(%q)=%q want 10 4 prefix", in, got)
+		}
+	}
+}
+
+func TestTenFourAckIsRadioChatter(t *testing.T) {
+	for _, in := range []string{
+		"104 WELL GO WITH VIANNA TRY TO CUT HIM OFF THERE",
+		"104 ILL HAVE HIM COME OVER HES STANDING ACROSS THE STREET",
+	} {
+		if !TranscriptIsRadioChatter(PreCleanTranscript(in)) {
+			t.Errorf("TranscriptIsRadioChatter(PreClean(%q)) = false, want true", in)
+		}
+	}
+	if TranscriptIsRadioChatter(PreCleanTranscript("104 MAIN STREET FOR A FALL")) {
+		t.Error("real 104 MAIN STREET dispatch treated as chatter")
 	}
 }
 

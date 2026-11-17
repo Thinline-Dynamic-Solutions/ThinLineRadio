@@ -22,7 +22,7 @@ import (
 
 func supportedSTTProvider(name string) string {
 	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "whisper-api", "azure", "google", "gemini", "assemblyai", "cloudflare":
+	case "whisper-api", "azure", "google", "gemini", "assemblyai", "cloudflare", "thinline":
 		return strings.ToLower(strings.TrimSpace(name))
 	default:
 		return ""
@@ -95,6 +95,8 @@ func newTranscriptionProvider(config TranscriptionConfig, provider string) Trans
 			Model:          config.CloudflareModel,
 			TimeoutSeconds: config.TimeoutSeconds,
 		})
+	case "thinline":
+		return NewThinLineTranscription(config.RelayAPIKey, config.TimeoutSeconds)
 	case "whisper-api":
 		url := strings.TrimSpace(config.WhisperAPIURL)
 		if url == "" {

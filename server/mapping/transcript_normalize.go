@@ -84,6 +84,41 @@ func NormalizeTranscriptPlainText(s string) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
+// tenFourAckFollowers are words that, right after an opening "104", mean the
+// speaker said 10-4 (acknowledged) rather than a house or unit number. Words
+// like IS / BY / EN / TO / AT are left out: "104 IS 4689 CARIBBEE" and
+// "104 EN ROUTE" are unit 104 talking.
+var tenFourAckFollowers = map[string]bool{
+	"104": true, "I": true, "ILL": true, "IM": true, "ID": true, "IVE": true,
+	"YEAH": true, "YES": true, "YEP": true, "NO": true, "OKAY": true, "OK": true,
+	"ALRIGHT": true, "COPY": true, "THANK": true, "THANKS": true,
+	"YOU": true, "YOURE": true, "YOUR": true, "WE": true, "WELL": true, "WERE": true,
+	"HE": true, "HES": true, "SHE": true, "SHES": true, "THEY": true, "THEYRE": true,
+	"IT": true, "ITS": true, "THAT": true, "THATS": true, "THIS": true,
+	"IF": true, "SO": true, "AND": true, "BUT": true, "ALSO": true, "BECAUSE": true,
+	"WHEN": true, "WHAT": true, "CAN": true, "COULD": true, "DO": true, "DID": true,
+	"WILL": true, "JUST": true, "LET": true, "GO": true, "BE": true, "NEXT": true,
+	"GIVE": true, "SEND": true, "CHECK": true, "TRY": true, "START": true,
+	"WRITE": true, "PLEASE": true, "MY": true, "UM": true, "UH": true, "SIR": true,
+	"RADIO": true,
+}
+
+// expandLeadingTenFourAck rewrites an opening "104" acknowledgement to "10 4".
+// STT writes 10-4 as "104" (and plain-text normalization joins "10-4" the same
+// way), which the address screen otherwise reads as a house number
+// ("104 WELL GO WITH VIANNA" → 104 WELL).
+func expandLeadingTenFourAck(s string) string {
+	fields := strings.Fields(s)
+	if len(fields) == 0 || fields[0] != "104" {
+		return s
+	}
+	if len(fields) > 1 && !tenFourAckFollowers[fields[1]] {
+		return s
+	}
+	fields[0] = "10 4"
+	return strings.Join(fields, " ")
+}
+
 // ordinalStreetSuffixLen returns 2 when runes[i:] starts with ST/ND/RD/TH as a
 // complete letter token (end or followed by a non-letter). Otherwise 0.
 func ordinalStreetSuffixLen(runes []rune, i int) int {

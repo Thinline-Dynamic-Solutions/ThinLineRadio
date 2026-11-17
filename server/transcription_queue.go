@@ -62,6 +62,7 @@ func NewTranscriptionQueue(controller *Controller, config TranscriptionConfig) *
 		workerCount = 1
 	}
 
+	config.RelayAPIKey = controller.Options.RelayServerAPIKey
 	directDispatch := sttDispatchesWithoutWorkerPool(config.Provider)
 	if directDispatch {
 		workerCount = 0
