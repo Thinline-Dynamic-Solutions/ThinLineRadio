@@ -5,7 +5,8 @@
 ### Added
 
 - **ThinLine Transcription (prepaid)**
-  - New transcription provider under **Options → Transcription**: hosted Whisper tuned for public-safety radio, using this server's relay API key. No URL or separate key to set up.
+  - New transcription provider under **Options → Transcription**, using this server's relay API key. No URL or separate key to set up.
+  - Runs ThinLine's own fine-tuned model: Whisper large-v3 trained on public-safety radio traffic (unit numbers, 10-codes, street names and dispatch phrasing), hosted on dedicated GPU hardware.
   - Billed from prepaid credit at $0.03 per audio hour, per second of each recording with a 2-second minimum. Recordings longer than 30 seconds are transcribed in full.
   - Select **ThinLine Transcription (prepaid)** as the provider, then add credit. The card says so when the balance is empty, because calls aren't transcribed without credit.
   - The options card shows the balance and this month's and last month's usage, adds credit ($5, $10, $25, $50 or $100) through Stripe Checkout, and can recharge automatically with the saved card when the balance drops below a set amount.
