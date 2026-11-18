@@ -805,6 +805,7 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
 
         const def = OPTIONS_PANEL_DEFS[panelId];
         const payload = this.buildPayloadForKeys(def.keys);
+        this.stripUnchangedSecrets(panelId, payload);
         this.appendSharedGeminiApiKeyPayload(panelId, payload);
 
         this.savingPanel = panelId;
@@ -837,6 +838,54 @@ export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, 
             this.snackBar.open('Failed to save. Please try again.', 'Close', { duration: 4000 });
         }
         this.cdr.markForCheck();
+    }
+
+    /**
+     * Credentials are only sent when the admin actually changed them in this form.
+     * Re-sending every provider key on each save let a stale or blank form value
+     * overwrite a good key on the server (then 401 from the provider).
+     */
+    private stripUnchangedSecrets(panelId: OptionsPanelId, payload: Record<string, any>): void {
+        const baselineJson = this.panelBaselines[panelId];
+        let baseline: Record<string, any> = {};
+        if (baselineJson) {
+            try {
+                baseline = JSON.parse(baselineJson) as Record<string, any>;
+            } catch {
+                baseline = {};
+            }
+        }
+
+        const secretFields: Record<string, string[]> = {
+            transcriptionConfig: [
+                'whisperAPIKey',
+                'azureKey',
+                'googleAPIKey',
+                'googleCredentials',
+                'geminiAPIKey',
+                'assemblyAIKey',
+                'cloudflareAPIToken',
+            ],
+            openAIIntegration: ['apiKey'],
+        };
+
+        for (const [parent, fields] of Object.entries(secretFields)) {
+            const nested = payload[parent];
+            if (!nested || typeof nested !== 'object') {
+                continue;
+            }
+            const copy = { ...nested } as Record<string, any>;
+            for (const field of fields) {
+                if (!(field in copy)) {
+                    continue;
+                }
+                const before = baseline[parent]?.[field];
+                if ((before ?? '') === (copy[field] ?? '')) {
+                    delete copy[field];
+                }
+            }
+            payload[parent] = copy;
+        }
     }
 
     private appendSharedGeminiApiKeyPayload(panelId: OptionsPanelId, payload: Record<string, any>): void {
