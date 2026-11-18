@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -2547,7 +2548,11 @@ func (options *Options) ApplyPartial(db *Database, partial map[string]any) error
 
 	// FromMap mutates the same Options in place, only overwriting fields it knows
 	// about; unhandled fields (e.g. transcriptParserConfig) keep their values.
+	secretsBefore := options.transcriptionSecretSnapshot()
 	options.FromMap(merged)
+	if changes := describeSecretChanges(secretsBefore, options.transcriptionSecretSnapshot()); len(changes) > 0 {
+		log.Printf("options: API key changed via options patch: %s", strings.Join(changes, ", "))
+	}
 
 	return options.Write(db)
 }
