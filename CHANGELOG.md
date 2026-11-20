@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.11.09 - Released November 20, 2026
+
+### Fixed
+
+- **Dropped connections held open for 5 minutes**
+  - A listener whose connection drops without closing (for example a phone that loses signal or a tunnel that stops passing traffic) is now disconnected after 90 seconds without an answer to the server's pings, instead of 5 minutes.
+  - Calls are no longer sent into a dead connection for up to 5 minutes, and the dropped connection stops counting toward the user's connection limit sooner.
+  - Listeners on the PIN sign-in screen of a restricted server still have 5 minutes to sign in.
+
+---
+
 ## Version 26.11.08 - Released November 16, 2026
 
 ### Added

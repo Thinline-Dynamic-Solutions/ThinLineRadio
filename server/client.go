@@ -102,9 +102,14 @@ func (client *Client) IsDownloadRateLimited() bool {
 
 func (client *Client) Init(controller *Controller, request *http.Request, conn *websocket.Conn) error {
 	const (
-		pongWait   = 300 * time.Second // Increased from 60s to 5 minutes for long imports
-		pingPeriod = 30 * time.Second  // Ping every 30 seconds to keep proxy/load balancer connections alive (common 2-minute timeout)
-		writeWait  = 60 * time.Second  // Increased from 10s to 1 minute for long imports
+		// Dead sockets keep counting toward the user's connection limit until
+		// this expires; three missed pings is enough to call it dead.
+		pongWait   = 90 * time.Second
+		pingPeriod = 30 * time.Second // Ping every 30 seconds to keep proxy/load balancer connections alive (common 2-minute timeout)
+		writeWait  = 60 * time.Second // Increased from 10s to 1 minute for long imports
+		// Restricted servers send no config until the PIN is accepted, so this
+		// covers a listener sitting on the sign-in screen.
+		configWait = 300 * time.Second
 	)
 
 	if conn == nil {
@@ -201,7 +206,7 @@ func (client *Client) Init(controller *Controller, request *http.Request, conn *
 	go func() {
 		ticker := time.NewTicker(pingPeriod)
 
-		timer := time.AfterFunc(pongWait, func() {
+		timer := time.AfterFunc(configWait, func() {
 			client.Conn.Close()
 		})
 
@@ -828,7 +833,7 @@ func (clients *Clients) UserConnectionCount(user *User) uint {
 
 // EvictOldestUserConnections removes the user's oldest connections until at
 // most keep remain, and returns them for the caller to close. Dead sockets stay
-// registered until pongWait expires, so rejecting a new connection at the limit
+// registered until pongWait (90s) expires, so rejecting a new connection at the limit
 // would lock out users whose app just reconnected.
 func (clients *Clients) EvictOldestUserConnections(user *User, keep uint) []*Client {
 	if user == nil {
