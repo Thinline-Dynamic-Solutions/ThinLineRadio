@@ -693,8 +693,9 @@ func (controller *Controller) IngestCall(call *Call) {
 				Name:          fmt.Sprintf("%d", talkgroupId),
 				TalkgroupRef:  talkgroupId,
 				TagId:         tagId,
-				Order:         maxOrder + 1, // Assign order at the end of the list
-				AlertsEnabled: system.AutoPopulateAlertsEnabled,
+				Order:          maxOrder + 1, // Assign order at the end of the list
+				AlertsEnabled:  system.AutoPopulateAlertsEnabled,
+				AlertEveryCall: true,
 			}
 
 			// Update label and name if provided (v6 style)
@@ -2956,8 +2957,10 @@ func (controller *Controller) transcriptionReasonsForCall(call *Call) []string {
 	if unitLearnEnabled(call) && callHasUnitRefs(call) {
 		reasons = append(reasons, "auto_learn_unit_aliases")
 	}
-	if call.Talkgroup.AlertingTalkgroup && controller.hasUsersWithAlertsEnabled(call.System.Id, call.Talkgroup.Id) {
-		reasons = append(reasons, "alerting_talkgroup")
+	if call.Talkgroup.AlertingTalkgroup {
+		if !call.Talkgroup.AlertEveryCall || controller.hasUsersWithAlertsEnabled(call.System.Id, call.Talkgroup.Id) {
+			reasons = append(reasons, "alerting_talkgroup")
+		}
 	}
 	if controller.hasUsersWithToneAlerts(call.System.Id, call.Talkgroup.Id) {
 		reasons = append(reasons, "tone_alerts")

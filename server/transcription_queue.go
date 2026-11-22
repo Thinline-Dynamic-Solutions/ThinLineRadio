@@ -560,7 +560,7 @@ func (queue *TranscriptionQueue) processJob(workerId int, job TranscriptionJob) 
 					call.TranscriptionStatus = "completed"
 				}
 
-				if call.Talkgroup != nil && call.Talkgroup.AlertingTalkgroup {
+				if call.Talkgroup != nil && call.Talkgroup.AlertsOnEveryCall() {
 					go queue.controller.AlertEngine.TriggerTranscriptAlerts(call)
 				} else {
 					// Check for pending tones from previous tone-only calls (from other calls)
@@ -750,7 +750,7 @@ func (queue *TranscriptionQueue) processKeywords(callId uint64, systemId uint64,
 	}
 
 	if system, ok := queue.controller.Systems.GetSystemById(systemId); ok {
-		if talkgroup, _ := system.Talkgroups.GetTalkgroupById(talkgroupId); talkgroup != nil && talkgroup.AlertingTalkgroup {
+		if talkgroup, _ := system.Talkgroups.GetTalkgroupById(talkgroupId); talkgroup != nil && talkgroup.AlertsOnEveryCall() {
 			queue.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("keyword processing skipped for call %d: alerting talkgroup", callId))
 			return
 		}

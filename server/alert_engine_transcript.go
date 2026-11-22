@@ -12,7 +12,7 @@ func (engine *AlertEngine) TriggerTranscriptAlerts(call *Call) {
 	if call == nil || call.System == nil || call.Talkgroup == nil {
 		return
 	}
-	if !call.Talkgroup.AlertingTalkgroup {
+	if !call.Talkgroup.AlertsOnEveryCall() {
 		return
 	}
 	if call.System != nil && !call.System.AlertsEnabled {

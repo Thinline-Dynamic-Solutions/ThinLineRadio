@@ -179,6 +179,15 @@
           <span class="tg-toggle-hint">Always transcribe voiced calls</span>
         </span>
       </label>
+      @if (form.get('alertingTalkgroup')?.value) {
+        <label class="tg-toggle">
+          <mat-slide-toggle color="primary" formControlName="alertEveryCall"></mat-slide-toggle>
+          <span>
+            <span class="tg-toggle-title">Alert on every call</span>
+            <span class="tg-toggle-hint">Off: keyword alerts only</span>
+          </span>
+        </label>
+      }
       <label class="tg-toggle">
         <mat-slide-toggle color="primary" formControlName="autoLearnToneSets"></mat-slide-toggle>
         <span>

@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.11.10 - Released November 21, 2026
+
+### Added
+
+- **Alerting talkgroups can alert on keywords only**
+  - New **Alert on every call** switch under **Alerting TG** in a talkgroup's settings. It is on by default, so existing alerting talkgroups keep alerting on every voiced call.
+  - Turned off, the talkgroup still transcribes every voiced call, including calls shorter than the minimum call duration, but sends no alert of its own. Users' keyword alerts and tone alerts work on it as on any other talkgroup.
+  - Turned off, every voiced call is transcribed even when no user has alerts set for the talkgroup.
+
+---
+
 ## Version 26.11.09 - Released November 20, 2026
 
 ### Fixed

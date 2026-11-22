@@ -873,6 +873,8 @@ export interface Talkgroup {
     autoLearnToneSets?: boolean;
     autoLearnUnitAliases?: boolean;
     alertingTalkgroup?: boolean;
+    /** Alerting TG: alert on every voiced call (default). Off = keyword alerts only. */
+    alertEveryCall?: boolean;
     hidden?: boolean;                   // Hidden from user channel list and no new calls ingested; history kept
     /** Skip STT for this talkgroup (alert-driven or Transcribe all calls). */
     transcriptionExclude?: boolean;
@@ -2826,6 +2828,7 @@ export class RdioScannerAdminService implements OnDestroy {
             autoLearnToneSets: this.ngFormBuilder.control(talkgroup?.autoLearnToneSets || false),
             autoLearnUnitAliases: this.ngFormBuilder.control(talkgroup?.autoLearnUnitAliases || false),
             alertingTalkgroup: this.ngFormBuilder.control(talkgroup?.alertingTalkgroup || false),
+            alertEveryCall: this.ngFormBuilder.control(talkgroup?.alertEveryCall !== false),
             hidden: this.ngFormBuilder.control(talkgroup?.hidden || false),
             transcriptionExclude: this.ngFormBuilder.control(talkgroup?.transcriptionExclude || false),
             retentionDays: this.ngFormBuilder.control(talkgroup?.retentionDays ?? 0, [Validators.min(0)]),

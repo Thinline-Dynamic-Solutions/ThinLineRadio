@@ -435,6 +435,7 @@ func (db *Database) migrate() error {
 		{"migratePublicApiUsageAtIndex", migratePublicApiUsageAtIndex},
 		{"migrateSdrtrunkAlertMute", migrateSdrtrunkAlertMute},
 		{"migrateUserGroupAdFreeExcluded", migrateUserGroupAdFreeExcluded},
+		{"migrateTalkgroupAlertEveryCall", migrateTalkgroupAlertEveryCall},
 	}
 	for _, step := range lateSteps {
 		if err := db.runMigrationStep(step.name, step.fn); err != nil {

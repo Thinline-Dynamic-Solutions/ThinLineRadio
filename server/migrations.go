@@ -3402,6 +3402,16 @@ func migrateTalkgroupTranscriptionExclude(db *Database) error {
 	return nil
 }
 
+// migrateTalkgroupAlertEveryCall lets an alerting talkgroup alert on keywords
+// instead of every voiced call. Defaults true so existing alerting talkgroups keep
+// alerting on every call.
+func migrateTalkgroupAlertEveryCall(db *Database) error {
+	if _, err := db.Sql.Exec(`ALTER TABLE "talkgroups" ADD COLUMN IF NOT EXISTS "alertEveryCall" boolean NOT NULL DEFAULT true`); err != nil {
+		return fmt.Errorf("migrateTalkgroupAlertEveryCall: %w", err)
+	}
+	return nil
+}
+
 // migrateRequireListenerSignIn seeds the explicit requireListenerSignIn option from
 // the previous implicit rules (userRegistrationEnabled OR any user PIN), so existing
 // locked scanners stay locked and new installs stay open until the admin toggles it.

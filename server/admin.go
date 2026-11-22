@@ -5611,8 +5611,9 @@ func (admin *Admin) radioReferenceImportToSystemCore(body radioReferenceImportBo
 				Label:        tg.AlphaTag,
 				Name:         tg.Description,
 				GroupIds:     []uint64{group.Id},
-				TagId:        tag.Id,
-				Order:        maxOrder + 1,
+				TagId:          tag.Id,
+				Order:          maxOrder + 1,
+				AlertEveryCall: true,
 			})
 			created++
 		}

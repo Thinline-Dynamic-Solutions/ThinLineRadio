@@ -662,7 +662,7 @@ func (admin *Admin) applyRRReview(body rrApplyBody) (*rrReview, int, error) {
 				maxOrder = t.Order
 			}
 		}
-		tg := &Talkgroup{TalkgroupRef: item.Ref, Order: maxOrder + 1, AlertsEnabled: system.AutoPopulateAlertsEnabled}
+		tg := &Talkgroup{TalkgroupRef: item.Ref, Order: maxOrder + 1, AlertsEnabled: system.AutoPopulateAlertsEnabled, AlertEveryCall: true}
 		// A new talkgroup always gets a label and name, and a group and tag even
 		// when those fields are off, the same as auto-populate gives it.
 		p := item.Proposed

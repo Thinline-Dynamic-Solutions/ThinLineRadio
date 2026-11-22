@@ -20,6 +20,27 @@ func TestBypassMinCallDurationForCall(t *testing.T) {
 	if !bypassMinCallDurationForCall(&Call{Talkgroup: &Talkgroup{ToneDetectionEnabled: true}}) {
 		t.Fatal("tone-detection talkgroup must bypass")
 	}
+	if !bypassMinCallDurationForCall(&Call{Talkgroup: &Talkgroup{AlertingTalkgroup: true, AlertEveryCall: false}}) {
+		t.Fatal("keyword-only alerting talkgroup must still bypass")
+	}
+}
+
+func TestAlertsOnEveryCall(t *testing.T) {
+	if (&Talkgroup{AlertEveryCall: true}).AlertsOnEveryCall() {
+		t.Fatal("plain talkgroup must not alert on every call")
+	}
+	if !(&Talkgroup{AlertingTalkgroup: true, AlertEveryCall: true}).AlertsOnEveryCall() {
+		t.Fatal("alerting talkgroup with every-call on must alert on every call")
+	}
+	if (&Talkgroup{AlertingTalkgroup: true, AlertEveryCall: false}).AlertsOnEveryCall() {
+		t.Fatal("keyword-only alerting talkgroup must not alert on every call")
+	}
+	if !NewTalkgroup().FromMap(map[string]any{"alertingTalkgroup": true}).AlertsOnEveryCall() {
+		t.Fatal("alertEveryCall must default to true when absent")
+	}
+	if NewTalkgroup().FromMap(map[string]any{"alertingTalkgroup": true, "alertEveryCall": false}).AlertsOnEveryCall() {
+		t.Fatal("alertEveryCall false must be kept")
+	}
 }
 
 func TestEffectiveTranscriptionAudioSeconds(t *testing.T) {
