@@ -434,6 +434,7 @@ func (db *Database) migrate() error {
 		{"migrateRadioReferenceUpdates", migrateRadioReferenceUpdates},
 		{"migratePublicApi", migratePublicApi},
 		{"migratePublicApiUsageAtIndex", migratePublicApiUsageAtIndex},
+		{"migrateListenerVisits", migrateListenerVisits},
 		{"migrateSdrtrunkAlertMute", migrateSdrtrunkAlertMute},
 		{"migrateUserGroupAdFreeExcluded", migrateUserGroupAdFreeExcluded},
 		{"migrateTalkgroupAlertEveryCall", migrateTalkgroupAlertEveryCall},

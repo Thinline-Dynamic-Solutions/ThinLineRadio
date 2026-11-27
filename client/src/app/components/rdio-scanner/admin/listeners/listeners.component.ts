@@ -20,6 +20,7 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import {
     ListenerUserSnapshot,
+    ListenerVisit,
     ListenersSnapshot,
     RdioScannerAdminService,
 } from '../admin.service';
@@ -113,7 +114,46 @@ export class RdioScannerAdminListenersComponent implements OnInit, OnDestroy {
     }
 
     kindLabel(kind: string): string {
-        return kind === 'mobile' ? 'Mobile' : 'Web';
+        if (kind === 'mobile') return 'Mobile';
+        if (kind === 'web') return 'Web';
+        return kind || 'Unknown';
+    }
+
+    visitSummary(visit: ListenerVisit): string {
+        const how: Record<string, string> = {
+            page: 'Opened the page',
+            scanner: 'Connected',
+            login: 'Sign-in attempt',
+        };
+        const auth: Record<string, string> = {
+            'unknown-email': 'unknown email',
+            'bad-password': 'wrong password',
+        };
+        const parts = [how[visit.how] || visit.how || 'Visit'];
+        if (visit.authNote && auth[visit.authNote]) {
+            parts.push(auth[visit.authNote]);
+        } else if (visit.authNote) {
+            parts.push(visit.authNote);
+        }
+        if (visit.hits > 1) {
+            parts.push(`${visit.hits} loads`);
+        }
+        if (visit.badPins > 0) {
+            parts.push(`${visit.badPins} bad PIN${visit.badPins === 1 ? '' : 's'}`);
+        }
+        if (visit.closedAt) {
+            parts.push('left');
+        } else if (visit.how === 'scanner') {
+            parts.push('here');
+        }
+        return parts.join(' · ');
+    }
+
+    formatUnix(seconds: number): string {
+        if (!seconds) return '—';
+        const date = new Date(seconds * 1000);
+        if (Number.isNaN(date.getTime())) return '—';
+        return date.toLocaleString();
     }
 
     connectedDuration(iso: string): string {
