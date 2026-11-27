@@ -78,10 +78,10 @@ export class RdioScannerAdminTranscriptParserComponent implements OnInit {
     ) {}
 
     ngOnInit(): void {
-        if (this.tryHydrateFromInitialConfig()) {
-            return;
-        }
-        void this.load();
+        // initialConfig is the parent's snapshot from page load and misses saves
+        // made since, so it only fills the form until the server copy arrives.
+        const hydrated = this.tryHydrateFromInitialConfig();
+        void this.load(hydrated);
     }
 
     /**
@@ -115,8 +115,8 @@ export class RdioScannerAdminTranscriptParserComponent implements OnInit {
         };
     }
 
-    async load(): Promise<void> {
-        this.loading = true;
+    async load(silent = false): Promise<void> {
+        this.loading = !silent;
         try {
             const res = await firstValueFrom(
                 this.http.get<TranscriptConfig>(
@@ -124,7 +124,9 @@ export class RdioScannerAdminTranscriptParserComponent implements OnInit {
                     { headers: this.adminService.getAuthHeaders() },
                 ),
             );
-            this.config = this.normalizeTranscriptConfig(res);
+            if (!(silent && (this.editingFuzzy || this.editingShorthand !== null))) {
+                this.config = this.normalizeTranscriptConfig(res);
+            }
         } catch {
             this.snackBar.open('Failed to load transcript parser config', 'Dismiss', { duration: 4000 });
         } finally {

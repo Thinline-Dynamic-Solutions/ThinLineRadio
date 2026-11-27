@@ -332,6 +332,16 @@ export interface ConfigImportSummaryItem {
     ok: boolean;
 }
 
+export interface SaveSystemResult {
+    systems: any[];
+    accessWarnings: string[];
+    error?: string;
+    /** Set when the save would remove talkgroups; resend with confirmRemoveTalkgroups equal to this. */
+    removeTalkgroups?: number;
+    /** Removed talkgroups kept until their calls are deleted in the background. */
+    pendingTalkgroupRemovals?: number;
+}
+
 export interface SaveConfigResult {
     config: Config;
     importSummary?: ConfigImportSummaryItem[];
@@ -2255,16 +2265,19 @@ export class RdioScannerAdminService implements OnDestroy {
         }
     }
 
-    async saveSystem(system: any): Promise<{ systems: any[]; accessWarnings: string[]; error?: string } | undefined> {
+    async saveSystem(system: any): Promise<SaveSystemResult | undefined> {
         try {
-            const res = await firstValueFrom(this.ngHttpClient.put<{ systems: any[]; accessWarnings?: string[] }>(
+            const res = await firstValueFrom(this.ngHttpClient.put<{ systems: any[]; accessWarnings?: string[]; pendingTalkgroupRemovals?: number }>(
                 this.getUrl('systems/save'), system,
                 { headers: this.getHeaders(), responseType: 'json' },
             ));
-            return { systems: res.systems, accessWarnings: res.accessWarnings || [] };
+            return { systems: res.systems, accessWarnings: res.accessWarnings || [], pendingTalkgroupRemovals: res.pendingTalkgroupRemovals || 0 };
         } catch (error) {
             if (error instanceof HttpErrorResponse && error.status === 400 && error.error?.error) {
                 return { systems: [], accessWarnings: [], error: error.error.error };
+            }
+            if (error instanceof HttpErrorResponse && error.status === 409 && error.error?.removeTalkgroups) {
+                return { systems: [], accessWarnings: [], error: error.error.error, removeTalkgroups: error.error.removeTalkgroups };
             }
             this.errorHandler(error);
             return undefined;

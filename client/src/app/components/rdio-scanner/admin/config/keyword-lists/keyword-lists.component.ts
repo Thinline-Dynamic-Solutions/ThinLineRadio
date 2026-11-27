@@ -56,10 +56,10 @@ export class RdioScannerAdminKeywordListsComponent implements OnInit, OnDestroy 
     }
 
     ngOnInit(): void {
-        if (this.tryHydrateFromInitialLists()) {
-            return;
-        }
-        void this.loadKeywordLists(true);
+        // initialLists is the parent's snapshot from page load and misses saves
+        // made since, so it only fills the list until the server copy arrives.
+        const hydrated = this.tryHydrateFromInitialLists();
+        void this.loadKeywordLists(!hydrated);
     }
 
     ngOnDestroy(): void {

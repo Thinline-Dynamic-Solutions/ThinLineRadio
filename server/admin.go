@@ -3085,6 +3085,58 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Removing talkgroups deletes their calls, so it needs the admin to confirm
+	// the count. Talkgroups with calls stay until a background purge empties them.
+	var purgeIds []uint64
+	if existing != nil {
+		keep := map[uint64]bool{}
+		newly := []*Talkgroup{}
+		for _, tg := range removedTalkgroups(existing, incoming) {
+			if talkgroupRemovalPending(tg.Id) {
+				keep[tg.Id] = true
+			} else {
+				newly = append(newly, tg)
+			}
+		}
+		if len(newly) > 0 {
+			if confirmed, _ := incoming["confirmRemoveTalkgroups"].(float64); int(confirmed) != len(newly) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]any{
+					"error":            fmt.Sprintf("Saving removes %d talkgroup(s) from %s (%s) and deletes all of their calls.", len(newly), existing.Label, talkgroupRemovalSummary(newly)),
+					"removeTalkgroups": len(newly),
+				})
+				return
+			}
+			ids := make([]uint64, len(newly))
+			for i, tg := range newly {
+				ids[i] = tg.Id
+			}
+			withCalls, err := admin.Controller.talkgroupIdsWithCalls(existing.Id, ids)
+			if err != nil {
+				admin.Controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("admin.systems.save: checking calls of removed talkgroups: %v", err))
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "could not check the calls of the removed talkgroups"})
+				return
+			}
+			for _, id := range ids {
+				if withCalls[id] {
+					keep[id] = true
+					purgeIds = append(purgeIds, id)
+				}
+			}
+		}
+		if len(keep) > 0 {
+			var stored map[string]any
+			if b, err := json.Marshal(existing); err == nil {
+				_ = json.Unmarshal(b, &stored)
+			}
+			keepTalkgroupsInPayload(incoming, stored, keep)
+		}
+	}
+	delete(incoming, "confirmRemoveTalkgroups")
+
 	admin.mutex.Lock()
 
 	// Serialize the current list, replace/insert the one system, rebuild via FromMap.
@@ -3143,6 +3195,10 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(purgeIds) > 0 {
+		admin.Controller.startTalkgroupPurge(existing.Id, purgeIds)
+	}
+
 	go admin.Controller.EmitConfig()
 	admin.Controller.SyncConfigToFile()
 
@@ -3155,8 +3211,9 @@ func (admin *Admin) SystemSaveHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"systems":        admin.Controller.Systems.List,
-		"accessWarnings": accessWarnings,
+		"systems":                  admin.Controller.Systems.List,
+		"accessWarnings":           accessWarnings,
+		"pendingTalkgroupRemovals": len(purgeIds),
 	})
 }
 

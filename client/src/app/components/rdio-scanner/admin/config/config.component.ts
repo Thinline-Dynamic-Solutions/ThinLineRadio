@@ -432,7 +432,14 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
         const system = this.convertSystemForSave(raw);
 
         this.savingSystem = true;
-        const saved = await this.adminService.saveSystem(system);
+        let saved = await this.adminService.saveSystem(system);
+        if (saved?.removeTalkgroups) {
+            if (confirm(`${saved.error}\n\nRemove them?`)) {
+                saved = await this.adminService.saveSystem({ ...system, confirmRemoveTalkgroups: saved.removeTalkgroups });
+            } else {
+                saved = { systems: [], accessWarnings: [], error: 'Not saved. No talkgroups were removed.' };
+            }
+        }
         this.savingSystem = false;
 
         if (saved?.error) {
@@ -444,6 +451,12 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             // view isn't torn down and rebuilt right after our own save.
             this._lastResetTime = Date.now();
             this.showSystemSaveSuccess();
+            if (saved.pendingTalkgroupRemovals) {
+                const n = saved.pendingTalkgroupRemovals;
+                this.matSnackBar.open(
+                    `${n} talkgroup${n === 1 ? '' : 's'} with calls will disappear once their calls are deleted. That runs in the background; scanning keeps working.`,
+                    'Close', { duration: 15000 });
+            }
             if (saved.accessWarnings.length) {
                 this.showSystemAccessWarnings(saved.accessWarnings);
             }
@@ -514,7 +527,10 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
             this.originalConfig.systems.push(saved);
         }
 
-        if (saved.id) this.systemsWithLoadedTalkgroups.add(saved.id);
+        // A new system's form holds all its talkgroups. An existing one may still
+        // be loading them, and marking it loaded would make the next save send a
+        // partial list that deletes the rest.
+        if (saved.id && !savedRaw.id) this.systemsWithLoadedTalkgroups.add(saved.id);
     }
 
     /**
