@@ -7,16 +7,16 @@
         <button type="button"
           class="weather-widget__zip-btn"
           (click)="startZipEdit()"
-          [matTooltip]="zipInput ? 'Change ZIP code' : 'Set ZIP code'">
-          {{ zipInput || 'Set ZIP' }}
+          [matTooltip]="zipInput ? 'Change location (US ZIP or city)' : 'Set location (US ZIP or city)'">
+          {{ zipInput || 'Set location' }}
         </button>
       }
       @if (editingZip) {
         <input
           class="weather-widget__zip-input"
           type="text"
-          maxlength="10"
-          placeholder="12345"
+          maxlength="80"
+          placeholder="ZIP or city"
           [(ngModel)]="zipInput"
           (blur)="saveZip()"
           (keydown)="onZipKeydown($event)"
@@ -30,7 +30,7 @@
 
   @if (!zipInput && !loading) {
     <div class="weather-widget__empty">
-      <span>Set your ZIP code for local forecast.</span>
+      <span>Set a US ZIP code or a city, such as "London, UK", for your local forecast.</span>
     </div>
   }
 
@@ -46,7 +46,7 @@
 
   @if (weather) {
     <div class="weather-widget__current">
-      <div class="weather-widget__temp">{{ tempLabel(weather.currentTempF) }}</div>
+      <div class="weather-widget__temp">{{ tempLabel(weather.currentTemp, weather.currentTempUnit) }}</div>
       <div class="weather-widget__conditions">{{ weather.currentConditions || '—' }}</div>
     </div>
     @if (weather.hourly.length) {

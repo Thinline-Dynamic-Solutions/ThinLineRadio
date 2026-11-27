@@ -55,6 +55,10 @@
 }
 
 .weather-widget__zip-btn {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
 
@@ -62,6 +66,10 @@
         color: var(--tlr-text);
         border-color: rgba(var(--tlr-accent-rgb), 0.45);
     }
+}
+
+.weather-widget__zip-input {
+    width: 140px;
 }
 
 .weather-widget__zip-input:focus {

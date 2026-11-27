@@ -38,8 +38,10 @@ export interface NwsWeatherBundle {
     locationLabel: string;
     lat: number;
     lon: number;
-    currentTempF: number | null;
+    currentTemp: number | null;
+    currentTempUnit: string;
     currentConditions: string;
+    source: 'nws' | 'open-meteo';
     hourly: NwsForecastPeriod[];
     daily: NwsForecastPeriod[];
 }
@@ -62,6 +64,18 @@ const NWS_HEADERS = new HttpHeaders({
 });
 
 const ZIP_PATTERN = /^\d{5}(-\d{4})?$/;
+const MAX_LOCATION_LENGTH = 80;
+
+// WMO weather interpretation codes used by Open-Meteo.
+const WMO_CONDITIONS: Record<number, string> = {
+    0: 'Clear', 1: 'Mostly Clear', 2: 'Partly Cloudy', 3: 'Overcast',
+    45: 'Fog', 48: 'Freezing Fog',
+    51: 'Light Drizzle', 53: 'Drizzle', 55: 'Heavy Drizzle', 56: 'Freezing Drizzle', 57: 'Freezing Drizzle',
+    61: 'Light Rain', 63: 'Rain', 65: 'Heavy Rain', 66: 'Freezing Rain', 67: 'Freezing Rain',
+    71: 'Light Snow', 73: 'Snow', 75: 'Heavy Snow', 77: 'Snow Grains',
+    80: 'Rain Showers', 81: 'Rain Showers', 82: 'Heavy Showers', 85: 'Snow Showers', 86: 'Heavy Snow Showers',
+    95: 'Thunderstorms', 96: 'Thunderstorms, Hail', 99: 'Thunderstorms, Hail',
+};
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const ALERTS_CACHE_TTL_MS = 3 * 60 * 1000;
 
@@ -69,6 +83,7 @@ interface ZipCoords {
     lat: number;
     lon: number;
     label: string;
+    countryCode?: string;
 }
 
 @Injectable()
@@ -147,9 +162,9 @@ export class NwsService implements OnDestroy {
     }
 
     setZipCode(zip: string): void {
-        const normalized = zip.trim();
-        if (!ZIP_PATTERN.test(normalized)) {
-            this.error$.next('Enter a valid US ZIP code (12345 or 12345-6789).');
+        const normalized = zip.trim().replace(/\s+/g, ' ');
+        if (!normalized || normalized.length > MAX_LOCATION_LENGTH) {
+            this.error$.next('Enter a US ZIP code or a city, for example "London, UK".');
             return;
         }
         this.zipCode$.next(normalized);
@@ -170,10 +185,14 @@ export class NwsService implements OnDestroy {
     fetchSevereAlertsForUserArea(): Observable<NwsSevereAlert[]> {
         const bundle = this.weather$.value;
         const zip = this.zipCode$.value;
+        // NWS alerts only cover the US.
+        if (bundle?.source === 'open-meteo') {
+            return of([]);
+        }
         if (bundle?.lat != null && bundle?.lon != null) {
             return this.fetchSevereAlertsAtPoint(bundle.lat, bundle.lon);
         }
-        if (!zip) {
+        if (!zip || !ZIP_PATTERN.test(zip)) {
             return of([]);
         }
         return this.resolveZip(zip).pipe(
@@ -309,7 +328,7 @@ export class NwsService implements OnDestroy {
     private applyServerSettings(settings: Record<string, unknown>, allowFetch: boolean): void {
         this.settingsSnapshot = { ...settings };
         const zip = typeof settings['weatherZipCode'] === 'string' ? settings['weatherZipCode'].trim() : '';
-        if (zip && ZIP_PATTERN.test(zip) && zip !== this.zipCode$.value) {
+        if (zip && zip.length <= MAX_LOCATION_LENGTH && zip !== this.zipCode$.value) {
             this.zipCode$.next(zip);
             try {
                 localStorage.setItem(this.zipStorageKey, zip);
@@ -396,6 +415,20 @@ export class NwsService implements OnDestroy {
         }
         this.error$.next('');
 
+        if (!ZIP_PATTERN.test(zip)) {
+            return this.resolvePlace(zip).pipe(
+                switchMap((coords) => {
+                    if (!coords) {
+                        this.loading$.next(false);
+                        this.error$.next('Could not find that place. Try "City, Country".');
+                        return of(null);
+                    }
+                    return this.fetchOpenMeteo(zip, coords, coords.countryCode === 'US' ? 'F' : 'C');
+                }),
+                catchError(() => this.weatherUnavailable()),
+            );
+        }
+
         return this.resolveZip(zip).pipe(
             switchMap((coords) => {
                 if (!coords) {
@@ -434,30 +467,149 @@ export class NwsService implements OnDestroy {
                         );
                     }),
                     map((data) => {
-                        const bundle: NwsWeatherBundle = {
+                        return this.publishWeather({
                             zipCode: zip,
                             locationLabel: coords.label,
                             lat: coords.lat,
                             lon: coords.lon,
-                            currentTempF: data.hourly[0]?.temperature ?? null,
+                            currentTemp: data.hourly[0]?.temperature ?? null,
+                            currentTempUnit: data.hourly[0]?.temperatureUnit || 'F',
                             currentConditions: data.hourly[0]?.shortForecast ?? '',
+                            source: 'nws',
                             hourly: data.hourly,
                             daily: data.daily,
-                        };
-                        this.weather$.next(bundle);
-                        this.writeWeatherCache(zip, bundle);
-                        this.loading$.next(false);
-                        return bundle;
+                        });
                     }),
+                    catchError(() => this.fetchOpenMeteo(zip, coords, 'F')),
                 );
             }),
-            catchError(() => {
-                this.loading$.next(false);
-                if (!this.weather$.value) {
-                    this.error$.next('Weather data is temporarily unavailable.');
+            catchError(() => this.weatherUnavailable()),
+        );
+    }
+
+    private publishWeather(bundle: NwsWeatherBundle): NwsWeatherBundle {
+        this.weather$.next(bundle);
+        this.writeWeatherCache(bundle.zipCode, bundle);
+        this.loading$.next(false);
+        return bundle;
+    }
+
+    private weatherUnavailable(): Observable<null> {
+        this.loading$.next(false);
+        if (!this.weather$.value) {
+            this.error$.next('Weather data is temporarily unavailable.');
+        }
+        return of(null);
+    }
+
+    private resolvePlace(query: string): Observable<ZipCoords | null> {
+        const key = `${this.coordsCachePrefix}place:${query.toLowerCase()}`;
+        try {
+            const cached = localStorage.getItem(key);
+            if (cached) {
+                const parsed = JSON.parse(cached) as ZipCoords;
+                if (parsed?.lat != null && parsed?.lon != null) {
+                    return of(parsed);
                 }
-                return of(null);
+            }
+        } catch {
+            // ignore
+        }
+        // The geocoder matches a place name, so "Paris, France" searches for
+        // "Paris" and prefers results whose country or region matches the rest.
+        const parts = query.split(',').map((p) => p.trim()).filter(Boolean);
+        const name = parts[0] || query;
+        const hints = parts.slice(1).map((p) => p.toLowerCase()).map((p) => (p === 'uk' ? 'gb' : p));
+        return this.http.get<any>('https://geocoding-api.open-meteo.com/v1/search', {
+            params: { name, count: hints.length ? 10 : 1, language: 'en', format: 'json' },
+        }).pipe(
+            map((body) => {
+                const results: any[] = Array.isArray(body?.results) ? body.results : [];
+                const matches = (r: any) => hints.every((h) => [r?.country, r?.country_code, r?.admin1, r?.admin2]
+                    .some((v) => typeof v === 'string' && v.toLowerCase().startsWith(h)));
+                const place = results.find(matches) ?? results[0];
+                const lat = Number(place?.latitude);
+                const lon = Number(place?.longitude);
+                if (!place || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+                    return null;
+                }
+                const label = [place.name, place.admin1, place.country]
+                    .filter((v, i, all) => typeof v === 'string' && v && all.indexOf(v) === i)
+                    .join(', ');
+                const coords: ZipCoords = { lat, lon, label: label || query, countryCode: String(place.country_code || '') };
+                try {
+                    localStorage.setItem(key, JSON.stringify(coords));
+                } catch {
+                    // ignore
+                }
+                return coords;
             }),
+            catchError(() => of(null)),
+        );
+    }
+
+    private fetchOpenMeteo(zip: string, coords: ZipCoords, unit: 'F' | 'C'): Observable<NwsWeatherBundle | null> {
+        return this.http.get<any>('https://api.open-meteo.com/v1/forecast', {
+            params: {
+                latitude: coords.lat,
+                longitude: coords.lon,
+                current: 'temperature_2m,weather_code',
+                hourly: 'temperature_2m,precipitation_probability,weather_code',
+                daily: 'temperature_2m_max,weather_code',
+                temperature_unit: unit === 'F' ? 'fahrenheit' : 'celsius',
+                timezone: 'auto',
+                forecast_days: 3,
+            },
+        }).pipe(
+            map((body) => {
+                const conditions = (code: unknown) => WMO_CONDITIONS[Number(code)] ?? '';
+                const num = (v: unknown) => (typeof v === 'number' ? v : null);
+                // Times are local to the place, without an offset.
+                const nowHour = String(body?.current?.time ?? '').slice(0, 13);
+                const h = body?.hourly ?? {};
+                const times: string[] = Array.isArray(h.time) ? h.time : [];
+                let start = times.findIndex((t) => t.slice(0, 13) >= nowHour);
+                if (start < 0) {
+                    start = 0;
+                }
+                const hourly: NwsForecastPeriod[] = times.slice(start, start + 5).map((t, i) => ({
+                    name: '',
+                    startTime: t,
+                    temperature: num(h.temperature_2m?.[start + i]),
+                    temperatureUnit: unit,
+                    shortForecast: conditions(h.weather_code?.[start + i]),
+                    icon: '',
+                    isDaytime: true,
+                    windSpeed: '',
+                    probabilityOfPrecipitation: num(h.precipitation_probability?.[start + i]),
+                }));
+                const d = body?.daily ?? {};
+                const days: string[] = Array.isArray(d.time) ? d.time : [];
+                const daily: NwsForecastPeriod[] = days.slice(0, 3).map((day, i) => ({
+                    name: '',
+                    startTime: `${day}T12:00`,
+                    temperature: num(d.temperature_2m_max?.[i]),
+                    temperatureUnit: unit,
+                    shortForecast: conditions(d.weather_code?.[i]),
+                    icon: '',
+                    isDaytime: true,
+                    windSpeed: '',
+                    probabilityOfPrecipitation: null,
+                }));
+                return this.publishWeather({
+                    zipCode: zip,
+                    locationLabel: coords.label,
+                    lat: coords.lat,
+                    lon: coords.lon,
+                    currentTemp: num(body?.current?.temperature_2m),
+                    currentTempUnit: unit,
+                    currentConditions: conditions(body?.current?.weather_code),
+                    source: 'open-meteo',
+                    hourly,
+                    daily,
+                });
+            }),
+            catchError(() => this.weatherUnavailable()),
         );
     }
 
@@ -468,7 +620,7 @@ export class NwsService implements OnDestroy {
                 return;
             }
             const parsed = JSON.parse(raw) as { at: number; bundle: NwsWeatherBundle };
-            if (!parsed?.bundle || Date.now() - parsed.at > CACHE_TTL_MS) {
+            if (!parsed?.bundle?.source || Date.now() - parsed.at > CACHE_TTL_MS) {
                 return;
             }
             this.weather$.next(parsed.bundle);

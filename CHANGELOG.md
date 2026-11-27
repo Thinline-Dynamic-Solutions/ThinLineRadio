@@ -33,6 +33,9 @@
 - **Choose which system admins get server health push notifications** (requested in [#326](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/326))
   - **Admin → Users** now has a **Server Health Alerts → Push notifications** checkbox for each system admin. Turning it off stops that admin's push notifications for feeders going quiet, lost control channels, SDRTrunk errors, transcription failures and low disk space. It's on by default, so nothing changes until you turn it off.
   - The alerts still appear in **System Health** and still go to the server alert destinations. Manual system alerts still reach everyone.
+- **Weather outside the US** (requested in [#317](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/317))
+  - The dashboard weather card now takes a city as well as a US ZIP code, for example `London, UK` or `Sydney, Australia`. Places outside the US use Open-Meteo, a free worldwide forecast with no key needed, and show °C.
+  - US ZIP codes still use the National Weather Service, and fall back to Open-Meteo if it's down. Severe weather alerts remain US-only.
 
 ### Fixed
 
