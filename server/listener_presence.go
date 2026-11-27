@@ -145,6 +145,11 @@ func (controller *Controller) noteListenerPage(r *http.Request) {
 	if meta.IP == "" && meta.UserAgent == "" {
 		return
 	}
+	// The page handler cannot finish sending the page until this returns.
+	go controller.recordListenerPage(db, meta)
+}
+
+func (controller *Controller) recordListenerPage(db *sql.DB, meta listenerRequestMeta) {
 	now := time.Now().Unix()
 	cutoff := time.Now().Add(-listenerClaimWindow).Unix()
 
@@ -288,6 +293,11 @@ func (controller *Controller) noteListenerLogin(r *http.Request, user *User, aut
 	meta := listenerMeta(r, nil)
 	now := time.Now().Unix()
 	detail = clipListenerText(detail, 200)
+	// detail is what was typed as the email. People sometimes type a password
+	// there, so keep it only when it looks like an email address.
+	if detail != "" && (!strings.Contains(detail, "@") || strings.ContainsAny(detail, " \t")) {
+		detail = ""
+	}
 	var userId uint64
 	if user != nil {
 		userId = user.Id

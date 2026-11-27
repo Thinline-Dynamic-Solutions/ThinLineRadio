@@ -409,10 +409,12 @@ func (api *Api) MappingRegeocodeCallHandler(w http.ResponseWriter, r *http.Reque
 		api.exitWithError(w, http.StatusBadRequest, "callId required")
 		return
 	}
-	if err := api.queueIncidentRegeocode(callId); err != nil {
+	call, err := api.loadIncidentRegeocodeCall(callId)
+	if err != nil {
 		api.exitWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	go api.Controller.IncidentMappingQueue.ProcessCall(call, call.Transcript)
 	json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
 }
 
@@ -435,13 +437,25 @@ func (api *Api) mappingBatchRegeocode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	queued := make([]uint64, 0, len(body.CallIds))
+	calls := make([]*Call, 0, len(body.CallIds))
 	failed := make([]map[string]any, 0)
 	for _, id := range body.CallIds {
-		if err := api.queueIncidentRegeocode(id); err != nil {
+		call, err := api.loadIncidentRegeocodeCall(id)
+		if err != nil {
 			failed = append(failed, map[string]any{"callId": id, "error": err.Error()})
 			continue
 		}
 		queued = append(queued, id)
+		calls = append(calls, call)
+	}
+	// One at a time, so a batch does not send up to 100 geocode and AI requests at once.
+	if len(calls) > 0 {
+		mappingQueue := api.Controller.IncidentMappingQueue
+		go func() {
+			for _, call := range calls {
+				mappingQueue.ProcessCall(call, call.Transcript)
+			}
+		}()
 	}
 	json.NewEncoder(w).Encode(map[string]any{
 		"status": "queued",
@@ -450,22 +464,21 @@ func (api *Api) mappingBatchRegeocode(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *Api) queueIncidentRegeocode(callId uint64) error {
+func (api *Api) loadIncidentRegeocodeCall(callId uint64) (*Call, error) {
 	if api == nil || api.Controller == nil || api.Controller.IncidentMappingQueue == nil {
-		return fmt.Errorf("mapping unavailable")
+		return nil, fmt.Errorf("mapping unavailable")
 	}
 	if callId == 0 {
-		return fmt.Errorf("callId required")
+		return nil, fmt.Errorf("callId required")
 	}
 	call, err := api.Controller.Calls.GetCall(callId)
 	if err != nil || call == nil {
-		return fmt.Errorf("call not found")
+		return nil, fmt.Errorf("call not found")
 	}
 	if strings.TrimSpace(call.Transcript) == "" {
-		return fmt.Errorf("call has no transcript")
+		return nil, fmt.Errorf("call has no transcript")
 	}
-	go api.Controller.IncidentMappingQueue.ProcessCall(call, call.Transcript)
-	return nil
+	return call, nil
 }
 
 // MappingDiagnosticsHandler lists recent failed/skipped/unattempted mapped calls
@@ -762,15 +775,44 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 			metaN++
 		}
 	}
+	// The counts only explain an empty map, and every listener on the Map tab
+	// polls this endpoint, so skip the scan whenever there are pins to show.
 	var mappedCount, failedCount, skippedCount, unattemptedCount int
-	_ = api.Controller.Database.Sql.QueryRow(fmt.Sprintf(`SELECT
-		COUNT(*) FILTER (WHERE c."incidentLat" <> 0 AND c."incidentLon" <> 0
-			AND COALESCE(c."incidentGeocodeStatus", '') NOT IN ('', 'failed', 'skipped'))::int,
-		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'failed')::int,
-		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'skipped')::int,
-		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = '')::int
-		FROM "calls" c %s`, metaWhere), metaArgs...).Scan(
-		&mappedCount, &failedCount, &skippedCount, &unattemptedCount)
+	if len(out) == 0 && mappingEnabled {
+		metaRows, metaErr := api.Controller.Database.Sql.Query(fmt.Sprintf(`SELECT c."systemId", c."talkgroupId",
+			COUNT(*) FILTER (WHERE c."incidentLat" <> 0 AND c."incidentLon" <> 0
+				AND COALESCE(c."incidentGeocodeStatus", '') NOT IN ('', 'failed', 'skipped'))::int,
+			COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'failed')::int,
+			COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'skipped')::int,
+			COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = '')::int
+			FROM "calls" c %s
+			GROUP BY c."systemId", c."talkgroupId"`, metaWhere), metaArgs...)
+		if metaErr == nil {
+			defer metaRows.Close()
+			for metaRows.Next() {
+				var sysId, tgId uint64
+				var mapped, failed, skipped, unattempted int
+				if metaRows.Scan(&sysId, &tgId, &mapped, &failed, &skipped, &unattempted) != nil {
+					continue
+				}
+				system, ok := api.Controller.Systems.GetSystemById(sysId)
+				if !ok {
+					continue
+				}
+				talkgroup, ok := system.Talkgroups.GetTalkgroupById(tgId)
+				if !ok {
+					continue
+				}
+				if !api.Controller.userHasAccess(client.User, &Call{System: system, Talkgroup: talkgroup, Timestamp: time.Now()}) {
+					continue
+				}
+				mappedCount += mapped
+				failedCount += failed
+				skippedCount += skipped
+				unattemptedCount += unattempted
+			}
+		}
+	}
 
 	json.NewEncoder(w).Encode(map[string]any{
 		"incidents": out,

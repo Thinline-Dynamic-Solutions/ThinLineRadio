@@ -251,6 +251,23 @@ func incidentMappingNeedsToneMatch(controller *Controller, call *Call) bool {
 	return controller != nil && controller.pendingTonesAwaitingVoice(call) != nil
 }
 
+// incidentMappingAwaitingPendingTones reports whether a matched tone page is
+// still waiting to attach to this call. Attaching it remaps the call with the
+// tone set's geo, so geocoding can wait for that. Tones already detected on the
+// call that matched no set will never match, so they must not defer the pin.
+func incidentMappingAwaitingPendingTones(controller *Controller, call *Call) bool {
+	if call == nil || call.Talkgroup == nil {
+		return false
+	}
+	if !call.Talkgroup.ToneDetectionEnabled || len(call.Talkgroup.ToneSets) == 0 {
+		return false
+	}
+	if matchedToneSetID(call.ToneSequence) != "" {
+		return false
+	}
+	return controller != nil && controller.pendingTonesAwaitingVoice(call) != nil
+}
+
 // pendingTonesAwaitingVoice returns in-memory pending tones for call's talkgroup
 // when a tone-only page is waiting to attach to the next voiced dispatch.
 func (controller *Controller) pendingTonesAwaitingVoice(call *Call) *PendingToneSequence {
@@ -572,8 +589,6 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	mappingEnabled := q.controller.Options.MappingIntegration.IncidentMappingEnabled
 	q.controller.Options.mutex.Unlock()
 	if !mappingEnabled {
-		q.controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf(
-			"incident mapping call %d skipped: master_disabled", call.Id))
 		return
 	}
 	if !q.controller.isVoiceForToneAlerts(transcript) {
@@ -786,7 +801,7 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 	// Tone match still pending after the wait window: classify only, skip
 	// gateway/cache pins so tight fallback bounds cannot fail the call. Remap
 	// after tones re-runs ProcessCall with the matched set's geo.
-	awaitingTone := incidentMappingNeedsToneMatch(q.controller, call)
+	awaitingTone := incidentMappingAwaitingPendingTones(q.controller, call)
 
 	// Gateway owns geocoding: ONE POST /transcript with the full dispatch.
 	// "skipped" is reserved for no-location pre-screen; empty extract uses

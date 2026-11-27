@@ -3526,8 +3526,6 @@ func migratePublicApi(db *Database) error {
 	return nil
 }
 
-// migratePublicApiUsageAtIndex adds a standalone "at" index for hourly usage pruning.
-// Idempotent for hosts that already got the index from a later migratePublicApi revision.
 // migrateListenerVisits stores who opened the scanner. Signed-in rows keep a
 // userId; anonymous rows stay unattached until a later sign-in claims them.
 func migrateListenerVisits(db *Database) error {
@@ -3563,6 +3561,8 @@ func migrateListenerVisits(db *Database) error {
 	return nil
 }
 
+// migratePublicApiUsageAtIndex adds a standalone "at" index for hourly usage pruning.
+// Idempotent for hosts that already got the index from a later migratePublicApi revision.
 func migratePublicApiUsageAtIndex(db *Database) error {
 	if _, err := db.Sql.Exec(`CREATE INDEX IF NOT EXISTS "publicApiKeyUsage_at_idx" ON "publicApiKeyUsage" ("at")`); err != nil {
 		return fmt.Errorf("migratePublicApiUsageAtIndex: %w", err)

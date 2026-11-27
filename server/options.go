@@ -2334,6 +2334,15 @@ func (options *Options) Read(db *Database) error {
 		}
 	}
 
+	// The admin form always saves a tone sound, so an empty one means the new-pin
+	// settings were never saved. Fill in the defaults here so a later save of a
+	// single setting (such as turning the tone off) is not overridden by them.
+	if strings.TrimSpace(options.MappingIntegration.NewPinToneSound) == "" {
+		options.MappingIntegration.NewPinFlashSeconds = 5
+		options.MappingIntegration.NewPinToneEnabled = true
+		options.MappingIntegration.NewPinToneSound = "quiet"
+	}
+
 	if !options.MappingIntegration.IncidentMappingEnabledConfigured {
 		options.MappingIntegration.IncidentMappingEnabled = detectIncidentMappingAlreadySetup(db)
 		options.MappingIntegration.IncidentMappingEnabledConfigured = true

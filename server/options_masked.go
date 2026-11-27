@@ -49,6 +49,8 @@ var sensitiveOptionKeys = map[string]bool{
 	"assemblyAIKey":      true,
 	"cloudflareAPIToken": true,
 	"collectorAPIKey":    true,
+	// nested: mappingIntegration
+	"mapboxAccessToken": true,
 	// nested: openAIIntegration
 	"apiKey": true,
 }
