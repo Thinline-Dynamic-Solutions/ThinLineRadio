@@ -1,6 +1,6 @@
 # Change log
 
-## Version 26.11.11 - Released November 25, 2026
+## Version 26.11.27 - Released November 27, 2026
 
 ### Added
 
@@ -48,6 +48,10 @@
 - **Alerts from beep and hi-lo alert tones** (requested in [#330](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/330))
   - Many departments dispatched without two-tone paging use an alert tone instead: a few short beeps, or a hi-lo tone that switches between two frequencies. Tone detection only recognized steady tones of 0.4 seconds or more, so these were never detected, however the two-tone fields were set.
   - A tone set pattern can now be an **Alert tone**: **Beeps** (one frequency, with a minimum number of beeps, so a single beep works) or **Hi-lo** (two frequencies, with a minimum number of switches). These are matched separately from two-tone paging, ignore speech, and alert subscribers like any other tone set. The tone is cut from the audio before transcription.
+- **Alerting talkgroups can alert on keywords only**
+  - New **Alert on every call** switch under **Alerting TG** in a talkgroup's settings. It is on by default, so existing alerting talkgroups keep alerting on every voiced call.
+  - Turned off, the talkgroup still transcribes every voiced call, including calls shorter than the minimum call duration, but sends no alert of its own. Users' keyword alerts and tone alerts work on it as on any other talkgroup.
+  - Turned off, every voiced call is transcribed even when no user has alerts set for the talkgroup.
 
 ### Fixed
 
@@ -99,17 +103,6 @@
   - The admin page no longer shows the server as signed out while the relay can't be reached. A failed refresh is retried every minute instead of every 10 minutes.
 - **Public API dialog labels overlapping the text** (from Bones's [#311](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/pull/311))
   - Field labels in the Public API dialog no longer collide with their placeholder text, and the dialog uses the ThinLine LCD look.
-
----
-
-## Version 26.11.10 - Released November 21, 2026
-
-### Added
-
-- **Alerting talkgroups can alert on keywords only**
-  - New **Alert on every call** switch under **Alerting TG** in a talkgroup's settings. It is on by default, so existing alerting talkgroups keep alerting on every voiced call.
-  - Turned off, the talkgroup still transcribes every voiced call, including calls shorter than the minimum call duration, but sends no alert of its own. Users' keyword alerts and tone alerts work on it as on any other talkgroup.
-  - Turned off, every voiced call is transcribed even when no user has alerts set for the talkgroup.
 
 ---
 
