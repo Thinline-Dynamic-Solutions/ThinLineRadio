@@ -1768,7 +1768,15 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch v := m["options"].(type) {
 			case map[string]any:
+				// Whole-config saves often carry options loaded earlier (import tools,
+				// password settings). Never let them swap or blank a stored API key;
+				// only a deliberate full import may replace non-blank credentials.
+				secretsBefore := admin.Controller.Options.transcriptionSecretSnapshot()
+				admin.Controller.Options.protectOptionSecrets(v, !isFullImport)
 				admin.Controller.Options.FromMap(v)
+				if changes := describeSecretChanges(secretsBefore, admin.Controller.Options.transcriptionSecretSnapshot()); len(changes) > 0 {
+					log.Printf("options: API key changed via whole-config save (fullImport=%t, from=%s): %s", isFullImport, r.RemoteAddr, strings.Join(changes, ", "))
+				}
 				err = admin.Controller.Options.Write(admin.Controller.Database)
 				if err != nil {
 					logError(err)
