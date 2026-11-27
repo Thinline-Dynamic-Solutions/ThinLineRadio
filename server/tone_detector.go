@@ -44,6 +44,7 @@ type Tone struct {
 	Duration  float64 `json:"duration"`  // seconds
 	ToneType  string  `json:"toneType"`  // Type of tone: "A", "B", "Long", or "" if matched multiple/none
 	Magnitude float64 `json:"magnitude,omitempty"` // FFT peak magnitude (internal scoring; not persisted)
+	Pattern   string  `json:"pattern,omitempty"`   // alert tone signature, for ToneType "Alert"
 }
 
 // ToneSet represents a configured set of tones for a talkgroup
@@ -68,30 +69,33 @@ type ToneSet struct {
 	// Patterns are additional tone patterns that also trigger this tone set,
 	// such as an all-call tone or a second tone pair for the same department.
 	Patterns []TonePattern `json:"patterns,omitempty"`
+	// AlertTone is a beep or warble alert tone; normally set on a pattern.
+	AlertTone *AlertToneSpec `json:"alertTone,omitempty"`
 }
 
-// TonePattern is an A/B pair, a single A or B tone, or a long tone.
+// TonePattern is an A/B pair, a single A or B tone, a long tone, or an alert tone.
 type TonePattern struct {
-	ATone    *ToneSpec `json:"aTone,omitempty"`
-	BTone    *ToneSpec `json:"bTone,omitempty"`
-	LongTone *ToneSpec `json:"longTone,omitempty"`
+	ATone     *ToneSpec      `json:"aTone,omitempty"`
+	BTone     *ToneSpec      `json:"bTone,omitempty"`
+	LongTone  *ToneSpec      `json:"longTone,omitempty"`
+	AlertTone *AlertToneSpec `json:"alertTone,omitempty"`
 }
 
 // patternVariants returns the tone set once per pattern it matches: its own
 // tones first, then each additional pattern, all sharing its id, label and tolerance.
 func (ts ToneSet) patternVariants() []ToneSet {
 	out := []ToneSet{}
-	if ts.ATone != nil || ts.BTone != nil || ts.LongTone != nil {
+	if ts.ATone != nil || ts.BTone != nil || ts.LongTone != nil || ts.AlertTone != nil {
 		v := ts
 		v.Patterns = nil
 		out = append(out, v)
 	}
 	for _, p := range ts.Patterns {
-		if p.ATone == nil && p.BTone == nil && p.LongTone == nil {
+		if p.ATone == nil && p.BTone == nil && p.LongTone == nil && p.AlertTone == nil {
 			continue
 		}
 		v := ts
-		v.ATone, v.BTone, v.LongTone = p.ATone, p.BTone, p.LongTone
+		v.ATone, v.BTone, v.LongTone, v.AlertTone = p.ATone, p.BTone, p.LongTone, p.AlertTone
 		v.Patterns = nil
 		out = append(out, v)
 	}
@@ -194,6 +198,7 @@ func (detector *ToneDetector) Detect(audio []byte, audioMime string, toneSets []
 	}
 
 	detectedTones := detector.analyzeFrequencies(samples, sampleRate, toneSets, false)
+	detectedTones = append(detectedTones, detector.detectAlertTones(samples, sampleRate, toneSets)...)
 
 	// Log tone detection analysis
 	fmt.Printf("tone detection: analyzed %d samples at %d Hz, found %d potential tone detections\n", len(samples), sampleRate, len(detectedTones))
@@ -230,11 +235,17 @@ func (detector *ToneDetector) Detect(audio []byte, audioMime string, toneSets []
 			}
 		}
 	}
-	if sequence.ATone == nil && len(detectedTones) > 0 {
-		sequence.ATone = &detectedTones[0]
+	paging := []*Tone{}
+	for i := range detectedTones {
+		if detectedTones[i].ToneType != "Alert" {
+			paging = append(paging, &detectedTones[i])
+		}
 	}
-	if sequence.BTone == nil && len(detectedTones) > 1 {
-		sequence.BTone = &detectedTones[1]
+	if sequence.ATone == nil && len(paging) > 0 {
+		sequence.ATone = paging[0]
+	}
+	if sequence.BTone == nil && len(paging) > 1 {
+		sequence.BTone = paging[1]
 	}
 
 	return sequence, nil
@@ -780,13 +791,13 @@ func (detector *ToneDetector) MatchToneSets(detected *ToneSequence, configured [
 	for i := range configured {
 		toneSet := configured[i]
 		if len(toneSet.Patterns) == 0 {
-			if detector.matchesToneSet(detected, toneSet) {
+			if detector.matchesVariant(detected, toneSet) {
 				matched = append(matched, &toneSet)
 			}
 			continue
 		}
 		for _, variant := range toneSet.patternVariants() {
-			if detector.matchesToneSet(detected, variant) {
+			if detector.matchesVariant(detected, variant) {
 				matched = append(matched, &toneSet)
 				break
 			}
@@ -794,6 +805,18 @@ func (detector *ToneDetector) MatchToneSets(detected *ToneSequence, configured [
 	}
 
 	return matched
+}
+
+func (detector *ToneDetector) matchesVariant(detected *ToneSequence, toneSet ToneSet) bool {
+	if toneSet.AlertTone != nil {
+		if hasAlertTone(detected, toneSet.AlertTone) {
+			return true
+		}
+		if toneSet.ATone == nil && toneSet.BTone == nil && toneSet.LongTone == nil {
+			return false
+		}
+	}
+	return detector.matchesToneSet(detected, toneSet)
 }
 
 // matchesToneSet checks if detected tones match a configured tone set

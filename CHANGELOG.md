@@ -45,6 +45,9 @@
 - **Several tone patterns for one tone set** (requested in [#329](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/329))
   - Each tone set now has **Additional patterns**: more tone pairs (A/B) or long tones that also trigger it, such as a department's all-call tone, a second tone pair or a siren tone. Previously each needed its own tone set and listeners had to subscribe to each one.
   - Listeners still subscribe to the one tone set and get a single alert whichever pattern is heard, even when several are heard on the same call. Auto-learn also treats additional patterns as already configured.
+- **Alerts from beep and hi-lo alert tones** (requested in [#330](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/330))
+  - Many departments dispatched without two-tone paging use an alert tone instead: a few short beeps, or a hi-lo tone that switches between two frequencies. Tone detection only recognized steady tones of 0.4 seconds or more, so these were never detected, however the two-tone fields were set.
+  - A tone set pattern can now be an **Alert tone**: **Beeps** (one frequency, with a minimum number of beeps, so a single beep works) or **Hi-lo** (two frequencies, with a minimum number of switches). These are matched separately from two-tone paging, ignore speech, and alert subscribers like any other tone set. The tone is cut from the audio before transcription.
 
 ### Fixed
 

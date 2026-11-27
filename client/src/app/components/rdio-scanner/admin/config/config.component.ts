@@ -633,13 +633,22 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                             return s;
                         };
                         const patterns = (Array.isArray(toneSet.patterns) ? toneSet.patterns : [])
-                            .map((p: any) => p?.kind === 'long'
+                            .map((p: any) => p?.kind === 'alert'
+                                ? {
+                                    alertTone: p.alertFrequency && (p.alertKind !== 'warble' || p.alertFrequency2) ? {
+                                        kind: p.alertKind === 'warble' ? 'warble' : 'beeps',
+                                        frequency: p.alertFrequency,
+                                        ...(p.alertKind === 'warble' ? { frequency2: p.alertFrequency2 } : {}),
+                                        ...(p.alertMinCount ? { minCount: p.alertMinCount } : {}),
+                                    } : undefined,
+                                }
+                                : p?.kind === 'long'
                                 ? { longTone: spec(p.longToneFrequency, p.longToneMinDuration, p.longToneMaxDuration) }
                                 : {
                                     aTone: spec(p?.aToneFrequency, p?.aToneMinDuration, p?.aToneMaxDuration),
                                     bTone: spec(p?.bToneFrequency, p?.bToneMinDuration, p?.bToneMaxDuration),
                                 })
-                            .filter((p: any) => p.aTone || p.bTone || p.longTone);
+                            .filter((p: any) => p.aTone || p.bTone || p.longTone || p.alertTone);
                         if (patterns.length) {
                             converted.patterns = patterns;
                         }

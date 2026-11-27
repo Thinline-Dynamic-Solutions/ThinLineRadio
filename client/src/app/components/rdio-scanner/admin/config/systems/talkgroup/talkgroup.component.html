@@ -528,7 +528,7 @@
                     <div class="tone-spec-section tone-patterns" formArrayName="patterns">
                       <strong>Additional patterns</strong>
                       <span class="tone-field-hint" style="margin-bottom: 8px;">
-                        Other tones that also trigger this tone set, such as an all-call tone or a second tone pair for the same department. Listeners get one alert for this tone set whichever pattern is heard.
+                        Other tones that also trigger this tone set, such as an all-call tone, a second tone pair, or the beeps or hi-lo alert tone a department is dispatched with. Listeners get one alert for this tone set whichever pattern is heard. For a department that only uses an alert tone, leave the tones above empty and add an alert tone pattern.
                       </span>
                       @for (pattern of tonePatterns(toneSet).controls; track pattern; let p = $index) {
                         <div class="tone-pattern" [formGroupName]="p">
@@ -536,12 +536,49 @@
                             <mat-select formControlName="kind" class="tone-pattern-kind">
                               <mat-option value="ab">Tone pair (A/B)</mat-option>
                               <mat-option value="long">Long tone</mat-option>
+                              <mat-option value="alert">Alert tone (beeps / hi-lo)</mat-option>
                             </mat-select>
                             <button mat-icon-button type="button" (click)="removeTonePattern(toneSet, p)" matTooltip="Remove pattern">
                               <mat-icon>close</mat-icon>
                             </button>
                           </div>
-                          @if (pattern.get('kind')?.value === 'long') {
+                          @if (pattern.get('kind')?.value === 'alert') {
+                            <div class="tone-spec-row">
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <mat-select formControlName="alertKind">
+                                    <mat-option value="beeps">Beeps</mat-option>
+                                    <mat-option value="warble">Hi-lo (warble)</mat-option>
+                                  </mat-select>
+                                </mat-form-field>
+                                <span class="tone-field-hint">Type</span>
+                              </div>
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="alertFrequency" min="0" step="0.1" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">{{ pattern.get('alertKind')?.value === 'warble' ? 'Low Frequency (Hz)' : 'Frequency (Hz)' }}</span>
+                              </div>
+                              @if (pattern.get('alertKind')?.value === 'warble') {
+                                <div class="tone-field">
+                                  <mat-form-field floatLabel="auto">
+                                    <input type="number" matInput formControlName="alertFrequency2" min="0" step="0.1" autocomplete="off">
+                                  </mat-form-field>
+                                  <span class="tone-field-hint">High Frequency (Hz)</span>
+                                </div>
+                              }
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="alertMinCount" min="1" step="1" autocomplete="off"
+                                    [placeholder]="pattern.get('alertKind')?.value === 'warble' ? '4' : '1'">
+                                </mat-form-field>
+                                <span class="tone-field-hint">{{ pattern.get('alertKind')?.value === 'warble' ? 'Min Switches' : 'Min Beeps' }}</span>
+                              </div>
+                            </div>
+                            <span class="tone-field-hint">
+                              Beeps are short bursts of one frequency, from 0.06 to 1.5 seconds each and no more than a second apart. Hi-lo switches back and forth between two frequencies; switches counts each change. Frequency tolerance is at least ±15 Hz.
+                            </span>
+                          } @else if (pattern.get('kind')?.value === 'long') {
                             <div class="tone-spec-row">
                               <div class="tone-field">
                                 <mat-form-field floatLabel="auto">

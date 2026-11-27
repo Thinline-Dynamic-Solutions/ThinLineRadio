@@ -2813,11 +2813,16 @@ export class RdioScannerAdminService implements OnDestroy {
         });
     }
 
-    /** An additional tone pattern on a tone set: a tone pair (A/B) or a long tone. */
+    /** An additional tone pattern on a tone set: a tone pair (A/B), a long tone, or an alert tone. */
     newTonePatternForm(pattern?: any): FormGroup {
-        const kind = pattern?.longTone && !pattern?.aTone && !pattern?.bTone ? 'long' : 'ab';
+        const kind = pattern?.alertTone ? 'alert'
+            : pattern?.longTone && !pattern?.aTone && !pattern?.bTone ? 'long' : 'ab';
         return this.ngFormBuilder.group({
             kind: this.ngFormBuilder.control(kind),
+            alertKind: this.ngFormBuilder.control(pattern?.alertTone?.kind ?? 'beeps'),
+            alertFrequency: this.ngFormBuilder.control(pattern?.alertTone?.frequency ?? null),
+            alertFrequency2: this.ngFormBuilder.control(pattern?.alertTone?.frequency2 ?? null),
+            alertMinCount: this.ngFormBuilder.control(pattern?.alertTone?.minCount ?? null),
             aToneFrequency: this.ngFormBuilder.control(pattern?.aTone?.frequency ?? null),
             aToneMinDuration: this.ngFormBuilder.control(pattern?.aTone?.minDuration ?? null),
             aToneMaxDuration: this.ngFormBuilder.control(pattern?.aTone?.maxDuration ?? null),
