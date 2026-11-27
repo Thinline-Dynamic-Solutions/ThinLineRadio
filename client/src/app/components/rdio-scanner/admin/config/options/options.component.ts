@@ -22,6 +22,7 @@ import { FormGroup, FormArray, Validators, FormBuilder } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
+import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { RequestAPIKeyDialogComponent } from './request-api-key-dialog.component';
 import { RecoverAPIKeyDialogComponent } from './recover-api-key-dialog.component';
@@ -393,7 +394,10 @@ export interface UnsavedPanelChanges {
     templateUrl: './options.component.html',
     styleUrls: ['./options.component.scss'],
     changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+    standalone: false,
+    providers: [
+        { provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { appearance: 'outline', subscriptSizing: 'dynamic' } },
+    ],
 })
 export class RdioScannerAdminOptionsComponent implements OnInit, AfterViewInit, OnDestroy, OnChanges {
     @Input() form: FormGroup | undefined;

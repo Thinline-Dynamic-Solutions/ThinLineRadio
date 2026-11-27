@@ -89,6 +89,11 @@
   - The Transcription panel only sends a provider key when it was changed, so a stale or blank form can no longer replace a working key and cause 401 errors from the provider.
   - Saves of the whole config from the import and password tools keep the stored transcription, OpenAI and Mapbox keys. Config imports ignore blank keys.
   - Key changes are logged with a short fingerprint, never the key itself, so an unexpected change can be traced.
+- **Options and Settings were hard to read**
+  - Each setting's control now sits right next to its name and description instead of at the far edge of the screen, so it's clear which setting a control changes. Rows are separated and highlight on hover, and the page no longer stretches across very wide monitors.
+  - Text fields use the same outlined style as the rest of the admin pages.
+  - The Test Email box and the Mapping diagnostics box no longer stick out past the edge of the page.
+  - On phones each setting stacks: name, description, then the control.
 - **Server signed out of its relay account on its own**
   - Saving the config from the admin page or a config import erased the stored relay sign-in, so the server dropped back to signed out. Config saves now leave the sign-in alone. Only **Sign out** ends it.
   - The admin page no longer shows the server as signed out while the relay can't be reached. A failed refresh is retried every minute instead of every 10 minutes.

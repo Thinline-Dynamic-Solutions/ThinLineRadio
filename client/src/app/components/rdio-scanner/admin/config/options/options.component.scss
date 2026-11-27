@@ -116,8 +116,102 @@
 }
 
 .options-section {
+    max-width: 1080px;
     margin-bottom: 8px;
     padding: 4px 2px 12px;
+}
+
+/* Setting rows: name and description on the left, the control in a fixed
+   column right beside it, so the eye never has to cross the whole screen. */
+:host .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+    grid-auto-flow: row dense;
+    box-sizing: border-box;
+    column-gap: 32px;
+    row-gap: 10px;
+    align-items: center;
+    padding: 14px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    transition: background 0.12s ease;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.025);
+    }
+
+    > p {
+        grid-column: 1;
+        margin: 0;
+        padding: 0;
+        min-width: 0;
+
+        br {
+            display: none;
+        }
+
+        .mat-body {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.35;
+            color: rgba(255, 255, 255, 0.92);
+
+            strong {
+                font-weight: 600;
+            }
+        }
+
+        .mat-caption {
+            display: block;
+            max-width: 64ch;
+            margin-top: 4px;
+            font-size: 12.5px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.58);
+        }
+    }
+
+    > :not(p) {
+        grid-column: 2;
+        min-width: 0;
+    }
+
+    > :only-child {
+        grid-column: 1 / -1;
+        box-sizing: border-box;
+        max-width: 100%;
+    }
+
+    > .mat-mdc-form-field,
+    > div > .mat-mdc-form-field {
+        width: 100%;
+    }
+
+    > div > .mat-mdc-slide-toggle,
+    > div > .mat-mdc-button {
+        float: none;
+    }
+
+    .mat-mdc-button:last-child {
+        margin-left: 0;
+    }
+}
+
+:host .row + :not(.row) {
+    margin-top: 12px;
+}
+
+@media (max-width: 760px) {
+    :host .row {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 12px 4px;
+
+        > p,
+        > :not(p) {
+            grid-column: 1;
+        }
+    }
 }
 
 .options-section-header {
