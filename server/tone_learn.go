@@ -155,7 +155,7 @@ func buildLongToneSignature(systemId, talkgroupId uint64, freq, tol float64) str
 }
 
 func toneSetExistsOnTalkgroup(existing []ToneSet, cand toneLearnCandidate, tol float64) bool {
-	for _, ts := range existing {
+	for _, ts := range expandTonePatterns(existing) {
 		if cand.PatternType == toneLearnPatternABPair && ts.ATone != nil && ts.BTone != nil {
 			if freqWithinTol(cand.ToneSetDraft.ATone.Frequency, ts.ATone.Frequency, tol) &&
 				freqWithinTol(cand.ToneSetDraft.BTone.Frequency, ts.BTone.Frequency, tol) {

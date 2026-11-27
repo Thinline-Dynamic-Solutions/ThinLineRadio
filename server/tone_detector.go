@@ -65,6 +65,49 @@ type ToneSet struct {
 	GeoLon          float64 `json:"geoLon"`
 	GeoRadiusMiles  float64 `json:"geoRadiusMiles"`
 	LocationContext string  `json:"locationContext"`
+	// Patterns are additional tone patterns that also trigger this tone set,
+	// such as an all-call tone or a second tone pair for the same department.
+	Patterns []TonePattern `json:"patterns,omitempty"`
+}
+
+// TonePattern is an A/B pair, a single A or B tone, or a long tone.
+type TonePattern struct {
+	ATone    *ToneSpec `json:"aTone,omitempty"`
+	BTone    *ToneSpec `json:"bTone,omitempty"`
+	LongTone *ToneSpec `json:"longTone,omitempty"`
+}
+
+// patternVariants returns the tone set once per pattern it matches: its own
+// tones first, then each additional pattern, all sharing its id, label and tolerance.
+func (ts ToneSet) patternVariants() []ToneSet {
+	out := []ToneSet{}
+	if ts.ATone != nil || ts.BTone != nil || ts.LongTone != nil {
+		v := ts
+		v.Patterns = nil
+		out = append(out, v)
+	}
+	for _, p := range ts.Patterns {
+		if p.ATone == nil && p.BTone == nil && p.LongTone == nil {
+			continue
+		}
+		v := ts
+		v.ATone, v.BTone, v.LongTone = p.ATone, p.BTone, p.LongTone
+		v.Patterns = nil
+		out = append(out, v)
+	}
+	return out
+}
+
+func expandTonePatterns(toneSets []ToneSet) []ToneSet {
+	out := make([]ToneSet, 0, len(toneSets))
+	for _, ts := range toneSets {
+		if len(ts.Patterns) == 0 {
+			out = append(out, ts)
+			continue
+		}
+		out = append(out, ts.patternVariants()...)
+	}
+	return out
 }
 
 // ToneSpec defines the expected frequency and duration ranges for a tone
@@ -472,6 +515,7 @@ func parabolicInterpolate(yMinus, y0, yPlus float64) float64 {
 // analyzeFrequencies detects sustained paging tones via the single STFT engine
 // (analyzeSTFTTones) and optionally matches them against configured tone sets.
 func (detector *ToneDetector) analyzeFrequencies(samples []float64, sampleRate int, toneSets []ToneSet, includeUnmatched bool) []Tone {
+	toneSets = expandTonePatterns(toneSets)
 	maxSamples := int(toneAnalysisMaxSeconds * float64(sampleRate))
 	if maxSamples > 0 && len(samples) > maxSamples {
 		samples = samples[:maxSamples]
@@ -735,8 +779,17 @@ func (detector *ToneDetector) MatchToneSets(detected *ToneSequence, configured [
 	var matched []*ToneSet
 	for i := range configured {
 		toneSet := configured[i]
-		if detector.matchesToneSet(detected, toneSet) {
-			matched = append(matched, &toneSet)
+		if len(toneSet.Patterns) == 0 {
+			if detector.matchesToneSet(detected, toneSet) {
+				matched = append(matched, &toneSet)
+			}
+			continue
+		}
+		for _, variant := range toneSet.patternVariants() {
+			if detector.matchesToneSet(detected, variant) {
+				matched = append(matched, &toneSet)
+				break
+			}
 		}
 	}
 

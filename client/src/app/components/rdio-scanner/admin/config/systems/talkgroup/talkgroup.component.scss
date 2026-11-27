@@ -503,3 +503,32 @@
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.025);
 }
+
+.tone-patterns {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding-top: 6px;
+    margin-top: 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tone-pattern {
+    align-self: stretch;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+}
+
+.tone-pattern-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.tone-pattern-kind {
+    max-width: 200px;
+}

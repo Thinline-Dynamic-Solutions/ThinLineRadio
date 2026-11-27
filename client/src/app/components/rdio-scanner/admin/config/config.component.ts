@@ -622,6 +622,28 @@ export class RdioScannerAdminConfigComponent implements OnDestroy, OnInit {
                             converted.locationContext = toneSet.locationContext;
                         }
 
+                        const spec = (freq: any, min: any, max: any) => {
+                            if (!freq) {
+                                return undefined;
+                            }
+                            const s: any = { frequency: freq, minDuration: min || 0 };
+                            if (max) {
+                                s.maxDuration = max;
+                            }
+                            return s;
+                        };
+                        const patterns = (Array.isArray(toneSet.patterns) ? toneSet.patterns : [])
+                            .map((p: any) => p?.kind === 'long'
+                                ? { longTone: spec(p.longToneFrequency, p.longToneMinDuration, p.longToneMaxDuration) }
+                                : {
+                                    aTone: spec(p?.aToneFrequency, p?.aToneMinDuration, p?.aToneMaxDuration),
+                                    bTone: spec(p?.bToneFrequency, p?.bToneMinDuration, p?.bToneMaxDuration),
+                                })
+                            .filter((p: any) => p.aTone || p.bTone || p.longTone);
+                        if (patterns.length) {
+                            converted.patterns = patterns;
+                        }
+
                         return converted;
                     });
                 }

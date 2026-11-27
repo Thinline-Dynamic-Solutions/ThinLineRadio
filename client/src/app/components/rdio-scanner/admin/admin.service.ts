@@ -2813,6 +2813,23 @@ export class RdioScannerAdminService implements OnDestroy {
         });
     }
 
+    /** An additional tone pattern on a tone set: a tone pair (A/B) or a long tone. */
+    newTonePatternForm(pattern?: any): FormGroup {
+        const kind = pattern?.longTone && !pattern?.aTone && !pattern?.bTone ? 'long' : 'ab';
+        return this.ngFormBuilder.group({
+            kind: this.ngFormBuilder.control(kind),
+            aToneFrequency: this.ngFormBuilder.control(pattern?.aTone?.frequency ?? null),
+            aToneMinDuration: this.ngFormBuilder.control(pattern?.aTone?.minDuration ?? null),
+            aToneMaxDuration: this.ngFormBuilder.control(pattern?.aTone?.maxDuration ?? null),
+            bToneFrequency: this.ngFormBuilder.control(pattern?.bTone?.frequency ?? null),
+            bToneMinDuration: this.ngFormBuilder.control(pattern?.bTone?.minDuration ?? null),
+            bToneMaxDuration: this.ngFormBuilder.control(pattern?.bTone?.maxDuration ?? null),
+            longToneFrequency: this.ngFormBuilder.control(pattern?.longTone?.frequency ?? null),
+            longToneMinDuration: this.ngFormBuilder.control(pattern?.longTone?.minDuration ?? null),
+            longToneMaxDuration: this.ngFormBuilder.control(pattern?.longTone?.maxDuration ?? null),
+        });
+    }
+
     newTagForm(tag?: Tag): FormGroup {
         return this.ngFormBuilder.group({
             id: this.ngFormBuilder.control(tag?.id),
@@ -2851,6 +2868,9 @@ export class RdioScannerAdminService implements OnDestroy {
                     geoLon: this.ngFormBuilder.control(toneSet.geoLon ?? null),
                     geoRadiusMiles: this.ngFormBuilder.control(toneSet.geoRadiusMiles ?? null),
                     locationContext: this.ngFormBuilder.control(toneSet.locationContext || ''),
+                    patterns: this.ngFormBuilder.array(
+                        (Array.isArray(toneSet.patterns) ? toneSet.patterns : []).map((p: any) => this.newTonePatternForm(p)),
+                    ),
                 });
                 toneSetsArray.push(toneSetForm as any);
             });

@@ -525,6 +525,78 @@
                         </div>
                       </div>
                     </div>
+                    <div class="tone-spec-section tone-patterns" formArrayName="patterns">
+                      <strong>Additional patterns</strong>
+                      <span class="tone-field-hint" style="margin-bottom: 8px;">
+                        Other tones that also trigger this tone set, such as an all-call tone or a second tone pair for the same department. Listeners get one alert for this tone set whichever pattern is heard.
+                      </span>
+                      @for (pattern of tonePatterns(toneSet).controls; track pattern; let p = $index) {
+                        <div class="tone-pattern" [formGroupName]="p">
+                          <div class="tone-pattern-head">
+                            <mat-select formControlName="kind" class="tone-pattern-kind">
+                              <mat-option value="ab">Tone pair (A/B)</mat-option>
+                              <mat-option value="long">Long tone</mat-option>
+                            </mat-select>
+                            <button mat-icon-button type="button" (click)="removeTonePattern(toneSet, p)" matTooltip="Remove pattern">
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          </div>
+                          @if (pattern.get('kind')?.value === 'long') {
+                            <div class="tone-spec-row">
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="longToneFrequency" min="0" step="0.1" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">Long Frequency (Hz)</span>
+                              </div>
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="longToneMinDuration" min="0" step="0.01" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">Min Duration (s)</span>
+                              </div>
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="longToneMaxDuration" min="0" step="0.01" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">Max Duration (s)</span>
+                              </div>
+                            </div>
+                          } @else {
+                            <div class="tone-spec-row">
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="aToneFrequency" min="0" step="0.1" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">A Frequency (Hz)</span>
+                              </div>
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="aToneMinDuration" min="0" step="0.01" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">A Min Duration (s)</span>
+                              </div>
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="bToneFrequency" min="0" step="0.1" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">B Frequency (Hz)</span>
+                              </div>
+                              <div class="tone-field">
+                                <mat-form-field floatLabel="auto">
+                                  <input type="number" matInput formControlName="bToneMinDuration" min="0" step="0.01" autocomplete="off">
+                                </mat-form-field>
+                                <span class="tone-field-hint">B Min Duration (s)</span>
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      }
+                      <button mat-stroked-button type="button" (click)="addTonePattern(toneSet)">
+                        <mat-icon>add</mat-icon>
+                        Add pattern
+                      </button>
+                    </div>
                     <div class="tone-spec-section tone-set-location">
                       <strong>Incident map location</strong>
                       <span class="tone-field-hint" style="margin-bottom: 8px;">

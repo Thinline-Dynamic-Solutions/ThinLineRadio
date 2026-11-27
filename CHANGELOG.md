@@ -42,6 +42,9 @@
 - **Keep incident pins inside chosen counties** (requested in [#324](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/324))
   - **Systems → Incident Mapping** has a new **Keep pins inside these counties** list. When counties are chosen, a geocoded pin that lands outside all of them is dropped instead of plotted, so a street name shared with a neighboring county or state no longer puts a pin there. The mapping log records these as `outside_county`.
   - It uses the county boundaries from **Options → Mapping → Import boundaries**. If none are imported for the chosen counties, pins are not filtered.
+- **Several tone patterns for one tone set** (requested in [#329](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/329))
+  - Each tone set now has **Additional patterns**: more tone pairs (A/B) or long tones that also trigger it, such as a department's all-call tone, a second tone pair or a siren tone. Previously each needed its own tone set and listeners had to subscribe to each one.
+  - Listeners still subscribe to the one tone set and get a single alert whichever pattern is heard, even when several are heard on the same call. Auto-learn also treats additional patterns as already configured.
 
 ### Fixed
 

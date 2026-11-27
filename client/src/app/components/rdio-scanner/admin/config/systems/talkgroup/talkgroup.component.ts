@@ -284,12 +284,34 @@ export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
             geoLon: [toneSet?.geoLon ?? null],
             geoRadiusMiles: [toneSet?.geoRadiusMiles ?? null],
             locationContext: [toneSet?.locationContext ?? ''],
+            patterns: this.formBuilder.array(
+                ((toneSet as any)?.patterns || []).map((p: any) => this.adminService.newTonePatternForm(p)),
+            ),
         });
         this.getToneSets().push(toneSetForm);
         this.wireToneSetExclusivity(toneSetForm);
         if (expand) {
             this.expandedToneSets.add(id);
         }
+    }
+
+    tonePatterns(toneSet: AbstractControl): FormArray {
+        return toneSet.get('patterns') as FormArray;
+    }
+
+    addTonePattern(toneSet: AbstractControl): void {
+        let patterns = toneSet.get('patterns') as FormArray | null;
+        if (!patterns) {
+            patterns = this.formBuilder.array([]);
+            (toneSet as FormGroup).addControl('patterns', patterns);
+        }
+        patterns.push(this.adminService.newTonePatternForm());
+        toneSet.markAsDirty();
+    }
+
+    removeTonePattern(toneSet: AbstractControl, index: number): void {
+        this.tonePatterns(toneSet).removeAt(index);
+        toneSet.markAsDirty();
     }
 
     removeToneSet(index: number): void {
