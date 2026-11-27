@@ -26,6 +26,7 @@ import { PageEvent } from '@angular/material/paginator';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
 import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
+import { copyText } from '../../../clipboard.util';
 
 @Component({
     selector: 'rdio-scanner-admin-apikeys',
@@ -267,10 +268,8 @@ export class RdioScannerAdminApikeysComponent {
             return;
         }
 
-        navigator.clipboard.writeText(key).then(() => {
-            this.snackBar.open('API key copied to clipboard', 'Close', { duration: 3000 });
-        }).catch(() => {
-            this.snackBar.open('Failed to copy. Please copy manually.', 'Close', { duration: 5000 });
+        copyText(key).then((ok) => {
+            this.snackBar.open(ok ? 'API key copied to clipboard' : 'Failed to copy. Please copy manually.', 'Close', { duration: ok ? 3000 : 5000 });
         });
     }
 

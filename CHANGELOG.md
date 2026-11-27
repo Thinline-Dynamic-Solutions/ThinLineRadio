@@ -38,6 +38,8 @@
   - Changes were saved but the page showed the list from when the admin page was opened. Both panels now load the saved list each time they open.
 - **Removing a talkgroup stalled ingest and listening** (reported in [#328](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/328))
   - Removing a talkgroup deleted all of its calls in one step, holding up uploads and listeners until it finished. Talkgroups with calls now stay until their calls are deleted in small batches in the background, then disappear. The admin log shows progress. If the server restarts first, the talkgroup stays and can be removed again.
+- **Copy link did nothing** (reported in [#323](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/323))
+  - Copy buttons in the admin pages and the Public API dialog failed silently when the server was opened over plain HTTP, such as a LAN address, and Safari refused the copy after **Create and copy link**. They now fall back to a method that works there. If a browser still refuses, the link is shown with a **Copy** button.
 - **Call uploads timing out on large databases**
   - The duplicate check that runs on every upload now uses an index on system, talkgroup and arrival time. On large databases it was scanning the calls table and running out of time, which logged an upload timeout on every affected call.
   - On existing PostgreSQL servers the index is built in the background after the server starts, without blocking startup or call uploads. On a large database the build can take a few minutes; calls keep uploading while it runs.

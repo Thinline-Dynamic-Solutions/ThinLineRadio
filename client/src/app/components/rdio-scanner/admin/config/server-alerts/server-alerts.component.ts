@@ -11,6 +11,7 @@ import { HttpClient } from '@angular/common/http';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService } from '../../admin.service';
+import { copyText } from '../../../clipboard.util';
 
 type DestinationType = 'slack' | 'discord' | 'pagerduty' | 'email' | 'custom';
 
@@ -272,9 +273,8 @@ export class RdioScannerAdminServerAlertsComponent implements OnInit {
   }
 
   copyKey(): void {
-    navigator.clipboard?.writeText(this.newKeyPlaintext).then(
-      () => this.snackBar.open('Key copied', 'Close', { duration: 2500 }),
-      () => this.snackBar.open('Select the key and copy it', 'Close', { duration: 4000 }),
+    copyText(this.newKeyPlaintext).then((ok) =>
+      this.snackBar.open(ok ? 'Key copied' : 'Select the key and copy it', 'Close', { duration: ok ? 2500 : 4000 }),
     );
   }
 

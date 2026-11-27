@@ -12,6 +12,7 @@ import { MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { RdioScannerService } from '../rdio-scanner.service';
+import { copyText } from '../clipboard.util';
 
 interface PublicApiKeyRow {
   id: number;
@@ -176,9 +177,9 @@ export class RdioScannerPublicApiDialogComponent implements OnInit {
     }
   }
 
-  copy(text: string): void {
-    void navigator.clipboard.writeText(text);
-    this.snack.open('Copied', 'Close', { duration: 1500 });
+  async copy(text: string): Promise<void> {
+    const ok = await copyText(text);
+    this.snack.open(ok ? 'Copied' : 'Could not copy. Select the text and copy it manually.', 'Close', { duration: ok ? 1500 : 5000 });
   }
 
   close(): void {

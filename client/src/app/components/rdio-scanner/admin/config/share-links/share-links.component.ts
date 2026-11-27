@@ -13,6 +13,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RdioScannerAdminService, System } from '../../admin.service';
 import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
+import { copyText } from '../../../clipboard.util';
 
 interface LinkScope {
   id: number;
@@ -257,12 +258,18 @@ export class RdioScannerAdminShareLinksComponent implements OnInit {
     });
   }
 
-  copy(link: ShareLink): void {
+  async copy(link: ShareLink): Promise<void> {
     const url = this.linkUrl(link);
-    navigator.clipboard?.writeText(url).then(
-      () => this.snackBar.open('Link copied', 'Close', { duration: 2500 }),
-      () => this.snackBar.open(url, 'Close', { duration: 8000 }),
-    );
+    if (await copyText(url)) {
+      this.snackBar.open('Link copied', 'Close', { duration: 2500 });
+      return;
+    }
+    // Pressing Copy is a fresh click, which browsers allow even when the
+    // automatic copy after creating a link was refused.
+    this.snackBar.open(url, 'Copy', { duration: 20000 }).onAction().subscribe(async () => {
+      const ok = await copyText(url);
+      this.snackBar.open(ok ? 'Link copied' : 'Select the link and copy it manually', 'Close', { duration: ok ? 2500 : 6000 });
+    });
   }
 
   statusLabel(link: ShareLink): string {

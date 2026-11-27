@@ -29,6 +29,7 @@ import { TransferUserDialogComponent } from './transfer-user-dialog.component';
 import { DelayModerationDialogComponent, DelayModerationDialogData } from './delay-moderation-dialog.component';
 import { AdminRoleDialogComponent, AdminRoleDialogData } from './admin-role-dialog.component';
 import { RdioScannerAdminSystemsSelectComponent, SYSTEMS_SELECT_DIALOG_OPTIONS } from '../systems/select/select.component';
+import { copyText } from '../../../clipboard.util';
 
 export interface FCMToken {
     id: number;
@@ -1528,13 +1529,12 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
     copyMobileSetupLink(user: User): void {
         this.http.post<{ url: string }>(`/api/admin/users/${user.id}/mobile-setup-link`, {}, { headers: this.adminService.getAuthHeaders() }).subscribe({
             next: async (response) => {
-                try {
-                    await navigator.clipboard.writeText(response.url);
+                if (await copyText(response.url)) {
                     this.matSnackBar.open(`App setup link for ${user.email} copied. It works once, with their password; any earlier link stops working.`, 'Close', {
                         duration: 8000,
                         panelClass: ['success-snackbar']
                     });
-                } catch {
+                } else {
                     window.prompt('Copy this app setup link:', response.url);
                 }
             },
