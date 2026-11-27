@@ -69,6 +69,7 @@ type Controller struct {
 	EmailService                     *EmailService
 	ToneDetector                     *ToneDetector
 	TranscriptionQueue               *TranscriptionQueue
+	transcriptionQueueMu             sync.Mutex
 	HydraTranscriptionRetrievalQueue *HydraTranscriptionRetrievalQueue
 	KeywordMatcher                   *KeywordMatcher
 	AlertEngine                      *AlertEngine
@@ -3790,6 +3791,9 @@ func (controller *Controller) rebuildTranscriptParser() {
 
 // RestartTranscriptionQueue restarts the transcription queue with updated settings
 func (controller *Controller) RestartTranscriptionQueue() {
+	controller.transcriptionQueueMu.Lock()
+	defer controller.transcriptionQueueMu.Unlock()
+
 	// Stop existing queue if it exists
 	if controller.TranscriptionQueue != nil {
 		controller.Logs.LogEvent(LogLevelInfo, "stopping existing transcription queue for configuration update")

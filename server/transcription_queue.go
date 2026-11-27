@@ -143,6 +143,8 @@ func transcriptionDispatchLabel(workerId int) string {
 
 // QueueJob adds a job to the transcription queue
 func (queue *TranscriptionQueue) QueueJob(job TranscriptionJob) {
+	queue.mutex.Lock()
+	defer queue.mutex.Unlock()
 	if !queue.running {
 		return
 	}
@@ -1079,6 +1081,9 @@ func (queue *TranscriptionQueue) Stop() {
 	queue.mutex.Lock()
 	defer queue.mutex.Unlock()
 
+	if !queue.running {
+		return
+	}
 	queue.running = false
 	close(queue.jobs)
 }

@@ -210,7 +210,7 @@ func NewAdmin(controller *Controller) *Admin {
 		Attempts:         AdminLoginAttempts{},
 		AttemptsMax:      uint(3),
 		AttemptsMaxDelay: time.Duration(time.Duration.Minutes(10)),
-		Broadcast:        make(chan *[]byte),
+		Broadcast:        make(chan *[]byte, 8),
 		Conns:            make(map[*websocket.Conn]bool),
 		Controller:       controller,
 		Register:         make(chan *websocket.Conn),
@@ -1437,11 +1437,11 @@ func (admin *Admin) SyncToneSetsHandler(w http.ResponseWriter, r *http.Request) 
 	io.Copy(w, resp.Body)
 }
 
+// BroadcastConfig hands the config to the admin loop, the only goroutine
+// allowed to touch admin.Conns.
 func (admin *Admin) BroadcastConfig() {
 	if b, err := json.Marshal(admin.GetConfig()); err == nil {
-		for conn := range admin.Conns {
-			conn.WriteMessage(websocket.TextMessage, b)
-		}
+		admin.Broadcast <- &b
 	}
 }
 
@@ -4249,9 +4249,9 @@ func (admin *Admin) Start() error {
 				}
 
 				for conn := range admin.Conns {
-					err := conn.WriteMessage(websocket.TextMessage, *data)
-					if err != nil {
-						admin.Unregister <- conn
+					if err := conn.WriteMessage(websocket.TextMessage, *data); err != nil {
+						delete(admin.Conns, conn)
+						conn.Close()
 					}
 				}
 
