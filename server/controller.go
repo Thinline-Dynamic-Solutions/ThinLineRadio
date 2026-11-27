@@ -181,6 +181,7 @@ type Controller struct {
 	RelayAccountAccessToken     string
 	RelayAccountAccessExpiresAt time.Time
 	RelayAccountLastError       string
+	relayRefreshRejectedAt      time.Time
 
 	// Nominatim geocoding add-on subscription state, mirrored from the
 	// relay's /api/geocode/status poll (see relay_account.go pollNominatimStatusOnce).

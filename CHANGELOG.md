@@ -89,6 +89,9 @@
   - The Transcription panel only sends a provider key when it was changed, so a stale or blank form can no longer replace a working key and cause 401 errors from the provider.
   - Saves of the whole config from the import and password tools keep the stored transcription, OpenAI and Mapbox keys. Config imports ignore blank keys.
   - Key changes are logged with a short fingerprint, never the key itself, so an unexpected change can be traced.
+- **Server signed out of its relay account on its own**
+  - Saving the config from the admin page or a config import erased the stored relay sign-in, so the server dropped back to signed out. Config saves now leave the sign-in alone. Only **Sign out** ends it.
+  - The admin page no longer shows the server as signed out while the relay can't be reached. A failed refresh is retried every minute instead of every 10 minutes.
 - **Public API dialog labels overlapping the text** (from Bones's [#311](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/pull/311))
   - Field labels in the Public API dialog no longer collide with their placeholder text, and the dialog uses the ThinLine LCD look.
 

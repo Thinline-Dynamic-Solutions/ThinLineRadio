@@ -890,18 +890,14 @@ func (options *Options) FromMap(m map[string]any) *Options {
 		options.RelayServerAPIKey = ""
 	}
 
-	switch v := m["relayAccountUsername"].(type) {
-	case string:
+	// The relay sign-in is only ever cleared by RelayAccountLogout. Config saves
+	// omit these fields or send them masked, and must not sign the server out.
+	if v, ok := m["relayAccountUsername"].(string); ok && strings.TrimSpace(v) != "" {
 		options.RelayAccountUsername = v
-	default:
-		options.RelayAccountUsername = ""
 	}
 
-	switch v := m["relayAccountRefreshToken"].(type) {
-	case string:
+	if v, ok := m["relayAccountRefreshToken"].(string); ok && strings.TrimSpace(v) != "" {
 		options.RelayAccountRefreshToken = v
-	default:
-		options.RelayAccountRefreshToken = ""
 	}
 
 	switch v := m["nominatimGatewayURL"].(type) {

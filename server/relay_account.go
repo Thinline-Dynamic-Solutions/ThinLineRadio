@@ -68,6 +68,7 @@ func (controller *Controller) setRelayAccountSession(accessToken string, accessE
 	controller.RelayAccountAccessToken = accessToken
 	controller.RelayAccountAccessExpiresAt = accessExpiresAt
 	controller.RelayAccountLastError = ""
+	controller.relayRefreshRejectedAt = time.Time{}
 	controller.RelayAccountMu.Unlock()
 }
 
@@ -91,9 +92,13 @@ func (controller *Controller) RelayAccountAccessTokenSnapshot() string {
 	return controller.RelayAccountAccessToken
 }
 
-// RelayAccountSignedIn reports whether we currently hold a live access token.
+// RelayAccountSignedIn reports whether this server holds a relay session. A
+// relay outage or a failed refresh leaves it signed in; only
+// RelayAccountLogout signs it out.
 func (controller *Controller) RelayAccountSignedIn() bool {
-	return controller.RelayAccountAccessTokenSnapshot() != ""
+	controller.Options.mutex.Lock()
+	defer controller.Options.mutex.Unlock()
+	return controller.Options.RelayAccountRefreshToken != ""
 }
 
 // RelayAccountStatus summarizes sign-in + subscription state for the admin UI.
@@ -376,11 +381,16 @@ func (controller *Controller) refreshRelayAccessTokenOnce() {
 	if refreshToken == "" {
 		return
 	}
-	data, _, err := relayAccountRequest(controller, http.MethodPost, "/api/account/refresh", map[string]any{
+	data, status, err := relayAccountRequest(controller, http.MethodPost, "/api/account/refresh", map[string]any{
 		"refresh_token": refreshToken,
 	})
 	if err != nil {
 		controller.setRelayAccountError(err)
+		if status == http.StatusUnauthorized {
+			controller.RelayAccountMu.Lock()
+			controller.relayRefreshRejectedAt = time.Now()
+			controller.RelayAccountMu.Unlock()
+		}
 		log.Printf("relay account: refresh failed: %v", err)
 		return
 	}
@@ -434,21 +444,33 @@ func (controller *Controller) pollNominatimStatusOnce() {
 	}
 }
 
+func (controller *Controller) relayAccessTokenNeedsRefresh() bool {
+	controller.RelayAccountMu.RLock()
+	defer controller.RelayAccountMu.RUnlock()
+	if time.Since(controller.relayRefreshRejectedAt) < 10*time.Minute {
+		return false
+	}
+	return controller.RelayAccountAccessToken == "" || time.Until(controller.RelayAccountAccessExpiresAt) < 5*time.Minute
+}
+
 // startRelayAccountRefreshLoop keeps the access token fresh (15-minute TTL,
-// refreshed every 10) and periodically re-checks the Nominatim subscription
-// so a cancellation/renewal on Stripe is picked up without a TLR restart.
+// renewed when under 5 minutes remain, retried every minute after a failure)
+// and periodically re-checks the Nominatim subscription so a
+// cancellation/renewal on Stripe is picked up without a TLR restart.
 func (controller *Controller) startRelayAccountRefreshLoop() {
 	controller.loadPersistedNominatimGatewayURL()
 	controller.refreshRelayAccessTokenOnce()
 	controller.pollNominatimStatusOnce()
-	accessTicker := time.NewTicker(10 * time.Minute)
+	accessTicker := time.NewTicker(time.Minute)
 	statusTicker := time.NewTicker(2 * time.Minute)
 	defer accessTicker.Stop()
 	defer statusTicker.Stop()
 	for {
 		select {
 		case <-accessTicker.C:
-			controller.refreshRelayAccessTokenOnce()
+			if controller.relayAccessTokenNeedsRefresh() {
+				controller.refreshRelayAccessTokenOnce()
+			}
 		case <-statusTicker.C:
 			controller.pollNominatimStatusOnce()
 		}
