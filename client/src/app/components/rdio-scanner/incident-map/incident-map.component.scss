@@ -712,6 +712,19 @@ select.toolbar-control {
     contain: layout style;
 }
 
+:host ::ng-deep .tlr-incident-pin-wrap.tlr-incident-pin--new {
+    animation: tlr-pin-flash 1.1s ease-in-out infinite;
+}
+
+:host ::ng-deep .tlr-incident-pin-wrap.tlr-incident-pin--new .tlr-incident-pin-card {
+    box-shadow: 0 0 0 2px rgba(255, 220, 100, 0.55), 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes tlr-pin-flash {
+    0%, 100% { filter: brightness(1); opacity: 1; }
+    50% { filter: brightness(1.35); opacity: 0.88; }
+}
+
 :host ::ng-deep .tlr-incident-pin-card {
     box-sizing: border-box;
     width: 100%;

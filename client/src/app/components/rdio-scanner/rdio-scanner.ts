@@ -261,6 +261,14 @@ export interface RdioScannerConfig {
         transcriptionEnabled?: boolean;
         /** When false, the console Map tab is hidden. */
         incidentMappingEnabled?: boolean;
+        /** Seconds to flash newly plotted pins; 0 disables. */
+        newPinFlashSeconds?: number;
+        /** Play a short sound when a pin is newly plotted. */
+        newPinToneEnabled?: boolean;
+        /** Alert sound id for new-plot tone. */
+        newPinToneSound?: string;
+        /** Basemap provider hint: default | mapbox (tiles still come from /api/map/tiles). */
+        mapBasemapProvider?: string;
         /** From the user's usergroup(s): default-on for newly scoped channels. */
         autoEnableNewTalkgroups?: boolean;
         /** Per-group feature gates (union across memberships / free groups). */

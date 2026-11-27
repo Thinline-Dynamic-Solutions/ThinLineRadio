@@ -27,6 +27,16 @@ export interface MappingIntegrationConfig {
     suppressUnknownNaturePins?: boolean;
     /** Append incident-mapping location context to the STT prompt (Gemini/Whisper/etc.). */
     sendLocationContext?: boolean;
+    /** Seconds to flash a newly plotted pin; 0 disables. */
+    newPinFlashSeconds?: number;
+    /** Play a short sound when a pin is newly plotted. */
+    newPinToneEnabled?: boolean;
+    /** Alert sound id (quiet, ding, pop, …). */
+    newPinToneSound?: string;
+    /** Basemap provider: default (OSM/Esri) or mapbox. */
+    mapBasemapProvider?: 'default' | 'mapbox' | string;
+    /** Server-only Mapbox token (admin config; never sent to listeners). */
+    mapboxAccessToken?: string;
 }
 
 export interface MappingToneSetLocationRow {
