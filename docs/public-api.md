@@ -73,6 +73,8 @@ curl -fsS -H "Authorization: Bearer tlr_…" \
 
 Optional query filters (when listing): `systemId` (system ref), `dateFrom` / `dateTo` (Unix milliseconds), `search` (text match), `limit` (max 200), `offset`.
 
+Each transcript includes `callId`, `systemId` / `talkgroupId` (internal IDs), `systemRef` / `talkgroupRef` (the IDs your radio system uses), their labels, and `units`: the unit IDs heard on the call, sorted and without duplicates (empty when the recorder sent none).
+
 ## Alert webhooks (outbound)
 
 When **Alert webhooks** is granted, configure destinations in the console API dialog (`CRUD /api/public/v1/webhooks`). On alert push (same path as FCM), ThinLine posts a normalized payload asynchronously.
@@ -92,7 +94,8 @@ When **Alert webhooks** is granted, configure destinations in the console API di
     "talkgroupRef": 2,
     "talkgroupLabel": "...",
     "alertType": "tone",
-    "callId": 123
+    "callId": 123,
+    "units": [1201, 4410]
   },
   "transcription": "..."
 }

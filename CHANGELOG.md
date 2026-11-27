@@ -27,6 +27,9 @@
 - **Mark an SDR Health channel as not a control channel** (requested in [#322](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/322))
   - SDRTrunk remembers a DMR, P25 or NXDN channel as trunked once it has seen a control channel on it, even briefly, for example from a strong nearby system on the same frequency. A conventional channel can then raise control channel loss alerts indefinitely, and re-adding it in SDRTrunk does not clear it.
   - **SDR Health → Channels** now has **Not a control channel** next to each trunked channel. Marked channels raise no control channel loss alerts and do not count as lost; **Undo** turns the alerts back on.
+- **Unit IDs in the public API and alert webhooks** (requested in [#331](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/331))
+  - Transcripts from `/api/public/v1/transcripts` now include `units`, the unit IDs heard on each call. Single transcripts also include the system and talkgroup refs and labels, matching the list.
+  - Alert webhook metadata includes the same `units` list.
 
 ### Fixed
 

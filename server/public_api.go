@@ -16,10 +16,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // PublicApiCapabilities are per-user endpoint grants set by the server owner.
@@ -446,13 +449,14 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 
 	query := fmt.Sprintf(
 		`SELECT c."callId", c."systemId", c."talkgroupId", c."timestamp", c."transcript", c."transcriptionStatus", c."alertSummary",
-			sy."systemRef", sy."label", t."talkgroupRef", t."label", t."name"
+			sy."systemRef", sy."label", t."talkgroupRef", t."label", t."name", %s
 		 FROM "calls" AS c
 		 LEFT JOIN "systems" AS sy ON sy."systemId" = c."systemId"
 		 LEFT JOIN "talkgroups" AS t ON t."talkgroupId" = c."talkgroupId"
 		 WHERE %s
 		 ORDER BY c."timestamp" DESC
 		 LIMIT $%d OFFSET $%d`,
+		callUnitRefsColumn,
 		strings.Join(where, " AND "),
 		limitPlaceholder, offsetPlaceholder,
 	)
@@ -474,8 +478,9 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 			sysRefN                      sql.NullInt64
 			sysLabelN, tgLabelN, tgNameN sql.NullString
 			tgRefN                       sql.NullInt64
+			units                        pq.Int64Array
 		)
-		if err := rows.Scan(&id, &sysId, &tgId, &ts, &transcript, &status, &summary, &sysRefN, &sysLabelN, &tgRefN, &tgLabelN, &tgNameN); err != nil {
+		if err := rows.Scan(&id, &sysId, &tgId, &ts, &transcript, &status, &summary, &sysRefN, &sysLabelN, &tgRefN, &tgLabelN, &tgNameN, &units); err != nil {
 			continue
 		}
 		sysRef := uint(0)
@@ -499,6 +504,7 @@ func (svc *PublicApiService) handleTranscripts(w http.ResponseWriter, r *http.Re
 			"systemLabel":         sysLabelN.String,
 			"talkgroupLabel":      tgLabelN.String,
 			"talkgroupName":       tgNameN.String,
+			"units":               []int64(units),
 		})
 	}
 
@@ -566,11 +572,12 @@ func (svc *PublicApiService) handleSingleTranscript(w http.ResponseWriter, r *ht
 		sysId, tgId             uint64
 		ts                      int64
 		transcript, status, sum string
+		units                   pq.Int64Array
 	)
 	err := svc.controller.Database.Sql.QueryRow(
-		`SELECT "systemId", "talkgroupId", "timestamp", COALESCE("transcript",''), COALESCE("transcriptionStatus",''), COALESCE("alertSummary",'') FROM "calls" WHERE "callId" = $1`,
+		fmt.Sprintf(`SELECT c."systemId", c."talkgroupId", c."timestamp", COALESCE(c."transcript",''), COALESCE(c."transcriptionStatus",''), COALESCE(c."alertSummary",''), %s FROM "calls" AS c WHERE c."callId" = $1`, callUnitRefsColumn),
 		callId,
-	).Scan(&sysId, &tgId, &ts, &transcript, &status, &sum)
+	).Scan(&sysId, &tgId, &ts, &transcript, &status, &sum, &units)
 	if err != nil || transcript == "" {
 		svc.recordUsage(ctx.Key, r.URL.Path, http.StatusNotFound)
 		svc.writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -598,8 +605,7 @@ func (svc *PublicApiService) handleSingleTranscript(w http.ResponseWriter, r *ht
 		svc.writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
 	}
-	svc.recordUsage(ctx.Key, r.URL.Path, http.StatusOK)
-	svc.writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"callId":              callId,
 		"systemId":            sysId,
 		"talkgroupId":         tgId,
@@ -607,7 +613,38 @@ func (svc *PublicApiService) handleSingleTranscript(w http.ResponseWriter, r *ht
 		"transcript":          transcript,
 		"transcriptionStatus": status,
 		"alertSummary":        sum,
-	})
+		"units":               []int64(units),
+	}
+	if sys != nil {
+		out["systemRef"] = sys.SystemRef
+		out["systemLabel"] = sys.Label
+	}
+	if tg != nil {
+		out["talkgroupRef"] = tg.TalkgroupRef
+		out["talkgroupLabel"] = tg.Label
+		out["talkgroupName"] = tg.Name
+	}
+	svc.recordUsage(ctx.Key, r.URL.Path, http.StatusOK)
+	svc.writeJSON(w, http.StatusOK, out)
+}
+
+// callUnitRefsColumn selects the distinct unit IDs heard on call c, in order.
+const callUnitRefsColumn = `COALESCE((SELECT array_agg(DISTINCT cu."unitRef" ORDER BY cu."unitRef") FROM "callUnits" AS cu WHERE cu."callId" = c."callId"), '{}')`
+
+func callUnitRefs(call *Call) []uint {
+	seen := map[uint]bool{}
+	refs := []uint{}
+	if call == nil {
+		return refs
+	}
+	for _, u := range call.Units {
+		if u.UnitRef > 0 && !seen[u.UnitRef] {
+			seen[u.UnitRef] = true
+			refs = append(refs, u.UnitRef)
+		}
+	}
+	sort.Slice(refs, func(i, j int) bool { return refs[i] < refs[j] })
+	return refs
 }
 
 // resolveUserForKeyMgmt accepts only the user's signed-in PIN session. API keys

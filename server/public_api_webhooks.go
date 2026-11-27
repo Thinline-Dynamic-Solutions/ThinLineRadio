@@ -180,6 +180,7 @@ func (svc *PublicApiService) buildAlertPayload(alertType string, call *Call, sys
 		"talkgroupLabel": talkgroupLabel,
 		"alertType":      alertType,
 		"callId":         callId,
+		"units":          callUnitRefs(call),
 	}
 	if toneSetName != "" {
 		meta["toneSetName"] = toneSetName
