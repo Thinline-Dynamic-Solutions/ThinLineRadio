@@ -149,6 +149,13 @@ func (dirwatch *Dirwatch) FromMap(m map[string]any) *Dirwatch {
 func (dirwatch *Dirwatch) Ingest(p string) {
 	var err error
 
+	// Ingest runs on timer goroutines, where an unrecovered panic stops the whole server.
+	defer func() {
+		if r := recover(); r != nil {
+			dirwatch.controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("dirwatch.ingest: %v, %s", r, p))
+		}
+	}()
+
 	switch dirwatch.Kind {
 	case DirwatchTypeDSDPlus:
 		err = dirwatch.ingestDSDPlus(p)
@@ -196,7 +203,9 @@ func (dirwatch *Dirwatch) ingestDefault(p string) error {
 			return err
 		}
 
-	dirwatch.parseMask(call)
+		if err = dirwatch.parseMask(call); err != nil {
+			return err
+		}
 
 	if dirwatch.SystemId > 0 {
 		call.Meta.SystemId = dirwatch.SystemId
@@ -477,58 +486,119 @@ func (dirwatch *Dirwatch) MarshalJSON() ([]byte, error) {
 	return json.Marshal(m)
 }
 
-func (dirwatch *Dirwatch) parseMask(call *Call) {
-	var meta = [][]string{
-		{"date", "#DATE", `\d{4}[-_]{0,1}\d{2}[-_]{0,1}\d{2}`},
-		{"group", "#GROUP", `[a-zA-Z0-9\.\ -]+`},
-		{"hz", "#HZ", `\d+`},
-		{"khz", "#KHZ", `[\d\.]+`},
-		{"mhz", "#MHZ", `[\d\.]+`},
-		{"sitelbl", "#SITELBL", `[a-zA-Z0-9,\.\ -]+`},
-		{"site", "#SITE", `\d+`},
-		{"syslbl", "#SYSLBL", `[a-zA-Z0-9,\.\ -]+`},
-		{"sys", "#SYS", `\d+`},
-		{"tag", "#TAG", `[a-zA-Z0-9\.\ -]+`},
-		{"tgafs", "#TGAFS", `\d{2}-\d{3}`},
-		{"tghz", "#TGHZ", `\d+`},
-		{"tgkhz", "#TGKHZ", `[\d\.]+`},
-		{"tglbl", "#TGLBL", `[a-zA-Z0-9,\.\ -]+`},
-		{"tgmhz", "#TGMHZ", `[\d\.]+`},
-		{"tg", "#TG", `\d+`},
-		{"time", "#TIME", `\d{2}[-:]{0,1}\d{2}[-:]{0,1}\d{2}`},
-		{"unit", "#UNIT", `\d+`},
-		{"unitbl", "#UNITLBL", `[a-zA-Z0-9,\.\ -]+`},
-		{"ztime", "#ZTIME", `\d{2}[-:]{0,1}\d{2}[-:]{0,1}\d{2}`},
+// A token must come before any shorter token it contains (#UNITLBL before #UNIT).
+var dirwatchMaskTokens = [][]string{
+	{"date", "#DATE", `\d{4}[-_]{0,1}\d{2}[-_]{0,1}\d{2}`},
+	{"group", "#GROUP", `[a-zA-Z0-9\.\ -]+`},
+	{"hz", "#HZ", `\d+`},
+	{"khz", "#KHZ", `[\d\.]+`},
+	{"mhz", "#MHZ", `[\d\.]+`},
+	{"sitelbl", "#SITELBL", `[a-zA-Z0-9,\.\ -]+`},
+	{"site", "#SITE", `\d+`},
+	{"syslbl", "#SYSLBL", `[a-zA-Z0-9,\.\ -]+`},
+	{"sys", "#SYS", `\d+`},
+	{"tag", "#TAG", `[a-zA-Z0-9\.\ -]+`},
+	{"tgafs", "#TGAFS", `\d{2}-\d{3}`},
+	{"tghz", "#TGHZ", `\d+`},
+	{"tgkhz", "#TGKHZ", `[\d\.]+`},
+	{"tglbl", "#TGLBL", `[a-zA-Z0-9,\.\ -]+`},
+	{"tgmhz", "#TGMHZ", `[\d\.]+`},
+	{"tg", "#TG", `\d+`},
+	{"time", "#TIME", `\d{2}[-:]{0,1}\d{2}[-:]{0,1}\d{2}`},
+	{"unitlbl", "#UNITLBL", `[a-zA-Z0-9,\.\ -]+`},
+	{"unit", "#UNIT", `\d+`},
+	{"ztime", "#ZTIME", `\d{2}[-:]{0,1}\d{2}[-:]{0,1}\d{2}`},
+}
+
+// compileDirwatchMask returns the regexp a mask compiles to and the token names its
+// capture groups fill, in order.
+func compileDirwatchMask(mask string) (*regexp.Regexp, []string, error) {
+	type tokenPos struct {
+		name string
+		pos  int
 	}
 
-	var (
-		mask    string
-		metapos = [][]any{}
-		metaval = map[string]any{}
-	)
+	var positions []tokenPos
 
-	if len(dirwatch.Mask) > 0 {
-		mask = dirwatch.Mask
-	} else {
-		return
-	}
-
-	for _, v := range meta {
+	for _, v := range dirwatchMaskTokens {
 		if i := strings.Index(mask, v[1]); i != -1 {
-			metapos = append(metapos, []any{v[0], i})
+			positions = append(positions, tokenPos{v[0], i})
 			mask = strings.Replace(mask, v[1], fmt.Sprintf("(%v)", v[2]), 1)
 		}
 	}
 
-	sort.Slice(metapos, func(i int, j int) bool {
-		return metapos[i][1].(int) < metapos[j][1].(int)
+	sort.Slice(positions, func(i int, j int) bool {
+		return positions[i].pos < positions[j].pos
 	})
 
+	re, err := regexp.Compile(mask)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the mask is not a valid pattern: %v (write literal brackets or parentheses as \\[ \\] \\( \\))", err)
+	}
+
+	if re.NumSubexp() != len(positions) {
+		return nil, nil, fmt.Errorf("the mask has %d group(s) for %d token(s); remove extra parentheses, use (?:...), or escape literal brackets and parentheses with a backslash", re.NumSubexp(), len(positions))
+	}
+
+	names := make([]string, len(positions))
+	for i, p := range positions {
+		names[i] = p.name
+	}
+
+	return re, names, nil
+}
+
+func (dirwatch *Dirwatch) validateMask() error {
+	if len(dirwatch.Mask) == 0 {
+		return nil
+	}
+
+	if _, _, err := compileDirwatchMask(dirwatch.Mask); err != nil {
+		return fmt.Errorf("dirwatch %q, mask %q: %v", dirwatch.Directory, dirwatch.Mask, err)
+	}
+
+	return nil
+}
+
+// validateDirwatchList checks the masks of a dirwatch list as sent by the admin
+// before it replaces the running dirwatches.
+func validateDirwatchList(list []any) error {
+	for _, item := range list {
+		if m, ok := item.(map[string]any); ok {
+			if err := NewDirwatch().FromMap(m).validateMask(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func parseMaskFrequency(v string, multiplier float64) (uint, bool) {
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f < 0 {
+		return 0, false
+	}
+
+	return uint(math.Round(f * multiplier)), true
+}
+
+func (dirwatch *Dirwatch) parseMask(call *Call) error {
+	var metaval = map[string]any{}
+
+	if len(dirwatch.Mask) == 0 {
+		return nil
+	}
+
+	re, names, err := compileDirwatchMask(dirwatch.Mask)
+	if err != nil {
+		return fmt.Errorf("mask %q: %v", dirwatch.Mask, err)
+	}
+
 	base := strings.TrimSuffix(call.AudioFilename, path.Ext(call.AudioFilename))
-	for i, s := range regexp.MustCompile(mask).FindStringSubmatch(base) {
+	for i, s := range re.FindStringSubmatch(base) {
 		if i > 0 {
-			v := fmt.Sprintf("%v", metapos[i-1][0])
-			metaval[v] = s
+			metaval[names[i-1]] = s
 		}
 	}
 
@@ -564,43 +634,32 @@ func (dirwatch *Dirwatch) parseMask(call *Call) {
 		}
 	}
 
+	setFrequency := func(freq uint) {
+		if call.Frequency == 0 {
+			call.Frequency = freq
+			call.Frequencies = append(call.Frequencies, CallFrequency{
+				Frequency: freq,
+				Offset:    0,
+			})
+		}
+	}
+
 	switch v := metaval["hz"].(type) {
 	case string:
-		if hz, err := strconv.ParseFloat(v, 32); err == nil {
-			if call.Frequency == 0 {
-				freq := uint(hz)
-				call.Frequency = freq
-				call.Frequencies = append(call.Frequencies, CallFrequency{
-					Frequency: freq,
-					Offset:    0,
-				})
-			}
+		if freq, ok := parseMaskFrequency(v, 1); ok {
+			setFrequency(freq)
 		}
 	default:
 		switch v := metaval["khz"].(type) {
 		case string:
-			if khz, err := strconv.ParseFloat(v, 32); err == nil {
-				if call.Frequency == 0 {
-					freq := uint(khz * 1e3)
-					call.Frequency = freq
-					call.Frequencies = append(call.Frequencies, CallFrequency{
-						Frequency: freq,
-						Offset:    0,
-					})
-				}
+			if freq, ok := parseMaskFrequency(v, 1e3); ok {
+				setFrequency(freq)
 			}
 		default:
 			switch v := metaval["mhz"].(type) {
 			case string:
-				if mhz, err := strconv.ParseFloat(v, 32); err == nil {
-					if call.Frequency == 0 {
-						freq := uint(mhz * 1e6)
-						call.Frequency = freq
-						call.Frequencies = append(call.Frequencies, CallFrequency{
-							Frequency: freq,
-							Offset:    0,
-						})
-					}
+				if freq, ok := parseMaskFrequency(v, 1e6); ok {
+					setFrequency(freq)
 				}
 			}
 		}
@@ -671,44 +730,23 @@ func (dirwatch *Dirwatch) parseMask(call *Call) {
 		default:
 			switch v := metaval["tghz"].(type) {
 			case string:
-				if hz, err := strconv.ParseFloat(v, 32); err == nil {
-					if call.Frequency == 0 {
-						freq := uint(hz)
-						call.Frequency = freq
-						call.Frequencies = append(call.Frequencies, CallFrequency{
-							Frequency: freq,
-							Offset:    0,
-						})
-					}
-					call.Meta.TalkgroupRef = uint(hz / 1e3)
+				if freq, ok := parseMaskFrequency(v, 1); ok {
+					setFrequency(freq)
+					call.Meta.TalkgroupRef = freq / 1000
 				}
 			default:
 				switch v := metaval["tgkhz"].(type) {
 				case string:
-					if khz, err := strconv.ParseFloat(v, 32); err == nil {
-						if call.Frequency == 0 {
-							freq := uint(khz * 1e3)
-							call.Frequency = freq
-							call.Frequencies = append(call.Frequencies, CallFrequency{
-								Frequency: freq,
-								Offset:    0,
-							})
-						}
-						call.Meta.TalkgroupRef = uint(khz)
+					if freq, ok := parseMaskFrequency(v, 1e3); ok {
+						setFrequency(freq)
+						call.Meta.TalkgroupRef = freq / 1000
 					}
 				default:
 					switch v := metaval["tgmhz"].(type) {
 					case string:
-						if mhz, err := strconv.ParseFloat(v, 32); err == nil {
-							if call.Frequency == 0 {
-								freq := uint(mhz * 1e6)
-								call.Frequency = freq
-								call.Frequencies = append(call.Frequencies, CallFrequency{
-									Frequency: freq,
-									Offset:    0,
-								})
-							}
-							call.Meta.TalkgroupRef = uint(mhz * 1e3)
+						if freq, ok := parseMaskFrequency(v, 1e6); ok {
+							setFrequency(freq)
+							call.Meta.TalkgroupRef = freq / 1000
 						}
 					}
 				}
@@ -740,6 +778,8 @@ func (dirwatch *Dirwatch) parseMask(call *Call) {
 			call.Meta.UnitRefs = []uint{call.Units[0].UnitRef}
 		}
 	}
+
+	return nil
 }
 
 func (dirwatch *Dirwatch) Start(controller *Controller) error {
@@ -758,6 +798,10 @@ func (dirwatch *Dirwatch) Start(controller *Controller) error {
 
 	dirwatch.controller = controller
 	dirwatch.dirs = map[string]bool{}
+
+	if err := dirwatch.validateMask(); err != nil {
+		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("dirwatch.start: %v; recordings in this directory are left in place until the mask is corrected", err))
+	}
 
 	if dirwatch.watcher, err = fsnotify.NewWatcher(); err != nil {
 		return err
@@ -1070,26 +1114,28 @@ func (dirwatches *Dirwatches) Write(db *Database) error {
 	for _, dirwatch := range dirwatches.List {
 		var count uint
 
-		query = fmt.Sprintf(`SELECT COUNT(*) FROM "dirwatches" WHERE "dirwatchId" = %d`, dirwatch.Id)
-		if err = tx.QueryRow(query).Scan(&count); err != nil {
+		query = `SELECT COUNT(*) FROM "dirwatches" WHERE "dirwatchId" = $1`
+		if err = tx.QueryRow(query, dirwatch.Id).Scan(&count); err != nil {
 			break
 		}
 
 		if count == 0 {
 			if dirwatch.Id > 0 {
 				// Preserve the explicit ID when inserting
-				query = fmt.Sprintf(`INSERT INTO "dirwatches" ("dirwatchId", "delay", "deleteAfter", "directory", "disabled", "extension", "frequency", "mask", "order", "siteId", "systemId", "talkgroupId", "type") VALUES (%d, %d, %t, '%s', %t, '%s', %d, '%s', %d, %d, %d, %d, '%s')`, dirwatch.Id, dirwatch.Delay, dirwatch.DeleteAfter, dirwatch.Directory, dirwatch.Disabled, dirwatch.Extension, dirwatch.Frequency, dirwatch.Mask, dirwatch.Order, dirwatch.SiteId, dirwatch.SystemId, dirwatch.TalkgroupId, dirwatch.Kind)
+				query = `INSERT INTO "dirwatches" ("dirwatchId", "delay", "deleteAfter", "directory", "disabled", "extension", "frequency", "mask", "order", "siteId", "systemId", "talkgroupId", "type") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+				_, err = tx.Exec(query, dirwatch.Id, dirwatch.Delay, dirwatch.DeleteAfter, dirwatch.Directory, dirwatch.Disabled, dirwatch.Extension, dirwatch.Frequency, dirwatch.Mask, dirwatch.Order, dirwatch.SiteId, dirwatch.SystemId, dirwatch.TalkgroupId, dirwatch.Kind)
 			} else {
 				// Let database assign auto-increment ID
-				query = fmt.Sprintf(`INSERT INTO "dirwatches" ("delay", "deleteAfter", "directory", "disabled", "extension", "frequency", "mask", "order", "siteId", "systemId", "talkgroupId", "type") VALUES (%d, %t, '%s', %t, '%s', %d, '%s', %d, %d, %d, %d, '%s')`, dirwatch.Delay, dirwatch.DeleteAfter, dirwatch.Directory, dirwatch.Disabled, dirwatch.Extension, dirwatch.Frequency, dirwatch.Mask, dirwatch.Order, dirwatch.SiteId, dirwatch.SystemId, dirwatch.TalkgroupId, dirwatch.Kind)
+				query = `INSERT INTO "dirwatches" ("delay", "deleteAfter", "directory", "disabled", "extension", "frequency", "mask", "order", "siteId", "systemId", "talkgroupId", "type") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
+				_, err = tx.Exec(query, dirwatch.Delay, dirwatch.DeleteAfter, dirwatch.Directory, dirwatch.Disabled, dirwatch.Extension, dirwatch.Frequency, dirwatch.Mask, dirwatch.Order, dirwatch.SiteId, dirwatch.SystemId, dirwatch.TalkgroupId, dirwatch.Kind)
 			}
-			if _, err = tx.Exec(query); err != nil {
+			if err != nil {
 				break
 			}
 
 		} else {
-			query = fmt.Sprintf(`UPDATE "dirwatches" SET "delay" = %d, "deleteAfter" = %t, "directory" = '%s', "disabled" = %t, "extension" = '%s', "frequency" = %d, "mask" = '%s', "order" = %d, "siteId" = %d, "systemId" = %d, "talkgroupId" = %d, "type" = '%s' WHERE "dirwatchId" = %d`, dirwatch.Delay, dirwatch.DeleteAfter, dirwatch.Directory, dirwatch.Disabled, dirwatch.Extension, dirwatch.Frequency, dirwatch.Mask, dirwatch.Order, dirwatch.SiteId, dirwatch.SystemId, dirwatch.TalkgroupId, dirwatch.Kind, dirwatch.Id)
-			if _, err = tx.Exec(query); err != nil {
+			query = `UPDATE "dirwatches" SET "delay" = $1, "deleteAfter" = $2, "directory" = $3, "disabled" = $4, "extension" = $5, "frequency" = $6, "mask" = $7, "order" = $8, "siteId" = $9, "systemId" = $10, "talkgroupId" = $11, "type" = $12 WHERE "dirwatchId" = $13`
+			if _, err = tx.Exec(query, dirwatch.Delay, dirwatch.DeleteAfter, dirwatch.Directory, dirwatch.Disabled, dirwatch.Extension, dirwatch.Frequency, dirwatch.Mask, dirwatch.Order, dirwatch.SiteId, dirwatch.SystemId, dirwatch.TalkgroupId, dirwatch.Kind, dirwatch.Id); err != nil {
 				break
 			}
 		}

@@ -8,6 +8,20 @@
   - The duplicate check that runs on every upload now uses an index on system, talkgroup and arrival time. On large databases it was scanning the calls table and running out of time, which logged an upload timeout on every affected call.
   - On existing PostgreSQL servers the index is built in the background after the server starts, without blocking startup or call uploads. On a large database the build can take a few minutes; calls keep uploading while it runs.
   - If a build is interrupted by a restart, the unfinished index is removed and rebuilt on the next start.
+- **Directory watch frequencies a few hertz off**
+  - Frequencies read from file names with `#HZ`, `#KHZ`, `#MHZ`, `#TGHZ`, `#TGKHZ` or `#TGMHZ` are now exact. Before, a file named `151.4000` was filed at 151,399,993 Hz on talkgroup 151399 instead of 151,400,000 Hz on talkgroup 151400, so one channel could land on a different talkgroup than expected.
+  - Calls already in the database keep the values they were filed with.
+- **A bad directory watch mask could stop the server**
+  - A mask that isn't a valid pattern (for example `[#DATE]`) or that has extra parentheses no longer crashes the server when a recording arrives. The recording stays in the folder and the log says what is wrong with the mask.
+  - Saving a directory watch with such a mask is refused, with a message naming the directory and the problem. Write literal brackets or parentheses with a backslash, for example `\[#TG\]`. This applies to **Admin → Directory Watch**, config imports and Copilot.
+  - A mask like `[#TG]` that saved but never matched anything is also refused now, instead of silently filing nothing.
+  - A mask already saved that can't be read is reported in the log when the directory watch starts.
+- **`#UNITLBL` in directory watch masks did nothing**
+  - Unit labels read from file names with `#UNITLBL` are now applied to the call. Before, the token was never read.
+- **Directory watches with an apostrophe in the folder or mask couldn't be saved**
+  - A folder path or mask containing `'` now saves normally.
+- **Admin save errors showed only a generic message**
+  - When the server refuses a save and explains why, the admin page now shows that explanation instead of a generic HTTP error.
 
 ---
 

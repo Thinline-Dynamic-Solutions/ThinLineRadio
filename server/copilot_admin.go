@@ -749,6 +749,9 @@ func (admin *Admin) copilotSaveDirwatch(payloadJSON []byte) error {
 	if err != nil {
 		return err
 	}
+	if err = validateDirwatchList(list); err != nil {
+		return err
+	}
 	admin.mutex.Lock()
 	defer admin.mutex.Unlock()
 	admin.Controller.Dirwatches.Stop()

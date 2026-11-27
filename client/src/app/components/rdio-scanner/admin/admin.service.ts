@@ -3095,7 +3095,8 @@ export class RdioScannerAdminService implements OnDestroy {
             this.configWebSocketClose();
 
         } else {
-            this.matSnackBar.open(error.message, '', { duration: 5000 });
+            const detail = typeof error.error?.error === 'string' ? error.error.error : '';
+            this.matSnackBar.open(detail || error.message, '', { duration: detail ? 10000 : 5000 });
         }
     }
 

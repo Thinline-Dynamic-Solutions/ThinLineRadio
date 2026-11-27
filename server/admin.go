@@ -1690,6 +1690,15 @@ func (admin *Admin) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			if list, ok := m["dirwatch"].([]any); ok {
+				if err := validateDirwatchList(list); err != nil {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+					return
+				}
+			}
+
 			admin.mutex.Lock()
 			defer admin.mutex.Unlock()
 
@@ -2943,6 +2952,12 @@ func (admin *Admin) DirwatchConfigHandler(w http.ResponseWriter, r *http.Request
 		if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+			return
+		}
+
+		if err := validateDirwatchList(list); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return
 		}
 
