@@ -33,6 +33,7 @@ Thumbs.db
 
 # Node
 node_modules/
+.angular/
 create-ico-temp.js
 *.swp
 *.swo
