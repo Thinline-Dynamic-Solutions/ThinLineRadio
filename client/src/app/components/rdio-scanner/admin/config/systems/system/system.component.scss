@@ -1007,3 +1007,22 @@
         }
     }
 }
+
+.county-filter {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 8px 12px;
+    background-color: #1e1e1e;
+
+    input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        color: inherit;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 4px;
+        outline: none;
+    }
+}

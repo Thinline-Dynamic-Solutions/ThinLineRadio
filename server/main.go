@@ -383,6 +383,7 @@ func main() {
 	http.HandleFunc("/api/admin/mapping/data", wrapHandler(controller.Admin.requireLocalhost(http.HandlerFunc(controller.Api.MappingSystemDataHandler))).ServeHTTP)
 	http.HandleFunc("/api/admin/mapping/import-boundaries", wrapHandler(controller.Admin.requireLocalhost(http.HandlerFunc(controller.Api.MappingImportBoundariesHandler))).ServeHTTP)
 	http.HandleFunc("/api/admin/mapping/import-boundaries/status", wrapHandler(controller.Admin.requireLocalhost(http.HandlerFunc(controller.Api.MappingImportBoundariesStatusHandler))).ServeHTTP)
+	http.HandleFunc("/api/admin/mapping/counties", wrapHandler(controller.Admin.requireLocalhost(http.HandlerFunc(controller.Api.MappingCountiesHandler))).ServeHTTP)
 	http.HandleFunc("/api/admin/mapping/boundaries/stats", wrapHandler(controller.Admin.requireLocalhost(http.HandlerFunc(controller.Api.MappingBoundariesStatsHandler))).ServeHTTP)
 	http.HandleFunc("/api/admin/mapping/boundaries", wrapHandler(controller.Admin.requireLocalhost(http.HandlerFunc(controller.Api.MappingDeleteBoundariesHandler))).ServeHTTP)
 	http.HandleFunc("/api/admin/mapping/tone-set-locations", wrapHandler(controller.Admin.requireLocalhost(http.HandlerFunc(controller.Api.MappingToneSetLocationsHandler))).ServeHTTP)

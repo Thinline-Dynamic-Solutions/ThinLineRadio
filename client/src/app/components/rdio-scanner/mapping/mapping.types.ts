@@ -155,6 +155,14 @@ export interface IncidentMappingConfig {
     locationContext?: string;
     /** When Gemini is the STT provider, also extract a short scene address for geocoding. */
     extractAddressWithGemini?: boolean;
+    /** System only: county GEOIDs pins must fall inside. */
+    pinCounties?: string[];
+}
+
+export interface MappingCounty {
+    geoid: string;
+    name: string;
+    state: string;
 }
 
 export interface MappingStreetRow {

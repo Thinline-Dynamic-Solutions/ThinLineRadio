@@ -40,6 +40,9 @@ func applyIncidentMappingFromMap(cfg *IncidentMappingConfig, m map[string]any) {
 	if v, ok := anyToBool(m["extractAddressWithGemini"]); ok {
 		cfg.ExtractAddressWithGemini = v
 	}
+	if v, ok := m["pinCounties"]; ok {
+		cfg.PinCounties = normalizePinCounties(v)
+	}
 }
 
 func incidentMappingToMap(cfg IncidentMappingConfig) map[string]any {
@@ -54,6 +57,7 @@ func incidentMappingToMap(cfg IncidentMappingConfig) map[string]any {
 		"coverageAddress":            cfg.CoverageAddress,
 		"coverageNature":             cfg.CoverageNature,
 		"extractAddressWithGemini":   cfg.ExtractAddressWithGemini,
+		"pinCounties":                normalizePinCounties(cfg.PinCounties),
 	}
 }
 

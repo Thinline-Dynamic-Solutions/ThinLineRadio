@@ -39,6 +39,9 @@
 - **Admin console in mobile browsers** (requested in [#321](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/321))
   - Phones and tablets were sent away from `/admin`. The admin console now opens in mobile browsers, and system admins get an **Admin** button on the mobile account page that signs them straight in.
   - On phones the section menu is a single row you can swipe, with labels, wide tables scroll sideways instead of being cut off, transcript parser rows stack, and dialogs fit the screen.
+- **Keep incident pins inside chosen counties** (requested in [#324](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/324))
+  - **Systems → Incident Mapping** has a new **Keep pins inside these counties** list. When counties are chosen, a geocoded pin that lands outside all of them is dropped instead of plotted, so a street name shared with a neighboring county or state no longer puts a pin there. The mapping log records these as `outside_county`.
+  - It uses the county boundaries from **Options → Mapping → Import boundaries**. If none are imported for the chosen counties, pins are not filtered.
 
 ### Fixed
 

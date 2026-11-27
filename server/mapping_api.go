@@ -880,6 +880,21 @@ func (api *Api) MappingBoundariesStatsHandler(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(store.BoundaryStats())
 }
 
+// MappingCountiesHandler lists imported county boundaries for the pin limit picker.
+func (api *Api) MappingCountiesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "GET only")
+		return
+	}
+	counties, err := NewMappingStore(api.Controller.Database).ListCounties()
+	if err != nil {
+		api.exitWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(counties)
+}
+
 // MappingDeleteBoundariesHandler removes all stored boundary overlays.
 func (api *Api) MappingDeleteBoundariesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {

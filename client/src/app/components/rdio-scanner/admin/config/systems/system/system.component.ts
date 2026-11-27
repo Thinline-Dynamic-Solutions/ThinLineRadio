@@ -25,6 +25,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { Subscription } from 'rxjs';
 import { RdioScannerAdminService, Group, Tag, UnitAliasSuggestion, UnitAliasLearnStatus } from '../../../admin.service';
+import { MappingCounty } from '../../../../mapping/mapping.types';
 import { ToneSetLocationDialogComponent } from './tone-set-location-dialog.component';
 import { TalkgroupLocationDialogComponent } from './talkgroup-location-dialog.component';
 import { DeleteSystemDialogComponent } from '../delete-system-dialog.component';
@@ -159,6 +160,36 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
         private snackBar: MatSnackBar,
     ) { }
 
+    counties: MappingCounty[] = [];
+    countiesLoaded = false;
+    countyFilter = '';
+
+    /** Counties grouped by state, filtered by name; selected ones always stay listed. */
+    get countyGroups(): { state: string; counties: MappingCounty[] }[] {
+        const selected = new Set<string>(this.form.get('incidentMapping.pinCounties')?.value || []);
+        const q = this.countyFilter.trim().toLowerCase();
+        const groups = new Map<string, MappingCounty[]>();
+        for (const c of this.counties) {
+            if (q && !selected.has(c.geoid) && !`${c.name} ${c.state}`.toLowerCase().includes(q)) {
+                continue;
+            }
+            const list = groups.get(c.state) ?? [];
+            list.push(c);
+            groups.set(c.state, list);
+        }
+        return [...groups].map(([state, counties]) => ({ state, counties }));
+    }
+
+    private async loadCounties(): Promise<void> {
+        try {
+            this.counties = await this.adminService.getMappingCounties();
+        } catch {
+            this.counties = [];
+        }
+        this.countiesLoaded = true;
+        this.cdr.markForCheck();
+    }
+
     get systemId(): number | null {
         const id = this.form.get('id')?.value;
         return typeof id === 'number' && id > 0 ? id : null;
@@ -249,6 +280,7 @@ export class RdioScannerAdminSystemComponent implements OnInit, OnChanges, OnDes
 
     ngOnInit() {
         this.rebuildLabelMaps();
+        void this.loadCounties();
         // Initialize raw units instantly from systemData — no FormGroups needed for display
         this.rawUnits = this.systemData?.units ? [...this.systemData.units] : [];
         this.loadUnitAliasSuggestions();

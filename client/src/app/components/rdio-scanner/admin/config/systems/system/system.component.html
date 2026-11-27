@@ -387,6 +387,33 @@
             <input type="text" matInput formControlName="locationContext" placeholder="County, state hint" autocomplete="off">
           </mat-form-field>
         </div>
+        <div class="settings-field settings-field--wide">
+          <label class="field-label">Keep pins inside these counties</label>
+          @if (countiesLoaded && !counties.length) {
+            <span class="field-hint" style="display: block;">
+              Import county boundaries in <strong>Options → Mapping</strong> to choose counties here.
+            </span>
+          } @else {
+            <mat-form-field appearance="outline" class="compact-field">
+              <mat-select formControlName="pinCounties" multiple placeholder="Any county" (openedChange)="countyFilter = ''">
+                <div class="county-filter" (keydown)="$event.stopPropagation()">
+                  <input type="text" placeholder="Filter counties" autocomplete="off"
+                    [value]="countyFilter" (input)="countyFilter = $any($event.target).value">
+                </div>
+                @for (group of countyGroups; track group.state) {
+                  <mat-optgroup [label]="group.state">
+                    @for (county of group.counties; track county.geoid) {
+                      <mat-option [value]="county.geoid">{{ county.name }}, {{ group.state }}</mat-option>
+                    }
+                  </mat-optgroup>
+                }
+              </mat-select>
+            </mat-form-field>
+            <span class="field-hint">
+              Pins that land outside every selected county are dropped instead of plotted, so a street name shared with a neighboring county or state can't put a pin there. Uses the imported county boundaries, which are simplified and don't include detached islands. Leave empty to only use the radius above.
+            </span>
+          }
+        </div>
         <div class="settings-field settings-field--toggle settings-field--wide">
           <div class="toggle-row">
             <label class="field-label">Extract address with Gemini</label>

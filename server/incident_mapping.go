@@ -28,6 +28,9 @@ type IncidentMappingConfig struct {
 	// also return a short scene address / place name, which is then sent to
 	// the geocode gateway instead of the full transcript when present.
 	ExtractAddressWithGemini bool `json:"extractAddressWithGemini"`
+	// PinCounties are county GEOIDs (system setting). When set, pins outside
+	// all of them are dropped.
+	PinCounties []string `json:"pinCounties,omitempty"`
 }
 
 func parseIncidentMappingConfig(raw string) IncidentMappingConfig {
@@ -946,6 +949,15 @@ func (q *IncidentMappingQueue) ProcessCall(call *Call, transcript string) {
 				status = "failed"
 			}
 			reason = "outside_coverage"
+		} else if counties := call.System.IncidentMapping.PinCounties; len(counties) > 0 {
+			if inside, known := store.PinInsideCounties(lat, lon, counties); known && !inside {
+				out.Primary.Lat = ""
+				out.Primary.Lon = ""
+				if status == "geocoded" || status == "local" {
+					status = "failed"
+				}
+				reason = "outside_county"
+			}
 		}
 	}
 

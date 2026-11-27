@@ -30,6 +30,7 @@ import type {
     IncidentMappingConfig,
     MappingBoundaryImportStatus,
     MappingBoundaryStats,
+    MappingCounty,
     MappingDataResponse,
     MappingDiagnosticsResponse,
     MappingIntegrationConfig,
@@ -2808,6 +2809,7 @@ export class RdioScannerAdminService implements OnDestroy {
             geoRadiusMiles: this.ngFormBuilder.control(cfg?.geoRadiusMiles ?? 25),
             locationContext: this.ngFormBuilder.control(cfg?.locationContext ?? ''),
             extractAddressWithGemini: this.ngFormBuilder.control(cfg?.extractAddressWithGemini ?? false),
+            pinCounties: this.ngFormBuilder.control(cfg?.pinCounties ?? []),
         });
     }
 
@@ -2956,6 +2958,13 @@ export class RdioScannerAdminService implements OnDestroy {
     async getBoundaryStats(): Promise<MappingBoundaryStats> {
         return firstValueFrom(this.ngHttpClient.get<MappingBoundaryStats>(
             `${window.location.origin}/api/admin/mapping/boundaries/stats`,
+            { headers: this.getHeaders() },
+        ));
+    }
+
+    async getMappingCounties(): Promise<MappingCounty[]> {
+        return firstValueFrom(this.ngHttpClient.get<MappingCounty[]>(
+            `${window.location.origin}/api/admin/mapping/counties`,
             { headers: this.getHeaders() },
         ));
     }
