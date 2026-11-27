@@ -233,6 +233,24 @@ export class RdioScannerMobileWebHubComponent implements OnInit, OnDestroy {
             });
     }
 
+    openAdmin(): void {
+        const pin = this.getPin();
+        if (!pin) {
+            window.location.href = '/admin';
+            return;
+        }
+        this.http.post<{ token?: string }>('/api/admin/sso', { pin }).subscribe({
+            next: (data) => {
+                window.location.href = data?.token
+                    ? `/admin?sso_token=${encodeURIComponent(data.token)}`
+                    : '/admin';
+            },
+            error: () => {
+                window.location.href = '/admin';
+            },
+        });
+    }
+
     openCheckout(): void {
         if (!this.accountInfo?.email) {
             this.snackBar.open('Unable to get your email address', 'Close', { duration: 3000 });

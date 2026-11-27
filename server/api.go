@@ -4897,6 +4897,7 @@ func (api *Api) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		"lastName":                  user.LastName,
 		"zipCode":                   user.ZipCode,
 		"verified":                  user.Verified,
+		"systemAdmin":               user.SystemAdmin,
 		"createdAt":                 createdAtTimestamp,
 		"lastLogin":                 lastLoginTimestamp,
 		"userGroupId":               user.UserGroupId,

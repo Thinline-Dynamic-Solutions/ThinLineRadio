@@ -247,3 +247,10 @@
 .tp-add-row {
     padding: 8px 0 4px;
 }
+
+@media (max-width: 600px) {
+    .tp-fw-row,
+    .tp-sh-row {
+        grid-template-columns: 1fr;
+    }
+}

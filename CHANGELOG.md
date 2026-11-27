@@ -36,6 +36,9 @@
 - **Weather outside the US** (requested in [#317](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/317))
   - The dashboard weather card now takes a city as well as a US ZIP code, for example `London, UK` or `Sydney, Australia`. Places outside the US use Open-Meteo, a free worldwide forecast with no key needed, and show °C.
   - US ZIP codes still use the National Weather Service, and fall back to Open-Meteo if it's down. Severe weather alerts remain US-only.
+- **Admin console in mobile browsers** (requested in [#321](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/321))
+  - Phones and tablets were sent away from `/admin`. The admin console now opens in mobile browsers, and system admins get an **Admin** button on the mobile account page that signs them straight in.
+  - On phones the section menu is a single row you can swipe, with labels, wide tables scroll sideways instead of being cut off, transcript parser rows stack, and dialogs fit the screen.
 
 ### Fixed
 

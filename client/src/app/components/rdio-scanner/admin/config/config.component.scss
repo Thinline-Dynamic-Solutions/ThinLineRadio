@@ -491,6 +491,18 @@ rdio-scanner-admin-config {
             padding: 8px 4px;
             gap: 4px;
 
+            @media (max-width: 600px) {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+
+                .sidebar-item span {
+                    display: inline;
+                    white-space: nowrap;
+                }
+            }
+
             .sidebar-section-label {
                 display: none;
             }

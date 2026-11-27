@@ -1462,3 +1462,14 @@ input.masked-pw {
     text-security: disc;
     font-family: monospace;
 }
+
+// Some dialogs set a desktop min-width; keep them on screen on phones.
+@media (max-width: 600px) {
+  .cdk-overlay-pane.mat-mdc-dialog-panel {
+    max-width: 95vw !important;
+  }
+
+  .mat-mdc-dialog-content {
+    min-width: 0 !important;
+  }
+}

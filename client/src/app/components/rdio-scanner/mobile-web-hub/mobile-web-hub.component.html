@@ -211,6 +211,15 @@
       </section>
     }
 
+    @if (accountInfo?.systemAdmin) {
+      <div class="footer-actions">
+        <button mat-stroked-button type="button" (click)="openAdmin()">
+          <mat-icon>admin_panel_settings</mat-icon>
+          Admin
+        </button>
+      </div>
+    }
+
     @if (hasStoredPin()) {
       <div class="footer-actions">
         <button mat-stroked-button type="button" color="warn" (click)="onSignOutClick()">

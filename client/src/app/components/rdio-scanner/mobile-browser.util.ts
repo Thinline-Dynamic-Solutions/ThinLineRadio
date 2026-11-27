@@ -1,5 +1,6 @@
 /*
- * Mobile web policy: scanner UI is desktop/native-only; mobile browsers get account hub only.
+ * Mobile web policy: scanner UI is desktop/native-only; mobile browsers get the
+ * account hub instead. The admin console works in mobile browsers.
  */
 
 export function isMobileRestrictedBrowser(): boolean {
