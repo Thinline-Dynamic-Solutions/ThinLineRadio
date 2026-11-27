@@ -9,6 +9,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -25,13 +26,90 @@ const (
 
 var pendingTalkgroupRemovals = struct {
 	sync.Mutex
-	ids map[uint64]bool
-}{ids: map[uint64]bool{}}
+	ids        map[uint64]bool
+	finalizing map[uint64]bool
+}{ids: map[uint64]bool{}, finalizing: map[uint64]bool{}}
+
+// onDeferredTalkgroupRemovals receives talkgroups a systems write kept because
+// they still had calls, after the write commits.
+var onDeferredTalkgroupRemovals func(systemId uint64, ids []uint64)
 
 func talkgroupRemovalPending(id uint64) bool {
 	pendingTalkgroupRemovals.Lock()
 	defer pendingTalkgroupRemovals.Unlock()
 	return pendingTalkgroupRemovals.ids[id]
+}
+
+func talkgroupRemovalFinalizing(id uint64) bool {
+	pendingTalkgroupRemovals.Lock()
+	defer pendingTalkgroupRemovals.Unlock()
+	return pendingTalkgroupRemovals.finalizing[id]
+}
+
+// adoptRemovedTalkgroupRefs gives new talkgroups the id of a removed row with
+// the same talkgroupRef, so re-adding a talkgroup (for example from an import)
+// updates the stored row and keeps its calls. It returns the rows still removed.
+func adoptRemovedTalkgroupRefs(list []*Talkgroup, removed []uint64, refs map[uint64]uint, stored map[uint64]bool) []uint64 {
+	byRef := map[uint][]uint64{}
+	for _, id := range removed {
+		byRef[refs[id]] = append(byRef[refs[id]], id)
+	}
+	adopted := map[uint64]bool{}
+	for _, tg := range list {
+		if tg == nil || (tg.Id > 0 && stored[tg.Id]) {
+			continue
+		}
+		if ids := byRef[tg.TalkgroupRef]; len(ids) > 0 {
+			tg.Id = ids[0]
+			adopted[ids[0]] = true
+			byRef[tg.TalkgroupRef] = ids[1:]
+		}
+	}
+	out := make([]uint64, 0, len(removed))
+	for _, id := range removed {
+		if !adopted[id] {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// splitTalkgroupsWithCalls separates ids that can be deleted now from those that
+// still have calls and must be purged first. Talkgroups whose purge is finishing
+// are deleted even if a few calls arrived meanwhile.
+func splitTalkgroupsWithCalls(tx *sql.Tx, ids []uint64) (deleteNow []uint64, deferred []uint64, err error) {
+	if len(ids) == 0 {
+		return ids, nil, nil
+	}
+	arr := make(pq.Int64Array, len(ids))
+	for i, id := range ids {
+		arr[i] = int64(id)
+	}
+	rows, err := tx.Query(`SELECT t FROM unnest($1::bigint[]) AS t WHERE EXISTS (SELECT 1 FROM "calls" WHERE "talkgroupId" = t)`, arr)
+	if err != nil {
+		return nil, nil, err
+	}
+	hasCalls := map[uint64]bool{}
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		hasCalls[uint64(id)] = true
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	for _, id := range ids {
+		if hasCalls[id] && !talkgroupRemovalFinalizing(id) {
+			deferred = append(deferred, id)
+		} else {
+			deleteNow = append(deleteNow, id)
+		}
+	}
+	return deleteNow, deferred, nil
 }
 
 // removedTalkgroups lists talkgroups of existing that the incoming system no
@@ -156,6 +234,7 @@ func (controller *Controller) purgeTalkgroups(systemId uint64, ids []uint64) {
 		pendingTalkgroupRemovals.Lock()
 		for _, id := range ids {
 			delete(pendingTalkgroupRemovals.ids, id)
+			delete(pendingTalkgroupRemovals.finalizing, id)
 		}
 		pendingTalkgroupRemovals.Unlock()
 	}()
@@ -188,6 +267,12 @@ func (controller *Controller) purgeTalkgroups(systemId uint64, ids []uint64) {
 		}
 		time.Sleep(talkgroupPurgePause)
 	}
+
+	pendingTalkgroupRemovals.Lock()
+	for _, id := range ids {
+		pendingTalkgroupRemovals.finalizing[id] = true
+	}
+	pendingTalkgroupRemovals.Unlock()
 
 	if err := controller.removeTalkgroupsFromSystem(systemId, ids); err != nil {
 		controller.Logs.LogEvent(LogLevelError, fmt.Sprintf("talkgroup removal: %d calls deleted but removing the talkgroups failed: %v", total, err))

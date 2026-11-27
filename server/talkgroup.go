@@ -348,6 +348,18 @@ type TalkgroupMap map[string]any
 type Talkgroups struct {
 	List  []*Talkgroup
 	mutex sync.Mutex
+
+	// deferredRemovals are removed talkgroups the last WriteTx kept because
+	// they still had calls.
+	deferredRemovals []uint64
+}
+
+func (talkgroups *Talkgroups) takeDeferredRemovals() []uint64 {
+	talkgroups.mutex.Lock()
+	defer talkgroups.mutex.Unlock()
+	ids := talkgroups.deferredRemovals
+	talkgroups.deferredRemovals = nil
+	return ids
 }
 
 func NewTalkgroups() *Talkgroups {
@@ -500,16 +512,23 @@ func (talkgroups *Talkgroups) WriteTx(tx *sql.Tx, systemId uint64, dbType string
 
 	formatError := errorFormatter("talkgroups", "writetx")
 
-	query = fmt.Sprintf(`SELECT "talkgroupId" FROM "talkgroups" WHERE "systemId" = %d`, systemId)
+	talkgroups.deferredRemovals = nil
+	storedRefs := map[uint64]uint{}
+	stored := map[uint64]bool{}
+
+	query = fmt.Sprintf(`SELECT "talkgroupId", "talkgroupRef" FROM "talkgroups" WHERE "systemId" = %d`, systemId)
 	if rows, err = tx.Query(query); err != nil {
 		return formatError(err, query)
 	}
 
 	for rows.Next() {
 		var talkgroupId uint64
-		if err = rows.Scan(&talkgroupId); err != nil {
+		var talkgroupRef uint
+		if err = rows.Scan(&talkgroupId, &talkgroupRef); err != nil {
 			break
 		}
+		storedRefs[talkgroupId] = talkgroupRef
+		stored[talkgroupId] = true
 		remove := true
 		for _, talkgroup := range talkgroups.List {
 			if talkgroupId == 0 || talkgroup.Id == talkgroupId {
@@ -525,6 +544,13 @@ func (talkgroups *Talkgroups) WriteTx(tx *sql.Tx, systemId uint64, dbType string
 	rows.Close()
 
 	if err != nil {
+		return formatError(err, "")
+	}
+
+	// Deleting a talkgroup cascades to its calls, so talkgroups that still have
+	// calls are left for a background purge instead of being deleted here.
+	talkgroupIds = adoptRemovedTalkgroupRefs(talkgroups.List, talkgroupIds, storedRefs, stored)
+	if talkgroupIds, talkgroups.deferredRemovals, err = splitTalkgroupsWithCalls(tx, talkgroupIds); err != nil {
 		return formatError(err, "")
 	}
 

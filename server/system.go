@@ -1103,6 +1103,12 @@ func (systems *Systems) Write(db *Database) error {
 		return formatError(err, "")
 	}
 
+	for _, system := range systems.List {
+		if ids := system.Talkgroups.takeDeferredRemovals(); len(ids) > 0 && onDeferredTalkgroupRemovals != nil {
+			onDeferredTalkgroupRemovals(system.Id, ids)
+		}
+	}
+
 	// Idempotent cleanup: delete user alert preferences for any talkgroup or system
 	// that now has alertsEnabled = false. Runs on every config save but only touches
 	// rows that are actually disabled, so it's safe and self-healing.

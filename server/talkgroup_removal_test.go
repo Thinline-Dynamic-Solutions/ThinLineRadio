@@ -52,3 +52,27 @@ func TestTalkgroupRemovalSummaryTruncates(t *testing.T) {
 		t.Fatalf("summary = %q, want %q", got, want)
 	}
 }
+
+func TestAdoptRemovedTalkgroupRefs(t *testing.T) {
+	refs := map[uint64]uint{10: 100, 11: 200, 12: 300}
+	stored := map[uint64]bool{10: true, 11: true, 12: true}
+	readded := &Talkgroup{TalkgroupRef: 200}
+	imported := &Talkgroup{Id: 99, TalkgroupRef: 300}
+	kept := &Talkgroup{Id: 10, TalkgroupRef: 100}
+	fresh := &Talkgroup{TalkgroupRef: 400}
+
+	left := adoptRemovedTalkgroupRefs([]*Talkgroup{kept, readded, imported, fresh}, []uint64{11, 12}, refs, stored)
+	if len(left) != 0 {
+		t.Fatalf("still removed = %v, want none", left)
+	}
+	if readded.Id != 11 || imported.Id != 12 || kept.Id != 10 || fresh.Id != 0 {
+		t.Fatalf("ids = %d %d %d %d, want 11 12 10 0", readded.Id, imported.Id, kept.Id, fresh.Id)
+	}
+}
+
+func TestAdoptRemovedTalkgroupRefsLeavesUnmatched(t *testing.T) {
+	left := adoptRemovedTalkgroupRefs([]*Talkgroup{{TalkgroupRef: 5}}, []uint64{7}, map[uint64]uint{7: 6}, map[uint64]bool{7: true})
+	if len(left) != 1 || left[0] != 7 {
+		t.Fatalf("still removed = %v, want [7]", left)
+	}
+}

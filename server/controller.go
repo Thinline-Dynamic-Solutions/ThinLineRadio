@@ -316,6 +316,8 @@ func NewController(config *Config) *Controller {
 	// Initialize transcription queue (if transcription is enabled in options)
 	// This will be initialized after Options.Read() in Start()
 
+	onDeferredTalkgroupRemovals = controller.startTalkgroupPurge
+
 	return controller
 }
 
