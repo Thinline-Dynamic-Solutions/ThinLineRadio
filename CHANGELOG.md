@@ -30,6 +30,9 @@
 - **Unit IDs in the public API and alert webhooks** (requested in [#331](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/331))
   - Transcripts from `/api/public/v1/transcripts` now include `units`, the unit IDs heard on each call. Single transcripts also include the system and talkgroup refs and labels, matching the list.
   - Alert webhook metadata includes the same `units` list.
+- **Choose which system admins get server health push notifications** (requested in [#326](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/326))
+  - **Admin → Users** now has a **Server Health Alerts → Push notifications** checkbox for each system admin. Turning it off stops that admin's push notifications for feeders going quiet, lost control channels, SDRTrunk errors, transcription failures and low disk space. It's on by default, so nothing changes until you turn it off.
+  - The alerts still appear in **System Health** and still go to the server alert destinations. Manual system alerts still reach everyone.
 
 ### Fixed
 

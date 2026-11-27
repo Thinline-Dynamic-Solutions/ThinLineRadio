@@ -3274,6 +3274,14 @@ func migrateSdrtrunkHealth(db *Database) error {
 	return nil
 }
 
+// migrateSystemHealthAlertMute lets a system admin opt out of server health pushes.
+func migrateSystemHealthAlertMute(db *Database) error {
+	if _, err := db.Sql.Exec(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "muteSystemHealthAlerts" boolean NOT NULL DEFAULT false`); err != nil {
+		return fmt.Errorf("system health alert mute: %v", err)
+	}
+	return nil
+}
+
 // migrateSdrtrunkNotControlChannels stores the channels an admin marked as
 // conventional so their reported control channel loss is ignored.
 func migrateSdrtrunkNotControlChannels(db *Database) error {

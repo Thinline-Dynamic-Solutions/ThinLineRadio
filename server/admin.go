@@ -3561,6 +3561,7 @@ func (admin *Admin) GetConfig() map[string]any {
 			"pushApiKeyNoAudioAlerts": user.PushApiKeyNoAudioAlerts,
 			"systemNoAudioAlertSystems": user.SystemNoAudioAlertSystems,
 			"apiKeyNoAudioAlertApiKeys": user.ApiKeyNoAudioAlertApiKeys,
+			"muteSystemHealthAlerts":    user.MuteSystemHealthAlerts,
 			"forcePasswordReset":   user.ForcePasswordReset,
 			"suspended":            user.Suspended,
 			"stripeCustomerId":     user.StripeCustomerId,
@@ -6654,6 +6655,7 @@ func (admin *Admin) UsersListHandler(w http.ResponseWriter, r *http.Request) {
 			"pushApiKeyNoAudioAlerts": user.PushApiKeyNoAudioAlerts,
 			"systemNoAudioAlertSystems": user.SystemNoAudioAlertSystems,
 			"apiKeyNoAudioAlertApiKeys": user.ApiKeyNoAudioAlertApiKeys,
+			"muteSystemHealthAlerts":    user.MuteSystemHealthAlerts,
 			"forcePasswordReset":       user.ForcePasswordReset,
 			"suspended":                user.Suspended,
 			"stripeCustomerId":         user.StripeCustomerId,
@@ -7029,6 +7031,7 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		PushApiKeyNoAudioAlerts   *bool   `json:"pushApiKeyNoAudioAlerts"`
 		SystemNoAudioAlertSystems *string `json:"systemNoAudioAlertSystems"`
 		ApiKeyNoAudioAlertApiKeys *string `json:"apiKeyNoAudioAlertApiKeys"`
+		MuteSystemHealthAlerts    *bool   `json:"muteSystemHealthAlerts"`
 		ForcePasswordReset        *bool   `json:"forcePasswordReset"`
 		Suspended                 *bool   `json:"suspended"`
 		// Pointers: a caller that leaves these out (e.g. a bulk group move) must
@@ -7171,6 +7174,9 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if request.ApiKeyNoAudioAlertApiKeys != nil {
 		user.ApiKeyNoAudioAlertApiKeys = strings.TrimSpace(*request.ApiKeyNoAudioAlertApiKeys)
 	}
+	if request.MuteSystemHealthAlerts != nil {
+		user.MuteSystemHealthAlerts = *request.MuteSystemHealthAlerts
+	}
 	if request.ForcePasswordReset != nil {
 		user.ForcePasswordReset = *request.ForcePasswordReset
 	}
@@ -7224,6 +7230,14 @@ func (admin *Admin) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Failed to update public API settings for user %d: %v", userID, err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update public API settings"})
+			return
+		}
+	}
+	if request.MuteSystemHealthAlerts != nil {
+		if err := admin.Controller.Users.WriteSystemHealthAlertMute(user, admin.Controller.Database); err != nil {
+			log.Printf("Failed to update health alert setting for user %d: %v", userID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update health alert setting"})
 			return
 		}
 	}

@@ -437,6 +437,7 @@ func (db *Database) migrate() error {
 		{"migrateListenerVisits", migrateListenerVisits},
 		{"migrateSdrtrunkAlertMute", migrateSdrtrunkAlertMute},
 		{"migrateSdrtrunkNotControlChannels", migrateSdrtrunkNotControlChannels},
+		{"migrateSystemHealthAlertMute", migrateSystemHealthAlertMute},
 		{"migrateUserGroupAdFreeExcluded", migrateUserGroupAdFreeExcluded},
 		{"migrateTalkgroupAlertEveryCall", migrateTalkgroupAlertEveryCall},
 	}

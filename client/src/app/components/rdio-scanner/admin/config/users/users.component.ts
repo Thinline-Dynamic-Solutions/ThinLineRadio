@@ -81,6 +81,7 @@ export interface User {
     };
     pushSystemNoAudioAlerts?: boolean;
     pushApiKeyNoAudioAlerts?: boolean;
+    muteSystemHealthAlerts?: boolean;
     systemNoAudioAlertSystems?: string;
     apiKeyNoAudioAlertApiKeys?: string;
     forcePasswordReset?: boolean;
@@ -257,6 +258,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             apiKeyNoAudioAlertApiKeyIds: [[] as number[]],
             pushSystemNoAudioAlerts: [false],
             pushApiKeyNoAudioAlerts: [false],
+            receiveSystemHealthAlerts: [true],
             forcePasswordReset: [false],
             suspended: [false],
             stripeCustomerId: [''],
@@ -317,6 +319,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
                 apiKeyNoAudioAlertApiKeyIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.apiKeyNoAudioAlertApiKeys),
                 pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
                 pushApiKeyNoAudioAlerts: user.pushApiKeyNoAudioAlerts || false,
+                receiveSystemHealthAlerts: !user.muteSystemHealthAlerts,
                 forcePasswordReset: user.forcePasswordReset || false,
                 suspended: user.suspended || false,
                 stripeCustomerId: user.stripeCustomerId || '',
@@ -989,6 +992,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             apiKeyNoAudioAlertApiKeyIds: RdioScannerAdminUsersComponent.parseNoAudioAlertIds(user.apiKeyNoAudioAlertApiKeys),
             pushSystemNoAudioAlerts: user.pushSystemNoAudioAlerts || false,
             pushApiKeyNoAudioAlerts: user.pushApiKeyNoAudioAlerts || false,
+            receiveSystemHealthAlerts: !user.muteSystemHealthAlerts,
             forcePasswordReset: user.forcePasswordReset || false,
             suspended: user.suspended || false,
             stripeCustomerId: user.stripeCustomerId || '',
@@ -1118,6 +1122,7 @@ export class RdioScannerAdminUsersComponent implements OnInit, OnDestroy, OnChan
             apiKeyNoAudioAlertApiKeys: RdioScannerAdminUsersComponent.serializeNoAudioAlertIds(formValue.apiKeyNoAudioAlertApiKeyIds),
             pushSystemNoAudioAlerts: !!formValue.pushSystemNoAudioAlerts,
             pushApiKeyNoAudioAlerts: !!formValue.pushApiKeyNoAudioAlerts,
+            muteSystemHealthAlerts: !formValue.receiveSystemHealthAlerts,
             forcePasswordReset: !!formValue.forcePasswordReset,
             suspended: !!formValue.suspended,
             stripeCustomerId: (formValue.stripeCustomerId ?? '').toString().trim(),

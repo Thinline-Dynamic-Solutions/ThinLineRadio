@@ -128,7 +128,7 @@ func (controller *Controller) SendSystemAlertNotification(title, message, alertT
 		targetDescription = "API key no-audio alert recipients"
 		filterByAssignment = true
 	default:
-		query = `SELECT "userId" FROM "users" WHERE "systemAdmin" = true`
+		query = `SELECT "userId" FROM "users" WHERE "systemAdmin" = true AND "muteSystemHealthAlerts" = false`
 		targetDescription = "system admins"
 	}
 

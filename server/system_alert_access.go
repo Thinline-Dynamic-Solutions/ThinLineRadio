@@ -73,7 +73,7 @@ func (controller *Controller) userShouldReceiveSystemAlertPush(user *User, alert
 		return false
 	}
 	if user.SystemAdmin {
-		return true
+		return !user.MuteSystemHealthAlerts
 	}
 
 	var data SystemAlertData

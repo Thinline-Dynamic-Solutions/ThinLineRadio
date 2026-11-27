@@ -821,15 +821,21 @@
                   @if (!editForm.get('systemAdmin')?.value) {
                     <div class="hint-row">
                       <span class="muted">
-                        System admins receive all health alerts and can send manual system alerts.
+                        System admins receive health alerts unless they turn off server health push notifications, and can send manual system alerts.
                         Assign systems and API keys above to let non-admins view and optionally receive push for those no-audio alerts only.
                       </span>
                     </div>
                   }
                   @if (editForm.get('systemAdmin')?.value) {
+                    <div class="form-section">
+                      <h6 class="form-section-title">Server Health Alerts</h6>
+                      <div class="form-row checkboxes-row">
+                        <mat-checkbox formControlName="receiveSystemHealthAlerts">Push notifications</mat-checkbox>
+                      </div>
+                    </div>
                     <div class="hint-row">
                       <span class="muted">
-                        System admins receive all health alert notifications and can send manual system alerts.
+                        Push notifications for server health alerts, such as a feeder going quiet, a lost control channel, SDRTrunk errors, transcription failures and low disk space. Turning this off doesn't remove the alerts from System Health or from the server alert destinations. System admins can always send manual system alerts.
                       </span>
                     </div>
                   }

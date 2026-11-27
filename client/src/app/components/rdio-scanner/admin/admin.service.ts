@@ -192,6 +192,7 @@ export interface User {
     systemAdmin?: boolean;
     pushSystemNoAudioAlerts?: boolean;
     pushApiKeyNoAudioAlerts?: boolean;
+    muteSystemHealthAlerts?: boolean;
     systemNoAudioAlertSystems?: string;
     apiKeyNoAudioAlertApiKeys?: string;
     forcePasswordReset?: boolean;
