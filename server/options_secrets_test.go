@@ -51,6 +51,23 @@ func TestProtectOptionSecretsDropsBlanksOnImport(t *testing.T) {
 	}
 }
 
+func TestProtectOptionSecretsMapboxToken(t *testing.T) {
+	opts := &Options{}
+	opts.MappingIntegration.MapboxAccessToken = "pk.good"
+
+	stale := map[string]any{"mappingIntegration": map[string]any{"mapboxAccessToken": "", "newPinFlashSeconds": float64(3)}}
+	opts.protectOptionSecrets(stale, true)
+	if got := stale["mappingIntegration"].(map[string]any)["mapboxAccessToken"]; got != "pk.good" {
+		t.Fatalf("stale save replaced the Mapbox token with %q", got)
+	}
+
+	imported := map[string]any{"mappingIntegration": map[string]any{"mapboxAccessToken": " "}}
+	opts.protectOptionSecrets(imported, false)
+	if _, present := imported["mappingIntegration"].(map[string]any)["mapboxAccessToken"]; present {
+		t.Fatal("blank imported Mapbox token should have been dropped")
+	}
+}
+
 func TestDescribeSecretChangesHidesValues(t *testing.T) {
 	changes := describeSecretChanges(
 		map[string]string{"transcriptionConfig.whisperAPIKey": "old-secret"},

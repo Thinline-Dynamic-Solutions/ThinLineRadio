@@ -10,6 +10,7 @@
   - The map can open fullscreen; the Map tab shows a placeholder while it is open.
 - **Mapbox basemaps**
   - **Options → Mapping → Basemap provider** can switch the light, dark and satellite maps to Mapbox. The access token stays on the server: tiles are fetched and cached by the server's tile proxy, and the token is never sent to listeners.
+  - Cached map tiles are now kept separately for each provider. Tiles cached by earlier versions are deleted once at startup and fetched again as listeners view the map.
 - **Incident mapping diagnostics**
   - Each call now records why it was not plotted (for example no address found, no location in the transcript, unknown nature suppressed, or waiting for a tone match).
   - **Options → Mapping** lists recent calls that failed or were skipped, with counts by reason, filters, and re-geocoding of selected calls (up to 100 at a time, processed one after another).
@@ -45,7 +46,7 @@
   - When the server refuses a save and explains why, the admin page now shows that explanation instead of a generic HTTP error.
 - **Transcription API keys replaced by stale saves**
   - The Transcription panel only sends a provider key when it was changed, so a stale or blank form can no longer replace a working key and cause 401 errors from the provider.
-  - Saves of the whole config from the import and password tools keep the stored transcription and OpenAI keys. Config imports ignore blank keys.
+  - Saves of the whole config from the import and password tools keep the stored transcription, OpenAI and Mapbox keys. Config imports ignore blank keys.
   - Key changes are logged with a short fingerprint, never the key itself, so an unexpected change can be traced.
 - **Public API dialog labels overlapping the text**
   - Field labels in the Public API dialog no longer collide with their placeholder text, and the dialog uses the ThinLine LCD look.

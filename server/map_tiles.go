@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -46,6 +47,21 @@ type mapTileRequest struct {
 
 func mapTileCacheRoot() string {
 	return filepath.Join(".", ".tile-cache", "map")
+}
+
+// removeLegacyMapTileCache deletes basemap tiles cached before tiles were split
+// by provider (root/<style>/… instead of root/<provider>/<style>/…). Nothing
+// reads those folders any more.
+func removeLegacyMapTileCache() {
+	for _, style := range []string{"voyager", "dark", "satellite"} {
+		dir := filepath.Join(mapTileCacheRoot(), style)
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			log.Printf("map tiles: could not remove old cache %s: %v", dir, err)
+		}
+	}
 }
 
 func parseMapTilePath(path string) (mapTileRequest, bool) {

@@ -57,7 +57,7 @@ func (options *Options) transcriptionSecretValue(key string) string {
 }
 
 // transcriptionSecretSnapshot returns the current transcription credentials plus
-// the OpenAI integration key, keyed by a stable field name.
+// the OpenAI and Mapbox keys, keyed by a stable field name.
 func (options *Options) transcriptionSecretSnapshot() map[string]string {
 	options.mutex.Lock()
 	defer options.mutex.Unlock()
@@ -67,6 +67,7 @@ func (options *Options) transcriptionSecretSnapshot() map[string]string {
 		snap["transcriptionConfig."+k] = options.transcriptionSecretValue(k)
 	}
 	snap["openAIIntegration.apiKey"] = options.OpenAIIntegration.APIKey
+	snap["mappingIntegration.mapboxAccessToken"] = options.MappingIntegration.MapboxAccessToken
 	return snap
 }
 
@@ -114,6 +115,7 @@ func (options *Options) protectOptionSecrets(incoming map[string]any, preserveAl
 		currentTC[k] = options.transcriptionSecretValue(k)
 	}
 	currentOpenAI := options.OpenAIIntegration.APIKey
+	currentMapbox := options.MappingIntegration.MapboxAccessToken
 	options.mutex.Unlock()
 
 	if tc, ok := incoming["transcriptionConfig"].(map[string]any); ok {
@@ -132,13 +134,22 @@ func (options *Options) protectOptionSecrets(incoming map[string]any, preserveAl
 		}
 	}
 
-	if oai, ok := incoming["openAIIntegration"].(map[string]any); ok {
-		if v, present := oai["apiKey"]; present {
-			if preserveAll {
-				oai["apiKey"] = currentOpenAI
-			} else if s, isString := v.(string); isString && strings.TrimSpace(s) == "" {
-				delete(oai, "apiKey")
-			}
-		}
+	protectNestedSecret(incoming, "openAIIntegration", "apiKey", currentOpenAI, preserveAll)
+	protectNestedSecret(incoming, "mappingIntegration", "mapboxAccessToken", currentMapbox, preserveAll)
+}
+
+func protectNestedSecret(incoming map[string]any, parent, key, current string, preserveAll bool) {
+	nested, ok := incoming[parent].(map[string]any)
+	if !ok {
+		return
+	}
+	v, present := nested[key]
+	if !present {
+		return
+	}
+	if preserveAll {
+		nested[key] = current
+	} else if s, isString := v.(string); isString && strings.TrimSpace(s) == "" {
+		delete(nested, key)
 	}
 }
