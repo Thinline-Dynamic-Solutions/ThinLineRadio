@@ -2150,6 +2150,15 @@
         <ng-container *ngTemplateOutlet="panelSaveBar; context: { panelId: 'userRegistration' }"></ng-container>
       </header>
 <div class="panel-content">
+          <div class="row">
+            <p>
+              <span class="mat-body">Record listener visits</span><br>
+              <span class="mat-caption">When on, the server stores each scanner visit (IP address, browser, referring page, and the account for signed-in listeners) so it shows in the Users and Listeners views. Visits are deleted after 30 days. Off by default; tell your listeners if you turn it on.</span>
+            </p>
+            <div>
+              <mat-slide-toggle color="primary" formControlName="recordListenerVisits"></mat-slide-toggle>
+            </div>
+          </div>
 @if (isCentrallyManaged) {
           <rdio-scanner-admin-user-registration
             [form]="form">

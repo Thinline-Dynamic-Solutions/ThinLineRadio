@@ -118,6 +118,10 @@ type Options struct {
 	// implicitly locks the scanner. Defaults false; migration preserves prior
 	// HasPins / UserRegistrationEnabled behavior for existing installs.
 	RequireListenerSignIn       bool   `json:"requireListenerSignIn"`
+	// RecordListenerVisits stores each scanner visit (IP address, browser,
+	// referrer) and ties signed-in visits to the account. Off unless the
+	// operator turns it on.
+	RecordListenerVisits bool `json:"recordListenerVisits"`
 	PublicRegistrationEnabled   bool   `json:"publicRegistrationEnabled"`
 	PublicRegistrationMode      string `json:"publicRegistrationMode"` // "codes", "email", "both"
 	EmailVerificationRequired   bool   `json:"emailVerificationRequired"`
@@ -574,6 +578,9 @@ func (options *Options) FromMap(m map[string]any) *Options {
 	// locked scanner is never opened by accident.
 	if v, ok := m["requireListenerSignIn"].(bool); ok {
 		options.RequireListenerSignIn = v
+	}
+	if v, ok := m["recordListenerVisits"].(bool); ok {
+		options.RecordListenerVisits = v
 	}
 
 	switch v := m["publicRegistrationEnabled"].(type) {
@@ -1699,6 +1706,13 @@ func (options *Options) Read(db *Database) error {
 					options.RequireListenerSignIn = v
 				}
 			}
+		case "recordListenerVisits":
+			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
+				switch v := f.(type) {
+				case bool:
+					options.RecordListenerVisits = v
+				}
+			}
 		case "publicRegistrationEnabled":
 			if err = json.Unmarshal([]byte(value.String), &f); err == nil {
 				switch v := f.(type) {
@@ -2430,6 +2444,7 @@ func (options *Options) Write(db *Database) error {
 	set("radioReferencePassword", options.RadioReferencePassword)
 	set("userRegistrationEnabled", options.UserRegistrationEnabled)
 	set("requireListenerSignIn", options.RequireListenerSignIn)
+	set("recordListenerVisits", options.RecordListenerVisits)
 	set("publicRegistrationEnabled", options.PublicRegistrationEnabled)
 	set("publicRegistrationMode", options.PublicRegistrationMode)
 	set("emailVerificationRequired", options.EmailVerificationRequired)

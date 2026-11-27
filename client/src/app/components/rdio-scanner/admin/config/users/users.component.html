@@ -394,7 +394,7 @@
                   @if (presenceLoading && presenceForUserId === user.id) {
                     <p class="muted">Loading recent visits…</p>
                   } @else if (!presenceVisits.length) {
-                    <p class="muted">No visits recorded for this account yet.</p>
+                    <p class="muted">No visits recorded for this account yet. Visits are only stored when Record listener visits is on (Options, User Registration).</p>
                   } @else {
                     <div class="fcm-list">
                       @for (visit of presenceVisits; track visit.id) {

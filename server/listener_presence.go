@@ -117,12 +117,26 @@ func (controller *Controller) listenerDB() *sql.DB {
 	return controller.Database.Sql
 }
 
-func (controller *Controller) maybePruneListenerVisits(db *sql.DB) {
-	listenerPrune.mu.Lock()
-	listenerPrune.n++
-	run := listenerPrune.n%40 == 0
-	listenerPrune.mu.Unlock()
-	if !run {
+// listenerRecordDB is listenerDB for paths that create or claim visits; it is
+// nil unless the operator turned on Record listener visits.
+func (controller *Controller) listenerRecordDB() *sql.DB {
+	if controller == nil || controller.Options == nil {
+		return nil
+	}
+	controller.Options.mutex.Lock()
+	enabled := controller.Options.RecordListenerVisits
+	controller.Options.mutex.Unlock()
+	if !enabled {
+		return nil
+	}
+	return controller.listenerDB()
+}
+
+// pruneListenerVisits removes visits past the retention window. Recording also
+// prunes as it goes; this covers servers that stopped recording.
+func (controller *Controller) pruneListenerVisits() {
+	db := controller.listenerDB()
+	if db == nil {
 		return
 	}
 	cutoff := time.Now().Add(-listenerVisitRetention).Unix()
@@ -131,13 +145,24 @@ func (controller *Controller) maybePruneListenerVisits(db *sql.DB) {
 	}
 }
 
+func (controller *Controller) maybePruneListenerVisits(db *sql.DB) {
+	listenerPrune.mu.Lock()
+	listenerPrune.n++
+	run := listenerPrune.n%40 == 0
+	listenerPrune.mu.Unlock()
+	if !run {
+		return
+	}
+	controller.pruneListenerVisits()
+}
+
 // noteListenerPage records someone opening the scanner page. Repeat loads from
 // the same browser within the claim window bump the same anonymous row.
 func (controller *Controller) noteListenerPage(r *http.Request) {
 	if r == nil || strings.HasPrefix(r.URL.Path, "/admin") {
 		return
 	}
-	db := controller.listenerDB()
+	db := controller.listenerRecordDB()
 	if db == nil {
 		return
 	}
@@ -199,7 +224,7 @@ func (controller *Controller) noteListenerConnect(client *Client) {
 	if strings.HasPrefix(client.request.URL.Path, "/admin") {
 		return
 	}
-	db := controller.listenerDB()
+	db := controller.listenerRecordDB()
 	if db == nil {
 		return
 	}
@@ -252,7 +277,7 @@ func (controller *Controller) noteListenerSignedIn(client *Client, user *User, a
 	if controller == nil || user == nil || user.Id == 0 {
 		return
 	}
-	db := controller.listenerDB()
+	db := controller.listenerRecordDB()
 	if db == nil {
 		return
 	}
@@ -286,7 +311,7 @@ func (controller *Controller) noteListenerSignedIn(client *Client, user *User, a
 // recent anonymous visit from the same browser. A failed attempt against a
 // known account is stored on that account and does not claim the anonymous visit.
 func (controller *Controller) noteListenerLogin(r *http.Request, user *User, authNote, detail string) {
-	db := controller.listenerDB()
+	db := controller.listenerRecordDB()
 	if db == nil || r == nil {
 		return
 	}

@@ -669,6 +669,7 @@ func main() {
 	http.HandleFunc("/api/map/boundaries", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.MapBoundariesHandler))).ServeHTTP)
 	http.HandleFunc("/api/map/tiles/", tileWrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.MapTilesHandler))).ServeHTTP)
 	go removeLegacyMapTileCache()
+	go controller.pruneListenerVisits()
 	http.HandleFunc("/api/stats", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.StatsHandler))).ServeHTTP)
 	http.HandleFunc("/api/transcripts", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.TranscriptsHandler))).ServeHTTP)
 	http.HandleFunc("/api/delay-queue", wrapHandler(corsMiddleware(http.HandlerFunc(controller.Api.DelayQueueHandler))).ServeHTTP)

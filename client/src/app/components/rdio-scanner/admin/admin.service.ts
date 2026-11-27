@@ -500,6 +500,8 @@ export interface Options {
     userRegistrationEnabled?: boolean;
     /** When true, listeners must authenticate with a PIN before listening. */
     requireListenerSignIn?: boolean;
+    /** When true, scanner visits (IP, browser, referrer) are stored for the admin listener views. */
+    recordListenerVisits?: boolean;
     publicRegistrationEnabled?: boolean;
     publicRegistrationMode?: string;
     emailVerificationRequired?: boolean;
@@ -2588,6 +2590,7 @@ export class RdioScannerAdminService implements OnDestroy {
             radioReferenceAPIKey: this.ngFormBuilder.control(options?.radioReferenceAPIKey || ''),
             userRegistrationEnabled: this.ngFormBuilder.control(options?.userRegistrationEnabled),
             requireListenerSignIn: this.ngFormBuilder.control(options?.requireListenerSignIn ?? false),
+            recordListenerVisits: this.ngFormBuilder.control(options?.recordListenerVisits ?? false),
             publicRegistrationEnabled: this.ngFormBuilder.control(options?.publicRegistrationEnabled ?? true),
             publicRegistrationMode: this.ngFormBuilder.control(options?.publicRegistrationMode || 'both'),
             emailVerificationRequired: this.ngFormBuilder.control(options?.emailVerificationRequired ?? false),

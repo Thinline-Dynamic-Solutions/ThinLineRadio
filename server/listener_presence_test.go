@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+)
 
 func TestListenerClientKind(t *testing.T) {
 	cases := map[string]string{
@@ -24,5 +27,25 @@ func TestClipListenerText(t *testing.T) {
 	}
 	if got := clipListenerText("abcdef", 3); got != "abc" {
 		t.Fatalf("clip: %q", got)
+	}
+}
+
+func TestListenerRecordDBRequiresOptIn(t *testing.T) {
+	db, err := sql.Open("postgres", "host=127.0.0.1 dbname=unused sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	controller := &Controller{Options: &Options{}, Database: &Database{Sql: db}}
+
+	if controller.listenerRecordDB() != nil {
+		t.Fatal("visits recorded while Record listener visits is off")
+	}
+	if controller.listenerDB() == nil {
+		t.Fatal("existing visits should stay readable while recording is off")
+	}
+	controller.Options.RecordListenerVisits = true
+	if controller.listenerRecordDB() != db {
+		t.Fatal("visits not recorded after opting in")
 	}
 }

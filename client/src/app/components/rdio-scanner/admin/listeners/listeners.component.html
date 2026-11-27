@@ -120,7 +120,7 @@
     <h3>Anonymous visits</h3>
     <p class="listeners-hint">Page loads and connections that were never tied to an account. A later sign-in from the same browser moves that visit onto the user.</p>
     @if (!snapshot?.recentAnonymous?.length) {
-      <p class="listeners-hint">No anonymous visits recorded yet.</p>
+      <p class="listeners-hint">No anonymous visits recorded yet. Visits are only stored when Record listener visits is on (Options, User Registration).</p>
     } @else {
       <div class="listeners-list">
         @for (visit of snapshot!.recentAnonymous; track visit.id) {
