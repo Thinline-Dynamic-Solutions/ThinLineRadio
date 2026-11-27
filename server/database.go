@@ -436,6 +436,7 @@ func (db *Database) migrate() error {
 		{"migratePublicApiUsageAtIndex", migratePublicApiUsageAtIndex},
 		{"migrateListenerVisits", migrateListenerVisits},
 		{"migrateSdrtrunkAlertMute", migrateSdrtrunkAlertMute},
+		{"migrateSdrtrunkNotControlChannels", migrateSdrtrunkNotControlChannels},
 		{"migrateUserGroupAdFreeExcluded", migrateUserGroupAdFreeExcluded},
 		{"migrateTalkgroupAlertEveryCall", migrateTalkgroupAlertEveryCall},
 	}

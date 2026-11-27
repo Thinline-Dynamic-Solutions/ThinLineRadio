@@ -1327,7 +1327,7 @@ export class RdioScannerAdminService implements OnDestroy {
 
     // muteMinutes: > 0 mutes a site's alerts for that long, 0 turns them on, -1 turns them off.
     // offlineRepeatMinutes: how often a site-down alert repeats; 0 alerts once.
-    async saveSdrtrunkHealthAlerts(body: { apiKeyId?: number; muteMinutes?: number; offlineRepeatMinutes?: number }): Promise<{ sources: any[]; offlineRepeatMinutes: number }> {
+    async saveSdrtrunkHealthAlerts(body: { apiKeyId?: number; muteMinutes?: number; offlineRepeatMinutes?: number; notControlChannel?: { label: string; enabled: boolean } }): Promise<{ sources: any[]; offlineRepeatMinutes: number }> {
         try {
             return await firstValueFrom(this.ngHttpClient.post<{ sources: any[]; offlineRepeatMinutes: number }>(
                 this.getUrl(url.sdrtrunkHealth),

@@ -3274,6 +3274,15 @@ func migrateSdrtrunkHealth(db *Database) error {
 	return nil
 }
 
+// migrateSdrtrunkNotControlChannels stores the channels an admin marked as
+// conventional so their reported control channel loss is ignored.
+func migrateSdrtrunkNotControlChannels(db *Database) error {
+	if _, err := db.Sql.Exec(`ALTER TABLE "sdrtrunkHealth" ADD COLUMN IF NOT EXISTS "notControlChannels" text NOT NULL DEFAULT '[]'`); err != nil {
+		return fmt.Errorf("sdrtrunk not-control channels: %v", err)
+	}
+	return nil
+}
+
 // migrateSdrtrunkAlertMute adds the per-site alert mute. A site that closed SDRTrunk
 // now raises an offline alert too, so sites already quiet for over a day start
 // with alerts off instead of all alerting on upgrade.

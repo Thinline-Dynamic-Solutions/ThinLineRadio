@@ -58,3 +58,23 @@ func TestSdrtrunkDownFor(t *testing.T) {
 		}
 	}
 }
+
+func TestSdrtrunkNotControlChannelSurvivesReports(t *testing.T) {
+	controller := &Controller{Logs: NewLogs()}
+	controller.storeSdrtrunkHealth(&SdrtrunkHealthRecord{ApiKeyId: 7, Reporting: true})
+	if err := controller.setSdrtrunkNotControlChannel(7, "County / DMR 1", true); err != nil {
+		t.Fatal(err)
+	}
+	controller.storeSdrtrunkHealth(&SdrtrunkHealthRecord{ApiKeyId: 7, Reporting: true})
+	record, _ := controller.sdrtrunkHealthSnapshot(7)
+	if !record.notControlChannel("County / DMR 1") || record.notControlChannel("County / DMR 2") {
+		t.Fatalf("not-control channels = %v", record.NotControlChannels)
+	}
+	if err := controller.setSdrtrunkNotControlChannel(7, "County / DMR 1", false); err != nil {
+		t.Fatal(err)
+	}
+	record, _ = controller.sdrtrunkHealthSnapshot(7)
+	if len(record.NotControlChannels) != 0 {
+		t.Fatalf("not-control channels after undo = %v", record.NotControlChannels)
+	}
+}

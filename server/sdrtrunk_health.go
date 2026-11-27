@@ -54,6 +54,18 @@ type SdrtrunkHealthRecord struct {
 	Report        string
 
 	AlertsMutedUntil int64
+	// NotControlChannels lists channel labels the admin marked as conventional;
+	// SDRTrunk can mistake one for a control channel and report it lost.
+	NotControlChannels []string
+}
+
+func (record *SdrtrunkHealthRecord) notControlChannel(label string) bool {
+	for _, l := range record.NotControlChannels {
+		if l == label {
+			return true
+		}
+	}
+	return false
 }
 
 func (record *SdrtrunkHealthRecord) alertsMuted(now time.Time) bool {
@@ -169,6 +181,10 @@ func (controller *Controller) applySdrtrunkHealth(apikey *Apikey, report sdrtrun
 		record.SystemLabel = system.Label
 	}
 
+	if previous, ok := controller.sdrtrunkHealthSnapshot(apikey.Id); ok {
+		record.NotControlChannels = previous.NotControlChannels
+	}
+
 	var controlDetails []string
 	var tunerDetails []string
 	var overflowDetails []string
@@ -176,7 +192,7 @@ func (controller *Controller) applySdrtrunkHealth(apikey *Apikey, report sdrtrun
 	if report.Reporting && report.Role != "upload" {
 		for _, channel := range report.Channels {
 			label := sdrtrunkChannelLabel(channel.Name, channel.System, channel.Site)
-			if channel.Trunking && channel.ControlLost {
+			if channel.Trunking && channel.ControlLost && !record.notControlChannel(label) {
 				record.ControlLost = true
 				controlDetails = append(controlDetails, fmt.Sprintf("%s (%s) for %d seconds", label, channel.Decoder, channel.SecondsSinceControl))
 			}
@@ -245,6 +261,7 @@ func (controller *Controller) storeSdrtrunkHealth(record *SdrtrunkHealthRecord) 
 	previous := controller.sdrtrunkHealth[record.ApiKeyId]
 	if previous != nil {
 		record.AlertsMutedUntil = previous.AlertsMutedUntil
+		record.NotControlChannels = previous.NotControlChannels
 	}
 	controller.sdrtrunkHealth[record.ApiKeyId] = record
 	controller.sdrtrunkHealthMu.Unlock()
@@ -286,7 +303,7 @@ func (controller *Controller) loadSdrtrunkHealth() {
 	}
 
 	rows, err := controller.Database.Sql.Query(`
-		SELECT "apikeyId", "systemRef", "receivedAt", "reporting", "version", "uploaderState", "controlLost", "tunerError", "uploaderError", "report", "alertsMutedUntil"
+		SELECT "apikeyId", "systemRef", "receivedAt", "reporting", "version", "uploaderState", "controlLost", "tunerError", "uploaderError", "report", "alertsMutedUntil", "notControlChannels"
 		FROM "sdrtrunkHealth"
 	`)
 	if err != nil {
@@ -298,10 +315,12 @@ func (controller *Controller) loadSdrtrunkHealth() {
 	loaded := make(map[uint64]*SdrtrunkHealthRecord)
 	for rows.Next() {
 		record := &SdrtrunkHealthRecord{}
+		var notControl string
 		if err := rows.Scan(&record.ApiKeyId, &record.SystemRef, &record.ReceivedAt, &record.Reporting, &record.Version,
-			&record.UploaderState, &record.ControlLost, &record.TunerError, &record.UploaderError, &record.Report, &record.AlertsMutedUntil); err != nil {
+			&record.UploaderState, &record.ControlLost, &record.TunerError, &record.UploaderError, &record.Report, &record.AlertsMutedUntil, &notControl); err != nil {
 			continue
 		}
+		_ = json.Unmarshal([]byte(notControl), &record.NotControlChannels)
 		if apikey, ok := controller.Apikeys.GetById(record.ApiKeyId); ok {
 			record.ApiKeyIdent = apikey.Ident
 		}
@@ -341,6 +360,10 @@ func (admin *Admin) SdrtrunkHealthAdminHandler(w http.ResponseWriter, r *http.Re
 			ApiKeyId             uint64 `json:"apiKeyId"`
 			MuteMinutes          *int64 `json:"muteMinutes"`
 			OfflineRepeatMinutes *int64 `json:"offlineRepeatMinutes"`
+			NotControlChannel    *struct {
+				Label   string `json:"label"`
+				Enabled bool   `json:"enabled"`
+			} `json:"notControlChannel"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -377,6 +400,13 @@ func (admin *Admin) SdrtrunkHealthAdminHandler(w http.ResponseWriter, r *http.Re
 			}
 			if err := admin.Controller.setSdrtrunkAlertsMuted(request.ApiKeyId, until); err != nil {
 				writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+		}
+
+		if request.NotControlChannel != nil {
+			if err := admin.Controller.setSdrtrunkNotControlChannel(request.ApiKeyId, request.NotControlChannel.Label, request.NotControlChannel.Enabled); err != nil {
+				writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
 		}
@@ -425,6 +455,48 @@ func (controller *Controller) setSdrtrunkAlertsMuted(apiKeyId uint64, until int6
 		state = "muted until " + time.UnixMilli(until).Format(time.RFC3339)
 	}
 	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sdrtrunk alerts for API key %d: %s", apiKeyId, state))
+	return nil
+}
+
+// setSdrtrunkNotControlChannel marks or unmarks a channel as conventional so a
+// control channel loss SDRTrunk reports for it raises no alert.
+func (controller *Controller) setSdrtrunkNotControlChannel(apiKeyId uint64, label string, enabled bool) error {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return fmt.Errorf("channel is required")
+	}
+	controller.sdrtrunkHealthMu.Lock()
+	record, ok := controller.sdrtrunkHealth[apiKeyId]
+	var list []string
+	if ok && record != nil {
+		for _, l := range record.NotControlChannels {
+			if l != label {
+				list = append(list, l)
+			}
+		}
+		if enabled {
+			list = append(list, label)
+		}
+		record.NotControlChannels = list
+	}
+	controller.sdrtrunkHealthMu.Unlock()
+	if !ok || record == nil {
+		return fmt.Errorf("no SDR Health source for API key %d", apiKeyId)
+	}
+
+	if controller.Database != nil && controller.Database.Sql != nil {
+		b, _ := json.Marshal(list)
+		if list == nil {
+			b = []byte("[]")
+		}
+		if _, err := controller.Database.Sql.Exec(`UPDATE "sdrtrunkHealth" SET "notControlChannels" = $1 WHERE "apikeyId" = $2`, string(b), apiKeyId); err != nil {
+			return fmt.Errorf("failed to save channel setting: %v", err)
+		}
+	}
+	if enabled {
+		controller.dismissOpenSystemAlerts(sdrtrunkAlertControlLost, apiKeyId)
+	}
+	controller.Logs.LogEvent(LogLevelInfo, fmt.Sprintf("sdrtrunk channel '%s' for API key %d marked as not a control channel: %t", label, apiKeyId, enabled))
 	return nil
 }
 
@@ -508,7 +580,8 @@ func (controller *Controller) sdrtrunkHealthAdminSources() []map[string]any {
 			"connected":     role != "upload" && controller.sdrtrunkHub().connected(record.ApiKeyId),
 			"report":        report,
 
-			"alertsMutedUntil": record.AlertsMutedUntil,
+			"alertsMutedUntil":   record.AlertsMutedUntil,
+			"notControlChannels": record.NotControlChannels,
 		})
 	}
 

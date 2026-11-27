@@ -303,10 +303,20 @@
                         <td>
                           @if (!channel.trunking) {
                             <span class="sdr-muted">—</span>
-                          } @else if (channel.controlLost) {
-                            <span class="sdr-pill" data-tone="warn">Lost {{ channel.secondsSinceControl }}s</span>
+                          } @else if (channel.notControl) {
+                            <span class="sdr-pill" data-tone="idle">Not a control channel</span>
+                            <button type="button" class="sdr-btn" [disabled]="savingAlerts"
+                              (click)="setNotControlChannel(source, channel, false)"
+                              matTooltip="Alert again when SDRTrunk reports this channel lost its control channel">Undo</button>
                           } @else {
-                            <span class="sdr-pill" data-tone="good">Locked</span>
+                            @if (channel.controlLost) {
+                              <span class="sdr-pill" data-tone="warn">Lost {{ channel.secondsSinceControl }}s</span>
+                            } @else {
+                              <span class="sdr-pill" data-tone="good">Locked</span>
+                            }
+                            <button type="button" class="sdr-btn" [disabled]="savingAlerts"
+                              (click)="setNotControlChannel(source, channel, true)"
+                              matTooltip="For conventional channels SDRTrunk mistook for a control channel. Stops control channel loss alerts for this channel.">Not a control channel</button>
                           }
                         </td>
                         <td>

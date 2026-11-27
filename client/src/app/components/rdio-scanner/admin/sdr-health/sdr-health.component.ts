@@ -32,6 +32,14 @@ export interface SdrHealthSource {
     connected: boolean;
     report: any;
     alertsMutedUntil: number;
+    notControlChannels?: string[];
+}
+
+export interface SdrHealthAlertsBody {
+    apiKeyId?: number;
+    muteMinutes?: number;
+    offlineRepeatMinutes?: number;
+    notControlChannel?: { label: string; enabled: boolean };
 }
 
 export const SDR_MUTE_CHOICES = [
@@ -429,7 +437,7 @@ export class RdioScannerAdminSdrHealthComponent implements OnInit, OnDestroy {
         await this.saveAlerts({ offlineRepeatMinutes: minutes });
     }
 
-    private async saveAlerts(body: { apiKeyId?: number; muteMinutes?: number; offlineRepeatMinutes?: number }): Promise<void> {
+    private async saveAlerts(body: SdrHealthAlertsBody): Promise<void> {
         this.savingAlerts = true;
         this.commandError = null;
         this.cdr.markForCheck();
@@ -511,11 +519,29 @@ export class RdioScannerAdminSdrHealthComponent implements OnInit, OnDestroy {
 
     list(source: SdrHealthSource, key: string): any[] {
         const value = source.report?.[key];
-        return Array.isArray(value) ? value : [];
+        if (!Array.isArray(value)) {
+            return [];
+        }
+        if (key === 'channels') {
+            const marked = source.notControlChannels || [];
+            for (const channel of value) {
+                channel.reportedControlLost ??= !!channel.controlLost;
+                channel.notControl = marked.includes(this.channelLabel(channel));
+                channel.controlLost = channel.reportedControlLost && !channel.notControl;
+            }
+        }
+        return value;
     }
 
     channelLabel(channel: any): string {
-        return [channel?.system, channel?.site, channel?.name].filter((part) => !!part).join(' / ') || 'Channel';
+        return [channel?.system, channel?.site, channel?.name]
+            .map((part) => (part ?? '').toString().trim())
+            .filter((part) => !!part)
+            .join(' / ') || 'Channel';
+    }
+
+    async setNotControlChannel(source: SdrHealthSource, channel: any, enabled: boolean): Promise<void> {
+        await this.saveAlerts({ apiKeyId: source.apiKeyId, notControlChannel: { label: this.channelLabel(channel), enabled } });
     }
 
     openLive(source: SdrHealthSource): void {

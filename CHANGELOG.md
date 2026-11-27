@@ -24,6 +24,9 @@
   - Signing in from that browser within 20 minutes attaches the visit to the account. Failed sign-ins (wrong password, unknown email, suspended, unverified, bad PIN) are recorded without claiming someone else's visit. For an unknown email, the typed address is kept only if it looks like an email address.
   - **Admin → Users** shows each account's last address and visit history. **Admin → Listeners** adds recent visits that were never tied to an account.
   - Visits older than 30 days are removed, including at startup after recording is turned off.
+- **Mark an SDR Health channel as not a control channel** (requested in [#322](https://github.com/Thinline-Dynamic-Solutions/ThinLineRadio/issues/322))
+  - SDRTrunk remembers a DMR, P25 or NXDN channel as trunked once it has seen a control channel on it, even briefly, for example from a strong nearby system on the same frequency. A conventional channel can then raise control channel loss alerts indefinitely, and re-adding it in SDRTrunk does not clear it.
+  - **SDR Health → Channels** now has **Not a control channel** next to each trunked channel. Marked channels raise no control channel loss alerts and do not count as lost; **Undo** turns the alerts back on.
 
 ### Fixed
 
