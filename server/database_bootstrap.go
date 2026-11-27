@@ -7,11 +7,14 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 const postgresqlBootstrapMarker = "postgresql-bootstrap-complete"
@@ -104,13 +107,22 @@ func applyPostgresqlIndexes(db *Database, indexes []string) error {
 	return nil
 }
 
-func pgIndexExists(db *Database, indexName string) (bool, error) {
-	var exists bool
-	err := db.Sql.QueryRow(`SELECT EXISTS (
-		SELECT 1 FROM pg_indexes
-		WHERE schemaname = current_schema() AND indexname = $1
-	)`, indexName).Scan(&exists)
-	return exists, err
+// pgIndexState reports whether an index exists and whether it is valid. A
+// CREATE INDEX CONCURRENTLY interrupted by a restart leaves an invalid index
+// under the same name, which the planner never uses.
+func pgIndexState(db *Database, indexName string) (exists bool, valid bool, err error) {
+	err = db.Sql.QueryRow(`SELECT i.indisvalid
+		FROM pg_class c
+		JOIN pg_index i ON i.indexrelid = c.oid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = current_schema() AND c.relname = $1`, indexName).Scan(&valid)
+	if err == sql.ErrNoRows {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	return true, valid, nil
 }
 
 func ensureBootstrapIndexesBackground(db *Database) {
@@ -122,13 +134,20 @@ func ensureBootstrapIndexesBackground(db *Database) {
 			continue
 		}
 
-		exists, err := pgIndexExists(db, indexName)
+		exists, valid, err := pgIndexState(db, indexName)
 		if err != nil {
 			writeLogStdout(fmt.Sprintf("bootstrap index check %q: %v", indexName, err))
 			continue
 		}
-		if exists {
+		if exists && valid {
 			continue
+		}
+		if exists {
+			writeLogStdout(fmt.Sprintf("bootstrap index %q is invalid (interrupted build) — dropping and rebuilding...", indexName))
+			if _, err := db.Sql.Exec(fmt.Sprintf(`DROP INDEX CONCURRENTLY IF EXISTS %s`, pq.QuoteIdentifier(indexName))); err != nil {
+				writeLogStdout(fmt.Sprintf("bootstrap index %q drop failed: %v", indexName, err))
+				continue
+			}
 		}
 
 		concurrent := strings.Replace(query, "CREATE INDEX IF NOT EXISTS", "CREATE INDEX CONCURRENTLY", 1)

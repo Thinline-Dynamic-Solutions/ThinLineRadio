@@ -137,6 +137,8 @@ var PostgresqlSchema = []string{
 	`ALTER TABLE "calls" ADD COLUMN IF NOT EXISTS "requestId" text NOT NULL DEFAULT '';`,
 	`ALTER TABLE "calls" ADD COLUMN IF NOT EXISTS "signalJobId" text NOT NULL DEFAULT '';`,
 	`ALTER TABLE "calls" ADD COLUMN IF NOT EXISTS "receivedAt" timestamptz NOT NULL DEFAULT NOW();`,
+	// Arrival-time duplicate check (CheckDuplicateByReceivedAt) runs on every upload.
+	`CREATE INDEX IF NOT EXISTS "calls_sys_tg_receivedat_idx" ON "calls" ("systemId","talkgroupId","receivedAt");`,
 	`CREATE INDEX IF NOT EXISTS "calls_refs_idx" ON "calls" ("systemRef","talkgroupRef","timestamp");`,
 	`CREATE INDEX IF NOT EXISTS "calls_tones_idx" ON "calls" ("hasTones","timestamp");`,
 	`CREATE INDEX IF NOT EXISTS "calls_transcript_idx" ON "calls" ("transcriptionStatus","timestamp");`,

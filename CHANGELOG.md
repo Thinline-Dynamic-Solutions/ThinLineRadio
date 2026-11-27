@@ -1,5 +1,16 @@
 # Change log
 
+## Version 26.11.11 - Released November 25, 2026
+
+### Fixed
+
+- **Call uploads timing out on large databases**
+  - The duplicate check that runs on every upload now uses an index on system, talkgroup and arrival time. On large databases it was scanning the calls table and running out of time, which logged an upload timeout on every affected call.
+  - On existing PostgreSQL servers the index is built in the background after the server starts, without blocking startup or call uploads. On a large database the build can take a few minutes; calls keep uploading while it runs.
+  - If a build is interrupted by a restart, the unfinished index is removed and rebuilt on the next start.
+
+---
+
 ## Version 26.11.10 - Released November 21, 2026
 
 ### Added
