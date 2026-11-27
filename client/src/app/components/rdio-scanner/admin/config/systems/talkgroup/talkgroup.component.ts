@@ -91,6 +91,19 @@ export class RdioScannerAdminTalkgroupComponent implements OnInit, OnDestroy {
         return typeof id === 'number' && id > 0 ? id : undefined;
     }
 
+    get incidentMappingGeoIncomplete(): boolean {
+        const g = this.form?.get('incidentMapping');
+        if (!g || g.get('inherit')?.value || !g.get('enabled')?.value) {
+            return false;
+        }
+        const city = String(g.get('geoCity')?.value || '').trim();
+        const lat = Number(g.get('geoLat')?.value);
+        const lon = Number(g.get('geoLon')?.value);
+        const radius = Number(g.get('geoRadiusMiles')?.value);
+        return !city || !Number.isFinite(lat) || lat === 0 || !Number.isFinite(lon) || lon === 0 ||
+            !Number.isFinite(radius) || radius <= 0;
+    }
+
     // Playback of the dispatch audio behind a learned tone pattern, so the
     // operator can hear the tone-out and name the tone set correctly.
     playingToneCallId: number | null = null;

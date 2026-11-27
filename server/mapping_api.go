@@ -110,13 +110,13 @@ func (api *Api) MappingSystemDataHandler(w http.ResponseWriter, r *http.Request)
 		case "places":
 			json.NewEncoder(w).Encode(map[string]any{"items": store.ListKnownPlacesRows(systemId, talkgroupId)})
 		case "stats":
-			json.NewEncoder(w).Encode(store.MappingStats(systemId))
+			json.NewEncoder(w).Encode(store.MappingStatsScoped(systemId, talkgroupId))
 		default:
 			json.NewEncoder(w).Encode(map[string]any{
 				"streets":     store.ListKnownStreets(systemId, talkgroupId),
 				"corrections": store.ListCorrections(systemId, talkgroupId),
 				"places":      store.ListKnownPlacesRows(systemId, talkgroupId),
-				"stats":       store.MappingStats(systemId),
+				"stats":       store.MappingStatsScoped(systemId, talkgroupId),
 			})
 		}
 	case http.MethodPost:
@@ -395,22 +395,197 @@ func (api *Api) MappingRegeocodeCallHandler(w http.ResponseWriter, r *http.Reque
 		api.exitWithError(w, http.StatusMethodNotAllowed, "POST only")
 		return
 	}
-	callId, _ := strconv.ParseUint(strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/api/admin/mapping/regeocode/"), "/api/mapping/regeocode/"), 10, 64)
+	rawPath := r.URL.Path
+	path := strings.TrimPrefix(rawPath, "/api/admin/mapping/regeocode")
+	path = strings.TrimPrefix(path, "/api/mapping/regeocode")
+	path = strings.Trim(path, "/")
+	// Batch: POST /api/admin/mapping/regeocode with JSON body {callIds:[...]}.
+	if path == "" {
+		api.mappingBatchRegeocode(w, r)
+		return
+	}
+	callId, _ := strconv.ParseUint(path, 10, 64)
 	if callId == 0 {
 		api.exitWithError(w, http.StatusBadRequest, "callId required")
 		return
 	}
+	if err := api.queueIncidentRegeocode(callId); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
+}
+
+const mappingBatchRegeocodeMax = 100
+
+func (api *Api) mappingBatchRegeocode(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		CallIds []uint64 `json:"callIds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		api.exitWithError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if len(body.CallIds) == 0 {
+		api.exitWithError(w, http.StatusBadRequest, "callIds required")
+		return
+	}
+	if len(body.CallIds) > mappingBatchRegeocodeMax {
+		api.exitWithError(w, http.StatusBadRequest, fmt.Sprintf("at most %d callIds", mappingBatchRegeocodeMax))
+		return
+	}
+	queued := make([]uint64, 0, len(body.CallIds))
+	failed := make([]map[string]any, 0)
+	for _, id := range body.CallIds {
+		if err := api.queueIncidentRegeocode(id); err != nil {
+			failed = append(failed, map[string]any{"callId": id, "error": err.Error()})
+			continue
+		}
+		queued = append(queued, id)
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"status": "queued",
+		"queued": queued,
+		"failed": failed,
+	})
+}
+
+func (api *Api) queueIncidentRegeocode(callId uint64) error {
+	if api == nil || api.Controller == nil || api.Controller.IncidentMappingQueue == nil {
+		return fmt.Errorf("mapping unavailable")
+	}
+	if callId == 0 {
+		return fmt.Errorf("callId required")
+	}
 	call, err := api.Controller.Calls.GetCall(callId)
 	if err != nil || call == nil {
-		api.exitWithError(w, http.StatusNotFound, "call not found")
-		return
+		return fmt.Errorf("call not found")
 	}
 	if strings.TrimSpace(call.Transcript) == "" {
-		api.exitWithError(w, http.StatusBadRequest, "call has no transcript")
-		return
+		return fmt.Errorf("call has no transcript")
 	}
 	go api.Controller.IncidentMappingQueue.ProcessCall(call, call.Transcript)
-	json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
+	return nil
+}
+
+// MappingDiagnosticsHandler lists recent failed/skipped/unattempted mapped calls
+// plus reason counts for the admin Incident Mapping panel.
+func (api *Api) MappingDiagnosticsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.exitWithError(w, http.StatusMethodNotAllowed, "GET only")
+		return
+	}
+	nowMs := time.Now().UnixMilli()
+	since := nowMs - int64(24)*60*60*1000
+	until := nowMs
+	if v := r.URL.Query().Get("since"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			since = n
+		}
+	}
+	if v := r.URL.Query().Get("until"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			until = n
+		}
+	}
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	systemId, _ := strconv.ParseUint(r.URL.Query().Get("systemId"), 10, 64)
+	talkgroupId, _ := strconv.ParseUint(r.URL.Query().Get("talkgroupId"), 10, 64)
+	reasonFilter := strings.TrimSpace(r.URL.Query().Get("reason"))
+	statusFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
+
+	where := `WHERE c."timestamp" >= $1 AND c."timestamp" <= $2
+		AND COALESCE(c."transcript", '') <> ''
+		AND (
+			COALESCE(c."incidentGeocodeStatus", '') IN ('failed', 'skipped', '')
+			OR (c."incidentLat" = 0 AND c."incidentLon" = 0
+				AND COALESCE(c."incidentGeocodeStatus", '') NOT IN ('geocoded', 'local', 'cache', 'approximate', 'coverage', 'manual'))
+		)`
+	args := []any{since, until}
+	argN := 3
+	if systemId > 0 {
+		where += fmt.Sprintf(` AND c."systemId" = $%d`, argN)
+		args = append(args, systemId)
+		argN++
+	}
+	if talkgroupId > 0 {
+		where += fmt.Sprintf(` AND c."talkgroupId" = $%d`, argN)
+		args = append(args, talkgroupId)
+		argN++
+	}
+	if reasonFilter != "" {
+		where += fmt.Sprintf(` AND c."incidentMappingReason" = $%d`, argN)
+		args = append(args, reasonFilter)
+		argN++
+	}
+	switch statusFilter {
+	case "failed", "skipped":
+		where += fmt.Sprintf(` AND COALESCE(c."incidentGeocodeStatus", '') = $%d`, argN)
+		args = append(args, statusFilter)
+		argN++
+	case "empty", "unattempted":
+		where += ` AND COALESCE(c."incidentGeocodeStatus", '') = ''`
+	}
+
+	countRows, err := api.Controller.Database.Sql.Query(fmt.Sprintf(`
+		SELECT COALESCE(NULLIF(c."incidentMappingReason", ''), '(none)') AS reason, COUNT(*)::int
+		FROM "calls" c %s
+		GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 40`, where), args...)
+	reasonCounts := []map[string]any{}
+	if err == nil {
+		defer countRows.Close()
+		for countRows.Next() {
+			var reason string
+			var n int
+			if countRows.Scan(&reason, &n) == nil {
+				reasonCounts = append(reasonCounts, map[string]any{"reason": reason, "count": n})
+			}
+		}
+	}
+
+	listArgs := append([]any{}, args...)
+	listArgs = append(listArgs, limit)
+	query := fmt.Sprintf(`SELECT c."callId", c."systemId", c."talkgroupId", c."timestamp",
+		COALESCE(c."incidentGeocodeStatus", ''), COALESCE(c."incidentMappingReason", ''),
+		COALESCE(c."incidentGeocodeSource", ''), COALESCE(c."incidentAddress", ''),
+		COALESCE(c."incidentNature", ''), LEFT(COALESCE(c."transcript", ''), 240),
+		COALESCE(s."label", ''), COALESCE(t."label", '')
+		FROM "calls" c
+		LEFT JOIN "systems" s ON s."systemId" = c."systemId"
+		LEFT JOIN "talkgroups" t ON t."talkgroupId" = c."talkgroupId" AND t."systemId" = c."systemId"
+		%s ORDER BY c."timestamp" DESC LIMIT $%d`, where, argN)
+	rows, err := api.Controller.Database.Sql.Query(query, listArgs...)
+	if err != nil {
+		api.exitWithErrorContext(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+	items := []map[string]any{}
+	for rows.Next() {
+		var callId, sysId, tgId uint64
+		var ts int64
+		var status, reason, source, addr, nature, transcript, sysLabel, tgLabel string
+		if rows.Scan(&callId, &sysId, &tgId, &ts, &status, &reason, &source, &addr, &nature, &transcript, &sysLabel, &tgLabel) != nil {
+			continue
+		}
+		items = append(items, map[string]any{
+			"callId": callId, "systemId": sysId, "talkgroupId": tgId, "timestamp": ts,
+			"status": status, "reason": reason, "source": source,
+			"address": addr, "nature": nature, "transcript": transcript,
+			"systemLabel": sysLabel, "talkgroupLabel": tgLabel,
+		})
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"items":        items,
+		"reasonCounts": reasonCounts,
+		"since":        since,
+		"until":        until,
+	})
 }
 
 func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
@@ -560,7 +735,54 @@ func (api *Api) IncidentsHandler(w http.ResponseWriter, r *http.Request) {
 		api.exitWithErrorContext(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]any{"incidents": out})
+
+	api.Controller.Options.mutex.Lock()
+	mappingEnabled := api.Controller.Options.MappingIntegration.IncidentMappingEnabled
+	suppressUnknownMeta := api.Controller.Options.MappingIntegration.SuppressUnknownNaturePins
+	api.Controller.Options.mutex.Unlock()
+
+	metaUntil := until
+	if metaUntil <= 0 {
+		metaUntil = nowMs
+	}
+	metaWhere := `WHERE c."timestamp" >= $1 AND c."timestamp" <= $2 AND COALESCE(c."transcript", '') <> ''`
+	metaArgs := []any{since, metaUntil}
+	metaN := 3
+	if v := r.URL.Query().Get("systemId"); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 64); err == nil && n > 0 {
+			metaWhere += fmt.Sprintf(` AND c."systemId" = $%d`, metaN)
+			metaArgs = append(metaArgs, n)
+			metaN++
+		}
+	}
+	if v := r.URL.Query().Get("talkgroupId"); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 64); err == nil && n > 0 {
+			metaWhere += fmt.Sprintf(` AND c."talkgroupId" = $%d`, metaN)
+			metaArgs = append(metaArgs, n)
+			metaN++
+		}
+	}
+	var mappedCount, failedCount, skippedCount, unattemptedCount int
+	_ = api.Controller.Database.Sql.QueryRow(fmt.Sprintf(`SELECT
+		COUNT(*) FILTER (WHERE c."incidentLat" <> 0 AND c."incidentLon" <> 0
+			AND COALESCE(c."incidentGeocodeStatus", '') NOT IN ('', 'failed', 'skipped'))::int,
+		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'failed')::int,
+		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = 'skipped')::int,
+		COUNT(*) FILTER (WHERE COALESCE(c."incidentGeocodeStatus", '') = '')::int
+		FROM "calls" c %s`, metaWhere), metaArgs...).Scan(
+		&mappedCount, &failedCount, &skippedCount, &unattemptedCount)
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"incidents": out,
+		"meta": map[string]any{
+			"mappingEnabled":            mappingEnabled,
+			"suppressUnknownNaturePins": suppressUnknownMeta,
+			"mapped":                    mappedCount,
+			"failed":                    failedCount,
+			"skipped":                   skippedCount,
+			"unattempted":               unattemptedCount,
+		},
+	})
 }
 
 // MappingImportBoundariesHandler starts a background Census boundary download/import.
