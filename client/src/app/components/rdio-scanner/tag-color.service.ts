@@ -59,8 +59,10 @@ export class TagColorService implements OnDestroy {
         'yellow': '#ffea00',
     };
 
-    private tagColors$ = new BehaviorSubject<TagColorConfig>(this.defaultColors);
-    private tagColors: TagColorConfig = { ...this.defaultColors };
+    // Only colors the listener picked. Admin tag colors and the defaults are
+    // looked up separately in getTagColor so they are never saved as choices.
+    private tagColors$ = new BehaviorSubject<TagColorConfig>({});
+    private tagColors: TagColorConfig = {};
     private availableTags: Set<string> = new Set();
     private configSubscription?: Subscription;
     private ledColorToTagLabel: Map<string, string> = new Map(); // Map LED colors to tag labels
@@ -79,9 +81,9 @@ export class TagColorService implements OnDestroy {
                 
                 // Load user settings from config if available
                 if (event.config.userSettings && event.config.userSettings['tagColors']) {
-                    this.tagColors = { ...this.defaultColors, ...event.config.userSettings['tagColors'] };
-                    this.tagColors$.next({ ...this.tagColors });
+                    this.tagColors = this.userColors(event.config.userSettings['tagColors']);
                 }
+                this.tagColors$.next({ ...this.tagColors });
             }
         });
     }
@@ -100,7 +102,23 @@ export class TagColorService implements OnDestroy {
         return Array.from(this.availableTags).sort();
     }
 
+    /**
+     * Earlier versions saved "#fff" for every tag the listener never set and
+     * merged the defaults in; both would hide admin tag colors, so drop them.
+     */
+    private userColors(raw: TagColorConfig | null | undefined): TagColorConfig {
+        const out: TagColorConfig = {};
+        Object.entries(raw || {}).forEach(([key, value]) => {
+            if (!value || value === '#fff' || this.defaultColors[key] === value) {
+                return;
+            }
+            out[key.toLowerCase()] = value;
+        });
+        return out;
+    }
+
     private updateAvailableTags(config: RdioScannerConfig): void {
+        this.configTagsData = Array.isArray(config.tagsData) ? config.tagsData : [];
         const newTags = new Set<string>();
         const tagIdToLabel = new Map<string, string>(); // Map tag IDs to labels for better display
         
@@ -142,29 +160,6 @@ export class TagColorService implements OnDestroy {
         // Don't add default numeric tags or default color names - only show actual tag labels from config
         
         this.availableTags = newTags;
-        
-        // Ensure all tags have default colors if not already set
-        const updatedColors = { ...this.tagColors };
-        let hasChanges = false;
-        
-        this.availableTags.forEach(tag => {
-            const tagKey = tag.toLowerCase();
-            if (!updatedColors[tagKey]) {
-                // Check for default color first (might match LED color or known tag)
-                if (this.defaultColors[tagKey]) {
-                    updatedColors[tagKey] = this.defaultColors[tagKey];
-                } else {
-                    // New tag without a default - use white as fallback
-                    updatedColors[tagKey] = '#fff';
-                }
-                hasChanges = true;
-            }
-        });
-        
-        if (hasChanges) {
-            this.tagColors = updatedColors;
-            this.tagColors$.next({ ...this.tagColors });
-        }
     }
 
     getTagColors(): Observable<TagColorConfig> {
@@ -292,7 +287,7 @@ export class TagColorService implements OnDestroy {
     }
 
     resetAllColors(): void {
-        this.tagColors = { ...this.defaultColors };
+        this.tagColors = {};
         this.tagColors$.next({ ...this.tagColors });
         this.saveTagColors();
     }
@@ -310,7 +305,7 @@ export class TagColorService implements OnDestroy {
         const currentConfig = this.rdioScannerService.getConfig();
         if (currentConfig && currentConfig.userSettings && currentConfig.userSettings['tagColors']) {
             // Load from config userSettings (from server after login)
-            this.tagColors = { ...this.defaultColors, ...currentConfig.userSettings['tagColors'] };
+            this.tagColors = this.userColors(currentConfig.userSettings['tagColors']);
             if (currentConfig) {
                 this.updateAvailableTags(currentConfig);
             }
@@ -324,10 +319,9 @@ export class TagColorService implements OnDestroy {
                 if (settings && settings.tagColors) {
                     // Merge custom colors with defaults
                     // Start with defaults, then apply saved colors
-                    this.tagColors = { ...this.defaultColors, ...settings.tagColors };
+                    this.tagColors = this.userColors(settings.tagColors);
                 } else {
-                    // Use defaults if no settings
-                    this.tagColors = { ...this.defaultColors };
+                    this.tagColors = {};
                 }
                 
                 // Also get tags from current config if available
@@ -340,8 +334,7 @@ export class TagColorService implements OnDestroy {
             },
             error: (error) => {
                 console.error('Error loading tag colors from settings:', error);
-                // Use defaults on error
-                this.tagColors = { ...this.defaultColors };
+                this.tagColors = {};
                 
                 // Still try to get tags from current config
                 const currentConfig = this.rdioScannerService.getConfig();

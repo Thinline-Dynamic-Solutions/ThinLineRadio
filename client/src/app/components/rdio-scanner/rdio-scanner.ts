@@ -412,6 +412,7 @@ export interface RdioScannerSystem {
 export interface RdioScannerTagData {
     id: number;
     alert?: string;
+    color?: string;
     label?: string;
     led?: string;
 }

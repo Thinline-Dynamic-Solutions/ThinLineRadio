@@ -585,7 +585,8 @@ export class RdioScannerSettingsComponent implements OnDestroy, OnInit {
     }
 
     getSelectedColorValue(tag: string): string {
-        return this.tagColors[tag.toLowerCase()] || '#ffffff';
+        const color = this.tagColorService.getTagColor(tag);
+        return color === '#fff' ? '#ffffff' : color;
     }
 
     getSelectedColorName(tag: string): string {
